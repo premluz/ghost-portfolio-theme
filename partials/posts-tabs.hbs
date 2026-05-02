@@ -1,0 +1,65 @@
+<section class="posts-tabs-section" data-page-width="{{@custom.page_width}}" data-active-tab="featured">
+  <div class="posts-tabs-wrapper">
+    {{!-- Tabs header --}}
+    <div class="posts-tabs-header">
+      <div class="posts-tabs-buttons">
+        <button class="posts-tab posts-tab-featured active h2" data-tab="featured">Featured</button>
+        <button class="posts-tab posts-tab-experimental h2" data-tab="experimental">Experimental</button>
+      </div>
+      <p class="posts-tabs-description">Real products, real constraints, real impact.</p>
+    </div>
+
+    {{!-- Tabs content --}}
+    <div class="posts-tabs-container">
+      {{!-- Featured tab --}}
+      <div class="posts-tabs-content posts-tabs-content-featured active" data-tab="featured">
+        <div class="posts-grid" data-posts-layout="{{@custom.posts_layout}}">
+          <div class="container">
+            <div class="carousel-track">
+              {{#foreach posts}}
+                {{> post-card}}
+              {{/foreach}}
+            </div>
+          </div>
+          <div class="carousel-controls">
+            <button class="carousel-arrow carousel-prev" aria-label="Previous post" type="button">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"></path>
+              </svg>
+            </button>
+            <button class="carousel-arrow carousel-next" aria-label="Next post" type="button">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {{!-- Experimental tab --}}
+      <div class="posts-tabs-content posts-tabs-content-experimental" data-tab="experimental">
+        <div class="posts-grid" data-posts-layout="{{@custom.posts_layout}}">
+          <div class="container">
+            <div class="carousel-track">
+              {{#foreach posts}}
+                {{> post-card}}
+              {{/foreach}}
+            </div>
+          </div>
+          <div class="carousel-controls">
+            <button class="carousel-arrow carousel-prev" aria-label="Previous post" type="button">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"></path>
+              </svg>
+            </button>
+            <button class="carousel-arrow carousel-next" aria-label="Next post" type="button">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

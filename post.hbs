@@ -1,0 +1,45 @@
+{{!< default}}
+{{#post}}
+<article class="post" data-post-hero="{{@custom.post_hero_width}}">
+  <header class="post-header">
+    <div class="container">
+      <h1 class="post-title">{{title}}</h1>
+      {{#if custom_excerpt}}
+        <p class="post-excerpt">{{custom_excerpt}}</p>
+      {{/if}}
+      <div class="post-meta">
+        <time datetime="{{date format="YYYY-MM-DD"}}">{{date format="MMM DD, YYYY"}}</time>
+        {{#if reading_time}}
+          <span class="reading-time">{{reading_time}} min read</span>
+        {{/if}}
+      </div>
+    </div>
+
+    {{#if feature_image}}
+      <figure class="post-image">
+        <img src="{{feature_image}}" alt="{{title}}" loading="lazy">
+      </figure>
+    {{/if}}
+  </header>
+
+  {{!-- Table of Contents --}}
+  <aside class="post-toc" aria-label="Table of contents">
+    <button class="post-toc-toggle" aria-expanded="false" aria-controls="post-toc-list">
+      <span class="post-toc-icon">☰</span>
+    </button>
+    <nav class="post-toc-nav" id="post-toc-list" aria-hidden="true">
+      <ul class="post-toc-list"></ul>
+    </nav>
+  </aside>
+
+  <div class="gh-canvas">
+    <div class="gh-content">
+      {{content}}
+    </div>
+  </div>
+
+  <footer class="post-footer">
+    {{> post-navigation}}
+  </footer>
+</article>
+{{/post}}

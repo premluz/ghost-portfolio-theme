@@ -1,0 +1,536 @@
+/**
+ * THINKINGISFREE — DESIGN SYSTEM
+ * 3-tier token architecture: Primitives → Semantic → Component
+ * Theme variants: dark (default), light, dim
+ */
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* TIER 1: PRIMITIVES — Raw values, never used directly in components */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* PRIMITIVE COLORS — Using oklch() for perceptual uniformity */
+  /* ─────────────────────────────────────────────────────────────────────── */
+
+  /* Neutral palette — zinc-based for dark mode warmth */
+  --primitive-neutral-0: oklch(100% 0 0);      /* white */
+  --primitive-neutral-50: oklch(97% 0.004 264);
+  --primitive-neutral-100: oklch(95% 0.008 264);
+  --primitive-neutral-200: oklch(89% 0.015 264);
+  --primitive-neutral-300: oklch(82% 0.022 264);
+  --primitive-neutral-400: oklch(69% 0.03 264);
+  --primitive-neutral-500: oklch(55% 0.035 264);
+  --primitive-neutral-600: oklch(45% 0.035 264);
+  --primitive-neutral-700: oklch(35% 0.032 264);
+  --primitive-neutral-800: oklch(25% 0.028 264);
+  --primitive-neutral-900: oklch(15% 0.02 264);
+  --primitive-neutral-950: oklch(8% 0.008 264);
+
+  /* Brand accent — forest green */
+  --primitive-brand-50: oklch(96% 0.04 142);
+  --primitive-brand-100: oklch(93% 0.08 142);
+  --primitive-brand-200: oklch(85% 0.12 142);
+  --primitive-brand-300: oklch(75% 0.15 142);
+  --primitive-brand-400: oklch(60% 0.18 142);
+  --primitive-brand-500: oklch(50% 0.2 142);   /* primary */
+  --primitive-brand-600: oklch(45% 0.19 142);
+  --primitive-brand-700: oklch(38% 0.17 142);
+  --primitive-brand-800: oklch(30% 0.14 142);
+  --primitive-brand-900: oklch(20% 0.1 142);
+
+  /* Accent secondary — teal/cyan */
+  --primitive-accent-50: oklch(96% 0.04 180);
+  --primitive-accent-100: oklch(93% 0.08 180);
+  --primitive-accent-200: oklch(85% 0.12 180);
+  --primitive-accent-300: oklch(75% 0.15 180);
+  --primitive-accent-400: oklch(60% 0.18 180);
+  --primitive-accent-500: oklch(50% 0.2 180);
+  --primitive-accent-600: oklch(45% 0.19 180);
+  --primitive-accent-700: oklch(38% 0.17 180);
+
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* PRIMITIVE TYPOGRAPHY */
+  /* ─────────────────────────────────────────────────────────────────────── */
+
+  --primitive-font-sans: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --primitive-font-mono: 'Courier New', monospace;
+
+  --primitive-line-height-tight: 1.1;
+  --primitive-line-height-normal: 1.5;
+  --primitive-line-height-relaxed: 1.8;
+
+  --primitive-letter-spacing-tight: -0.01em;
+  --primitive-letter-spacing-normal: 0;
+  --primitive-letter-spacing-wide: 0.08em;
+
+  --primitive-font-weight-normal: 400;
+  --primitive-font-weight-medium: 500;
+  --primitive-font-weight-semibold: 600;
+  --primitive-font-weight-bold: 700;
+  --primitive-font-weight-extrabold: 800;
+
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* PRIMITIVE SPACING — 4px base unit */
+  /* ─────────────────────────────────────────────────────────────────────── */
+
+  --primitive-space-0: 0;
+  --primitive-space-1: 0.25rem;  /* 4px */
+  --primitive-space-2: 0.5rem;   /* 8px */
+  --primitive-space-3: 0.75rem;  /* 12px */
+  --primitive-space-4: 1rem;     /* 16px */
+  --primitive-space-6: 1.5rem;   /* 24px */
+  --primitive-space-8: 2rem;     /* 32px */
+  --primitive-space-12: 3rem;    /* 48px */
+  --primitive-space-16: 4rem;    /* 64px */
+  --primitive-space-20: 5rem;    /* 80px */
+  --primitive-space-24: 6rem;    /* 96px */
+
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* PRIMITIVE BORDER RADIUS */
+  /* ─────────────────────────────────────────────────────────────────────── */
+
+  --primitive-radius-0: 0;
+  --primitive-radius-1: 0.25rem;  /* 4px */
+  --primitive-radius-2: 0.5rem;   /* 8px */
+  --primitive-radius-3: 0.75rem;  /* 12px */
+  --primitive-radius-4: 2rem;     /* 16px */
+  --primitive-radius-full: 9999px;
+
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* PRIMITIVE MOTION — Material 3 curves */
+  /* ─────────────────────────────────────────────────────────────────────── */
+
+  --primitive-duration-instant: 50ms;
+  --primitive-duration-fast: 150ms;
+  --primitive-duration-standard: 300ms;
+  --primitive-duration-slow: 500ms;
+  --primitive-duration-enter: 350ms;
+  --primitive-duration-exit: 200ms;
+
+  --primitive-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --primitive-ease-decelerate: cubic-bezier(0, 0, 0, 1);
+  --primitive-ease-accelerate: cubic-bezier(0.3, 0, 1, 1);
+  --primitive-ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* PRIMITIVE ELEVATION — typographic shadows */
+  /* ─────────────────────────────────────────────────────────────────────── */
+
+  --primitive-shadow-0: none;
+  --primitive-shadow-1: 0 1px 3px hsl(0 0% 0% / 0.08);
+  --primitive-shadow-2: 0 4px 16px hsl(0 0% 0% / 0.12);
+  --primitive-shadow-3: 0 8px 32px hsl(0 0% 0% / 0.16);
+  --primitive-shadow-4: 0 16px 48px hsl(0 0% 0% / 0.24);
+
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* PRIMITIVE Z-INDEX SCALE */
+  /* ─────────────────────────────────────────────────────────────────────── */
+
+  --primitive-z-hide: -1;
+  --primitive-z-base: 0;
+  --primitive-z-dropdown: 100;
+  --primitive-z-sticky: 500;
+  --primitive-z-fixed: 1000;
+  --primitive-z-modal-backdrop: 1100;
+  --primitive-z-modal: 1200;
+  --primitive-z-popover: 1300;
+  --primitive-z-tooltip: 1400;
+
+  /* ═════════════════════════════════════════════════════════════════════════ */
+  /* TIER 2: SEMANTIC TOKENS — Role-based, theme-aware */
+  /* Theme: DARK (default) */
+  /* ═════════════════════════════════════════════════════════════════════════ */
+
+  /* BACKGROUND & SURFACES — Warm darks, not pure black */
+  --color-background: #181818;
+  --color-surface: #202020;
+  --color-surface-variant: #2a2a2a;
+  --color-outline: #404040;
+  --color-outline-variant: #505050;
+
+  /* CONTENT ON SURFACES */
+  --color-on-background: var(--primitive-neutral-0);
+  --color-on-surface: var(--primitive-neutral-0);
+  --color-on-surface-variant: var(--primitive-neutral-300);
+
+  /* ICON & INTERACTIVE COLORS */
+  --color-icon: var(--primitive-neutral-100);
+  --color-icon-muted: var(--primitive-neutral-500);
+  --color-link: var(--color-primary);
+  /* Hover: primary mixed 75% with white for a lighter tint */
+  --color-link-hover: color-mix(in oklch, var(--color-primary) 75%, white);
+
+  /* BRAND & ACCENT */
+  --color-primary: var(--primitive-brand-500);
+  --color-on-primary: var(--primitive-neutral-950);
+  --color-primary-container: var(--primitive-brand-900);
+  --color-on-primary-container: var(--primitive-brand-100);
+
+  --color-secondary: var(--primitive-accent-500);
+  --color-on-secondary: var(--primitive-neutral-950);
+  --color-secondary-container: var(--primitive-accent-900);
+  --color-on-secondary-container: var(--primitive-accent-100);
+
+  /* INVERSE (for highlights on dark surfaces in light mode) */
+  --color-inverse-surface: var(--primitive-neutral-100);
+  --color-inverse-on-surface: var(--primitive-neutral-950);
+
+  /* SURFACE SYSTEM — 5 elevation levels */
+  --surface-0: var(--color-background);
+  --surface-1: #202020;
+  --surface-2: #242424;
+  --surface-3: #2a2a2a;
+  --surface-4: #303030;
+
+  /* color-surface-N aliases — used by components */
+  --color-surface-0: var(--surface-0);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-surface-4: var(--surface-4);
+
+  --surface-2-translucent: hsl(0 0% 22% / 0.6);
+  --surface-3-translucent: hsl(0 0% 26% / 0.65);
+  --surface-4-translucent: hsl(0 0% 30% / 0.7);
+
+  /* STATE LAYER */
+  --state-layer-color: var(--color-on-surface);
+  --state-hover-opacity: 0.08;
+  --state-pressed-opacity: 0.12;
+  --state-focused-opacity: 0.12;
+  --state-dragged-opacity: 0.16;
+  --state-disabled-opacity: 0.38;
+
+  /* TYPOGRAPHY */
+  --font-family-body: var(--primitive-font-sans);
+  --font-family-mono: var(--primitive-font-mono);
+
+  --text-size-h1: clamp(2.5rem, 7.5vw, 7.5rem);
+  --text-size-h2: clamp(2rem, 5vw, 6.25rem);
+  --text-size-h3: clamp(1.75rem, 3.5vw, 3.75rem);
+  --text-size-h4: clamp(1.25rem, 2.5vw, 1.875rem);
+  --text-size-h5: clamp(1rem, 1.8vw, 1.25rem);
+  --text-size-body: clamp(0.875rem, 1.8vw, 1.25rem);
+  --text-size-small: clamp(0.75rem, 1vw, 1rem);
+  --text-size-caption: clamp(0.625rem, 1vw, 0.875rem);
+
+  --text-line-height-h1: var(--primitive-line-height-tight);
+  --text-line-height-h2: var(--primitive-line-height-tight);
+  --text-line-height-body: var(--primitive-line-height-relaxed);
+
+  --text-letter-spacing-h1: var(--primitive-letter-spacing-tight);
+  --text-letter-spacing-body: var(--primitive-letter-spacing-normal);
+
+  --text-weight-h1: var(--primitive-font-weight-extrabold);
+  --text-weight-h2: var(--primitive-font-weight-bold);
+  --text-weight-body: var(--primitive-font-weight-normal);
+  --text-weight-label: var(--primitive-font-weight-semibold);
+
+  /* Shorthand aliases used by components */
+  --text-weight-normal: var(--primitive-font-weight-normal);
+  --text-weight-medium: var(--primitive-font-weight-medium);
+  --text-weight-semibold: var(--primitive-font-weight-semibold);
+  --text-weight-bold: var(--primitive-font-weight-bold);
+  --text-weight-extrabold: var(--primitive-font-weight-extrabold);
+
+  /* Small text size alias */
+  --text-size-sm: var(--text-size-small);
+
+  /* SPACING — t-shirt sizes */
+  --space-xs: clamp(0.25rem, 0.5vw, 0.5rem);
+  --space-sm: clamp(0.5rem, 1vw, 1rem);
+  --space-md: clamp(1rem, 2vw, 1.5rem);
+  --space-lg: clamp(1.5rem, 4vw, 3rem);
+  --space-xl: clamp(2rem, 8vw, 4rem);
+  --space-2xl: clamp(3rem, 12vw, 6rem);
+  --space-3xl: clamp(4rem, 16vw, 8rem);
+  --space-section: clamp(3rem, 8vw, 6rem);
+
+  /* Primitive spacing aliases for hero tag pills */
+  --space-1: var(--primitive-space-1);
+  --space-3: var(--primitive-space-3);
+
+  /* LAYOUT */
+  --max-width: 1600px;
+  --content-padding: clamp(1rem, 4vw, 4rem);
+
+  /* RADIUS */
+  --radius-sm: var(--primitive-radius-2);
+  --radius-md: var(--primitive-radius-3);
+  --radius-lg: var(--primitive-radius-4);
+  --radius-full: var(--primitive-radius-full);
+
+  /* MOTION */
+  --duration-fast: var(--primitive-duration-fast);
+  --duration-standard: var(--primitive-duration-standard);
+  --duration-slow: var(--primitive-duration-slow);
+  --duration-enter: var(--primitive-duration-enter);
+  --duration-exit: var(--primitive-duration-exit);
+
+  --ease-standard: var(--primitive-ease-standard);
+  --ease-decelerate: var(--primitive-ease-decelerate);
+  --ease-accelerate: var(--primitive-ease-accelerate);
+  --ease-spring: var(--primitive-ease-spring);
+
+  /* ELEVATION */
+  --elevation-0: var(--primitive-shadow-0);
+  --elevation-1: var(--surface-1);
+  --elevation-2: var(--surface-2);
+  --elevation-3: var(--surface-3);
+  --elevation-4: var(--surface-4);
+
+  /* Z-INDEX */
+  --z-hide: var(--primitive-z-hide);
+  --z-base: var(--primitive-z-base);
+  --z-dropdown: var(--primitive-z-dropdown);
+  --z-sticky: var(--primitive-z-sticky);
+  --z-fixed: var(--primitive-z-fixed);
+  --z-modal-backdrop: var(--primitive-z-modal-backdrop);
+  --z-modal: var(--primitive-z-modal);
+  --z-popover: var(--primitive-z-popover);
+  --z-tooltip: var(--primitive-z-tooltip);
+
+  /* RGB CHANNEL VARIABLES — for rgba() usage in overlays */
+  --blackrgb: 0, 0, 0;
+  --whitergb: 255, 255, 255;
+
+  /* COMPONENT TOKENS — Tier 3 */
+  /* Navigation */
+  --nav-bg: rgba(24, 24, 24, 0.1);
+  --nav-backdrop-blur: 10px;
+  --nav-height: 60px;
+
+  /* Cards */
+  --card-bg: var(--surface-2);
+  --card-bg-elevated: var(--surface-2-translucent);
+  --card-border: var(--color-outline-variant);
+  --card-padding: var(--space-md);
+  --card-shadow: var(--elevation-2);
+  --card-radius: var(--radius-md);
+
+  /* Posts */
+  --post-content-max-width: 800px;
+  --post-padding: var(--space-lg);
+
+  /* Buttons */
+  --button-padding-y: var(--space-sm);
+  --button-padding-x: var(--space-md);
+  --button-radius: var(--radius-full);
+  --button-font-weight: 600;
+
+  /* Forms */
+  --input-bg: var(--surface-1);
+  --input-border: var(--color-outline-variant);
+  --input-padding: var(--space-sm) var(--space-md);
+  --input-radius: var(--radius-md);
+  --input-placeholder: var(--color-on-surface-variant);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* THEME VARIANT: LIGHT */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+:root[data-theme='light'] {
+  /* BACKGROUND & SURFACES — Warm lights, not pure white */
+  --color-background: #F1F3F9;
+  --color-surface: #e8eaf0;
+  --color-surface-variant: #dfe2e9;
+  --color-outline: #c5cad8;
+  --color-outline-variant: #b5bcc8;
+
+  /* CONTENT */
+  --color-on-background: #1a1a1a;
+  --color-on-surface: #1a1a1a;
+  --color-on-surface-variant: #4a4a4a;
+
+  /* Navigation */
+  --nav-bg: rgba(241, 243, 249, 0.7);
+
+  /* ICON & INTERACTIVE COLORS */
+  --color-icon: var(--primitive-neutral-800);
+  --color-icon-muted: var(--primitive-neutral-400);
+  --color-link: var(--color-primary);
+  /* Hover: primary mixed 75% with black for a darker shade in light mode */
+  --color-link-hover: color-mix(in oklch, var(--color-primary) 75%, black);
+
+  /* BRAND */
+  --color-primary: var(--primitive-brand-600);
+  --color-on-primary: var(--primitive-neutral-0);
+  --color-primary-container: var(--primitive-brand-100);
+  --color-on-primary-container: var(--primitive-brand-900);
+
+  --color-secondary: var(--primitive-accent-600);
+  --color-on-secondary: var(--primitive-neutral-0);
+  --color-secondary-container: var(--primitive-accent-100);
+  --color-on-secondary-container: var(--primitive-accent-900);
+
+  /* INVERSE */
+  --color-inverse-surface: var(--primitive-neutral-900);
+  --color-inverse-on-surface: var(--primitive-neutral-100);
+
+  /* SURFACES */
+  --surface-0: var(--color-background);
+  --surface-1: #e8eaf0;
+  --surface-2: #dfe2e9;
+  --surface-3: #d5d9e0;
+  --surface-4: #cbcfd6;
+
+  /* color-surface-N aliases */
+  --color-surface-0: var(--surface-0);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-surface-4: var(--surface-4);
+
+  --surface-2-translucent: rgba(223, 226, 233, 0.6);
+  --surface-3-translucent: rgba(213, 217, 224, 0.65);
+  --surface-4-translucent: rgba(203, 207, 214, 0.7);
+
+  /* STATE */
+  --state-layer-color: var(--color-on-surface);
+  --state-hover-opacity: 0.08;
+  --state-pressed-opacity: 0.12;
+
+  /* ELEVATION — lighter shadows */
+  --elevation-0: var(--primitive-shadow-0);
+  --elevation-1: 0 1px 3px hsl(0 0% 0% / 0.04);
+  --elevation-2: 0 4px 16px hsl(0 0% 0% / 0.08);
+  --elevation-3: 0 8px 32px hsl(0 0% 0% / 0.12);
+  --elevation-4: 0 16px 48px hsl(0 0% 0% / 0.16);
+
+  /* RGB CHANNEL VARIABLES — for rgba() usage in overlays */
+  --blackrgb: 0, 0, 0;
+  --whitergb: 255, 255, 255;
+
+  /* COMPONENT TOKENS — Tier 3 */
+  /* Navigation */
+  --nav-bg: rgba(241, 243, 249, 0.7);
+  --nav-backdrop-blur: 10px;
+  --nav-height: 60px;
+
+  /* Cards */
+  --card-bg: var(--surface-2);
+  --card-bg-elevated: var(--surface-2-translucent);
+  --card-border: var(--color-outline-variant);
+  --card-padding: var(--space-md);
+  --card-shadow: var(--elevation-2);
+  --card-radius: var(--radius-md);
+
+  /* Posts */
+  --post-content-max-width: 800px;
+  --post-padding: var(--space-lg);
+
+  /* Buttons */
+  --button-padding-y: var(--space-sm);
+  --button-padding-x: var(--space-md);
+  --button-radius: var(--radius-full);
+  --button-font-weight: 600;
+
+  /* Forms */
+  --input-bg: var(--surface-1);
+  --input-border: var(--color-outline-variant);
+  --input-padding: var(--space-sm) var(--space-md);
+  --input-radius: var(--radius-md);
+  --input-placeholder: var(--color-on-surface-variant);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* THEME VARIANT: DIM (mid-tone, like Twitter dim mode) */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+:root[data-theme='dim'] {
+  /* BACKGROUND & SURFACES — Mid-tone grays */
+  --color-background: #2a2a2a;
+  --color-surface: #323232;
+  --color-surface-variant: #3d3d3d;
+  --color-outline: #505050;
+  --color-outline-variant: #4a4a4a;
+
+  /* CONTENT */
+  --color-on-background: #f5f5f5;
+  --color-on-surface: #f5f5f5;
+  --color-on-surface-variant: #d0d0d0;
+
+  /* Navigation */
+  --nav-bg: rgba(42, 42, 42, 0.7);
+
+  /* ICON & INTERACTIVE COLORS */
+  --color-icon: oklch(95% 0 0);
+  --color-icon-muted: oklch(60% 0 0);
+  --color-link: var(--color-primary);
+  /* Hover: primary mixed 75% with white for a lighter tint in dim mode */
+  --color-link-hover: color-mix(in oklch, var(--color-primary) 75%, white);
+
+  /* BRAND */
+  --color-primary: var(--primitive-brand-400);
+  --color-on-primary: var(--primitive-neutral-950);
+  --color-primary-container: var(--primitive-brand-800);
+  --color-on-primary-container: var(--primitive-brand-100);
+
+  --color-secondary: var(--primitive-accent-400);
+  --color-on-secondary: var(--primitive-neutral-950);
+  --color-secondary-container: var(--primitive-accent-800);
+  --color-on-secondary-container: var(--primitive-accent-100);
+
+  /* INVERSE */
+  --color-inverse-surface: oklch(90% 0 0);
+  --color-inverse-on-surface: oklch(12% 0 0);
+
+  /* SURFACES */
+  --surface-0: var(--color-background);
+  --surface-1: #323232;
+  --surface-2: #3d3d3d;
+  --surface-3: #474747;
+  --surface-4: #505050;
+
+  /* color-surface-N aliases */
+  --color-surface-0: var(--surface-0);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-surface-4: var(--surface-4);
+
+  --surface-2-translucent: rgba(61, 61, 61, 0.6);
+  --surface-3-translucent: rgba(71, 71, 71, 0.65);
+  --surface-4-translucent: rgba(80, 80, 80, 0.7);
+
+  /* STATE */
+  --state-hover-opacity: 0.1;
+  --state-pressed-opacity: 0.14;
+
+  /* RGB CHANNEL VARIABLES — for rgba() usage in overlays */
+  --blackrgb: 0, 0, 0;
+  --whitergb: 255, 255, 255;
+
+  /* COMPONENT TOKENS — Tier 3 */
+  /* Navigation */
+  --nav-bg: rgba(24, 24, 24, 0.7);
+  --nav-backdrop-blur: 10px;
+  --nav-height: 60px;
+
+  /* Cards */
+  --card-bg: var(--surface-2);
+  --card-bg-elevated: var(--surface-2-translucent);
+  --card-border: var(--color-outline-variant);
+  --card-padding: var(--space-md);
+  --card-shadow: var(--elevation-2);
+  --card-radius: var(--radius-md);
+
+  /* Posts */
+  --post-content-max-width: 800px;
+  --post-padding: var(--space-lg);
+
+  /* Buttons */
+  --button-padding-y: var(--space-sm);
+  --button-padding-x: var(--space-md);
+  --button-radius: var(--radius-full);
+  --button-font-weight: 600;
+
+  /* Forms */
+  --input-bg: var(--surface-1);
+  --input-border: var(--color-outline-variant);
+  --input-padding: var(--space-sm) var(--space-md);
+  --input-radius: var(--radius-md);
+  --input-placeholder: var(--color-on-surface-variant);
+}

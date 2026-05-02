@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{meta_title}}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&display=swap">
+  {{ghost_head}}
+  <link rel="stylesheet" href="{{asset "css/main.css"}}">
+  <style>
+    /*
+     * Accent color injection from Ghost admin settings.
+     * Only --color-primary is set here. All other semantic tokens
+     * (--color-link, --color-link-hover, --color-secondary) are
+     * derived from --color-primary inside tokens.css to keep one
+     * source of truth and avoid cascade conflicts.
+     */
+    :root {
+      {{#if @site.accent_color}}
+        --color-primary: {{@site.accent_color}};
+      {{/if}}
+      {{#if @site.icon}}
+        --publication-icon: url('{{@site.icon}}');
+      {{/if}}
+    }
+
+    :root[data-theme='light'] {
+      {{#if @site.accent_color}}
+        --color-primary: {{@site.accent_color}};
+      {{else}}
+        --color-primary: #60A26B;
+      {{/if}}
+    }
+
+    :root[data-theme='dim'] {
+      {{#if @site.accent_color}}
+        --color-primary: {{@site.accent_color}};
+      {{/if}}
+    }
+  </style>
+  <script>
+    // Apply saved theme immediately to prevent flash of wrong theme
+    (function() {
+      var theme = localStorage.getItem('theme-preference') || '{{@custom.color_scheme}}';
+      if (theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+      }
+    })();
+  </script>
+</head>
+<body class="{{body_class}}" data-page-width="{{@custom.page_width}}" data-card-style="{{@custom.card_style}}" data-typography="{{@custom.typography_style}}">
+  {{#if @custom.show_scroll_progress}}<div class="scroll-progress"></div>{{/if}}
+
+  {{> navigation}}
+
+  <main>
+    {{{body}}}
+  </main>
+
+  <footer class="gh-footer">
+    <div class="footer-content">
+      <div class="footer-signup-section">
+        <h3 class="footer-title">Subscribe to {{@site.title}}</h3>
+        <p class="footer-description">Get the latest posts and updates delivered to your inbox.</p>
+        <form class="footer-form" data-members-form>
+          <input
+            type="email"
+            class="footer-input"
+            name="email"
+            placeholder="Your email address"
+            required
+            data-members-email
+          >
+          <button type="submit" class="button footer-button" aria-label="Subscribe">
+            Subscribe
+            <img src="{{asset "icons/arrow-right.svg"}}" alt="Subscribe" class="footer-button-icon">
+          </button>
+          <p class="footer-form-message" data-members-error></p>
+        </form>
+      </div>
+
+      <div class="footer-bottom">
+        <div class="footer-nav">
+          <a href="{{@site.url}}">Home</a>
+          <a href="{{#get 'pages' limit='1' filter='slug:about'}}{{url}}{{else}}{{@site.url}}about/{{/get}}">About</a>
+        </div>
+        <div class="footer-credit">
+          <p>&copy; {{date format="YYYY"}} <strong>{{@site.title}}</strong> • Powered by <a href="https://ghost.org" target="_blank" rel="noopener">Ghost</a></p>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+  <script src="https://unpkg.com/split-type@0.3.4/umd/index.min.js"></script>
+  <script src="{{asset "js/main.js"}}"></script>
+  {{ghost_foot}}
+</body>
+</html>

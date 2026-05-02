@@ -1,0 +1,35 @@
+<div class="post-navigation container">
+  {{#prev_post}}
+    <a href="{{url}}" rel="prev" class="post-nav-link">
+      {{#if feature_image}}
+        <img src="{{feature_image}}" alt="{{title}}" class="post-nav-image">
+      {{/if}}
+      <div class="post-nav-content">
+        <div class="post-nav-label">
+          <img src="{{asset "icons/arrow-left.svg"}}" alt="Previous" class="post-nav-icon">
+          Previous
+        </div>
+        <div class="post-nav-title">{{title}}</div>
+      </div>
+    </a>
+  {{else}}
+    <div></div>
+  {{/prev_post}}
+
+  {{#next_post}}
+    <a href="{{url}}" rel="next" class="post-nav-link">
+      {{#if feature_image}}
+        <img src="{{feature_image}}" alt="{{title}}" class="post-nav-image">
+      {{/if}}
+      <div class="post-nav-content">
+        <div class="post-nav-label">
+          Next
+          <img src="{{asset "icons/arrow-right.svg"}}" alt="Next" class="post-nav-icon">
+        </div>
+        <div class="post-nav-title">{{title}}</div>
+      </div>
+    </a>
+  {{else}}
+    <div></div>
+  {{/next_post}}
+</div>

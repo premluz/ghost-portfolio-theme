@@ -1,0 +1,112 @@
+{
+  "name": "thinkingisfree",
+  "description": "Bold typographic Ghost theme for independent creators",
+  "version": "1.0.0",
+  "keywords": ["ghost-theme"],
+  "author": {
+    "name": "Przemek",
+    "email": "admin@truehome.bio"
+  },
+  "engines": {
+    "ghost": ">=5.0.0"
+  },
+  "config": {
+    "posts_per_page": 10,
+  "custom": {
+    "color_scheme": {
+      "type": "select",
+      "options": ["dark", "light", "dim"],
+      "default": "dark",
+      "description": "Theme color mode"
+    },
+    "show_reading_time": {
+      "type": "boolean",
+      "default": true,
+      "description": "Display estimated reading time on posts"
+    },
+    "show_scroll_progress": {
+      "type": "boolean",
+      "default": true,
+      "description": "Show scroll progress bar at top of page"
+    },
+    "card_style": {
+      "type": "select",
+      "options": ["elevated", "outlined", "filled", "blank"],
+      "default": "elevated",
+      "description": "Post card appearance style"
+    },
+    "typography_style": {
+      "type": "select",
+      "options": ["editorial", "display", "minimal"],
+      "default": "editorial",
+      "description": "Typography personality"
+    },
+    "page_width": {
+      "type": "select",
+      "options": ["contained", "wide", "full"],
+      "default": "contained",
+      "description": "Maximum content width"
+    },
+    "hero_name": {
+      "type": "text",
+      "default": "Name",
+      "description": "Top label shown above the headline, e.g. Hello, I'm Prem."
+    },
+    "hero_title": {
+      "type": "text",
+      "default": "Your Title Here",
+      "description": "Main hero headline"
+    },
+    "hero_description": {
+      "type": "text",
+      "default": "Your description here.",
+      "description": "Supporting paragraph beneath the headline"
+    },
+    "hero_bullet_1": {
+      "type": "text",
+      "description": "First tag/bullet shown below the description"
+    },
+    "hero_bullet_2": {
+      "type": "text",
+      "description": "Second tag/bullet shown below the description"
+    },
+    "hero_bullet_3": {
+      "type": "text",
+      "description": "Third tag/bullet shown below the description"
+    },
+    "hero_image": {
+      "type": "image",
+      "description": "Hero portrait or image displayed on the right side"
+    },
+    "post_hero_width": {
+      "type": "select",
+      "options": ["fullscreen", "respects_page_width"],
+      "default": "fullscreen",
+      "description": "Post hero (header + feature image) layout: fullscreen or respecting page width"
+    },
+    "hero_scroll_animation": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable hero section scroll blur/fade animation on homepage"
+    },
+    "hero_layout": {
+      "type": "select",
+      "options": ["fullscreen", "respects_page_width"],
+      "default": "fullscreen",
+      "description": "Hero section layout: fullscreen or respecting page width"
+    },
+    "nav_layout": {
+      "type": "select",
+      "options": ["fullscreen", "respects_page_width"],
+      "default": "fullscreen",
+      "description": "Navigation layout: fullscreen (with padding) or respecting page width"
+    },
+    "posts_layout": {
+      "type": "select",
+      "options": ["grid", "list", "carousel"],
+      "default": "grid",
+      "description": "Posts display layout: grid, list (image left/content right), or carousel (horizontal scroll)"
+    }
+  }
+}
+}

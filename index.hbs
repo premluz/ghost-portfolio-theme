@@ -1,0 +1,22 @@
+{{!< default}}
+<section class="home">
+
+  {{!-- Hero section — configured via Ghost Admin › Design › Custom Fields --}}
+  {{> hero}}
+
+  {{> posts-tabs}}
+
+  {{#if pagination.next}}
+    <div class="pagination">
+      <div class="container text-center">
+        {{#if pagination.prev}}
+          <a href="{{pagination.prev}}" class="pagination-link">← Previous</a>
+        {{/if}}
+        <span class="pagination-info">Page {{pagination.page}} of {{pagination.pages}}</span>
+        {{#if pagination.next}}
+          <a href="{{pagination.next}}" class="pagination-link">Next →</a>
+        {{/if}}
+      </div>
+    </div>
+  {{/if}}
+</section>

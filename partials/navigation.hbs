@@ -1,0 +1,58 @@
+<nav class="gh-navigation" data-nav-layout="{{@custom.nav_layout}}">
+  <div class="nav-wrapper">
+    <!-- Logo -->
+    <a href="{{@site.url}}" class="nav-logo">
+      {{#if @site.logo}}
+        <img src="{{@site.logo}}" alt="{{@site.title}}" class="nav-logo-image">
+      {{else}}
+        <div class="nav-logo-text">
+          <span>{{@site.title}}</span>
+        </div>
+      {{/if}}
+    </a>
+
+    <!-- Desktop Menu -->
+    <ul class="nav-menu">
+      <li><a href="{{@site.url}}">Home</a></li>
+      <li><a href="{{#get 'pages' limit='1' filter='slug:about'}}{{url}}{{else}}{{@site.url}}about/{{/get}}">About</a></li>
+    </ul>
+
+    <!-- Right Side Controls -->
+    <div class="nav-controls">
+      <!-- Search Button -->
+      <button class="nav-icon-btn search-btn" aria-label="Search" data-ghost-search>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+      </button>
+
+      <!-- Sign In Button -->
+      <a href="#/portal/signin" class="nav-text-btn" data-portal="signin">Sign in</a>
+
+      <!-- Subscribe Button -->
+      <a href="#/portal" class="button nav-button" data-portal="signup">Subscribe</a>
+
+      <!-- Theme Toggle -->
+      <button class="nav-icon-btn theme-toggle" aria-label="Toggle theme">
+        <img src="{{asset "icons/sun.svg"}}" alt="Light mode" class="theme-icon-sun">
+        <img src="{{asset "icons/moon.svg"}}" alt="Dark mode" class="theme-icon-moon" style="display:none;">
+      </button>
+
+      <!-- Hamburger Menu -->
+      <button class="hamburger" aria-label="Toggle menu" aria-expanded="false">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Mobile Menu -->
+  <div class="nav-menu-mobile">
+    <a href="{{@site.url}}" class="mobile-nav-link">Home</a>
+    <a href="{{#get 'pages' limit='1' filter='slug:about'}}{{url}}{{else}}{{@site.url}}about/{{/get}}" class="mobile-nav-link">About</a>
+    <hr class="mobile-nav-divider">
+    <a href="#/portal/signin" class="mobile-nav-link" data-portal="signin">Sign in</a>
+    <a href="#/portal" class="button mobile-nav-button" data-portal="signup">Subscribe</a>
+  </div>
+</nav>

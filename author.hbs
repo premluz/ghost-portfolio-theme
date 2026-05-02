@@ -1,0 +1,40 @@
+{{!< default}}
+{{#author}}
+<section class="author-archive">
+  <div class="container">
+    <div class="text-center" style="padding: var(--space-section) 0;">
+      {{#if profile_image}}
+        <figure class="author-image">
+          <img src="{{profile_image}}" alt="{{name}}">
+        </figure>
+      {{/if}}
+      <h1>{{name}}</h1>
+      {{#if bio}}
+        <p class="author-bio">{{bio}}</p>
+      {{/if}}
+    </div>
+  </div>
+</section>
+{{/author}}
+
+<div class="posts-grid">
+  <div class="container">
+    {{#foreach posts}}
+      {{> post-card}}
+    {{/foreach}}
+  </div>
+</div>
+
+{{#if pagination.next}}
+  <div class="pagination">
+    <div class="container text-center">
+      {{#if pagination.prev}}
+        <a href="{{pagination.prev}}" class="pagination-link">← Previous</a>
+      {{/if}}
+      <span class="pagination-info">Page {{pagination.page}} of {{pagination.pages}}</span>
+      {{#if pagination.next}}
+        <a href="{{pagination.next}}" class="pagination-link">Next →</a>
+      {{/if}}
+    </div>
+  </div>
+{{/if}}

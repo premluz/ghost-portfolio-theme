@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{error.statusCode}} — {{@site.title}}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&display=swap">
+  {{ghost_head}}
+  <link rel="stylesheet" href="{{asset "css/main.css"}}">
+</head>
+<body class="error-template">
+  <section class="error-page">
+    <div class="container text-center">
+      <h1 class="error-code">{{error.statusCode}}</h1>
+      <h2 class="error-message">{{error.message}}</h2>
+      <a href="/" class="pagination-link error-home-link">← Back Home</a>
+    </div>
+  </section>
+  {{ghost_foot}}
+</body>
+</html>
