@@ -1,0 +1,18 @@
+{{!< default}}
+
+<main class="main-content">
+  <div class="container">
+    <section class="projects-section">
+      <header class="projects-header">
+        <h1>Projects</h1>
+        <p class="projects-description">Real products, real constraints, real impact.</p>
+      </header>
+
+      <div class="projects-grid">
+        {{#foreach posts}}
+          {{> post-card}}
+        {{/foreach}}
+      </div>
+    </section>
+  </div>
+</main>

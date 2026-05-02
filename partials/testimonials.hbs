@@ -1,0 +1,14 @@
+<section class="testimonials-section">
+  <header class="testimonials-header">
+    <h2>Valued for</h2>
+    <p class="section-description">delivering without drama.</p>
+  </header>
+
+  <div class="testimonials-grid">
+    {{#get "posts" filter="tag:testimonial" limit="all" include="tags,authors,html"}}
+      {{#foreach posts}}
+        {{> testimonial-card}}
+      {{/foreach}}
+    {{/get}}
+  </div>
+</section>

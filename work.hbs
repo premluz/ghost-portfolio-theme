@@ -1,0 +1,18 @@
+{{!< default}}
+
+<main class="main-content">
+  <div class="container">
+    <section class="work-section">
+      <header class="work-header">
+        <h1>Work</h1>
+        <p class="work-description">Real products, real constraints, real impact.</p>
+      </header>
+
+      <div class="work-grid">
+        {{#foreach posts}}
+          {{> post-card}}
+        {{/foreach}}
+      </div>
+    </section>
+  </div>
+</main>

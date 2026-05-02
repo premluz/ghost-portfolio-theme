@@ -58,8 +58,10 @@
 
   --primitive-line-height-tight: 1.1;
   --primitive-line-height-normal: 1.5;
-  --primitive-line-height-relaxed: 1.8;
+  --primitive-line-height-relaxed: 2;
 
+
+  --primitive-letter-spacing-extra-tight: -0.1em;
   --primitive-letter-spacing-tight: -0.01em;
   --primitive-letter-spacing-normal: 0;
   --primitive-letter-spacing-wide: 0.08em;
@@ -220,6 +222,7 @@
   --text-line-height-body: var(--primitive-line-height-relaxed);
 
   --text-letter-spacing-h1: var(--primitive-letter-spacing-tight);
+  --text-letter-spacing-h2: var(--primitive-letter-spacing-extra-tight);
   --text-letter-spacing-body: var(--primitive-letter-spacing-normal);
 
   --text-weight-h1: var(--primitive-font-weight-extrabold);

@@ -1,0 +1,12 @@
+<article class="testimonial-card">
+  <div class="testimonial-content">
+    <div class="testimonial-author">
+      <h3 class="testimonial-name">{{title}}</h3>
+    </div>
+    {{#if html}}
+      <div class="testimonial-text">{{{html}}}</div>
+    {{else if content}}
+      <div class="testimonial-text">{{{content}}}</div>
+    {{/if}}
+  </div>
+</article>

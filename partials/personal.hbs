@@ -1,0 +1,14 @@
+<section class="personal-section">
+  <header class="personal-header">
+    <h2>Unusual things about me</h2>
+    <p class="section-description">that don't fit on a CV.</p>
+  </header>
+
+  <div class="personal-grid">
+    {{#get "posts" filter="tag:personal" limit="all" include="tags,authors,html"}}
+      {{#foreach posts}}
+        {{> personal-card}}
+      {{/foreach}}
+    {{/get}}
+  </div>
+</section>
