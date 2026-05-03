@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="{{@custom.color_scheme}}" data-type-size="{{@custom.type_size}}" data-type-space="{{@custom.type_spacing}}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -59,40 +59,42 @@
     {{{body}}}
   </main>
 
-  <footer class="gh-footer">
-    <div class="footer-content">
-      <div class="footer-signup-section">
-        <h2 class="footer-title">{{@site.title}}</h2>
-        <p class="footer-description">Let's work together.</p>
-                  <button type="submit" class="button footer-button" aria-label="Subscribe">
-            Contact me
-            <img src="{{asset "icons/arrow-right.svg"}}" alt="Subscribe" class="footer-button-icon">
-          </button>
-        <!-- <form class="footer-form" data-members-form>
-          <input
-            type="email"
-            class="footer-input"
-            name="email"
-            placeholder="Your email address"
-            required
-            data-members-email
-          >
-          <button type="submit" class="button footer-button" aria-label="Subscribe">
-            Subscribe
-            <img src="{{asset "icons/arrow-right.svg"}}" alt="Subscribe" class="footer-button-icon">
-          </button>
-          <p class="footer-form-message" data-members-error></p>
-        </form>-->
-      </div>
+  <footer class="gh-footer" data-footer-width="{{@custom.footer_width}}">
+    <div class="footer-bg">
+      <div class="footer-content">
+        <div class="footer-signup-section">
+          <h2 class="footer-title">{{@site.title}}</h2>
+          <p class="footer-description">Let's work together.</p>
+                    <button type="submit" class="button footer-button" aria-label="Subscribe">
+              Contact me
+              <img src="{{asset "icons/arrow-right.svg"}}" alt="Subscribe" class="footer-button-icon">
+            </button>
+          <!-- <form class="footer-form" data-members-form>
+            <input
+              type="email"
+              class="footer-input"
+              name="email"
+              placeholder="Your email address"
+              required
+              data-members-email
+            >
+            <button type="submit" class="button footer-button" aria-label="Subscribe">
+              Subscribe
+              <img src="{{asset "icons/arrow-right.svg"}}" alt="Subscribe" class="footer-button-icon">
+            </button>
+            <p class="footer-form-message" data-members-error></p>
+          </form>-->
+        </div>
 
-      <div class="footer-bottom">
-        <!-- <div class="footer-nav">
-          <a href="{{@site.url}}">Home</a>
-          <a href="{{#get 'pages' limit='1' filter='slug:about'}}{{url}}{{else}}{{@site.url}}about/{{/get}}">About</a>
-        </div>-->
-        <!--<div class="footer-credit">
-          <p>&copy; {{date format="YYYY"}} <strong>{{@site.title}}</strong> • Powered by <a href="https://ghost.org" target="_blank" rel="noopener">Ghost</a></p>
-        </div>-->
+        <div class="footer-bottom">
+          <!-- <div class="footer-nav">
+            <a href="{{@site.url}}">Home</a>
+            <a href="{{#get 'pages' limit='1' filter='slug:about'}}{{url}}{{else}}{{@site.url}}about/{{/get}}">About</a>
+          </div>-->
+          <!--<div class="footer-credit">
+            <p>&copy; {{date format="YYYY"}} <strong>{{@site.title}}</strong> • Powered by <a href="https://ghost.org" target="_blank" rel="noopener">Ghost</a></p>
+          </div>-->
+        </div>
       </div>
     </div>
   </footer>
@@ -101,6 +103,9 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
   <script src="https://unpkg.com/split-type@0.3.4/umd/index.min.js"></script>
   <script src="{{asset "js/main.js"}}"></script>
+  {{#match @body_class "post-template"}}
+  <script src="{{asset "js/group-layout.js"}}"></script>
+  {{/match}}
   {{ghost_foot}}
 </body>
 </html>

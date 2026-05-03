@@ -39,13 +39,49 @@
       "type": "select",
       "options": ["editorial", "display", "minimal"],
       "default": "editorial",
-      "description": "Typography personality"
+      "description": "Typography personality — heading weight variation (editorial, display with heavier weights, or minimal with lighter weights)"
+    },
+    "type_size": {
+      "type": "select",
+      "options": ["sm", "md", "lg"],
+      "default": "md",
+      "description": "Typography size scale — sm (compact), md (balanced), lg (generous editorial)"
+    },
+    "type_spacing": {
+      "type": "select",
+      "options": ["tight", "normal", "relaxed"],
+      "default": "normal",
+      "description": "Typography spacing — tight (compact density), normal (balanced), relaxed (open, airy)"
     },
     "page_width": {
       "type": "select",
       "options": ["contained", "wide", "full"],
       "default": "contained",
-      "description": "Maximum content width"
+      "description": "Default maximum content width for all pages"
+    },
+    "page_hero_width": {
+      "type": "select",
+      "options": ["fullscreen", "respects_page_width"],
+      "default": "fullscreen",
+      "description": "Page hero (header + feature image) layout: fullscreen or respecting page width"
+    },
+    "page_content_width": {
+      "type": "select",
+      "options": ["full", "respect_page_width"],
+      "default": "respect_page_width",
+      "description": "Page content layout: full width or respecting page width constraint"
+    },
+    "home_content_width": {
+      "type": "select",
+      "options": ["full", "respect_page_width"],
+      "default": "respect_page_width",
+      "description": "Homepage sections (carousel, testimonials, etc.) layout: full width or respecting page width"
+    },
+    "footer_width": {
+      "type": "select",
+      "options": ["full", "respect_page_width"],
+      "default": "full",
+      "description": "Footer layout: full width or respecting page width"
     },
     "hero_name": {
       "type": "text",
@@ -78,22 +114,21 @@
       "type": "image",
       "description": "Hero portrait or image displayed on the right side"
     },
-    "post_hero_width": {
-      "type": "select",
-      "options": ["fullscreen", "respects_page_width"],
-      "default": "fullscreen",
-      "description": "Post hero (header + feature image) layout: fullscreen or respecting page width"
-    },
     "hero_scroll_animation": {
       "type": "boolean",
       "default": true,
       "description": "Enable hero section scroll blur/fade animation on homepage"
     },
-    "hero_layout": {
+    "home_hero_width": {
       "type": "select",
-      "options": ["fullscreen", "respects_page_width"],
-      "default": "fullscreen",
-      "description": "Hero section layout: fullscreen or respecting page width"
+      "options": ["full", "respect_page_width"],
+      "default": "full",
+      "description": "Home hero section layout: full width or respecting page width"
+    },
+    "home_hero_background": {
+      "type": "boolean",
+      "default": true,
+      "description": "Show background and border styling on home hero section"
     },
     "nav_layout": {
       "type": "select",

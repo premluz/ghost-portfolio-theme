@@ -4,13 +4,15 @@
   {{!-- Hero section — configured via Ghost Admin › Design › Custom Fields --}}
   {{> hero}}
 
-  {{> posts-tabs}}
+  <div data-home-content-width="{{@custom.home_content_width}}">
+    {{> posts-tabs}}
 
-  {{> testimonials}}
+    {{> testimonials}}
 
-  {{> about}}
+    {{> about}}
 
-  {{> personal}}
+    {{> personal}}
+  </div>
 
   {{#if pagination.next}}
     <div class="pagination">

@@ -208,23 +208,97 @@
   --font-family-body: var(--primitive-font-sans);
   --font-family-mono: var(--primitive-font-mono);
 
-  --text-size-h1: clamp(2.5rem, 7.5vw, 7.5rem);
-  --text-size-h2: clamp(2rem, 5vw, 6.25rem);
-  --text-size-h3: clamp(1.75rem, 3.5vw, 3.75rem);
-  --text-size-h4: clamp(1.25rem, 2.5vw, 1.875rem);
-  --text-size-h5: clamp(1rem, 1.8vw, 1.25rem);
-  --text-size-body: clamp(0.875rem, 1.8vw, 1.25rem);
-  --text-size-small: clamp(0.75rem, 1vw, 1rem);
-  --text-size-caption: clamp(0.625rem, 1vw, 0.875rem);
-  --text-size-eyebrow: clamp(0.625rem, 1vw, 0.75rem);
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* TYPOGRAPHY SIZE SCALE — Medium (default, balanced) */
+  /* ─────────────────────────────────────────────────────────────────────── */
 
-  --text-line-height-h1: var(--primitive-line-height-tight);
-  --text-line-height-h2: var(--primitive-line-height-tight);
-  --text-line-height-body: var(--primitive-line-height-relaxed);
+  --type-display-size: clamp(3.5rem, 8vw, 7rem);
+  --type-h1-size: clamp(2.5rem, 5vw, 4rem);
+  --type-h2-size: clamp(2rem, 3.5vw, 3.125rem);
+  --type-h3-size: clamp(1.75rem, 3.5vw, 3.75rem);
+  --type-h4-size: clamp(1.25rem, 2.5vw, 1.875rem);
+  --type-h5-size: clamp(1rem, 1.8vw, 1.25rem);
+  --type-h6-size: clamp(0.875rem, 1.5vw, 1rem);
+  --type-body-lg-size: clamp(1.125rem, 1.5vw, 1.375rem);
+  --type-body-size: clamp(1rem, 1.2vw, 1.125rem);
+  --type-body-sm-size: clamp(0.875rem, 1vw, 1rem);
+  --type-label-size: clamp(0.75rem, 1vw, 0.875rem);
+  --type-label-sm-size: clamp(0.6875rem, 0.9vw, 0.8125rem);
+  --type-caption-size: clamp(0.625rem, 0.9vw, 0.875rem);
+  --type-overline-size: clamp(0.625rem, 0.8vw, 0.75rem);
+  --type-code-size: clamp(0.875rem, 1vw, 1rem);
 
-  --text-letter-spacing-h1: var(--primitive-letter-spacing-tight);
-  --text-letter-spacing-h2: var(--primitive-letter-spacing-extra-tight);
-  --text-letter-spacing-body: var(--primitive-letter-spacing-normal);
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* TYPOGRAPHY SPACING SCALE — Normal (default, balanced) */
+  /* ─────────────────────────────────────────────────────────────────────── */
+
+  --type-display-line-height: 1.1;
+  --type-display-letter-spacing: -0.02em;
+
+  --type-h1-line-height: 1.1;
+  --type-h1-letter-spacing: -0.02em;
+
+  --type-h2-line-height: 1.15;
+  --type-h2-letter-spacing: -0.01em;
+
+  --type-h3-line-height: 1.2;
+  --type-h3-letter-spacing: 0em;
+
+  --type-h4-line-height: 1.25;
+  --type-h4-letter-spacing: 0em;
+
+  --type-h5-line-height: 1.3;
+  --type-h5-letter-spacing: 0em;
+
+  --type-h6-line-height: 1.35;
+  --type-h6-letter-spacing: 0em;
+
+  --type-body-lg-line-height: 1.6;
+  --type-body-lg-letter-spacing: 0em;
+
+  --type-body-line-height: 1.7;
+  --type-body-letter-spacing: 0em;
+
+  --type-body-sm-line-height: 1.6;
+  --type-body-sm-letter-spacing: 0em;
+
+  --type-label-line-height: 1.4;
+  --type-label-letter-spacing: 0.05em;
+  --type-label-weight: 600;
+
+  --type-label-sm-line-height: 1.35;
+  --type-label-sm-letter-spacing: 0.05em;
+  --type-label-sm-weight: 600;
+
+  --type-caption-line-height: 1.4;
+  --type-caption-letter-spacing: 0.02em;
+
+  --type-overline-line-height: 1.2;
+  --type-overline-letter-spacing: 0.1em;
+  --type-overline-weight: 700;
+  --type-overline-transform: uppercase;
+
+  --type-code-line-height: 1.5;
+  --type-code-letter-spacing: 0em;
+
+  /* Legacy aliases for backward compatibility */
+  --text-size-h1: var(--type-h1-size);
+  --text-size-h2: var(--type-h2-size);
+  --text-size-h3: var(--type-h3-size);
+  --text-size-h4: var(--type-h4-size);
+  --text-size-h5: var(--type-h5-size);
+  --text-size-body: var(--type-body-size);
+  --text-size-small: var(--type-body-sm-size);
+  --text-size-caption: var(--type-caption-size);
+  --text-size-eyebrow: var(--type-overline-size);
+
+  --text-line-height-h1: var(--type-h1-line-height);
+  --text-line-height-h2: var(--type-h2-line-height);
+  --text-line-height-body: var(--type-body-line-height);
+
+  --text-letter-spacing-h1: var(--type-h1-letter-spacing);
+  --text-letter-spacing-h2: var(--type-h2-letter-spacing);
+  --text-letter-spacing-body: var(--type-body-letter-spacing);
 
   --text-weight-h1: var(--primitive-font-weight-extrabold);
   --text-weight-h2: var(--primitive-font-weight-bold);
@@ -301,7 +375,7 @@
 
   /* COMPONENT TOKENS — Tier 3 */
   /* Navigation */
-  --nav-bg: rgba(24, 24, 24, 0.1);
+  --nav-bg: rgba(24, 24, 24, 0.7);
   --nav-backdrop-blur: 10px;
   --nav-height: 60px;
 
@@ -329,6 +403,152 @@
   --input-padding: var(--space-sm) var(--space-md);
   --input-radius: var(--radius-md);
   --input-placeholder: var(--color-on-surface-variant);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* TYPOGRAPHY CONFIGURATION: SMALL — Compact, dense information */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+:root[data-type-size="sm"] {
+  --type-display-size: clamp(2.5rem, 5vw, 4.5rem);
+  --type-h1-size: clamp(1.875rem, 3.5vw, 3rem);
+  --type-h2-size: clamp(1.5rem, 2.5vw, 2rem);
+  --type-h3-size: clamp(1.25rem, 2vw, 1.625rem);
+  --type-h4-size: clamp(1rem, 1.8vw, 1.375rem);
+  --type-h5-size: clamp(0.875rem, 1.5vw, 1rem);
+  --type-h6-size: clamp(0.75rem, 1.2vw, 0.875rem);
+  --type-body-lg-size: clamp(1rem, 1.2vw, 1.125rem);
+  --type-body-size: clamp(0.9375rem, 1vw, 1rem);
+  --type-body-sm-size: clamp(0.8125rem, 0.9vw, 0.9375rem);
+  --type-label-size: clamp(0.6875rem, 0.8vw, 0.8rem);
+  --type-label-sm-size: clamp(0.625rem, 0.7vw, 0.75rem);
+  --type-caption-size: clamp(0.6875rem, 0.8vw, 0.75rem);
+  --type-overline-size: clamp(0.5625rem, 0.7vw, 0.6875rem);
+  --type-code-size: clamp(0.8125rem, 0.9vw, 0.9375rem);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* TYPOGRAPHY CONFIGURATION: LARGE — Editorial magazine, generous reading */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+:root[data-type-size="lg"] {
+  --type-display-size: clamp(5rem, 12vw, 12rem);
+  --type-h1-size: clamp(5rem, 8vw, 8rem);
+  --type-h2-size: clamp(3rem, 4vw, 5rem);
+  --type-h3-size: clamp(2rem, 3.5vw, 2.625rem);
+  --type-h4-size: clamp(1.5rem, 3vw, 2.25rem);
+  --type-h5-size: clamp(1.25rem, 2vw, 1.5rem);
+  --type-h6-size: clamp(1rem, 1.8vw, 1.25rem);
+  --type-body-lg-size: clamp(1.125rem, 1.5vw, 1.375rem);
+  --type-body-size: clamp(1rem, 1.2vw, 1.125rem);
+  --type-body-sm-size: clamp(0.875rem, 1vw, 1rem);
+  --type-label-size: clamp(0.875rem, 1.2vw, 1rem);
+  --type-label-sm-size: clamp(0.8125rem, 1vw, 0.9375rem);
+  --type-caption-size: clamp(0.875rem, 1vw, 1rem);
+  --type-overline-size: clamp(0.75rem, 1vw, 0.875rem);
+  --type-code-size: clamp(1rem, 1.5vw, 1.25rem);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* TYPOGRAPHY SPACING CONFIGURATION: TIGHT — Compact, magazine density */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+:root[data-type-space="tight"] {
+  --type-display-line-height: 1.05;
+  --type-display-letter-spacing: -0.04em;
+
+  --type-h1-line-height: 1;
+  --type-h1-letter-spacing: -0.04em;
+
+  --type-h2-line-height: 1.05;
+  --type-h2-letter-spacing: -0.02em;
+
+  --type-h3-line-height: 1.1;
+  --type-h3-letter-spacing: -0.01em;
+
+  --type-h4-line-height: 1.15;
+  --type-h4-letter-spacing: 0em;
+
+  --type-h5-line-height: 1.2;
+  --type-h5-letter-spacing: 0em;
+
+  --type-h6-line-height: 1.25;
+  --type-h6-letter-spacing: 0em;
+
+  --type-body-lg-line-height: 1.4;
+  --type-body-lg-letter-spacing: -0.005em;
+
+  --type-body-line-height: 1.5;
+  --type-body-letter-spacing: 0em;
+
+  --type-body-sm-line-height: 1.4;
+  --type-body-sm-letter-spacing: 0em;
+
+  --type-label-line-height: 1.3;
+  --type-label-letter-spacing: 0.04em;
+
+  --type-label-sm-line-height: 1.25;
+  --type-label-sm-letter-spacing: 0.04em;
+
+  --type-caption-line-height: 1.3;
+  --type-caption-letter-spacing: 0.01em;
+
+  --type-overline-line-height: 1.1;
+  --type-overline-letter-spacing: 0.08em;
+
+  --type-code-line-height: 1.4;
+  --type-code-letter-spacing: -0.005em;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* TYPOGRAPHY SPACING CONFIGURATION: RELAXED — Open, airy, long-form reading */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+:root[data-type-space="relaxed"] {
+  --type-display-line-height: 1.15;
+  --type-display-letter-spacing: 0em;
+
+  --type-h1-line-height: 1.2;
+  --type-h1-letter-spacing: -0.01em;
+
+  --type-h2-line-height: 1.25;
+  --type-h2-letter-spacing: 0em;
+
+  --type-h3-line-height: 1.3;
+  --type-h3-letter-spacing: 0.01em;
+
+  --type-h4-line-height: 1.35;
+  --type-h4-letter-spacing: 0.01em;
+
+  --type-h5-line-height: 1.4;
+  --type-h5-letter-spacing: 0.01em;
+
+  --type-h6-line-height: 1.45;
+  --type-h6-letter-spacing: 0.01em;
+
+  --type-body-lg-line-height: 1.8;
+  --type-body-lg-letter-spacing: 0.01em;
+
+  --type-body-line-height: 1.9;
+  --type-body-letter-spacing: 0.02em;
+
+  --type-body-sm-line-height: 1.75;
+  --type-body-sm-letter-spacing: 0.01em;
+
+  --type-label-line-height: 1.5;
+  --type-label-letter-spacing: 0.06em;
+
+  --type-label-sm-line-height: 1.45;
+  --type-label-sm-letter-spacing: 0.06em;
+
+  --type-caption-line-height: 1.6;
+  --type-caption-letter-spacing: 0.03em;
+
+  --type-overline-line-height: 1.3;
+  --type-overline-letter-spacing: 0.12em;
+
+  --type-code-line-height: 1.6;
+  --type-code-letter-spacing: 0.01em;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════ */

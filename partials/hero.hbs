@@ -9,57 +9,59 @@
     @custom.hero_image       — portrait / right-side image (falls back to site cover)
 --}}
 
-<section class="hero" data-section-id="hero" data-hero-animation="{{@custom.hero_scroll_animation}}" data-hero-layout="{{@custom.hero_layout}}">
-  <div class="hero-container">
+<section class="hero" data-section-id="hero" data-hero-animation="{{@custom.hero_scroll_animation}}" data-home-hero-width="{{@custom.home_hero_width}}" data-hero-background="{{@custom.home_hero_background}}">
+  {{#if @custom.home_hero_background}}<div class="hero-bg">{{/if}}
+    <div class="hero-container">
 
-    {{!-- LEFT: text content --}}
-    <div class="hero-content">
+      {{!-- LEFT: text content --}}
+      <div class="hero-content">
 
-      {{!-- Top label — "Hello, I'm Prem." --}}
-      <p class="hero-intro" id="hero-intro">
-        {{#if @custom.hero_name}}{{@custom.hero_name}}{{else}}Name{{/if}}
-      </p>
+        {{!-- Top label — "Hello, I'm Prem." --}}
+        <p class="hero-intro" id="hero-intro">
+          {{#if @custom.hero_name}}{{@custom.hero_name}}{{else}}Name{{/if}}
+        </p>
 
-      {{!-- Main headline --}}
-      <h1 class="hero-headline" id="hero-headline">
-        {{#if @custom.hero_title}}{{@custom.hero_title}}{{else}}Your Title Here{{/if}}
-      </h1>
+        {{!-- Main headline --}}
+        <h1 class="hero-headline" id="hero-headline">
+          {{#if @custom.hero_title}}{{@custom.hero_title}}{{else}}Your Title Here{{/if}}
+        </h1>
 
-      {{!-- Supporting description --}}
-      <p class="hero-description" id="hero-description">
-        {{#if @custom.hero_description}}{{@custom.hero_description}}{{else}}Your description here.{{/if}}
-      </p>
+        {{!-- Supporting description --}}
+        <p class="hero-description" id="hero-description">
+          {{#if @custom.hero_description}}{{@custom.hero_description}}{{else}}Your description here.{{/if}}
+        </p>
 
-      {{!-- Tag pills/bullets --}}
-      {{#if @custom.hero_bullet_1}}
-      <div class="hero-tags" id="hero-tags">
-        <span class="tag">{{@custom.hero_bullet_1}}</span>
-        {{#if @custom.hero_bullet_2}}<span class="tag">{{@custom.hero_bullet_2}}</span>{{/if}}
-        {{#if @custom.hero_bullet_3}}<span class="tag">{{@custom.hero_bullet_3}}</span>{{/if}}
-      </div>
+        {{!-- Tag pills/bullets --}}
+        {{#if @custom.hero_bullet_1}}
+        <div class="hero-tags" id="hero-tags">
+          <span class="tag">{{@custom.hero_bullet_1}}</span>
+          {{#if @custom.hero_bullet_2}}<span class="tag">{{@custom.hero_bullet_2}}</span>{{/if}}
+          {{#if @custom.hero_bullet_3}}<span class="tag">{{@custom.hero_bullet_3}}</span>{{/if}}
+        </div>
+        {{/if}}
+
+      </div>{{!-- /.hero-content --}}
+
+    </div>{{!-- /.hero-container --}}
+
+    {{!-- RIGHT: image — inside hero-bg so it respects background --}}
+    <div class="hero-image-wrapper" id="hero-image-wrapper">
+      {{#if @custom.hero_image}}
+        <img
+          src="{{@custom.hero_image}}"
+          alt="{{#if @custom.hero_name}}{{@custom.hero_name}}{{else}}{{@site.title}}{{/if}}"
+          class="hero-image"
+          loading="eager"
+        >
+      {{else if @site.cover_image}}
+        <img
+          src="{{@site.cover_image}}"
+          alt="{{@site.title}}"
+          class="hero-image"
+          loading="eager"
+        >
       {{/if}}
-
-    </div>{{!-- /.hero-content --}}
-
-  </div>{{!-- /.hero-container --}}
-
-  {{!-- RIGHT: image — outside container so it can bleed full viewport height --}}
-  <div class="hero-image-wrapper" id="hero-image-wrapper">
-    {{#if @custom.hero_image}}
-      <img
-        src="{{@custom.hero_image}}"
-        alt="{{#if @custom.hero_name}}{{@custom.hero_name}}{{else}}{{@site.title}}{{/if}}"
-        class="hero-image"
-        loading="eager"
-      >
-    {{else if @site.cover_image}}
-      <img
-        src="{{@site.cover_image}}"
-        alt="{{@site.title}}"
-        class="hero-image"
-        loading="eager"
-      >
-    {{/if}}
-  </div>{{!-- /.hero-image-wrapper --}}
+    </div>{{!-- /.hero-image-wrapper --}}
+  {{#if @custom.home_hero_background}}</div>{{!-- /.hero-bg --}}{{/if}}
 
 </section>{{!-- /.hero --}}

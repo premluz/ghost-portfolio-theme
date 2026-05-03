@@ -1,17 +1,19 @@
 <article class="personal-card">
-  {{#if feature_image}}
-    <div class="personal-image">
-      <img src="{{feature_image}}" alt="{{title}}" loading="lazy">
-    </div>
-  {{/if}}
-  <div class="personal-content">
-    <div class="personal-author">
-      <h3 class="personal-name">{{title}}</h3>
-    </div>
-    {{#if html}}
-      <div class="personal-text">{{{html}}}</div>
-    {{else if content}}
-      <div class="personal-text">{{{content}}}</div>
+   <a href="{{url}}" class="post-card-link">
+    {{#if feature_image}}
+      <div class="personal-image">
+        <img src="{{feature_image}}" alt="{{title}}" loading="lazy">
+      </div>
     {{/if}}
-  </div>
+    <div class="personal-content">
+      <div class="personal-author">
+        <h3 class="personal-name">{{title}}</h3>
+      </div>
+      {{#if html}}
+        <div class="personal-text">{{{html}}}</div>
+      {{else if content}}
+        <div class="personal-text">{{{content}}}</div>
+      {{/if}}
+    </div>
+  </a/>
 </article>
