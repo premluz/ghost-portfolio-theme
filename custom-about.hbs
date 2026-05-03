@@ -4,7 +4,15 @@
     <header class="page-header">
       <div class="container">
         <h1 class="page-title">About {{@site.title}}</h1>
+        {{#if custom_excerpt}}
+        <p class="post-excerpt">{{custom_excerpt}}</p>
+       {{/if}}
       </div>
+    {{#if feature_image}}
+      <figure class="post-image">
+        <img src="{{feature_image}}" alt="{{title}}" loading="lazy">
+      </figure>
+    {{/if}}
     </header>
   {{/if}}
 
@@ -12,8 +20,6 @@
 
     {{> personal}}
 
-  <div class="page-content container">
-    <p>Welcome to {{@site.title}}. {{@site.description}}</p>
-    <p>This is a bold, typographic Ghost theme designed for independent creators, writers, and thinkers who want to share their ideas with the world.</p>
-  </div>
 </article>
+
+

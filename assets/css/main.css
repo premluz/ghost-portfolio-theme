@@ -1187,7 +1187,7 @@ body[data-page-width='full'] .gh-navigation[data-nav-layout='respects_page_width
   font-size: var(--text-size-body);
   color: var(--color-on-surface-variant);
   max-width: 600px;
-  transition: opacity var(--duration-standard) var(--ease-standard));
+  transition: opacity var(--duration-standard) var(--ease-standard);
   opacity: 1;
 }
 
@@ -1203,7 +1203,7 @@ body[data-page-width='full'] .gh-navigation[data-nav-layout='respects_page_width
   width: 100%;
   opacity: 0;
   pointer-events: none;
-  transition: opacity var(--duration-standard) var(--ease-standard));
+  transition: opacity var(--duration-standard) var(--ease-standard);
 }
 
 .posts-tabs-content.active {
@@ -3719,4 +3719,83 @@ body[data-page-width='full'] .gh-footer[data-footer-width="respect_page_width"] 
 
 .tracking-widest {
   letter-spacing: 0.15em;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* WORD ANIMATION SECTION */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+.word-animation-container {
+  position: relative;
+  width: 100%;
+}
+
+.word-animation-sticky {
+  position: sticky;
+  top: 40px;
+  min-height: 100vh;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+}
+
+.word-animation-viewport {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  position: relative;
+  padding: 0 var(--content-padding);
+  min-height: 100vh;
+}
+
+.word-animation-text {
+  max-width: 800px;
+  text-align: center;
+  font-size: clamp(2rem, 6vw, 3.5rem);
+  font-weight: 500;
+  line-height: 1.6;
+  color: var(--color-on-surface);
+  position: relative;
+}
+
+.word-animation-word {
+  display: inline-block;
+  position: relative;
+  will-change: opacity, color, transform, filter, width;
+  overflow: hidden;
+  transition: width 0.2s ease-in;
+  margin-right: 0.25em;
+}
+
+.word-animation-period {
+  display: inline-block;
+  position: relative;
+  will-change: transform, opacity;
+  margin-left: 0.1em;
+  opacity: 0;
+  color: var(--color-primary);
+  font-weight: 800;
+}
+
+@media (max-width: 768px) {
+  .word-animation-sticky {
+    position: relative;
+    height: auto;
+    overflow: visible;
+  }
+
+  .word-animation-viewport {
+    padding: var(--space-section) var(--content-padding);
+    min-height: auto;
+  }
+
+  .word-animation-text {
+    font-size: clamp(1.5rem, 4vw, 2rem);
+  }
+
+  .word-animation-period {
+    display: none;
+  }
 }
