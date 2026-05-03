@@ -216,6 +216,7 @@
   --text-size-body: clamp(0.875rem, 1.8vw, 1.25rem);
   --text-size-small: clamp(0.75rem, 1vw, 1rem);
   --text-size-caption: clamp(0.625rem, 1vw, 0.875rem);
+  --text-size-eyebrow: clamp(0.625rem, 1vw, 0.75rem);
 
   --text-line-height-h1: var(--primitive-line-height-tight);
   --text-line-height-h2: var(--primitive-line-height-tight);

@@ -567,6 +567,7 @@ function initPostsTabs() {
 
 function initTableOfContents() {
   const tocContainer = document.querySelector('.post-toc-list');
+  const tocNav = document.querySelector('.post-toc-nav');
   const contentArea = document.querySelector('.gh-content');
 
   if (!tocContainer || !contentArea) return;
@@ -580,6 +581,102 @@ function initTableOfContents() {
       .replace(/\s+/g, '-')
       .replace(/-+/g, '-');
   }
+
+  // Create and insert controls (prev/next arrows only - Start is a regular TOC item)
+  function createControls() {
+    const controlsDiv = document.createElement('div');
+    controlsDiv.className = 'post-toc-controls';
+
+    // Get version parameter from existing theme icons for cache busting
+    const themeIcon = document.querySelector('.theme-icon-sun');
+    let versionParam = '';
+    if (themeIcon && themeIcon.src) {
+      const match = themeIcon.src.match(/\?v=[^&]+/);
+      if (match) versionParam = match[0];
+    }
+
+    // Prev button with icon
+    const prevBtn = document.createElement('button');
+    prevBtn.className = 'post-toc-nav-btn post-toc-nav-prev';
+    prevBtn.setAttribute('aria-label', 'Previous project');
+
+    const prevImg = document.createElement('img');
+    prevImg.src = '/assets/icons/arrow-left.svg' + versionParam;
+    prevImg.alt = 'Previous';
+    prevBtn.appendChild(prevImg);
+
+    const prevTooltip = document.createElement('span');
+    prevTooltip.className = 'post-toc-tooltip';
+    prevTooltip.textContent = 'Previous project';
+    prevBtn.appendChild(prevTooltip);
+
+    prevBtn.addEventListener('click', () => {
+      const prevLink = document.querySelector('.post-nav-prev a') || document.querySelector('.post-nav-prev');
+      if (prevLink && prevLink.offsetParent !== null) {
+        window.location.href = prevLink.href;
+      } else {
+        console.log('No visible previous project link found');
+      }
+    });
+
+    // Next button with icon
+    const nextBtn = document.createElement('button');
+    nextBtn.className = 'post-toc-nav-btn post-toc-nav-next';
+    nextBtn.setAttribute('aria-label', 'Next project');
+
+    const nextImg = document.createElement('img');
+    nextImg.src = '/assets/icons/arrow-right.svg' + versionParam;
+    nextImg.alt = 'Next';
+    nextBtn.appendChild(nextImg);
+
+    const nextTooltip = document.createElement('span');
+    nextTooltip.className = 'post-toc-tooltip';
+    nextTooltip.textContent = 'Next project';
+    nextBtn.appendChild(nextTooltip);
+
+    nextBtn.addEventListener('click', () => {
+      const nextLink = document.querySelector('.post-nav-next a') || document.querySelector('.post-nav-next');
+      if (nextLink && nextLink.offsetParent !== null) {
+        window.location.href = nextLink.href;
+      } else {
+        console.log('No visible next project link found');
+      }
+    });
+
+    controlsDiv.appendChild(prevBtn);
+    controlsDiv.appendChild(nextBtn);
+
+    return controlsDiv;
+  }
+
+  // Controls will be inserted into list after it's created (after Start item)
+
+  // Add "Start" as a regular TOC item at the beginning of the list
+  function addStartItem() {
+    const startLi = document.createElement('li');
+    startLi.className = 'post-toc-item post-toc-item-start';
+
+    const startLink = document.createElement('a');
+    startLink.href = '#start';
+    startLink.className = 'post-toc-link';
+    startLink.textContent = 'Start';
+
+    startLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      updateActiveHeader(null); // Mark Start as active
+    });
+
+    startLi.appendChild(startLink);
+    tocContainer.appendChild(startLi);  // Append instead of insertBefore
+  }
+
+  // Insert controls as first item
+  const controls = createControls();
+  tocContainer.appendChild(controls);
+
+  // Add "Start" as second item
+  addStartItem();
 
   // Parse headers and build TOC
   const headers = contentArea.querySelectorAll('h2, h3');
@@ -630,6 +727,16 @@ function initTableOfContents() {
     tocContainer.appendChild(li);
   });
 
+  // Track scroll position to show Start as active when at top
+  function trackScrollPosition() {
+    const scrollTop = window.scrollY;
+
+    if (scrollTop < 100) {
+      // At the top — activate Start item
+      updateActiveHeader(null);
+    }
+  }
+
   // Intersection Observer for active header tracking
   const observerOptions = {
     rootMargin: '-100px 0px -66% 0px'
@@ -645,22 +752,33 @@ function initTableOfContents() {
 
   headers.forEach(header => observer.observe(header));
 
+  // Track scroll for Start item activation
+  document.addEventListener('scroll', trackScrollPosition, { passive: true });
+
   function updateActiveHeader(activeHeader) {
     // Remove active class from all items
     document.querySelectorAll('.post-toc-item--active').forEach(item => {
       item.classList.remove('post-toc-item--active');
     });
 
-    // Add active class to corresponding TOC item
-    const activeItem = tocContainer.querySelector(
-      `a[href="#${activeHeader.id}"]`
-    )?.closest('.post-toc-item');
+    // If activeHeader is null, activate Start item
+    if (activeHeader === null) {
+      const startItem = tocContainer.querySelector('.post-toc-item-start');
+      if (startItem) {
+        startItem.classList.add('post-toc-item--active');
+      }
+    } else {
+      // Add active class to corresponding TOC item
+      const activeItem = tocContainer.querySelector(
+        `a[href="#${activeHeader.id}"]`
+      )?.closest('.post-toc-item');
 
-    if (activeItem) {
-      activeItem.classList.add('post-toc-item--active');
-      // Note: no scrollIntoView() here — the TOC is position:fixed so there
-      // is nothing to scroll within it, and calling scrollIntoView() on a
-      // fixed-position descendant can trigger unexpected page scroll.
+      if (activeItem) {
+        activeItem.classList.add('post-toc-item--active');
+        // Note: no scrollIntoView() here — the TOC is position:fixed so there
+        // is nothing to scroll within it, and calling scrollIntoView() on a
+        // fixed-position descendant can trigger unexpected page scroll.
+      }
     }
   }
 }
@@ -706,6 +824,58 @@ function initPageTransitions() {
       window.location.href = href;
     }, 200);
   });
+
+  // Reset overlay when page is restored from back/forward cache
+  window.addEventListener('pageshow', (e) => {
+    if (e.persisted) {
+      // Page was restored from cache (back button) — restore overlay to visible state
+      // Browser handles scroll restoration automatically
+      overlay.classList.remove('page-transition-enter');
+      overlay.classList.add('page-transition-exit');
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// POST NAVIGATION FILTERING
+// ═══════════════════════════════════════════════════════════════
+
+function initPostNavigation() {
+  // Filter next/prev posts to only show same featured status
+  const navContainer = document.querySelector('.post-navigation');
+  if (!navContainer) return;
+
+  const currentFeatured = navContainer.getAttribute('data-post-featured') === 'true';
+  const prevLink = navContainer.querySelector('a[rel="prev"]');
+  const nextLink = navContainer.querySelector('a[rel="next"]');
+
+  // Hide prev link if featured status doesn't match
+  if (prevLink) {
+    const prevFeatured = prevLink.getAttribute('data-post-featured') === 'true';
+    if (currentFeatured !== prevFeatured) {
+      prevLink.style.display = 'none';
+    }
+  } else {
+    // Hide empty div if no prev post
+    const prevDiv = navContainer.querySelector('div:first-child');
+    if (prevDiv && prevDiv.tagName === 'DIV') {
+      prevDiv.style.visibility = 'hidden';
+    }
+  }
+
+  // Hide next link if featured status doesn't match
+  if (nextLink) {
+    const nextFeatured = nextLink.getAttribute('data-post-featured') === 'true';
+    if (currentFeatured !== nextFeatured) {
+      nextLink.style.display = 'none';
+    }
+  } else {
+    // Hide empty div if no next post
+    const nextDiv = navContainer.querySelector('div:last-child');
+    if (nextDiv && nextDiv.tagName === 'DIV') {
+      nextDiv.style.visibility = 'hidden';
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -723,4 +893,5 @@ document.addEventListener('DOMContentLoaded', () => {
   initCarousel();
   initPostsTabs();
   initTableOfContents();
+  initPostNavigation();
 });

@@ -107,6 +107,17 @@ h6 {
   font-weight: 600;
 }
 
+.text-eyebrow {
+  font-size: var(--text-size-eyebrow);
+  color: var(--color-on-surface-variant);
+  font-size: var(--text-size-eyebrow) !important;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 0 0 var(--space-md);
+  font-weight: 600;
+  text-align: inherit;
+}
+
 p {
   color: var(--color-on-surface-variant);
   margin-bottom: var(--space-md);
@@ -537,6 +548,32 @@ body[data-page-width='full'] .gh-navigation[data-nav-layout='respects_page_width
   background-color: rgba(var(--primary-rgb, 74, 158, 92), 0.08);
 }
 
+.theme-toggle:hover {
+  color: var(--color-primary) !important;
+  background-color: rgba(var(--primary-rgb, 74, 158, 92), 0.08) !important;
+}
+
+/* Navigation tooltips — appear below icon buttons */
+.nav-tooltip {
+  position: absolute !important;
+  top: 100% !important;
+  left: 50% !important;
+  transform: translateX(-50%) translateY(6px) !important;
+  background: var(--color-surface) !important;
+  color: var(--color-on-surface-variant) !important;
+  padding: 6px 12px !important;
+  border-radius: 4px !important;
+  font-size: 0.8rem !important;
+  white-space: nowrap !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 200ms !important;
+}
+
+.nav-icon-btn:hover .nav-tooltip {
+  opacity: 1 !important;
+}
+
 .nav-icon-btn:active {
   transform: scale(0.97);
 }
@@ -946,13 +983,20 @@ body[data-page-width='full'] .gh-navigation[data-nav-layout='respects_page_width
 /* ═════════════════════════════════════════════════════════════ */
 
 .posts-grid {
-  padding: var(--space-section) 0;
+  padding: var(--space-section) var(--content-padding);
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  right: 50%;
+  margin-left: -50vw;
+  margin-right: -50vw;
 }
 
 .posts-grid .container {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 500px), 1fr));
-  gap: var(--space-xl);
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-lg);
+  max-width: none;
 }
 
 .post-card {
@@ -986,9 +1030,9 @@ body[data-page-width='full'] .gh-navigation[data-nav-layout='respects_page_width
   z-index: 2;
 }
 
-/* .post-card:active {
+.post-card:active {
   transform: scale(0.98);
-} */
+} 
 
 .post-card-link {
   display: flex;
@@ -1135,6 +1179,7 @@ body[data-page-width='full'] .gh-navigation[data-nav-layout='respects_page_width
 /* Hide carousel elements by default */
 .carousel-track {
   display: grid;
+  gap: var(--space-2xl)
 }
 
 .carousel-controls {
@@ -1145,10 +1190,22 @@ body[data-page-width='full'] .gh-navigation[data-nav-layout='respects_page_width
 /* LIST LAYOUT */
 /* ─────────────────────────────────────────────────────────── */
 
-.posts-grid[data-posts-layout='list'] .carousel-track {
+.posts-grid[data-posts-layout='list'] {
+  padding: var(--space-section) var(--content-padding);
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  right: 50%;
+  margin-left: -50vw;
+  margin-right: -50vw;
+}
+
+.posts-grid[data-posts-layout='list'] .container {
   display: flex;
   flex-direction: column;
   gap: var(--space-xl);
+  max-width: none;
+  padding: 0;
 }
 
 .posts-grid[data-posts-layout='list'] .post-card {
@@ -1158,13 +1215,14 @@ body[data-page-width='full'] .gh-navigation[data-nav-layout='respects_page_width
 }
 
 .posts-grid[data-posts-layout='list'] .post-card-image {
-  flex: 0 0 300px;
+  flex: 1;
   margin-bottom: 0;
   order: -1;
 }
 
 .posts-grid[data-posts-layout='list'] .post-card-link {
   flex-direction: row;
+  gap: var(--space-xl);
 }
 
 .posts-grid[data-posts-layout='list'] .post-card-content {
@@ -1838,6 +1896,11 @@ body[data-page-width='full'] .footer-content {
     justify-content: center;
   }
 
+  /* Mobile grid layout: stack to 1 column */
+  .posts-grid .container {
+    grid-template-columns: 1fr;
+  }
+
   /* Mobile carousel adjustments */
   .posts-grid[data-posts-layout='carousel'] .post-card {
     flex: 0 0 calc(100vw - 2 * var(--content-padding) - 80px);
@@ -2425,15 +2488,39 @@ body[data-page-width='full'] .hero[data-hero-layout='respects_page_width'] {
  */
 
 /* ── 1. Wrapper ───────────────────────────────────────────────── */
+/* ╔════════════════════════════════════════════════════════════════════════════
+   ║ TABLE OF CONTENTS SIDEBAR
+   ║
+   ║ CRITICAL STRUCTURE (do not break):
+   ║ 1. .post-toc is the full-height invisible hit area from right: 0
+   ║    - right: 0, height: 100vh, width: var(--content-padding)
+   ║    - Creates stable hover region spanning entire right edge
+   ║    - On hover: expands to width: 320px to show the card pane
+   ║
+   ║ 2. .post-toc-list contains dots/text with margin-right: 24px
+   ║    - Positions content 24px inset from right edge
+   ║    - On hover: styled as a rounded card with background + blur
+   ║
+   ║ 3. .post-toc-nav is the nav container (display: block, always visible)
+   ║    - .post-toc-controls (prev/next arrows) are first child
+   ║    - .post-toc-list (h2/h3 items) are direct children
+   ║
+   ║ WHY THIS WORKS:
+   ║ - Stable hover area prevents jittering (full height, doesn't move)
+   ║ - Pane stays within hover area when expanded (no cursor escape)
+   ║ - 24px margin keeps content inset from screen edge
+   ║ - Dots always visible at right size/position
+   ╚════════════════════════════════════════════════════════════════════════════ */
+
 .post-toc {
   position: fixed !important;
   right: 0 !important;
-  top: 50% !important;
-  transform: translateY(-50%) !important;
+  top: 0 !important;
+  height: 100vh !important;
+  width: var(--content-padding) !important;
   z-index: 999 !important;
-  /* Default: narrow transparent strip just wide enough to show dots */
-  width: 44px !important;
-  padding: 20px 0 !important;
+  /* Hover area invisible, full height/width for interaction */
+  padding: 0 !important;
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
@@ -2442,21 +2529,106 @@ body[data-page-width='full'] .hero[data-hero-layout='respects_page_width'] {
   background: rgba(28, 28, 28, 0) !important;
   backdrop-filter: blur(0px) !important;
   -webkit-backdrop-filter: blur(0px) !important;
-  border-radius: 12px !important;
+  border-radius: 0 !important;
   box-shadow: none !important;
   pointer-events: auto !important;
-  border-radius: 24px;
   /* Smooth everything */
   transition:
-    width 300ms cubic-bezier(0.2, 0, 0, 1),
-    padding 300ms cubic-bezier(0.2, 0, 0, 1),
     background 300ms cubic-bezier(0.2, 0, 0, 1),
     backdrop-filter 300ms cubic-bezier(0.2, 0, 0, 1),
-    box-shadow 300ms cubic-bezier(0.2, 0, 0, 1),
-    border-radius 300ms cubic-bezier(0.2, 0, 0, 1) !important;
+    box-shadow 300ms cubic-bezier(0.2, 0, 0, 1) !important;
 }
 
-/* ── 2. Hide toggle button ────────────────────────────────────── */
+/* ── 2. Navigation controls at top ───────────────────────────── */
+.post-toc-controls {
+  display: none !important;
+  flex-direction: row !important;
+  width: 100% !important;
+  gap: 4px !important;
+  justify-content: center !important;
+  margin-bottom: 12px !important;
+  padding: 0 !important;
+}
+
+/* Show controls when pane expands */
+.post-toc:hover .post-toc-controls {
+  display: flex !important;
+}
+
+/* Navigation arrow buttons — use nav-icon-btn styling */
+.post-toc-nav-btn {
+  background: transparent !important;
+  border: none !important;
+  cursor: pointer !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: var(--color-icon) !important;
+  width: 64px !important;
+  height: 64px !important;
+  border-radius: 50% !important;
+  transition: color var(--duration-fast) var(--ease-standard),
+              background-color var(--duration-fast) var(--ease-standard) !important;
+  position: relative !important;
+}
+
+.post-toc-nav-btn:hover {
+  color: var(--color-primary) !important;
+  background-color: rgba(var(--primary-rgb, 74, 158, 92), 0.08) !important;
+}
+
+.post-toc-nav-btn img {
+  width: 32px !important;
+  height: 32px !important;
+  stroke: currentColor !important;
+  display: block !important;
+  filter: brightness(0) saturate(100%) invert(1) !important;
+}
+
+[data-theme='light'] .post-toc-nav-btn img {
+  filter: brightness(0) saturate(100%) !important;
+}
+
+.post-toc-tooltip {
+  position: absolute !important;
+  bottom: 100% !important;
+  left: 50% !important;
+  transform: translateX(-50%) translateY(-6px) !important;
+  background: var(--color-surface) !important;
+  color: var(--color-on-surface-variant) !important;
+  padding: 6px 12px !important;
+  border-radius: 4px !important;
+  font-size: 0.8rem !important;
+  white-space: nowrap !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 200ms !important;
+}
+
+.post-toc-nav-btn:hover .post-toc-tooltip {
+  opacity: 1 !important;
+}
+
+/* Show controls on hover */
+.post-toc:hover .post-toc-controls {
+  display: flex !important;
+}
+
+/* Style controls inside expanded pane */
+.post-toc:hover .post-toc-list .post-toc-controls {
+  padding: 0 !important;
+  margin-bottom: 12px !important;
+  gap: 8px !important;
+}
+
+/* Scale down arrow buttons inside expanded pane */
+.post-toc:hover .post-toc-list .post-toc-nav-btn {
+  width: 48px !important;
+  height: 48px !important;
+}
+
+/* ── 3. Hide toggle button ────────────────────────────────────── */
 .post-toc-toggle {
   display: none !important;
 }
@@ -2468,18 +2640,20 @@ body[data-page-width='full'] .hero[data-hero-layout='respects_page_width'] {
   background: transparent !important;
   padding: 0 !important;
   margin: 0 !important;
+  overflow: visible !important;
 }
 
 /* ── 4. List — vertical column of dots ───────────────────────── */
 .post-toc-list {
   list-style: none !important;
-  margin: 0 !important;
+  margin: 0 0 0 auto !important;
+  margin-right: 24px !important;
   padding: 0 !important;
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;   /* centre dots horizontally */
   gap: 14px !important;
-  width: 100% !important;
+  width: auto !important;
 }
 
 /* ── 5. Items ─────────────────────────────────────────────────── */
@@ -2493,11 +2667,11 @@ body[data-page-width='full'] .hero[data-hero-layout='respects_page_width'] {
 
 /* ── 6. Links — DEFAULT: solid coloured dot ──────────────────── */
 .post-toc-link {
-  /* Dot shape */
+  /* Dot shape — smaller collapsed dots */
   display: block !important;
   flex-shrink: 0 !important;
-  width: 10px !important;
-  height: 10px !important;
+  width: 6px !important;
+  height: 6px !important;
   border-radius: 50% !important;
   /* Dot colour — clearly visible */
   background: var(--color-on-surface-variant, #888888) !important;
@@ -2548,19 +2722,37 @@ body[data-page-width='full'] .hero[data-hero-layout='respects_page_width'] {
 
 /* ── 7. HOVER STATE — entire component expands ───────────────── */
 .post-toc:hover {
-  width: 220px !important;
-  padding: 12px 0 !important;
+  background: transparent !important;
+  width: 320px !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+  align-items: flex-end !important;
+  padding-right: 24px !important;
+}
+
+.post-toc:hover .post-toc-list {
+  width: auto !important;
+  max-width: 280px !important;
+  padding: 20px !important;
   background: rgba(28, 28, 28, 0.92) !important;
   backdrop-filter: blur(14px) !important;
   -webkit-backdrop-filter: blur(14px) !important;
-  border-radius: 10px !important;
+  border-radius: 12px !important;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35) !important;
+  gap: 0 !important;
+  align-items: stretch !important;
 }
 
-/* List inside panel: left-align, remove inter-dot gap */
+/* Light mode: use light background */
+[data-theme='light'] .post-toc:hover .post-toc-list {
+  background: rgba(245, 245, 245, 0.92) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Items align stretch when expanded */
 .post-toc:hover .post-toc-list {
   align-items: stretch !important;
-  gap: 0 !important;
 }
 
 .post-toc:hover .post-toc-item {
@@ -2572,24 +2764,26 @@ body[data-page-width='full'] .hero[data-hero-layout='respects_page_width'] {
   /* Reset dot geometry */
   width: 100% !important;
   height: auto !important;
-  border-radius: 4px !important;
+  max-width: 240px !important;
+  border-radius: 6px !important;
   background: transparent !important;
   box-shadow: none !important;
   transform: none !important;
   overflow: visible !important;
   white-space: normal !important;
-  /* Reveal text */
-  font-size: 12px !important;
-  line-height: 1.4 !important;
+  word-break: break-word !important;
+  /* Reveal text — larger font for expanded view */
+  font-size: 0.95rem !important;
+  line-height: 1.5 !important;
   color: var(--color-on-surface-variant, #cccccc) !important;
-  padding: 6px 14px !important;
+  padding: 10px 16px !important;
   opacity: 1 !important;
 }
 
 /* h3 links: indent */
 .post-toc:hover .post-toc-item--h3 .post-toc-link {
-  padding-left: 24px !important;
-  font-size: 11px !important;
+  padding-left: 32px !important;
+  font-size: 0.9rem !important;
   opacity: 0.8 !important;
 }
 
@@ -2604,7 +2798,7 @@ body[data-page-width='full'] .hero[data-hero-layout='respects_page_width'] {
 .post-toc:hover .post-toc-item--active .post-toc-link {
   background: transparent !important;
   color: var(--color-primary, #6b9a5c) !important;
-  font-weight: 600 !important;
+  font-weight: 400 !important;
   box-shadow: none !important;
   opacity: 1 !important;
 }
@@ -2614,438 +2808,6 @@ body[data-page-width='full'] .hero[data-hero-layout='respects_page_width'] {
   .post-toc {
     display: none !important;
   }
-}
-
-/* Final: Entire container hover with rounded item backgrounds */
-.post-toc {
-  position: fixed !important;
-  right: 0 !important;
-  top: 50% !important;
-  transform: translateY(-50%) !important;
-  width: 60px !important;
-  min-height: 400px !important;
-  display: flex !important;
-  flex-direction: column !important;
-  justify-content: center !important;
-  align-items: center !important;
-  gap: 0 !important;
-  padding: 0 !important;
-  z-index: 999 !important;
-  transition: width 300ms cubic-bezier(0.2, 0, 0, 1) !important;
-}
-
-.post-toc:hover {
-  width: 240px !important;
-  background: rgba(32, 32, 32, 0.92) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
-  padding: 16px 12px !important;
-  gap: 8px !important;
-  border-radius: 0 12px 12px 0 !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3) !important;
-}
-
-.post-toc-list {
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 8px !important;
-  align-items: center !important;
-  width: 100% !important;
-}
-
-.post-toc:hover .post-toc-list {
-  align-items: stretch !important;
-}
-
-.post-toc-item {
-  margin: 0 !important;
-  padding: 0 !important;
-  width: 100% !important;
-}
-
-.post-toc-link {
-  display: block !important;
-  width: 10px !important;
-  height: 10px !important;
-  background: var(--color-on-surface-variant, #888) !important;
-  border-radius: 50% !important;
-  padding: 0 !important;
-  border: none !important;
-  cursor: pointer !important;
-  transition: all 300ms ease !important;
-  font-size: 0 !important;
-  color: transparent !important;
-  line-height: 0 !important;
-}
-
-.post-toc-item--h3 .post-toc-link {
-  width: 7px !important;
-  height: 7px !important;
-  opacity: 0.6 !important;
-}
-
-.post-toc:hover .post-toc-link {
-  width: 100% !important;
-  height: auto !important;
-  background: transparent !important;
-  border-radius: 6px !important;
-  font-size: 14px !important;
-  color: var(--color-on-surface-variant, #aaa) !important;
-  line-height: 1.4 !important;
-  padding: 8px 12px !important;
-  text-align: left !important;
-  transition: all 150ms ease !important;
-}
-
-.post-toc-item--h3 .post-toc:hover .post-toc-link {
-  padding-left: 28px !important;
-  font-size: 13px !important;
-  opacity: 0.85 !important;
-}
-
-.post-toc-link:hover {
-  background: rgba(107, 153, 92, 0.12) !important;
-  color: var(--color-primary, #6b9) !important;
-}
-
-.post-toc-item--active .post-toc-link {
-  background: var(--color-primary, #6b9) !important;
-  box-shadow: 0 0 10px var(--color-primary, #6b9) !important;
-  color: white !important;
-}
-
-.post-toc:hover .post-toc-item--active .post-toc-link {
-  background: rgba(107, 153, 92, 0.15) !important;
-  color: var(--color-primary, #6b9) !important;
-  font-weight: 600 !important;
-  box-shadow: none !important;
-}
-
-/* TOC with theme tokens and rounded borders */
-.post-toc {
-  position: fixed !important;
-  right: 0 !important;
-  top: 50% !important;
-  transform: translateY(-50%) !important;
-  width: 60px !important;
-  min-height: 400px !important;
-  display: flex !important;
-  flex-direction: column !important;
-  justify-content: center !important;
-  align-items: center !important;
-  gap: 0 !important;
-  padding: 0 !important;
-  z-index: 999 !important;
-  transition: width var(--duration-standard) var(--ease-standard), 
-              background var(--duration-standard) var(--ease-standard),
-              border-radius var(--duration-standard) var(--ease-standard) !important;
-}
-
-.post-toc:hover {
-  width: 240px !important;
-  background: rgba(var(--surface-rgb, 32, 32, 32), 0.92) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
-  padding: var(--space-md) var(--space-sm) !important;
-  gap: var(--space-sm) !important;
-  border-radius: 0 var(--radius-lg) var(--radius-lg) 0 !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3) !important;
-}
-
-.post-toc-list {
-  display: flex !important;
-  flex-direction: column !important;
-  gap: var(--space-xs) !important;
-  align-items: center !important;
-  width: 100% !important;
-}
-
-.post-toc:hover .post-toc-list {
-  align-items: stretch !important;
-  gap: var(--space-sm) !important;
-}
-
-.post-toc-item {
-  margin: 0 !important;
-  padding: 0 !important;
-  width: 100% !important;
-}
-
-.post-toc-link {
-  display: block !important;
-  width: 10px !important;
-  height: 10px !important;
-  background: var(--color-on-surface-variant) !important;
-  border-radius: 50% !important;
-  padding: 0 !important;
-  border: none !important;
-  cursor: pointer !important;
-  transition: all var(--duration-standard) var(--ease-standard) !important;
-  font-size: 0 !important;
-  color: transparent !important;
-  line-height: 0 !important;
-}
-
-.post-toc-item--h3 .post-toc-link {
-  width: 7px !important;
-  height: 7px !important;
-  opacity: 0.65 !important;
-}
-
-.post-toc:hover .post-toc-link {
-  width: 100% !important;
-  height: auto !important;
-  background: transparent !important;
-  border-radius: var(--radius-md) !important;
-  font-size: var(--text-size-body) !important;
-  color: var(--color-on-surface-variant) !important;
-  line-height: 1.4 !important;
-  padding: var(--space-xs) var(--space-sm) !important;
-  text-align: left !important;
-  transition: all var(--duration-fast) var(--ease-standard) !important;
-}
-
-.post-toc-item--h3 .post-toc:hover .post-toc-link {
-  padding-left: calc(var(--space-sm) * 3) !important;
-  font-size: calc(var(--text-size-body) - 1px) !important;
-  opacity: 0.85 !important;
-}
-
-.post-toc-link:hover {
-  background: rgba(var(--primary-rgb, 107, 153, 92), 0.12) !important;
-  color: var(--color-primary) !important;
-}
-
-.post-toc-item--active .post-toc-link {
-  background: var(--color-primary) !important;
-  box-shadow: 0 0 10px var(--color-primary) !important;
-  color: var(--color-background) !important;
-}
-
-.post-toc:hover .post-toc-item--active .post-toc-link {
-  background: rgba(var(--primary-rgb, 107, 153, 92), 0.15) !important;
-  color: var(--color-primary) !important;
-  font-weight: 600 !important;
-  box-shadow: none !important;
-}
-
-/* Light mode fixes for TOC */
-html[data-theme='light'] .post-toc:hover {
-  background: rgba(232, 234, 240, 0.92) !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1) !important;
-}
-
-html[data-theme='light'] .post-toc-link:hover {
-  background: rgba(74, 158, 92, 0.08) !important;
-}
-
-html[data-theme='light'] .post-toc:hover .post-toc-item--active .post-toc-link {
-  background: rgba(74, 158, 92, 0.1) !important;
-}
-
-/* Fix clipping issues */
-.post-toc,
-.post-toc-nav,
-.post-toc-list {
-  overflow: visible !important;
-}
-
-.post-toc:hover {
-  overflow-y: auto !important;
-  overflow-x: visible !important;
-}
-
-
-/* Fix left side rounding */
-.post-toc:hover {
-  border-radius: var(--radius-lg) 0 0 var(--radius-lg) !important;
-}
-
-/* Stable hover behavior - container hover, dots stay fixed */
-.post-toc {
-  position: fixed !important;
-  right: 0 !important;
-  top: 50% !important;
-  transform: translateY(-50%) !important;
-  width: 60px !important;
-  min-height: 400px !important;
-  display: flex !important;
-  flex-direction: column !important;
-  justify-content: center !important;
-  align-items: center !important;
-  padding: 0 !important;
-  z-index: 999 !important;
-  transition: width var(--duration-standard) var(--ease-standard), 
-              background var(--duration-standard) var(--ease-standard),
-              border-radius var(--duration-standard) var(--ease-standard) !important;
-  cursor: pointer !important;
-}
-
-.post-toc:hover {
-  width: 240px !important;
-  background: rgba(32, 32, 32, 0.92) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
-  padding: var(--space-md) var(--space-sm) !important;
-  border-radius: var(--radius-lg) 0 0 var(--radius-lg) !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3) !important;
-}
-
-.post-toc-list {
-  display: flex !important;
-  flex-direction: column !important;
-  gap: var(--space-sm) !important;
-  align-items: center !important;
-  width: 100% !important;
-  pointer-events: none !important;
-}
-
-.post-toc:hover .post-toc-list {
-  gap: var(--space-sm) !important;
-  align-items: stretch !important;
-  pointer-events: auto !important;
-}
-
-.post-toc-item {
-  margin: 0 !important;
-  padding: 0 !important;
-}
-
-.post-toc-link {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: 10px !important;
-  height: 10px !important;
-  background: var(--color-on-surface-variant) !important;
-  border-radius: 50% !important;
-  padding: 0 !important;
-  border: none !important;
-  cursor: pointer !important;
-  transition: background var(--duration-standard) var(--ease-standard) !important;
-  font-size: 0 !important;
-  color: transparent !important;
-  line-height: 0 !important;
-  flex-shrink: 0 !important;
-}
-
-.post-toc-item--h3 .post-toc-link {
-  width: 7px !important;
-  height: 7px !important;
-  opacity: 0.65 !important;
-}
-
-.post-toc:hover .post-toc-link {
-  width: auto !important;
-  height: auto !important;
-  background: transparent !important;
-  border-radius: var(--radius-md) !important;
-  font-size: var(--text-size-body) !important;
-  color: var(--color-on-surface-variant) !important;
-  line-height: 1.4 !important;
-  padding: var(--space-xs) var(--space-sm) !important;
-  text-align: left !important;
-  justify-content: flex-start !important;
-  flex-shrink: 0 !important;
-}
-
-.post-toc-item--h3 .post-toc:hover .post-toc-link {
-  padding-left: calc(var(--space-sm) * 3) !important;
-  font-size: calc(var(--text-size-body) - 1px) !important;
-  opacity: 0.85 !important;
-}
-
-.post-toc-link:hover {
-  background: rgba(var(--primary-rgb, 107, 153, 92), 0.12) !important;
-  color: var(--color-primary) !important;
-}
-
-.post-toc-item--active .post-toc-link {
-  background: var(--color-primary) !important;
-  box-shadow: 0 0 10px var(--color-primary) !important;
-  color: var(--color-background) !important;
-  flex-shrink: 0 !important;
-}
-
-.post-toc:hover .post-toc-item--active .post-toc-link {
-  background: rgba(var(--primary-rgb, 107, 153, 92), 0.15) !important;
-  color: var(--color-primary) !important;
-  font-weight: 600 !important;
-  box-shadow: none !important;
-}
-
-html[data-theme='light'] .post-toc:hover {
-  background: rgba(232, 234, 240, 0.92) !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1) !important;
-}
-
-html[data-theme='light'] .post-toc-link:hover {
-  background: rgba(74, 158, 92, 0.08) !important;
-}
-
-html[data-theme='light'] .post-toc:hover .post-toc-item--active .post-toc-link {
-  background: rgba(74, 158, 92, 0.1) !important;
-}
-
-.post-toc,
-.post-toc-nav,
-.post-toc-list {
-  overflow: visible !important;
-}
-
-.post-toc:hover {
-  overflow-y: auto !important;
-  overflow-x: visible !important;
-}
-
-/* Panel expands with content, max-width limit, no horizontal scroll */
-.post-toc:hover {
-  width: auto !important;
-  max-width: 260px !important;
-  min-width: 60px !important;
-  overflow-x: hidden !important;
-  overflow-y: auto !important;
-  word-wrap: break-word !important;
-  word-break: break-word !important;
-}
-
-.post-toc:hover .post-toc-link {
-  white-space: normal !important;
-  word-wrap: break-word !important;
-  word-break: break-word !important;
-}
-
-.post-toc-item--h3 .post-toc:hover .post-toc-link {
-  white-space: normal !important;
-}
-
-/* Larger max-width to prevent cut-off, stable hover area */
-.post-toc:hover {
-  width: auto !important;
-  max-width: 280px !important;
-  min-width: 60px !important;
-  overflow-x: hidden !important;
-  overflow-y: auto !important;
-  word-wrap: break-word !important;
-  word-break: break-word !important;
-  padding: var(--space-md) var(--space-md) !important;
-  right: -20px !important;
-}
-
-.post-toc {
-  right: 0 !important;
-  transition: right var(--duration-standard) var(--ease-standard), 
-              width var(--duration-standard) var(--ease-standard), 
-              background var(--duration-standard) var(--ease-standard),
-              border-radius var(--duration-standard) var(--ease-standard),
-              padding var(--duration-standard) var(--ease-standard) !important;
-}
-
-.post-toc-link {
-  white-space: normal !important;
-  word-wrap: break-word !important;
-  text-overflow: clip !important;
-  overflow: visible !important;
 }
 
 /* Page transition overlay — safe, doesn't affect fixed positioning */
@@ -3263,20 +3025,23 @@ html[data-theme='light'] .post-toc:hover .post-toc-item--active .post-toc-link {
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
+  padding: 0 var(--space-2xl) var(--space-2xl) 0;
 }
 
 .about-image {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  background-color: var(--color-surface-variant);
+  width: clamp(40px, 4vw, 80px);
+  height: clamp(40px, 4vw, 80px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: left;
 }
 
 .about-image img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  display: block;
+  object-fit: contain;
 }
 
 .about-content {

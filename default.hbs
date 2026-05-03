@@ -63,8 +63,12 @@
     <div class="footer-content">
       <div class="footer-signup-section">
         <h2 class="footer-title">{{@site.title}}</h2>
-        <p class="footer-description">Get the latest posts and updates delivered to your inbox.</p>
-        <form class="footer-form" data-members-form>
+        <p class="footer-description">Let's work together.</p>
+                  <button type="submit" class="button footer-button" aria-label="Subscribe">
+            Contact me
+            <img src="{{asset "icons/arrow-right.svg"}}" alt="Subscribe" class="footer-button-icon">
+          </button>
+        <!-- <form class="footer-form" data-members-form>
           <input
             type="email"
             class="footer-input"
@@ -78,17 +82,17 @@
             <img src="{{asset "icons/arrow-right.svg"}}" alt="Subscribe" class="footer-button-icon">
           </button>
           <p class="footer-form-message" data-members-error></p>
-        </form>
+        </form>-->
       </div>
 
       <div class="footer-bottom">
-        <div class="footer-nav">
+        <!-- <div class="footer-nav">
           <a href="{{@site.url}}">Home</a>
           <a href="{{#get 'pages' limit='1' filter='slug:about'}}{{url}}{{else}}{{@site.url}}about/{{/get}}">About</a>
-        </div>
-        <div class="footer-credit">
+        </div>-->
+        <!--<div class="footer-credit">
           <p>&copy; {{date format="YYYY"}} <strong>{{@site.title}}</strong> • Powered by <a href="https://ghost.org" target="_blank" rel="noopener">Ghost</a></p>
-        </div>
+        </div>-->
       </div>
     </div>
   </footer>
