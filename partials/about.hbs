@@ -5,7 +5,7 @@
   </header>
 
   <div class="about-grid">
-    {{#get "posts" filter="tag:about" limit="all" include="tags,authors,html"}}
+    {{#get "posts" filter="tag:about" limit="100" include="tags,authors,html"}}
       {{#foreach posts}}
         {{> about-card}}
       {{/foreach}}

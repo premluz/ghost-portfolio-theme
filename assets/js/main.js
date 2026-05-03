@@ -3,6 +3,8 @@
  * Navigation, theme toggle, scroll progress
  */
 
+console.log('main.js file loaded');
+
 // ═══════════════════════════════════════════════════════════════
 // THEME TOGGLE
 // ═══════════════════════════════════════════════════════════════
@@ -566,11 +568,16 @@ function initPostsTabs() {
 // ═══════════════════════════════════════════════════════════════
 
 function initTableOfContents() {
+  console.log('initTableOfContents() function called');
   const tocContainer = document.querySelector('.post-toc-list');
   const tocNav = document.querySelector('.post-toc-nav');
   const contentArea = document.querySelector('.gh-content');
 
-  if (!tocContainer || !contentArea) return;
+  console.log('TOC elements found:', { tocContainer, tocNav, contentArea });
+  if (!tocContainer || !contentArea) {
+    console.log('Missing required elements, returning early');
+    return;
+  }
 
   // Generate slug from text
   function generateSlug(text) {
@@ -599,6 +606,9 @@ function initTableOfContents() {
     const prevBtn = document.createElement('button');
     prevBtn.className = 'post-toc-nav-btn post-toc-nav-prev';
     prevBtn.setAttribute('aria-label', 'Previous project');
+    prevBtn.style.display = 'flex';
+    prevBtn.style.visibility = 'visible';
+    prevBtn.style.opacity = '1';
 
     const prevImg = document.createElement('img');
     prevImg.src = '/assets/icons/arrow-left.svg' + versionParam;
@@ -610,19 +620,48 @@ function initTableOfContents() {
     prevTooltip.textContent = 'Previous project';
     prevBtn.appendChild(prevTooltip);
 
-    prevBtn.addEventListener('click', () => {
-      const prevLink = document.querySelector('.post-nav-prev a') || document.querySelector('.post-nav-prev');
-      if (prevLink && prevLink.offsetParent !== null) {
-        window.location.href = prevLink.href;
+    try {
+      prevBtn.addEventListener('click', async () => {
+      const article = document.querySelector('article.post');
+      const currentId = article ? article.getAttribute('data-post-id') : null;
+      const tagsStr = article ? article.getAttribute('data-post-tags') : null;
+
+      if (currentId && tagsStr) {
+        const tags = tagsStr.split(',').filter(t => t.trim());
+        const tagSlug = tags[0];
+
+        try {
+          const response = await fetch(`/ghost/api/v3/content/posts/?key=53c1eef4fff835def4f59619d6&fields=id,url&filter=tag:${tagSlug}&order=published_at desc&limit=100`);
+          const data = await response.json();
+          const posts = data.posts || [];
+
+          const currentIndex = posts.findIndex(p => p.id === currentId);
+          if (currentIndex >= 0) {
+            const prevIndex = currentIndex === 0 ? posts.length - 1 : currentIndex - 1;
+            window.location.href = posts[prevIndex].url;
+          }
+        } catch (e) {
+          console.log('Tag navigation unavailable');
+        }
       } else {
-        console.log('No visible previous project link found');
+        const prevLink = document.querySelector('a.post-nav-prev');
+        if (prevLink && prevLink.offsetParent !== null) {
+          prevLink.click();
+        }
       }
-    });
+      });
+    } catch (e) {
+      console.error('Error setting up prev button listener:', e);
+    }
 
     // Next button with icon
     const nextBtn = document.createElement('button');
     nextBtn.className = 'post-toc-nav-btn post-toc-nav-next';
     nextBtn.setAttribute('aria-label', 'Next project');
+    // Force visibility with inline styles
+    nextBtn.style.display = 'flex';
+    nextBtn.style.visibility = 'visible';
+    nextBtn.style.opacity = '1';
 
     const nextImg = document.createElement('img');
     nextImg.src = '/assets/icons/arrow-right.svg' + versionParam;
@@ -634,17 +673,56 @@ function initTableOfContents() {
     nextTooltip.textContent = 'Next project';
     nextBtn.appendChild(nextTooltip);
 
-    nextBtn.addEventListener('click', () => {
-      const nextLink = document.querySelector('.post-nav-next a') || document.querySelector('.post-nav-next');
-      if (nextLink && nextLink.offsetParent !== null) {
-        window.location.href = nextLink.href;
-      } else {
-        console.log('No visible next project link found');
-      }
-    });
+    try {
+      nextBtn.addEventListener('click', async () => {
+      const article = document.querySelector('article.post');
+      const currentId = article ? article.getAttribute('data-post-id') : null;
+      const tagsStr = article ? article.getAttribute('data-post-tags') : null;
 
+      if (currentId && tagsStr) {
+        const tags = tagsStr.split(',').filter(t => t.trim());
+        const tagSlug = tags[0];
+
+        try {
+          const response = await fetch(`/ghost/api/v3/content/posts/?key=53c1eef4fff835def4f59619d6&fields=id,url&filter=tag:${tagSlug}&order=published_at desc&limit=100`);
+          const data = await response.json();
+          const posts = data.posts || [];
+
+          const currentIndex = posts.findIndex(p => p.id === currentId);
+          if (currentIndex >= 0) {
+            const nextIndex = currentIndex === posts.length - 1 ? 0 : currentIndex + 1;
+            window.location.href = posts[nextIndex].url;
+          }
+        } catch (e) {
+          console.log('Tag navigation unavailable');
+        }
+      } else {
+        const nextLink = document.querySelector('a.post-nav-next');
+        if (nextLink && nextLink.offsetParent !== null) {
+          nextLink.click();
+        }
+      }
+      });
+    } catch (e) {
+      console.error('Error setting up next button listener:', e);
+    }
+
+    console.log('Appending prev button...');
     controlsDiv.appendChild(prevBtn);
+    console.log('Prev button appended, controls children:', controlsDiv.children.length);
+
+    console.log('Appending next button...');
     controlsDiv.appendChild(nextBtn);
+    console.log('Next button appended, controls children:', controlsDiv.children.length);
+
+    console.log('Controls created:', {
+      prevBtn,
+      nextBtn,
+      controlsDiv,
+      childCount: controlsDiv.children.length,
+      prevDisplay: window.getComputedStyle(prevBtn).display,
+      nextDisplay: window.getComputedStyle(nextBtn).display
+    });
 
     return controlsDiv;
   }
@@ -671,15 +749,18 @@ function initTableOfContents() {
     tocContainer.appendChild(startLi);  // Append instead of insertBefore
   }
 
-  // Insert controls as first item
+  // Insert controls as first item (wrap in li for valid HTML structure)
   const controls = createControls();
-  tocContainer.appendChild(controls);
+  const controlsLi = document.createElement('li');
+  controlsLi.className = 'post-toc-controls-item';
+  controlsLi.appendChild(controls);
+  tocContainer.appendChild(controlsLi);
 
   // Add "Start" as second item
   addStartItem();
 
-  // Parse headers and build TOC
-  const headers = contentArea.querySelectorAll('h2, h3');
+  // Parse headers and build TOC (only h2)
+  const headers = contentArea.querySelectorAll('h2');
   if (headers.length === 0) {
     // Add test items if no headers found
     const testLi = document.createElement('li');
@@ -710,7 +791,7 @@ function initTableOfContents() {
 
     // Create TOC item
     const li = document.createElement('li');
-    li.className = `post-toc-item ${header.tagName === 'H3' ? 'post-toc-item--h3' : ''}`;
+    li.className = 'post-toc-item';
 
     const link = document.createElement('a');
     link.href = `#${header.id}`;
@@ -841,40 +922,137 @@ function initPageTransitions() {
 // ═══════════════════════════════════════════════════════════════
 
 function initPostNavigation() {
-  // Filter next/prev posts to only show same featured status
   const navContainer = document.querySelector('.post-navigation');
   if (!navContainer) return;
 
-  const currentFeatured = navContainer.getAttribute('data-post-featured') === 'true';
-  const prevLink = navContainer.querySelector('a[rel="prev"]');
-  const nextLink = navContainer.querySelector('a[rel="next"]');
+  const article = document.querySelector('article.post');
+  const currentId = article ? article.getAttribute('data-post-id') : null;
+  const tagsStr = article ? article.getAttribute('data-post-tags') : null;
 
-  // Hide prev link if featured status doesn't match
-  if (prevLink) {
-    const prevFeatured = prevLink.getAttribute('data-post-featured') === 'true';
-    if (currentFeatured !== prevFeatured) {
-      prevLink.style.display = 'none';
-    }
-  } else {
-    // Hide empty div if no prev post
-    const prevDiv = navContainer.querySelector('div:first-child');
-    if (prevDiv && prevDiv.tagName === 'DIV') {
-      prevDiv.style.visibility = 'hidden';
-    }
-  }
+  // Update footer links to use tag-based navigation
+  if (currentId && tagsStr) {
+    const tags = tagsStr.split(',').filter(t => t.trim());
+    const tagSlug = tags[0];
 
-  // Hide next link if featured status doesn't match
-  if (nextLink) {
-    const nextFeatured = nextLink.getAttribute('data-post-featured') === 'true';
-    if (currentFeatured !== nextFeatured) {
-      nextLink.style.display = 'none';
-    }
-  } else {
-    // Hide empty div if no next post
-    const nextDiv = navContainer.querySelector('div:last-child');
-    if (nextDiv && nextDiv.tagName === 'DIV') {
-      nextDiv.style.visibility = 'hidden';
-    }
+    fetch(`/ghost/api/v3/content/posts/?key=53c1eef4fff835def4f59619d6&fields=id,url,title,feature_image&filter=tag:${tagSlug}&order=published_at desc&limit=100`)
+      .then(res => res.json())
+      .then(data => {
+        const posts = data.posts || [];
+        const currentIndex = posts.findIndex(p => p.id === currentId);
+
+        if (currentIndex >= 0) {
+          // Get prev and next posts with cycling
+          const prevIndex = currentIndex === 0 ? posts.length - 1 : currentIndex - 1;
+          const nextIndex = currentIndex === posts.length - 1 ? 0 : currentIndex + 1;
+
+          const prevPost = posts[prevIndex];
+          const nextPost = posts[nextIndex];
+
+          // Update prev link - always show if post exists
+          const prevLink = navContainer.querySelector('a[rel="prev"]');
+          if (prevPost) {
+            if (prevLink) {
+              prevLink.href = prevPost.url;
+              const titleEl = prevLink.querySelector('.post-nav-title');
+              if (titleEl) titleEl.textContent = prevPost.title;
+              if (prevPost.feature_image) {
+                const imgEl = prevLink.querySelector('.post-nav-image');
+                if (imgEl) imgEl.src = prevPost.feature_image;
+              }
+              prevLink.style.display = 'flex';
+            } else {
+              // Create link if it doesn't exist
+              const prevDiv = navContainer.querySelector('div:first-child');
+              if (prevDiv) {
+                const newPrevLink = document.createElement('a');
+                newPrevLink.href = prevPost.url;
+                newPrevLink.rel = 'prev';
+                newPrevLink.className = 'post-nav-link post-nav-prev';
+                if (prevPost.feature_image) {
+                  const img = document.createElement('img');
+                  img.src = prevPost.feature_image;
+                  img.alt = prevPost.title;
+                  img.className = 'post-nav-image';
+                  newPrevLink.appendChild(img);
+                }
+                const content = document.createElement('div');
+                content.className = 'post-nav-content';
+                const label = document.createElement('div');
+                label.className = 'post-nav-label';
+                const labelImg = document.createElement('img');
+                labelImg.src = '/assets/icons/arrow-left.svg';
+                labelImg.alt = 'Previous';
+                labelImg.className = 'post-nav-icon';
+                label.appendChild(labelImg);
+                label.appendChild(document.createTextNode('Previous'));
+                const title = document.createElement('div');
+                title.className = 'post-nav-title';
+                title.textContent = prevPost.title;
+                content.appendChild(label);
+                content.appendChild(title);
+                newPrevLink.appendChild(content);
+                prevDiv.replaceWith(newPrevLink);
+              }
+            }
+          } else {
+            if (prevLink) prevLink.style.display = 'none';
+          }
+
+          // Update next link - always show if post exists
+          const nextLink = navContainer.querySelector('a[rel="next"]');
+          if (nextPost) {
+            if (nextLink) {
+              nextLink.href = nextPost.url;
+              const titleEl = nextLink.querySelector('.post-nav-title');
+              if (titleEl) titleEl.textContent = nextPost.title;
+              if (nextPost.feature_image) {
+                const imgEl = nextLink.querySelector('.post-nav-image');
+                if (imgEl) imgEl.src = nextPost.feature_image;
+              }
+              nextLink.style.display = 'flex';
+            } else {
+              // Create link if it doesn't exist
+              const nextDiv = navContainer.querySelector('div:last-child');
+              if (nextDiv) {
+                const newNextLink = document.createElement('a');
+                newNextLink.href = nextPost.url;
+                newNextLink.rel = 'next';
+                newNextLink.className = 'post-nav-link post-nav-next';
+                if (nextPost.feature_image) {
+                  const img = document.createElement('img');
+                  img.src = nextPost.feature_image;
+                  img.alt = nextPost.title;
+                  img.className = 'post-nav-image';
+                  newNextLink.appendChild(img);
+                }
+                const content = document.createElement('div');
+                content.className = 'post-nav-content';
+                const label = document.createElement('div');
+                label.className = 'post-nav-label';
+                label.appendChild(document.createTextNode('Next'));
+                const labelImg = document.createElement('img');
+                labelImg.src = '/assets/icons/arrow-right.svg';
+                labelImg.alt = 'Next';
+                labelImg.className = 'post-nav-icon';
+                label.appendChild(labelImg);
+                const title = document.createElement('div');
+                title.className = 'post-nav-title';
+                title.textContent = nextPost.title;
+                content.appendChild(label);
+                content.appendChild(title);
+                newNextLink.appendChild(content);
+                nextDiv.replaceWith(newNextLink);
+              }
+            }
+          } else {
+            if (nextLink) nextLink.style.display = 'none';
+          }
+        }
+      })
+      .catch(() => {
+        // Fall back to original Ghost behavior if API fails
+        console.log('Tag-based footer nav unavailable');
+      });
   }
 }
 
@@ -883,6 +1061,7 @@ function initPostNavigation() {
 // ═══════════════════════════════════════════════════════════════
 
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('DOMContentLoaded event fired');
   initPageTransitions();
   initThemeToggle();
   initNavScrollBehavior();

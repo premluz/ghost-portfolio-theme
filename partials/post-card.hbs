@@ -1,4 +1,4 @@
-<article class="post-card"{{#if tags}} data-tag-slugs="{{#each tags}}{{slug}} {{/each}}"{{/if}}>
+<article class="post-card"{{#if tags}} data-tag-slugs="{{#foreach tags}}{{slug}} {{/foreach}}"{{/if}}>
   <a href="{{url}}" class="post-card-link">
     {{#if feature_image}}
       <div class="post-card-image">
@@ -10,7 +10,7 @@
       <h2 class="post-card-title">{{title}}</h2>
 
       {{#if custom_excerpt}}
-       <p class="post-card-excerpt">{{custom_excerpt}}</p>
+     <!--  <p class="post-card-excerpt">{{custom_excerpt}}</p>-->
       {{else}}
     <!--    <p class="post-card-excerpt">{{excerpt words="30"}}</p>-->
       {{/if}}
@@ -19,7 +19,7 @@
         <!-- <time datetime="{{date format="YYYY-MM-DD"}}">{{date format="MMM DD, YYYY"}}</time>-->
         {{#if @custom.show_reading_time}}
           {{#if reading_time}}
-            <span class="reading-time">{{reading_time}} min read</span>
+            <span class="reading-time">{{reading_time}}</span>
           {{/if}}
         {{/if}}
       </div>

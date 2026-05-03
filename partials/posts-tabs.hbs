@@ -16,7 +16,7 @@
         <div class="posts-grid" data-posts-layout="{{@custom.posts_layout}}">
           <div class="container">
             <div class="carousel-track">
-              {{#get "posts" filter="featured:true+tag:hash-work" limit="all" include="tags,authors"}}
+              {{#get "posts" filter="featured:true+tag:hash-work" limit="100" include="tags,authors"}}
                 {{#foreach posts}}
                   {{> post-card}}
                 {{/foreach}}
@@ -43,7 +43,7 @@
         <div class="posts-grid" data-posts-layout="{{@custom.posts_layout}}">
           <div class="container">
             <div class="carousel-track">
-              {{#get "posts" filter="tag:hash-work" limit="all" include="tags,authors"}}
+              {{#get "posts" filter="tag:hash-work" limit="100" include="tags,authors"}}
                 {{#foreach posts}}
                   {{> post-card}}
                 {{/foreach}}

@@ -5,7 +5,7 @@
   </header>
 
   <div class="personal-grid">
-    {{#get "posts" filter="tag:personal" limit="all" include="tags,authors,html"}}
+    {{#get "posts" filter="tag:personal" limit="100" include="tags,authors,html"}}
       {{#foreach posts}}
         {{> personal-card}}
       {{/foreach}}

@@ -5,7 +5,7 @@
   </header>
 
   <div class="testimonials-grid">
-    {{#get "posts" filter="tag:testimonial" limit="all" include="tags,authors,html"}}
+    {{#get "posts" filter="tag:testimonial" limit="100" include="tags,authors,html"}}
       {{#foreach posts}}
         {{> testimonial-card}}
       {{/foreach}}

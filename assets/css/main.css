@@ -188,7 +188,7 @@ p:last-child {
 
 .post-content li,
 .gh-content li {
-  margin-bottom: var(--space-lg);
+  margin-bottom: var(--space-md);
   color: var(--color-on-surface-variant);
 }
 
@@ -1085,7 +1085,7 @@ body[data-page-width='full'] .gh-navigation[data-nav-layout='respects_page_width
 .post-card-image {
   display: block;
   width: 100%;
-  aspect-ratio: 16 / 9;
+ /* aspect-ratio: 16 / 9; */
   overflow: hidden;
   margin-bottom: var(--space-md);
 }
@@ -1126,6 +1126,10 @@ body[data-page-width='full'] .gh-navigation[data-nav-layout='respects_page_width
   gap: var(--space-md);
   font-size: var(--text-size-caption);
   color: var(--color-on-surface-variant);
+}
+
+.post-card-meta time {
+  align-content: baseline;
 }
 
 /* ─────────────────────────────────────────────────────────── */
@@ -1551,6 +1555,7 @@ body[data-page-width='full'] .gh-canvas {
   gap: var(--space-md);
   font-size: var(--text-size-caption);
   color: var(--color-on-surface-variant);
+  align-items: baseline;
 }
 
 .post-image {
@@ -1749,6 +1754,20 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-i
 
 .kg-embed-card {
   margin: var(--space-lg) 0;
+  width: 100%;
+  max-width: 100%;
+  grid-column: wide-start / wide-end;
+}
+
+.kg-embed-card iframe {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 16 / 9;
+}
+
+.kg-embed-card > iframe {
+  display: block;
 }
 
 .kg-bookmark-card {
@@ -2123,7 +2142,7 @@ body[data-page-width='full'] .footer-content {
   .posts-grid[data-posts-layout='list'] .post-card-image {
     flex: 0 0 auto;
     width: 100%;
-    aspect-ratio: 16 / 9;
+    /* aspect-ratio: 16 / 9; */
   }
 }
 
@@ -2772,19 +2791,49 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
 }
 
 /* ── 2. Navigation controls at top ───────────────────────────── */
+.post-toc-controls-item {
+  list-style: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  width: fit-content !important;
+  display: flex !important;
+  justify-content: center !important;
+  overflow: visible !important;
+}
+
 .post-toc-controls {
   display: none !important;
   flex-direction: row !important;
-  width: 100% !important;
-  gap: 4px !important;
+  flex-wrap: nowrap !important;
+  width: fit-content !important;
+  gap: 8px !important;
   justify-content: center !important;
   margin-bottom: 12px !important;
   padding: 0 !important;
+  position: relative !important;
+  z-index: 10 !important;
+  pointer-events: auto !important;
+  overflow: visible !important;
+  align-items: center !important;
 }
 
 /* Show controls when pane expands */
 .post-toc:hover .post-toc-controls {
   display: flex !important;
+}
+
+/* Scale down buttons inside controls */
+.post-toc-controls .post-toc-nav-btn {
+  width: 48px !important;
+  height: 48px !important;
+  flex-shrink: 0 !important;
+}
+
+/* Ensure next button is visible */
+.post-toc-nav-next {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 
 /* Navigation arrow buttons — use nav-icon-btn styling */
@@ -2803,6 +2852,8 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
   transition: color var(--duration-fast) var(--ease-standard),
               background-color var(--duration-fast) var(--ease-standard) !important;
   position: relative !important;
+  pointer-events: auto !important;
+  z-index: 11 !important;
 }
 
 .post-toc-nav-btn:hover {
@@ -2824,9 +2875,9 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
 
 .post-toc-tooltip {
   position: absolute !important;
-  bottom: 100% !important;
+  top: 100% !important;
   left: 50% !important;
-  transform: translateX(-50%) translateY(-6px) !important;
+  transform: translateX(-50%) translateY(6px) !important;
   background: var(--color-surface) !important;
   color: var(--color-on-surface-variant) !important;
   padding: 6px 12px !important;
@@ -2886,6 +2937,29 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
   align-items: center !important;   /* centre dots horizontally */
   gap: 14px !important;
   width: auto !important;
+  max-height: 80vh !important;
+  overflow-y: auto !important;
+  pointer-events: auto !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(128, 128, 128, 0.3) transparent !important;
+}
+
+/* Thin scrollbar for webkit browsers */
+.post-toc-list::-webkit-scrollbar {
+  width: 4px !important;
+}
+
+.post-toc-list::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+.post-toc-list::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 128, 0.3) !important;
+  border-radius: 2px !important;
+}
+
+.post-toc-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(128, 128, 128, 0.5) !important;
 }
 
 /* ── 5. Items ─────────────────────────────────────────────────── */
@@ -2902,11 +2976,12 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
   /* Dot shape — smaller collapsed dots */
   display: block !important;
   flex-shrink: 0 !important;
-  width: 6px !important;
-  height: 6px !important;
+  width: 4px !important;
+  height: 4px !important;
   border-radius: 50% !important;
-  /* Dot colour — clearly visible */
-  background: var(--color-on-surface-variant, #888888) !important;
+  /* Dot colour — subtle and light */
+  background: rgba(128, 128, 128, 0.4) !important;
+  opacity: 0.5 !important;
   /* Hide the anchor text WITHOUT text-indent (which breaks the circle) */
   font-size: 0 !important;
   color: transparent !important;
@@ -2931,15 +3006,11 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
     padding 200ms ease !important;
 }
 
-/* h3 dots — slightly smaller and dimmer */
-.post-toc-item--h3 .post-toc-link {
-  width: 7px !important;
-  height: 7px !important;
-  opacity: 0.6 !important;
-}
 
-/* Active section dot — primary colour glow */
+/* Active section dot — primary colour larger */
 .post-toc-item--active .post-toc-link {
+  width: 8px !important;
+  height: 8px !important;
   background: var(--color-primary, #6b9a5c) !important;
   box-shadow: 0 0 8px 2px var(--color-primary, #6b9a5c) !important;
   opacity: 1 !important;
@@ -2970,7 +3041,7 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
   background: rgba(28, 28, 28, 0.92) !important;
   backdrop-filter: blur(14px) !important;
   -webkit-backdrop-filter: blur(14px) !important;
-  border-radius: 12px !important;
+  border-radius: 24px !important;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35) !important;
   gap: 0 !important;
   align-items: stretch !important;
@@ -3012,27 +3083,27 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
   opacity: 1 !important;
 }
 
-/* h3 links: indent */
-.post-toc:hover .post-toc-item--h3 .post-toc-link {
-  padding-left: 32px !important;
-  font-size: 0.9rem !important;
-  opacity: 0.8 !important;
-}
 
 /* Panel link hover */
 .post-toc:hover .post-toc-link:hover {
   background: rgba(255, 255, 255, 0.06) !important;
-  color: var(--color-primary, #6b9a5c) !important;
+  color: var(--color-on-surface-variant, #cccccc) !important;
   transform: none !important;
 }
 
-/* Active link in panel */
+/* Active link in panel — keep green but add hover background */
 .post-toc:hover .post-toc-item--active .post-toc-link {
-  background: transparent !important;
+  background: rgba(255, 255, 255, 0.06) !important;
   color: var(--color-primary, #6b9a5c) !important;
   font-weight: 400 !important;
   box-shadow: none !important;
   opacity: 1 !important;
+}
+
+/* Active link hover in panel */
+.post-toc:hover .post-toc-item--active .post-toc-link:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: var(--color-primary, #6b9a5c) !important;
 }
 
 /* ── 8. Mobile: hide entirely ────────────────────────────────── */
@@ -3751,13 +3822,14 @@ body[data-page-width='full'] .gh-footer[data-footer-width="respect_page_width"] 
 }
 
 .word-animation-text {
-  max-width: 800px;
+  width: clamp(600px, 90vw, 1200px);
   text-align: center;
   font-size: clamp(2rem, 6vw, 3.5rem);
   font-weight: 500;
   line-height: 1.6;
   color: var(--color-on-surface);
   position: relative;
+  padding: 0 var(--content-padding);
 }
 
 .word-animation-word {
@@ -3769,14 +3841,20 @@ body[data-page-width='full'] .gh-footer[data-footer-width="respect_page_width"] 
   margin-right: 0.25em;
 }
 
+.word-animation-word:nth-of-type(3),
+.word-animation-word:nth-of-type(6) {
+  margin-right: 0;
+}
+
 .word-animation-period {
   display: inline-block;
   position: relative;
   will-change: transform, opacity;
-  margin-left: 0.1em;
   opacity: 0;
   color: var(--color-primary);
   font-weight: 800;
+  margin-right: 0.25em;
+  margin-left: 16px;
 }
 
 @media (max-width: 768px) {
