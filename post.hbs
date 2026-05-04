@@ -1,4 +1,8 @@
 {{!< default}}
+
+{{!-- Sticky Section Navigation (outside article for proper positioning) --}}
+<nav class="sticky-nav" data-auto-generate="true" data-content-selector=".gh-content" data-heading-selector="h2" aria-label="Post sections"></nav>
+
 {{#post}}
 <article class="post" data-post-hero="{{@custom.page_hero_width}}" data-post-id="{{id}}" data-post-tags="{{#foreach tags}}{{slug}}{{#unless @last}},{{/unless}}{{/foreach}}">
   <header class="post-header">
@@ -32,7 +36,7 @@
     </nav>
   </aside>
 
-  <div class="gh-canvas">
+  <div class="gh-canvas" data-page-content-width="{{@custom.page_content_width}}">
     <div class="gh-content">
       {{content}}
     </div>

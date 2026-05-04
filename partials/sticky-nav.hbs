@@ -1,0 +1,22 @@
+{{!--
+  Sticky Navigation Component
+  Usage: {{> sticky-nav items=navItems activeId=currentSection}}
+
+  Data format:
+  items = [
+    { label: "Section 1", id: "section-1", href: "#section-1" },
+    { label: "Section 2", id: "section-2", href: "#section-2" }
+  ]
+--}}
+
+<nav class="sticky-nav" role="navigation" aria-label="{{navLabel}}">
+  {{#each items}}
+    <a
+      class="sticky-nav-item{{#if isActive}} active{{/if}}"
+      href="{{href}}"
+      data-section-id="{{id}}"
+    >
+      {{label}}
+    </a>
+  {{/each}}
+</nav>

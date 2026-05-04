@@ -36,23 +36,35 @@
         "default": "elevated",
         "description": "Post card style"
       },
-      "typography_style": {
+      "typography_style_header": {
         "type": "select",
         "options": ["editorial", "display", "minimal"],
         "default": "editorial",
-        "description": "Heading weight: editorial, display, or minimal"
+        "description": "Header weight: editorial, display, or minimal"
+      },
+      "typography_style_body": {
+        "type": "select",
+        "options": ["light", "regular", "medium"],
+        "default": "regular",
+        "description": "Body weight: light, regular, or medium"
+      },
+      "line_spacing_header": {
+        "type": "select",
+        "options": ["tight", "normal", "relaxed"],
+        "default": "tight",
+        "description": "Header line spacing"
+      },
+      "line_spacing_body": {
+        "type": "select",
+        "options": ["tight", "normal", "relaxed"],
+        "default": "normal",
+        "description": "Body line spacing"
       },
       "type_size": {
         "type": "select",
         "options": ["sm", "md", "lg"],
         "default": "md",
         "description": "Font size: compact, balanced, or generous"
-      },
-      "type_spacing": {
-        "type": "select",
-        "options": ["tight", "normal", "relaxed"],
-        "default": "normal",
-        "description": "Line spacing: tight, normal, or relaxed"
       },
       "page_width": {
         "type": "select",
@@ -65,6 +77,18 @@
         "options": ["fullscreen", "respects_page_width"],
         "default": "fullscreen",
         "description": "Page hero: fullscreen or constrained"
+      },
+      "page_content_width": {
+        "type": "select",
+        "options": ["full", "respect_page_width"],
+        "default": "respect_page_width",
+        "description": "Page content: full width or constrained"
+      },
+      "home_content_width": {
+        "type": "select",
+        "options": ["full", "respect_page_width"],
+        "default": "respect_page_width",
+        "description": "Home sections: full width or constrained"
       },
       "footer_width": {
         "type": "select",
@@ -110,6 +134,17 @@
         "type": "boolean",
         "default": true,
         "description": "Enable hero scroll animation"
+      },
+      "home_hero_width": {
+        "type": "select",
+        "options": ["full", "respect_page_width"],
+        "default": "full",
+        "description": "Home hero section: full or constrained"
+      },
+      "home_hero_background": {
+        "type": "boolean",
+        "default": true,
+        "description": "Show hero background styling"
       },
       "nav_layout": {
         "type": "select",

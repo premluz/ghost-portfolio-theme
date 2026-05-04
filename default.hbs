@@ -50,7 +50,7 @@
     })();
   </script>
 </head>
-<body class="{{body_class}}" data-page-width="{{@custom.page_width}}" data-card-style="{{@custom.card_style}}" data-typography="{{@custom.typography_style}}">
+<body class="{{body_class}}" data-page-width="{{@custom.page_width}}" data-card-style="{{@custom.card_style}}" data-typography-header="{{@custom.typography_style_header}}" data-typography-body="{{@custom.typography_style_body}}" data-line-spacing-header="{{@custom.line_spacing_header}}" data-line-spacing-body="{{@custom.line_spacing_body}}">
   {{#if @custom.show_scroll_progress}}<div class="scroll-progress"></div>{{/if}}
 
   {{> navigation}}
@@ -103,6 +103,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
   <script src="https://unpkg.com/split-type@0.3.4/umd/index.min.js"></script>
   <script src="{{asset "js/main.js"}}"></script>
+  <script src="{{asset "js/sticky-nav.js"}}"></script>
   <script src="{{asset "js/word-animation.js"}}"></script>
   {{#is "post"}}
   <script src="{{asset "js/group-layout.js"}}"></script>
