@@ -1,0 +1,138 @@
+{{!--
+  GPU Particle System Integration
+  Production setup matching existing particle system architecture
+  Canvas placement, scroll triggers, morph sequences exactly as original
+--}}
+
+<script>
+(function() {
+  'use strict';
+
+  // Set synchronously, before any async work — lets particle-morph.hbs tell
+  // "GPU integration is present but still initializing" apart from "GPU
+  // integration isn't even included on this page" (e.g. commented out in
+  // default.hbs), so it doesn't have to blindly wait out a fixed timeout
+  // every time this include is toggled off.
+  window.__gpuIntegrationPresent = true;
+
+  async function initGPUParticles() {
+    console.log('[GPU-Integration] Initializing production GPU particle system...');
+
+    // Check if on post page (skip particles)
+    const isPostPage = document.body.classList.contains('post-template');
+    if (isPostPage) {
+      console.log('[GPU-Integration] Post page detected — GPU particles disabled');
+      return;
+    }
+
+    // Use GPUFallback for graceful degradation
+    // If WebGPU unavailable, falls back to existing particle system silently
+    window.gpuParticleSystem = await GPUFallback.createSystem('#gpu-canvas', {
+      particleCount: 7000,
+      monitoring: true,
+      shapeRegistry: true,
+      scrollDriver: true,
+      preloadShapes: [
+        // Core shapes (original system)
+        'dispersed', 'helix',
+        // Operating model morphing shapes
+        'sphere', 'cube', 'torus',
+        // Card shape GLBs (loaded from /content/images/)
+        'diamond', 'globe', 'game', 'chart', 'email', 'camera', 'clapper', 'note', 'mobile', 'sim', 'lab'
+      ]
+    });
+
+    // Exit if fallback (WebGPU not supported)
+    if (!window.gpuParticleSystem.isSupported?.()) {
+      console.log('[GPU-Integration] WebGPU unavailable, existing system active');
+      return;
+    }
+
+    console.log('[GPU-Integration] ✅ GPU system initialized');
+
+    // ── Expose as window.particleSystem for compatibility with main.js card morphing ──
+    window.particleSystem = window.gpuParticleSystem;
+
+    // ── Initialize with dispersed state (particle-morph.hbs not loaded on home page) ──
+    window.gpuParticleSystem.start('dispersed').catch(err => {
+      console.warn('[GPU-Integration] Failed to start with dispersed:', err.message);
+    });
+
+    // ── Hero flow triggers (old-system choreography) ────────────────────────
+    // particle-morph.hbs is NOT loaded on the home page, so the hero
+    // dispersed→helix choreography must live here. Card morphs are handled
+    // by main.js; operating-model-stacked has its own internal timeline.
+    const sys = window.gpuParticleSystem;
+
+    // 1) Page load: 200ms after init, wind the cloud into the helix (1.5s)
+    setTimeout(() => {
+      console.log('[GPU-Integration] Page-load helix morph');
+      sys.morphTo('helix', 1500);
+    }, 200);
+
+    // 2) Statement section 50% visible → helix (repeatable)
+    const statement = document.querySelector('#helix') || document.querySelector('.statement-slide-main');
+    if (statement) {
+      new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            console.log('[GPU-Integration] Statement section visible → helix');
+            sys.morphTo('helix', 600);
+          }
+        });
+      }, { threshold: 0.5 }).observe(statement);
+    }
+
+    // 3) Scrolling back up past the hero bottom → return to helix
+    const hero = document.querySelector('.hero');
+    if (hero && typeof ScrollTrigger !== 'undefined') {
+      ScrollTrigger.create({
+        trigger: hero,
+        start: 'bottom center',
+        end: 'bottom top',
+        onLeaveBack: () => {
+          console.log('[GPU-Integration] Hero re-entered (scroll up) → helix');
+          sys.morphTo('helix', 500);
+        }
+      });
+    } else if (!hero) {
+      console.log('[GPU-Integration] Hero element not found, skipping hero trigger');
+    }
+
+    // ── Debug: verify canvas is visible ────────────────────────────────────
+    const canvas = document.getElementById('gpu-canvas');
+    if (canvas) {
+      const style = window.getComputedStyle(canvas);
+      console.log('[GPU-Integration] Canvas visible:', style.display, style.zIndex, style.mixBlendMode);
+      console.log('[GPU-Integration] Canvas size:', canvas.width, '×', canvas.height);
+    }
+
+    // ── Performance monitoring (optional) ───────────────────────────────────
+    // Log every 5 seconds (non-intrusive)
+    if (window.gpuParticleSystem.monitor) {
+      window.gpuParticleSystem.monitor.startPeriodicLogging(5000);
+    }
+
+    console.log('[GPU-Integration] ✅ Production setup complete');
+  }
+
+  // Initialize when DOM is ready (after preloader if present)
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      // Wait for preloader if present, otherwise init immediately
+      if (window.__preloaderRunning || !localStorage.getItem('preloader_seen')) {
+        window.addEventListener('preloader:done', initGPUParticles, { once: true });
+      } else {
+        initGPUParticles();
+      }
+    });
+  } else {
+    // DOM already ready
+    if (window.__preloaderRunning || !localStorage.getItem('preloader_seen')) {
+      window.addEventListener('preloader:done', initGPUParticles, { once: true });
+    } else {
+      initGPUParticles();
+    }
+  }
+})();
+</script>

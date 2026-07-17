@@ -1,0 +1,59 @@
+<section class="stats-parallax" id="stats-scroll">
+  <div class="stats-ticker">
+    <div class="stat-item">
+      <h3 class="stat-title">240M+</h3>
+      <p class="stat-descriptor">IoT devices connected </p>
+    </div>
+    <div class="stat-item">
+      <h3 class="stat-title">180+</h3>
+      <p class="stat-descriptor">Markets covered</p>
+    </div>
+    <div class="stat-item">
+      <h3 class="stat-title">0→1</h3>
+      <p class="stat-descriptor">Founding designer</p>
+    </div>
+    <div class="stat-item">
+      <h3 class="stat-title">1→5</h3>
+      <p class="stat-descriptor">Design team scaled</p>
+    </div>
+  </div>
+</section>
+
+<script>
+(function() {
+  'use strict';
+
+  function initStatsAnimation() {
+    if (typeof gsap === 'undefined' || typeof ScrollTrigger === 'undefined') {
+      setTimeout(initStatsAnimation, 50);
+      return;
+    }
+
+    const section = document.getElementById('stats-scroll');
+    if (!section) return;
+
+    const items = section.querySelectorAll('.stat-item');
+    if (!items.length) return;
+
+    // Set initial state: hidden below
+    gsap.set(items, { opacity: 0, y: 40 });
+
+    // Animate on scroll
+    gsap.to(items, {
+      scrollTrigger: {
+        trigger: section,
+        start: 'top 75%',
+        toggleActions: 'play none none none',
+      },
+      opacity: 1,
+      y: 0,
+      duration: 0.6,
+      stagger: 0.15,
+      ease: 'power2.out',
+    });
+  }
+
+  if (document.readyState === 'complete') initStatsAnimation();
+  else window.addEventListener('load', initStatsAnimation, { once: true });
+})();
+</script>

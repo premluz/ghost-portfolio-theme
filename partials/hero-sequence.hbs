@@ -1,0 +1,561 @@
+{{!--
+  HERO SEQUENCE — Pinned storytelling section
+  ─────────────────────────────────────────────────────────────────────────
+  Pattern: scroll-through-pinned (GSAP pin:true)
+
+  Structure
+  ─────────
+    #hero-sequence          ← tall scroll container (PHRASE_COUNT × scrollPerPhrase px)
+      .hero-sequence-stage  ← GSAP pins this to viewport center
+        .hero-sequence-phrase × N  ← absolutely stacked, JS animates in/out
+
+  Animation types (set animationType in phraseConfig below):
+  ───────────────────────────────────────────────────────────
+    'fade'   — whole phrase fades in/out (opacity only, no splitting)
+    'slide'  — lines slide up + blur (current default; splitIntoLines groups words)
+    'letter' — each character animates individually
+    'word'   — each word animates individually
+
+  Entrance timing
+  ───────────────
+    Phrase 1 : time-based (IntersectionObserver, auto-plays on viewport entry)
+    Phrase 2+: scroll-driven (scrub:true)
+    Exits    : scroll-driven (scrub:true)
+
+  Reusable pinning recipe
+  ────────────────────────
+    1. Wrap content in a container that is N × 100vh tall.
+    2. Create an inner "stage" that is exactly 100vh tall.
+    3. Pin the stage with GSAP:
+         ScrollTrigger.create({ trigger: stage, pin: true,
+           start: 'top top', end: '+=' + totalScrollPx })
+    4. Build per-phrase timelines, each mapped to its scroll slice via
+         scrollTrigger: { trigger: stage, start, end, scrub:1 }
+    5. Parameters to vary:
+         scrollPerPhrase  — vh of scroll budget per phrase
+         LINE_Y_ENTER     — entrance travel distance (px, positive = from below)
+         LINE_Y_EXIT      — exit travel distance (px, negative = exits upward)
+         BLUR_START       — initial/final blur radius
+         scrub            — 0 = instant, 1 = 1-second lag, true = instant-scrub
+         ease             — 'power2.out' for entrance, 'none' for pure scrub
+--}}
+
+<section id="hero-sequence">
+  <div class="hero-sequence-stage">
+
+    {{!-- Phrase 1 --}}
+    <div class="hero-sequence-phrase" data-phrase="1">
+      <h1 class="hero-sequence-text serif" data-skip-animation="true">
+        Opportunity lives<br />in complexity.
+      </h1>
+    </div>
+
+    {{!-- Phrase 2 --}}
+    <div class="hero-sequence-phrase" data-phrase="2">
+      <h2 class="hero-sequence-text serif" data-skip-animation="true">
+        I transform it into...
+      </h2>
+    </div>
+
+    {{!-- Phrase 3 --}}
+    <div class="hero-sequence-phrase" data-phrase="3">
+      <h2 class="hero-sequence-text serif" data-skip-animation="true">
+        Clarity, alignment, and business value.
+      </h2>
+    </div>
+
+  </div>{{!-- /.hero-sequence-stage --}}
+</section>
+
+<script>
+/* ─────────────────────────────────────────────────────────────────────────
+ * HERO SEQUENCE — Pinned scroll animation with configurable animation type
+ *
+ * Architecture: scroll-through-pinned
+ *   The section is a tall scroll container. GSAP pins the inner stage
+ *   (viewport-centered) while the user scrolls through it. Each phrase
+ *   gets its own scrub:1 timeline mapped to a slice of that scroll budget.
+ *
+ * Animation types (phraseConfig.animationType):
+ *   'fade'   — whole phrase fades in/out (no DOM splitting)
+ *   'slide'  — lines slide up + blur (word-grouped lines)
+ *   'letter' — character-by-character reveal
+ *   'word'   — word-by-word reveal
+ *
+ * Reuse this pattern for any pinned storytelling section:
+ *   1. Container height = PHRASE_COUNT × scrollPerPhrase (set via JS)
+ *   2. Pin the stage with ScrollTrigger pin:true
+ *   3. Per-phrase entrance + exit timelines each target their scroll slice
+ * ────────────────────────────────────────────────────────────────────── */
+(function() {
+  'use strict';
+
+  function initHeroSequence() {
+    if (typeof gsap === 'undefined' || typeof ScrollTrigger === 'undefined') {
+      setTimeout(initHeroSequence, 50);
+      return;
+    }
+
+    const section = document.getElementById('hero-sequence');
+    if (!section) return;
+
+    const stage   = section.querySelector('.hero-sequence-stage');
+    const phrases = Array.from(section.querySelectorAll('.hero-sequence-phrase'));
+    if (!stage || phrases.length === 0) return;
+
+    // ── PHRASE CONFIG ──────────────────────────────────────────────────────────
+    // animationType controls how text is split and animated.
+    //   'fade'   — opacity only, no splitting, simplest
+    //   'slide'  — groups of ~3 words per line, slide up + blur
+    //   'letter' — every character is an individual span
+    //   'word'   — every word is an individual span
+    const phraseConfig = {
+      animationType: 'word',   // 'fade' | 'slide' | 'letter' | 'word'
+    };
+
+    // ── SCROLL CONFIG ──────────────────────────────────────────────────────────
+    const SCROLL_PER_PHRASE = window.innerHeight;     // 1 × 100vh per phrase
+    const TOTAL_SCROLL      = SCROLL_PER_PHRASE * phrases.length;
+
+    // Shared motion values (used by 'slide', 'letter', 'word')
+    const BLUR_START   = '20px';
+    const BLUR_END     = '0px';
+    const LINE_Y_ENTER =  80;   // positive = enter from below
+    const LINE_Y_EXIT  = -60;   // negative = exit upward
+    const WORD_Y_ENTER =  40;   // word/letter travel distance (less than line)
+    const WORD_Y_EXIT  = -30;
+    const STAGGER      = 0.25;  // seconds between units inside scrub tl
+    const SCRUB        = true;  // true = instant scrub
+
+    // ── SET CONTAINER HEIGHT ───────────────────────────────────────────────────
+    section.style.height = (TOTAL_SCROLL + window.innerHeight) + 'px';
+
+    // Refresh ScrollTrigger after height changes to recalculate positions
+    ScrollTrigger.refresh();
+
+    // ── TEXT SPLITTING HELPERS ─────────────────────────────────────────────────
+
+    // 'slide': group words into ~3-word lines
+    function splitIntoLines(heading) {
+      const text  = heading.textContent.trim();
+      const words = text.split(/\s+/);
+      const lines = [];
+      const WORDS_PER_LINE = 3;
+      for (let i = 0; i < words.length; i += WORDS_PER_LINE) {
+        lines.push(words.slice(i, i + WORDS_PER_LINE).join(' '));
+      }
+      heading.innerHTML = '';
+      return lines.map(lineText => {
+        const span = document.createElement('span');
+        span.className = 'hero-seq-line';
+        span.textContent = lineText;
+        heading.appendChild(span);
+        return span;
+      });
+    }
+
+    // 'letter': wrap every character (including spaces) in a span
+    function splitIntoLetters(heading) {
+      const text = heading.textContent.trim();
+      heading.innerHTML = '';
+      const spans = [];
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (ch === ' ') {
+          // Space: insert a plain text node so letters don't run together
+          heading.appendChild(document.createTextNode(' '));
+        } else {
+          const span = document.createElement('span');
+          span.className = 'hero-seq-char';
+          span.textContent = ch;
+          span.style.display = 'inline-block'; // required for y transforms
+          heading.appendChild(span);
+          spans.push(span);
+        }
+      }
+      return spans;
+    }
+
+    // 'word': wrap every word in a span, preserve <br> by forcing line break after it
+    function splitIntoWords(heading) {
+      // Check if there's a <br> element and count words before it
+      const brElement = heading.querySelector('br');
+      let breakAfterWord = -1;
+
+      if (brElement) {
+        // Build text up to <br>, count words
+        let beforeText = '';
+        let node = heading.firstChild;
+        while (node && node !== brElement) {
+          beforeText += node.textContent || '';
+          node = node.nextSibling;
+        }
+        breakAfterWord = beforeText.trim().split(/\s+/).length - 1;
+      }
+
+      const text  = heading.textContent.trim();
+      const words = text.split(/\s+/);
+      heading.innerHTML = '';
+
+      return words.map((word, idx) => {
+        const span = document.createElement('span');
+        span.className = 'hero-seq-word';
+        span.textContent = word;
+        span.style.display = 'inline-block'; // required for y transforms
+
+        // Force line break after word that precedes <br>
+        if (idx === breakAfterWord + 1 && brElement) {
+          span.style.display = 'block';
+        }
+
+        if (idx < words.length - 1) {
+          // Re-add the space between words as a text node
+          heading.appendChild(span);
+          heading.appendChild(document.createTextNode(' '));
+        } else {
+          heading.appendChild(span);
+        }
+        return span;
+      });
+    }
+
+    // ── SPLIT ALL PHRASES ──────────────────────────────────────────────────────
+    // Returns { units, heading } per phrase.
+    // 'fade' returns [] for units (whole phrase animates as one block).
+    const phraseData = phrases.map(phrase => {
+      const heading = phrase.querySelector('.hero-sequence-text');
+      if (!heading) return { units: [], heading: null };
+
+      let units = [];
+      const type = phraseConfig.animationType;
+
+      if (type === 'slide') {
+        units = splitIntoLines(heading);
+        gsap.set(units, { opacity: 0, filter: `blur(${BLUR_START})`, y: LINE_Y_ENTER });
+      } else if (type === 'letter') {
+        units = splitIntoLetters(heading);
+        gsap.set(units, { opacity: 0, y: WORD_Y_ENTER });
+      } else if (type === 'word') {
+        units = splitIntoWords(heading);
+        gsap.set(units, { opacity: 0, y: WORD_Y_ENTER });
+      }
+      // 'fade': no splitting, no initial set on units — phrase container handles it
+
+      // Hide phrase container (all types)
+      gsap.set(phrase, { opacity: 0 });
+      return { units, heading };
+    });
+
+    // ── PIN THE STAGE ──────────────────────────────────────────────────────────
+    ScrollTrigger.create({
+      trigger   : stage,
+      start     : 'center center',
+      end       : `+=${TOTAL_SCROLL}`,
+      pin       : true,
+      pinSpacing: false,
+      anticipatePin: 1,
+    });
+
+    // ── ENTRANCE BUILDER ───────────────────────────────────────────────────────
+    // Returns a function that populates a GSAP timeline with entrance tweens.
+    // Called both from the IntersectionObserver (phrase 0) and from scroll tls.
+    //
+    // tl        — gsap timeline to add tweens to
+    // phrase    — the phrase DOM element
+    // units     — array of unit spans (empty for 'fade')
+    // timeBased — true when called from IntersectionObserver (use duration/ease)
+    //
+    // NOTE: For scrub timelines (timeBased=false) we pass immediateRender:false
+    // on fromTo tweens. With scrub, GSAP renders "from" values at t=0 on init,
+    // so we rely on the gsap.set() above (not the tween "from") for initial state.
+    function buildEntrance(tl, phrase, units, timeBased) {
+      const type = phraseConfig.animationType;
+      const easeIn = window.SCROLL_ANIMATION_PAUSES?.HERO_PHRASE_EASES?.entrance || 'power2.out';
+
+      if (type === 'fade') {
+        // Whole phrase: opacity 0 → 1 only (no redundant .to() conflict)
+        tl.fromTo(phrase,
+          { opacity: 0 },
+          { opacity: 1,
+            duration: timeBased ? 0.7 : 0.6,
+            ease: timeBased ? easeIn : 'none',
+            immediateRender: timeBased },  // scrub: don't re-render from state
+          0
+        );
+      } else if (type === 'slide') {
+        // Fade the phrase container in immediately (non-fade types need container visible)
+        tl.to(phrase, { opacity: 1, duration: 0.1, ease: 'none' }, 0);
+        tl.fromTo(units,
+          { opacity: 0, filter: `blur(${BLUR_START})`, y: LINE_Y_ENTER },
+          { opacity: 1, filter: `blur(${BLUR_END})`,   y: 0,
+            duration: timeBased ? 0.8 : 0.6,
+            stagger: STAGGER,
+            ease: timeBased ? easeIn : 'none',
+            immediateRender: timeBased },
+          0
+        );
+
+      } else if (type === 'letter') {
+        // Fade the phrase container in immediately (non-fade types need container visible)
+        tl.to(phrase, { opacity: 1, duration: 0.1, ease: 'none' }, 0);
+        // Letters cascade in quickly — tight stagger
+        const letterStagger = timeBased ? 0.04 : STAGGER / units.length;
+        tl.fromTo(units,
+          { opacity: 0, y: WORD_Y_ENTER },
+          { opacity: 1, y: 0,
+            duration: timeBased ? 0.5 : 0.6,
+            stagger: letterStagger,
+            ease: timeBased ? easeIn : 'none',
+            immediateRender: timeBased },
+          0
+        );
+
+      } else if (type === 'word') {
+        // Fade the phrase container in immediately (non-fade types need container visible)
+        tl.to(phrase, { opacity: 1, duration: 0.1, ease: 'none' }, 0);
+        tl.fromTo(units,
+          { opacity: 0, y: WORD_Y_ENTER },
+          { opacity: 1, y: 0,
+            duration: timeBased ? 0.6 : 0.6,
+            stagger: timeBased ? 0.12 : STAGGER,
+            ease: timeBased ? easeIn : 'none',
+            immediateRender: timeBased },
+          0
+        );
+      }
+    }
+
+    // ── EXIT BUILDER ───────────────────────────────────────────────────────────
+    // IMPORTANT: Use gsap.to() (not fromTo) for exits so GSAP does NOT write
+    // a "from" state at progress=0. With scrub timelines the tween immediately
+    // renders its "from" values when initialised, which would override the
+    // gsap.set(phrase, {opacity:0}) above and flash all phrases on load.
+    function buildExit(tl, phrase, units) {
+      const type = phraseConfig.animationType;
+      const easeOut = window.SCROLL_ANIMATION_PAUSES?.HERO_PHRASE_EASES?.exit || 'power3.in';
+
+      if (type === 'fade') {
+        tl.to(phrase,
+          { opacity: 0, duration: 0.5, ease: easeOut },
+          0
+        );
+      } else if (type === 'slide') {
+        tl.to(phrase, { opacity: 0, duration: 0.4, ease: 'linear' }, 0);
+        tl.to(units,
+          { opacity: 0, filter: `blur(${BLUR_START})`, y: LINE_Y_EXIT,
+            stagger: STAGGER * 0.6, ease: easeOut },
+          0
+        );
+
+      } else if (type === 'letter') {
+        tl.to(phrase, { opacity: 0, duration: 0.4, ease: 'linear' }, 0);
+        const letterStagger = STAGGER / Math.max(units.length, 1);
+        tl.to(units,
+          { opacity: 0, y: WORD_Y_EXIT,
+            stagger: letterStagger, ease: easeOut },
+          0
+        );
+
+      } else if (type === 'word') {
+        tl.to(phrase, { opacity: 0, duration: 0.4, ease: 'linear' }, 0);
+        tl.to(units,
+          { opacity: 0, y: WORD_Y_EXIT,
+            stagger: STAGGER * 0.6, ease: easeOut },
+          0
+        );
+      }
+    }
+
+    // ── PER-PHRASE SCROLL TIMELINES ────────────────────────────────────────────
+    // Scroll budget per phrase — configurable pause after entrance:
+    //   0% – 40%       : entrance
+    //   40% – (40+P)%  : pause (P = pausePercentage from SCROLL_ANIMATION_PAUSES)
+    //   (40+P)% – 100% : exit
+    //
+    // Phrase 0 exception: entrance is time-based (IntersectionObserver).
+    // Pause config is in CONSTANTS.js → SCROLL_ANIMATION_PAUSES.HERO_PHRASE_PAUSES
+    const pausePercentages = window.SCROLL_ANIMATION_PAUSES?.HERO_PHRASE_PAUSES || [0, 0, 20, 20];
+
+    phrases.forEach((phrase, i) => {
+      const { units } = phraseData[i];
+
+      const sliceStart = i * SCROLL_PER_PHRASE;
+      const sliceEnd   = sliceStart + SCROLL_PER_PHRASE;
+      const isLast     = i === phrases.length - 1;
+
+      // Pause configuration for this phrase
+      const pausePercent = pausePercentages[i] || 0;
+      const pauseAmount = SCROLL_PER_PHRASE * (pausePercent / 100);
+      const entranceEnd = sliceStart + SCROLL_PER_PHRASE * 0.4;
+      const pauseEnd = entranceEnd + pauseAmount;
+      const exitStart = pauseEnd;
+
+      const markActive   = () => phrase.classList.add('is-active');
+      const markInactive = () => phrase.classList.remove('is-active');
+
+      if (i === 0) {
+        // ── Phrase 0: time-based entrance ─────────────────────────────────────
+        // markActive is deferred until the observer fires (not called eagerly here)
+
+        const observer = new IntersectionObserver((entries) => {
+          if (entries[0].isIntersecting && !section.dataset.phrase1Played) {
+            section.dataset.phrase1Played = 'true';
+            observer.disconnect();
+
+            const tl = gsap.timeline({ onComplete: markActive });
+            buildEntrance(tl, phrase, units, /* timeBased */ true);
+          }
+        }, { threshold: 0.2 });
+
+        observer.observe(section);
+
+      } else {
+        // ── Phrases 1+: scroll-driven entrance ────────────────────────────────
+        const entranceTl = gsap.timeline({
+          scrollTrigger: {
+            trigger    : section,
+            start      : `top+=${sliceStart} top`,
+            end        : `top+=${sliceStart + SCROLL_PER_PHRASE * 0.4} top`,
+            scrub      : SCRUB,
+            snap       : { snapTo: 1, duration: 0.3, ease: 'power2.out' },
+            onEnter    : markActive,
+            onEnterBack: markActive,
+          }
+        });
+
+        entranceTl.add(`phrase-${i}-entrance-start`, 0);
+        buildEntrance(entranceTl, phrase, units, /* timeBased */ false);
+        entranceTl.add(`phrase-${i}-entrance-end`);
+      }
+
+      // ── Exit (all phrases except last) ────────────────────────────────────
+      if (!isLast) {
+        const exitTl = gsap.timeline({
+          scrollTrigger: {
+            trigger    : section,
+            start      : `top+=${exitStart} top`,
+            end        : `top+=${sliceEnd} top`,
+            scrub      : SCRUB,
+            snap       : { snapTo: 1, duration: 0.3, ease: 'power2.out' },
+            onLeave    : markInactive,
+            onLeaveBack: markInactive,
+          }
+        });
+
+        exitTl.add(`phrase-${i}-exit-start`, 0);
+        buildExit(exitTl, phrase, units);
+        exitTl.add(`phrase-${i}-exit-end`);
+      }
+
+    });
+
+    // ── PARTICLE MORPH ─────────────────────────────────────────────────────────
+    // Drives dispersed → helix morph either scroll-scrubbed (default) or
+    // time-based, depending on morphConfig.mode.
+    //
+    // morphConfig parameters:
+    //   target      — shape key to morph to (must be registered in stateRegistry)
+    //   mode        — 'scroll' : morph progress is exactly tied to scroll position
+    //                 'time'   : morph plays as a fixed-duration animation on a
+    //                            delayedCall trigger at morphConfig.startScroll
+    //   startScroll — fraction of the total hero-sequence scroll at which the morph
+    //                 begins (0 = top of section, 1 = bottom)
+    //   endScroll   — fraction at which the morph completes (scroll mode only)
+    //   duration    — animation duration in ms (time mode only; ignored in scroll mode)
+    const morphConfig = {
+      target      : 'helix',
+      mode        : 'time',     // 'scroll' | 'time'
+      startScroll : 0,          // 0% of hero-sequence (trigger point for time-based)
+      endScroll   : 0.4,        // 40% of hero-sequence (scroll mode only)
+      duration    : 800,        // ms (time mode only)
+    };
+
+    function initParticleMorph() {
+      const ps = window.particleSystem;
+      if (!ps || !ps.loop || !ps.stateRegistry) return;
+
+      const targetState = ps.stateRegistry.get(morphConfig.target);
+      if (!targetState) {
+        setTimeout(initParticleMorph, 200);
+        return;
+      }
+
+      if (morphConfig.mode === 'scroll') {
+        const loop = ps.loop;
+        loop.nextState     = targetState;
+        loop.morphStartTime = null;
+
+        const morphStart = TOTAL_SCROLL * morphConfig.startScroll;
+        const morphEnd   = TOTAL_SCROLL * morphConfig.endScroll;
+
+        ScrollTrigger.create({
+          trigger  : section,
+          start    : `top+=${morphStart} top`,
+          end      : `top+=${morphEnd} top`,
+          scrub    : 1,
+          onUpdate : (self) => {
+            const progress = self.progress;
+            loop.morphProgress = progress;
+            if (loop.particles && loop.currentState && loop.nextState) {
+              loop.blendStates();
+            }
+            if (progress >= 1 && loop.nextState) {
+              loop.currentState   = loop.nextState;
+              loop.nextState      = null;
+              loop.morphStartTime = null;
+              loop.morphProgress  = 0;
+            }
+          },
+          onLeaveBack: () => {
+            const dispersedState = ps.stateRegistry.get('dispersed');
+            if (dispersedState) {
+              loop.currentState   = dispersedState;
+              loop.nextState      = targetState;
+              loop.morphStartTime = null;
+              loop.morphProgress  = 0;
+              if (loop.particles) {
+                const posAttr = loop.particles.geometry.attributes.position;
+                const base    = dispersedState.positions;
+                for (let k = 0; k < base.length; k++) posAttr.array[k] = base[k];
+                posAttr.needsUpdate = true;
+              }
+            }
+          },
+        });
+
+      } else {
+        const morphStartOffset = TOTAL_SCROLL * morphConfig.startScroll;
+        ScrollTrigger.create({
+          trigger : section,
+          start   : `top+=${morphStartOffset} top`,
+          once    : true,
+          onEnter : () => {
+            ps.loop.setState(targetState, morphConfig.duration);
+          },
+        });
+      }
+    }
+
+    initParticleMorph();
+
+    // ── RESIZE HANDLER ─────────────────────────────────────────────────────────
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        const newTotal = window.innerHeight * phrases.length;
+        section.style.height = (newTotal + window.innerHeight) + 'px';
+        ScrollTrigger.refresh();
+      }, 250);
+    });
+
+  } // end initHeroSequence
+
+  if (document.readyState === 'complete') {
+    initHeroSequence();
+  } else {
+    window.addEventListener('load', initHeroSequence, { once: true });
+  }
+
+})();
+</script>

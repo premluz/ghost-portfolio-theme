@@ -1,0 +1,214 @@
+{
+  "name": "thinking-is-free",
+  "description": "Bold typographic Ghost theme for independent creators",
+  "version": "1.0.0",
+  "keywords": [
+    "ghost-theme"
+  ],
+  "author": {
+    "name": "Przemek",
+    "email": "admin@truehome.bio"
+  },
+  "engines": {
+    "ghost": ">=5.0.0"
+  },
+  "config": {
+    "posts_per_page": 10,
+    "card_assets": true,
+    "custom": {
+      "color_scheme": {
+        "type": "select",
+        "options": [
+          "auto",
+          "dark",
+          "light"
+        ],
+        "default": "auto",
+        "description": "Theme color mode: auto (respects system setting), dark, or light"
+      },
+      "show_reading_time": {
+        "type": "boolean",
+        "default": true,
+        "description": "Show reading time on posts"
+      },
+      "show_scroll_progress": {
+        "type": "boolean",
+        "default": true,
+        "description": "Show scroll progress bar"
+      },
+      "card_style": {
+        "type": "select",
+        "options": [
+          "elevated",
+          "outlined",
+          "filled",
+          "blank"
+        ],
+        "default": "elevated",
+        "description": "Post card style"
+      },
+      "typography_style_header": {
+        "type": "select",
+        "options": [
+          "editorial",
+          "display",
+          "minimal"
+        ],
+        "default": "editorial",
+        "description": "Header weight: editorial, display, or minimal"
+      },
+      "typography_style_body": {
+        "type": "select",
+        "options": [
+          "light",
+          "regular",
+          "medium"
+        ],
+        "default": "regular",
+        "description": "Body weight: light, regular, or medium"
+      },
+      "line_spacing_header": {
+        "type": "select",
+        "options": [
+          "tight",
+          "normal",
+          "relaxed"
+        ],
+        "default": "tight",
+        "description": "Header line spacing"
+      },
+      "line_spacing_body": {
+        "type": "select",
+        "options": [
+          "tight",
+          "normal",
+          "relaxed"
+        ],
+        "default": "normal",
+        "description": "Body line spacing"
+      },
+      "type_size": {
+        "type": "select",
+        "options": [
+          "sm",
+          "md",
+          "lg"
+        ],
+        "default": "md",
+        "description": "Font size: compact, balanced, or generous"
+      },
+      "page_width": {
+        "type": "select",
+        "options": [
+          "contained",
+          "wide",
+          "full"
+        ],
+        "default": "contained",
+        "description": "Default content width"
+      },
+      "page_hero_width": {
+        "type": "select",
+        "options": [
+          "fullscreen",
+          "respects_page_width"
+        ],
+        "default": "fullscreen",
+        "description": "Page hero: fullscreen or constrained"
+      },
+      "page_content_width": {
+        "type": "select",
+        "options": [
+          "full",
+          "respect_page_width"
+        ],
+        "default": "respect_page_width",
+        "description": "Page content: full width or constrained"
+      },
+      "home_content_width": {
+        "type": "select",
+        "options": [
+          "full",
+          "respect_page_width"
+        ],
+        "default": "respect_page_width",
+        "description": "Home sections: full width or constrained"
+      },
+      "footer_width": {
+        "type": "select",
+        "options": [
+          "full",
+          "respect_page_width"
+        ],
+        "default": "full",
+        "description": "Footer: full width or constrained"
+      },
+      "hero_name": {
+        "type": "text",
+        "default": "",
+        "description": "Hero top label (e.g. 'Hello, I'm Prem')"
+      },
+      "hero_title": {
+        "type": "text",
+        "default": "",
+        "description": "Hero main headline"
+      },
+      "hero_description": {
+        "type": "text",
+        "default": "",
+        "description": "Hero supporting paragraph"
+      },
+      "hero_image": {
+        "type": "image",
+        "description": "Hero portrait image"
+      },
+      "home_hero_width": {
+        "type": "select",
+        "options": [
+          "full",
+          "respect_page_width"
+        ],
+        "default": "full",
+        "description": "Home hero section: full or constrained"
+      },
+      "home_hero_background": {
+        "type": "boolean",
+        "default": true,
+        "description": "Show hero background styling"
+      },
+      "nav_layout": {
+        "type": "select",
+        "options": [
+          "fullscreen",
+          "respects_page_width"
+        ],
+        "default": "fullscreen",
+        "description": "Navigation layout"
+      },
+      "posts_layout": {
+        "type": "select",
+        "options": [
+          "grid",
+          "list",
+          "carousel",
+          "stacked"
+        ],
+        "default": "grid",
+        "description": "Posts display: grid, list, carousel, or stacked"
+      },
+      "testimonials_layout": {
+        "type": "select",
+        "options": [
+          "grid",
+          "scroll",
+          "list"
+        ],
+        "default": "grid",
+        "description": "Testimonials layout: grid (2x2), scroll (horizontal), or list (single column)"
+      }
+    }
+  },
+  "dependencies": {
+    "gradflow": "^0.1.0"
+  }
+}

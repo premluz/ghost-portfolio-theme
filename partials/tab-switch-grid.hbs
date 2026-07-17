@@ -1,0 +1,56 @@
+{{!--
+  TAB SWITCH COMPONENT — GRID VERSION
+  Glass-morphism pill switch for posts-tabs-grid.
+  Mirrors the original tab-switch component but uses classes instead of IDs
+  so it can coexist with the posts-tabs tab-switch.
+--}}
+
+<div class="tab-switch-grid-outer">
+  <div class="tab-switch-grid-scene">
+
+    {{!-- Glass pill --}}
+    <div class="tab-switch-grid-pill" role="group" aria-label="Content type">
+
+      {{!-- Active indicator (slides behind active button) --}}
+      <div class="tab-switch-grid-indicator"></div>
+
+      {{!-- Work button --}}
+      <button
+        class="tab-switch-grid-btn active"
+        data-tab="featured"
+        aria-pressed="true"
+        aria-label="Work"
+      >
+        <svg class="tab-switch-grid-icon" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="1" aria-hidden="true">
+          <path d="m13.7125 2.975 -2.3875 2.3875 -1.25 -0.425 -0.425 -1.25 2.3875 -2.3875a3.56875 3.56875 0 0 0 -4.95625 4.25625L0.9375 11.675l2.3875 2.3875 6.13125 -6.13125a3.56875 3.56875 0 0 0 4.25625 -4.95625Z"/>
+        </svg>
+        <span class="nav-tooltip">Work</span>
+      </button>
+
+      {{!-- Lab button --}}
+      <button
+        class="tab-switch-grid-btn"
+        data-tab="experimental"
+        aria-pressed="false"
+        aria-label="Lab"
+      >
+        <svg class="tab-switch-grid-icon" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor" stroke-miterlimit="10" stroke-width="1" aria-hidden="true">
+          <path d="m4.51875 0.9375 5.9625 0"/>
+          <path d="M9.2875 3.91875V0.9375H5.7125v2.98125L1.6875 11.96875a1.4375 1.4375 0 0 0 -0.15625 0.625 1.45 1.45 0 0 0 1.45 1.46875h9.0375a1.45 1.45 0 0 0 1.45 -1.45 1.4375 1.4375 0 0 0 -0.15625 -0.625Z"/>
+          <path d="M4.30625 6.725c3.125 -1.35625 3.31875 1.1875 6.5125 0.25625"/>
+          <path d="m4.51875 11.675 1.19375 0"/>
+          <path d="m6.30625 9.2875 1.19375 0"/>
+          <path d="m9.2875 10.48125 1.19375 0"/>
+        </svg>
+        <span class="nav-tooltip">Lab</span>
+      </button>
+
+    </div>
+
+    {{!-- Description line --}}
+    <p class="tab-switch-grid-description">
+      Real products, real constraints, real impact.
+    </p>
+
+  </div>
+</div>

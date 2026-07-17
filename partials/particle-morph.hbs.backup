@@ -1,0 +1,594 @@
+<div id="particle-morph-demo" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; opacity: 0; transition: opacity 1.5s ease-in; pointer-events: none;">
+  <div id="particles" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></div>
+</div>
+
+<script>
+console.log('🎬 PARTICLE MORPH SCRIPT EXECUTING');
+window.particleDebug = { loaded: true, timestamp: Date.now() };
+console.log('[particle-morph] Script loaded');
+
+function initParticleMorph() {
+  console.log('[particle-morph] Init called, THREE available:', !!window.THREE);
+
+  if (!window.THREE) {
+    console.log('[particle-morph] THREE not ready, retrying in 100ms...');
+    setTimeout(initParticleMorph, 100);
+    return;
+  }
+
+  console.log('[particle-morph] THREE loaded, proceeding...');
+
+  const THREE = window.THREE;
+  const container = document.getElementById("particles");
+  const demoDiv = document.getElementById("particle-morph-demo");
+
+  console.log('[particle-morph] Container found:', !!container, 'Demo div found:', !!demoDiv);
+  if (!container || !demoDiv) {
+    console.error('[particle-morph] Missing DOM elements');
+    return;
+  }
+
+  try {
+    console.log('[particle-morph] Creating Three.js scene...');
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0x000000, 0);  // Transparent background
+    container.appendChild(renderer.domElement);
+    console.log('[particle-morph] Canvas appended to DOM');
+    camera.position.z = 8; // Zoomed out to see full particle system
+
+    const light = new THREE.AmbientLight(0x00f0ff, 1);
+    scene.add(light);
+
+
+    // ═══════════════════════════════════════════════════════════════
+    // PARTICLE SYSTEM CONFIG
+    // ═══════════════════════════════════════════════════════════════
+    const PARTICLE_COUNT = 3000;
+    const PARTICLE_COLOR = 0x4ad2ff;      // Electric cyan
+    const PARTICLE_SIZE = 0.12;           // Smaller particles
+    const PARTICLE_OPACITY = 0.6;         // Base opacity for soft stacking
+    const WAVE_AMPLITUDE = 0.2;           // Curtain deformation strength
+    const WAVE_FREQUENCY = 2.0;           // How tight the waves are
+    const AUTO_ROTATION_SPEED = 0.003;    // Y-axis rotation speed
+
+    let particles = null;
+    let basePositions = null;
+    let wavePositions = null;
+    let morphProgress = 0;
+    let hasMorphed = false;
+    let animationMixer = null;
+    let animationAction = null;
+    let waveVertexPositions = null;
+
+    function initParticles() {
+      if (particles) scene.remove(particles);
+
+      basePositions = new Float32Array(PARTICLE_COUNT * 3);
+
+      // Generate random dispersed positions (large cloud - viewport immersed inside)
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
+        basePositions[i * 3] = (Math.random() - 0.5) * 50;
+        basePositions[i * 3 + 1] = (Math.random() - 0.5) * 50;
+        basePositions[i * 3 + 2] = (Math.random() - 0.5) * 50;
+      }
+
+      const geo = new THREE.BufferGeometry();
+      const positions = new Float32Array(basePositions);
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+      // Per-particle colors: cyan object + dimmed aura + grey dispersed
+      const colors = new Float32Array(PARTICLE_COUNT * 3);
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
+        if (i % 10 < 7) {
+          // 70%: Object/helix - full cyan
+          colors[i * 3] = 0.3;      // Cyan R
+          colors[i * 3 + 1] = 1.0;  // Cyan G
+          colors[i * 3 + 2] = 1.0;  // Cyan B
+        } else if (i % 10 < 9) {
+          // 20%: Aura - dimmed cyan
+          colors[i * 3] = 0.15;     // Dimmed cyan R
+          colors[i * 3 + 1] = 0.6;  // Dimmed cyan G
+          colors[i * 3 + 2] = 0.6;  // Dimmed cyan B
+        } else {
+          // 10%: Dispersed - bright yellow
+          colors[i * 3] = 1.0;   // Yellow R
+          colors[i * 3 + 1] = 1.0;   // Yellow G
+          colors[i * 3 + 2] = 0.0;   // Yellow B
+        }
+      }
+      geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+      // PARTICLE MATERIAL with circle shader and vertex colors
+      const particleMaterial = new THREE.PointsMaterial({
+        color: PARTICLE_COLOR,
+        size: PARTICLE_SIZE,
+        transparent: true,
+        opacity: PARTICLE_OPACITY,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        depthTest: true,
+        sizeAttenuation: true,
+        vertexColors: true
+      });
+
+      // Add circle mask to convert square sprites to circles
+      particleMaterial.onBeforeCompile = (shader) => {
+        shader.fragmentShader = shader.fragmentShader.replace(
+          '#include <color_fragment>',
+          `#include <color_fragment>
+          vec2 uv = gl_PointCoord - vec2(0.5);
+          float dist = length(uv);
+          if (dist > 0.5) discard;
+          `
+        );
+      };
+
+      const mat = particleMaterial;
+
+      particles = new THREE.Points(geo, mat);
+      scene.add(particles);
+
+      // DEBUG: Log sample positions
+      const posArray = geo.attributes.position.array;
+      console.log('[particle-morph] Particles created:', PARTICLE_COUNT);
+      console.log('[particle-morph] Sample positions - [0]:', posArray[0], posArray[1], posArray[2]);
+      console.log('[particle-morph] Sample positions - [100]:', posArray[300], posArray[301], posArray[302]);
+      console.log('[particle-morph] Sample positions - [1000]:', posArray[3000], posArray[3001], posArray[3002]);
+    }
+
+    // Generate DNA helix shape - particles form visible tube strands
+    function generateDNAHelix() {
+      wavePositions = new Float32Array(PARTICLE_COUNT * 3);
+      const helixRadius = 3.5;
+      const tubeRadius = 2.5;       // Wide tube
+      const height = 12;
+      const turns = 1.5;
+      const spacing = 3;
+      const segments = 75;          // Fill exactly: 2 × 75 × 20 = 3000
+      const tubeDensity = 20;       // Dense circumference for solid look
+
+      let particleIdx = 0;
+
+      // Create two intertwined helical tubes
+      for (let helix = 0; helix < 2 && particleIdx < PARTICLE_COUNT; helix++) {
+        const helixOffset = helix * Math.PI;
+
+        // Points along the helix spine
+        for (let seg = 0; seg < segments && particleIdx < PARTICLE_COUNT; seg++) {
+          const t = (seg / segments) * turns * Math.PI * 2;
+          const y = (seg / segments - 0.5) * height;
+
+          // Center of helix strand
+          const cx = helixRadius * Math.cos(t + helixOffset) + (helix - 0.5) * spacing;
+          const cz = helixRadius * Math.sin(t + helixOffset);
+
+          // Particles around tube circumference at this point
+          for (let tube = 0; tube < tubeDensity && particleIdx < PARTICLE_COUNT; tube++) {
+            const theta = (tube / tubeDensity) * Math.PI * 2;
+            const u = Math.cos(theta) * tubeRadius;
+            const v = Math.sin(theta) * tubeRadius;
+
+            // Rotate around the helix direction
+            const angle = t + helixOffset;
+            const x = cx + u * Math.cos(angle) - v * Math.sin(angle);
+            const z = cz + u * Math.sin(angle) + v * Math.cos(angle);
+
+            wavePositions[particleIdx * 3] = x;
+            wavePositions[particleIdx * 3 + 1] = y + (Math.random() - 0.5) * 0.2;
+            wavePositions[particleIdx * 3 + 2] = z;
+            particleIdx++;
+          }
+        }
+      }
+
+      console.log('[particle-morph] 🧬 DNA Helix tubes ready (', particleIdx, 'particles)');
+    }
+
+    // Load diamond from diamond.glb
+    function loadDiamondModel() {
+      const modelPath = '/content/images/diamond.glb';
+      console.log('[particle-morph] Loading diamond from:', modelPath);
+
+      import('https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js')
+        .then(({ GLTFLoader }) => {
+          const loader = new GLTFLoader();
+          loader.load(
+            modelPath,
+            (gltf) => {
+              let mesh = null;
+              gltf.scene.traverse((node) => {
+                if (node.geometry && !mesh) mesh = node;
+              });
+
+              if (mesh && mesh.geometry) {
+                const positions = mesh.geometry.attributes.position.array;
+                const diamondPositions = new Float32Array(PARTICLE_COUNT * 3);
+
+                for (let i = 0; i < Math.min(PARTICLE_COUNT, positions.length / 3); i++) {
+                  diamondPositions[i * 3] = positions[i * 3];
+                  diamondPositions[i * 3 + 1] = positions[i * 3 + 1];
+                  diamondPositions[i * 3 + 2] = positions[i * 3 + 2];
+                }
+
+                window.diamondPositions = diamondPositions;
+                console.log('[particle-morph] ✅ Diamond loaded');
+              }
+            },
+            undefined,
+            (error) => {
+              console.error('[particle-morph] ❌ Failed to load diamond:', error);
+            }
+          );
+        });
+    }
+
+    // Load wave model for target positions (will override procedural)
+    function loadWaveModel() {
+      const modelPath = '/content/images/wave.gib';
+      console.log('[particle-morph] Loading wave model from:', modelPath);
+
+      // Import GLTFLoader dynamically
+      import('https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js')
+        .then(({ GLTFLoader }) => {
+          const loader = new GLTFLoader();
+          loader.load(
+            modelPath,
+            (gltf) => {
+              console.log('[particle-morph] ✅ Wave model loaded, children:', gltf.scene.children.length);
+              console.log('[particle-morph] 🎬 Animations found:', gltf.animations.length);
+              if (gltf.animations.length > 0) {
+                gltf.animations.forEach((anim, idx) => {
+                  console.log(`  [${idx}] ${anim.name} - ${anim.duration.toFixed(2)}s, ${anim.tracks.length} tracks`);
+                });
+                // Store animation for later use
+                window.waveAnimation = gltf.animations[0];
+              }
+
+              // Find mesh with geometry (may be nested in container)
+              let mesh = null;
+              gltf.scene.traverse((node) => {
+                if (node.geometry && !mesh) mesh = node;
+              });
+
+              console.log('[particle-morph] Found mesh:', !!mesh);
+              if (mesh && mesh.geometry) {
+                const positions = mesh.geometry.attributes.position.array;
+                const morphTargets = mesh.geometry.morphAttributes?.position;
+                console.log('[particle-morph] Mesh vertices:', positions.length / 3);
+                if (morphTargets) {
+                  console.log('[particle-morph] 🔀 Morph targets found:', morphTargets.length);
+                }
+
+                const newWavePositions = new Float32Array(PARTICLE_COUNT * 3);
+
+                // Map model vertices to particle positions
+                for (let i = 0; i < Math.min(PARTICLE_COUNT, positions.length / 3); i++) {
+                  newWavePositions[i * 3] = positions[i * 3];
+                  newWavePositions[i * 3 + 1] = positions[i * 3 + 1];
+                  newWavePositions[i * 3 + 2] = positions[i * 3 + 2];
+                }
+
+                wavePositions = newWavePositions;
+                waveVertexPositions = positions; // Store for animation sampling
+                console.log('[particle-morph] ✅ Wave positions applied, animation duration: 2.46s');
+
+                // Set up animation playback
+                if (window.waveAnimation && mesh) {
+                  animationMixer = new THREE.AnimationMixer(mesh);
+                  animationAction = animationMixer.clipAction(window.waveAnimation);
+                  animationAction.loop = THREE.LoopRepeat;
+                  animationAction.clampWhenFinished = false;
+                  console.log('[particle-morph] 🎬 Animation ready for playback');
+                }
+
+                window.waveMesh = mesh;
+              }
+            },
+            undefined,
+            (error) => {
+              console.error('[particle-morph] ❌ Failed to load wave model:', error);
+              console.log('[particle-morph] Using procedural wave fallback');
+            }
+          );
+        })
+        .catch((err) => {
+          console.error('[particle-morph] ❌ Failed to import GLTFLoader:', err);
+        });
+    }
+
+    // Organic drifting animation + morph blending
+    function updateParticleAnimation(time) {
+      if (!particles) return;
+
+      const attr = particles.geometry.attributes.position;
+      if (!attr) return;
+      const array = attr.array;
+
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
+        const seed = i * 73;
+
+        if (i === 0) {
+          console.log('[UPDATE] helixReached:', helixReached, 'wavePositions:', !!wavePositions, 'morphTime:', !!window.morphStartTime);
+        }
+
+        // Calculate morph progress if currently morphing
+        if (window.morphStartTime && window.morphStartPositions && window.morphTargetPositions) {
+          const elapsed = Date.now() - window.morphStartTime;
+          const morphProgress = Math.min(1, elapsed / window.morphDuration);
+
+          // Ease in/out quad
+          const easeProgress = morphProgress < 0.5
+            ? 2 * morphProgress * morphProgress
+            : -1 + (4 - 2 * morphProgress) * morphProgress;
+
+          // Blend from captured START position to target
+          const startX = window.morphStartPositions[i * 3];
+          const startY = window.morphStartPositions[i * 3 + 1];
+          const startZ = window.morphStartPositions[i * 3 + 2];
+
+          const targetX = startX + (window.morphTargetPositions[i * 3] - startX) * easeProgress;
+          const targetY = startY + (window.morphTargetPositions[i * 3 + 1] - startY) * easeProgress;
+          const targetZ = startZ + (window.morphTargetPositions[i * 3 + 2] - startZ) * easeProgress;
+
+          array[i * 3] = targetX;
+          array[i * 3 + 1] = targetY;
+          array[i * 3 + 2] = targetZ;
+
+          if (morphProgress >= 1) {
+            window.morphStartTime = null; // Clear morph state for next morph
+            helixReached = true; // Lock helix state - no more morphing
+            // Fade in canvas when morph completes
+            if (demoDiv.style.opacity !== '1') {
+              demoDiv.style.opacity = '1';
+              console.log('[particle-morph] Helix reached - particles locked in helix state');
+            }
+          }
+        } else if (wavePositions && helixReached) {
+          // 70% helix + 20% scattered + 10% dispersed background
+          let baseY = wavePositions[i * 3 + 1];
+          let scrollOffset = (time * 2) % 12;
+          let scrolledY = baseY + scrollOffset;
+          if (scrolledY > 6) scrolledY -= 12;
+
+          let t = ((scrolledY + 6) / 12) * 1.5 * Math.PI * 2;
+          const helixRadius = 3.5;
+          const spacing = 3;
+          const helix = i % 2;
+          const offset = helix * Math.PI;
+
+          let x = helixRadius * Math.cos(t + offset) + (helix - 0.5) * spacing;
+          let z = helixRadius * Math.sin(t + offset);
+
+          if (i % 10 < 7) {
+            // 70%: Tight helix core
+            const pulse = Math.sin(time + seed) * 0.2;
+            array[i * 3] = x + pulse;
+            array[i * 3 + 1] = scrolledY;
+            array[i * 3 + 2] = z + pulse;
+          } else if (i % 10 < 9) {
+            // 20%: Scattered aura
+            const scatterX = Math.sin(seed * 13 + time * 0.5) * 3;
+            const scatterZ = Math.cos(seed * 17 + time * 0.6) * 3;
+            const scatterY = Math.sin(seed * 23 + time * 0.3) * 0.8;
+            array[i * 3] = x + scatterX;
+            array[i * 3 + 1] = scrolledY + scatterY;
+            array[i * 3 + 2] = z + scatterZ;
+          } else {
+            // 10%: Dispersed chaos background (dimmed)
+            const chaosDrift = Math.sin(time * 0.3 + seed) * 2;
+            array[i * 3] = basePositions[i * 3] + chaosDrift;
+            array[i * 3 + 1] = basePositions[i * 3 + 1] + Math.cos(time * 0.25 + seed) * 1.5;
+            array[i * 3 + 2] = basePositions[i * 3 + 2] + chaosDrift;
+          }
+        } else if (wavePositions) {
+          // During morph: particles flow along helical tube structures
+          // Use precomputed tube positions (from generateDNAHelix)
+          let targetX = wavePositions[i * 3];
+          let targetY = wavePositions[i * 3 + 1];
+          let targetZ = wavePositions[i * 3 + 2];
+
+          // Streaming flow: shift particles up along the tubes over time
+          const flowSpeed = 1.2;
+          const flowPhase = time * flowSpeed;
+
+          // Vertically shift position along helix (wrapping)
+          targetY += (flowPhase / 12) * 12; // 12 is height
+          if (targetY > 6) targetY -= 12;    // Wrap around
+
+          // Energy field drift: subtle pulsing movement along tube surface
+          const radialDrift = Math.sin(time * 0.5 + seed) * 0.2;
+          const tangentialDrift = Math.cos(time * 0.4 + seed * 1.5) * 0.15;
+          const verticalDrift = Math.sin(time * 0.3 + seed * 2) * 0.1;
+
+          let x = targetX + radialDrift;
+          let y = targetY + verticalDrift;
+          let z = targetZ + tangentialDrift;
+
+          array[i * 3] = x;
+          array[i * 3 + 1] = y;
+          array[i * 3 + 2] = z;
+        } else {
+          // Dispersed: drift in 3D space (not on surface yet)
+          const driftX = Math.sin(time * 0.4 + seed) * 1.2;
+          const driftY = Math.cos(time * 0.35 + seed * 2) * 1.0;
+          const driftZ = Math.sin(time * 0.3 + seed * 3) * 1.2;
+
+          array[i * 3] = basePositions[i * 3] + driftX;
+          array[i * 3 + 1] = basePositions[i * 3 + 1] + driftY;
+          array[i * 3 + 2] = basePositions[i * 3 + 2] + driftZ;
+        }
+      }
+      // Tell GPU to redraw BOTH points and lines (they share same geometry)
+      attr.needsUpdate = true;
+    }
+
+    // Morph animation functions
+    function startMorph(targetPositions, label = 'shape') {
+      if (!targetPositions) return;
+      const startTime = Date.now();
+      const morphDuration = 4000; // 4 seconds for smooth morph
+
+      // Capture actual current positions at morph trigger
+      const morphStartPositions = new Float32Array(PARTICLE_COUNT * 3);
+      const attr = particles.geometry.attributes.position;
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
+        morphStartPositions[i * 3] = attr.array[i * 3];
+        morphStartPositions[i * 3 + 1] = attr.array[i * 3 + 1];
+        morphStartPositions[i * 3 + 2] = attr.array[i * 3 + 2];
+      }
+
+      console.log('[particle-morph] ✨ Morphing to', label);
+
+      // Store for use in updateParticleAnimation
+      window.morphStartTime = startTime;
+      window.morphDuration = morphDuration;
+      window.morphStartPositions = morphStartPositions;
+      window.morphTargetPositions = targetPositions;
+    }
+
+    function morphToHelix() {
+      startMorph(wavePositions, 'helix');
+    }
+
+    function morphToDiamond() {
+      if (window.diamondPositions) {
+        startMorph(window.diamondPositions, 'diamond');
+      } else {
+        console.warn('[particle-morph] Diamond not loaded yet');
+      }
+    }
+
+    initParticles(); // Start with chaos/dispersed
+    generateDNAHelix(); // Prepare helix positions
+
+    // Skip initialization - let dispersed particles show first, then animate to tubes
+    demoDiv.style.opacity = '1';
+    console.log('[particle-morph] Canvas visible, particles in dispersed state');
+
+    // Flag permanent helix state so animation flows to tubes immediately
+    let helixReached = true;  // Start in helix mode to show particles
+
+    // Mouse position tracking for helix rotation
+    let mouseX = 0, mouseY = 0;
+    window.addEventListener('mousemove', (e) => {
+      mouseX = (e.clientX / window.innerWidth) * 2 - 1;
+      mouseY = -(e.clientY / window.innerHeight) * 2 + 1;
+    }, { passive: true });
+
+    // Fade in canvas on first scroll down
+    let hasScrolled = false;
+    window.addEventListener('scroll', () => {
+      if (!hasScrolled && window.scrollY > 0) {
+        hasScrolled = true;
+        if (demoDiv && demoDiv.style.opacity === '0') {
+          demoDiv.style.opacity = '1';
+          console.log('[particle-morph] Canvas fading in on scroll...');
+        }
+      }
+    }, { passive: true });
+
+    // Fade out on scroll when tabs section enters viewport
+    window.addEventListener('scroll', () => {
+      const tabsSection = document.querySelector('.posts-tabs-section');
+      if (!tabsSection) return;
+
+      const rect = tabsSection.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const fadeDistance = viewportHeight * 0.5; // 50% viewport height
+
+      // When tabs section top enters viewport, start fading out
+      if (rect.top < viewportHeight) {
+        const distFromTop = viewportHeight - rect.top;
+        const opacity = Math.max(0, 1 - (distFromTop / fadeDistance));
+        demoDiv.style.opacity = opacity.toString();
+      }
+    }, { passive: true });
+
+    // Initialize with helix tube structure (no morphing, permanent state)
+    const posAttr = particles.geometry.attributes.position;
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      posAttr.array[i * 3] = wavePositions[i * 3];
+      posAttr.array[i * 3 + 1] = wavePositions[i * 3 + 1];
+      posAttr.array[i * 3 + 2] = wavePositions[i * 3 + 2];
+    }
+    posAttr.needsUpdate = true;
+
+    // Make canvas visible immediately
+    // Continuous animation loop
+    let frameCount = 0;
+    let autoRotation = 0;
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const time = Date.now() * 0.001;
+      const deltaTime = 1 / 60; // ~60fps
+
+      if (frameCount === 0) {
+        console.log('[particle-morph] 🎬 First animate frame, particles:', !!particles);
+        if (particles) {
+          const posAttr = particles.geometry.attributes.position;
+          console.log('[particle-morph] Position attribute exists:', !!posAttr);
+          console.log('[particle-morph] Position array length:', posAttr?.array?.length);
+          console.log('[particle-morph] Sample current positions - [0]:', posAttr.array[0], posAttr.array[1], posAttr.array[2]);
+        }
+      }
+
+      updateParticleAnimation(time);
+
+      // Auto-rotate helix continuously
+      autoRotation += AUTO_ROTATION_SPEED;
+
+      // Update animation mixer if morphed and has animation
+      if (hasMorphed && animationMixer) {
+        animationMixer.update(deltaTime);
+        if (!animationAction.isRunning()) {
+          animationAction.play();
+        }
+      }
+
+      if (particles) {
+        // Y-axis rotation: auto-rotation + mouse adjustment
+        particles.rotation.y = autoRotation + (mouseX * Math.PI * 0.5);
+        particles.rotation.x = 0;
+        particles.rotation.z = 0;
+      }
+      renderer.render(scene, camera);
+
+      // Log first frame to confirm rendering
+      if (frameCount === 0) {
+        console.log('[particle-morph] 🎨 First frame rendered, particles visible');
+      }
+      frameCount++;
+    }
+
+    console.log('[particle-morph] ✅ Ready - particles initialized');
+    animate();
+    console.log('[particle-morph] ✅ Animate loop started');
+
+  } catch (err) {
+    console.error('[particle-morph] ❌ CATCH ERROR:', err.message);
+    console.error('[particle-morph] Stack:', err.stack);
+  }
+}
+
+// Fail-safe: timeout after 10 seconds
+let initAttempts = 0;
+const maxAttempts = 100; // ~10 seconds at 100ms intervals
+
+function initWithTimeout() {
+  initAttempts++;
+  console.log('[particle-morph] Init attempt', initAttempts, 'THREE:', !!window.THREE);
+  initParticleMorph();
+  if (initAttempts >= maxAttempts) {
+    console.error('[particle-morph] ❌ Failed to initialize after', initAttempts * 100, 'ms - THREE.js not available');
+  }
+}
+
+console.log('[particle-morph] Calling initWithTimeout...');
+initWithTimeout();
+console.log('[particle-morph] initWithTimeout called');
+</script>

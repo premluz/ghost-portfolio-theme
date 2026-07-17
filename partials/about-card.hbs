@@ -1,0 +1,15 @@
+<article class="about-card">
+  {{#if feature_image}}
+    <div class="about-image">
+      <img src="{{feature_image}}" alt="{{title}}" loading="lazy">
+    </div>
+  {{/if}}
+  <div class="about-content">
+    <h3 class="about-title">{{title}}</h3>
+    {{#if html}}
+      <div class="about-text">{{{html}}}</div>
+    {{else if content}}
+      <div class="about-text">{{{content}}}</div>
+    {{/if}}
+  </div>
+</article>

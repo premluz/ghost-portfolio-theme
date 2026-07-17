@@ -1,0 +1,816 @@
+/**
+ * THINKINGISFREE — DESIGN SYSTEM
+ * 3-tier token architecture: Primitives → Semantic → Component
+ * Theme variants: dark (default), light, dim
+ */
+
+/**
+ * RESPONSIVE BREAKPOINTS — Canonical set
+ * Media queries reference the values below. Note: CSS custom properties cannot
+ * be used in @media queries, so breakpoint values are hardcoded in each file.
+ * Canonical breakpoints (480 / 640 / 768 / 1024 / 1440) are the source of truth
+ * shared with JS (see CONSTANTS.js: BREAKPOINTS object).
+ *
+ * Component-specific exceptions (documented per-component):
+ * - 900px: operating-model-stacked resize-rebuild threshold (scroll-choreography sensitive)
+ * - 780px / 600px: modal and post-card-grid tuning (migrate opportunistically)
+ * - 960px: legacy grid breakpoint (phase out when touching tag.css/main.css)
+ * - 1025px: NOT a separate breakpoint—it's min-width: 1025px (complement of max-width: 1024px)
+ */
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* TIER 1: PRIMITIVES — Raw values, never used directly in components */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* PRIMITIVE COLORS — Using oklch() for perceptual uniformity */
+  /* ─────────────────────────────────────────────────────────────────────── */
+
+  /* Neutral palette — moss-based, gentle green undertone */
+  --primitive-neutral-0: oklch(100% 0 0);      /* white */
+  --primitive-neutral-50: oklch(97% 0.008 150);
+  --primitive-neutral-100: oklch(94% 0.016 150);
+  --primitive-neutral-200: oklch(90% 0.022 150);
+  --primitive-neutral-300: oklch(84% 0.03 150);
+  --primitive-neutral-400: oklch(72% 0.04 150);
+  --primitive-neutral-500: oklch(58% 0.05 150);
+  --primitive-neutral-600: oklch(46% 0.052 150);
+  --primitive-neutral-700: oklch(34% 0.045 150);
+  --primitive-neutral-800: oklch(24% 0.035 150);
+  --primitive-neutral-900: oklch(16% 0.025 150);
+  --primitive-neutral-950: oklch(9% 0.012 150);
+
+  /* Brand accent — forest green */
+  --primitive-brand-50: oklch(96% 0.04 142);
+  --primitive-brand-100: oklch(93% 0.08 142);
+  --primitive-brand-200: oklch(85% 0.12 142);
+  --primitive-brand-300: oklch(75% 0.15 142);
+  --primitive-brand-400: oklch(60% 0.18 142);
+  --primitive-brand-500: oklch(50% 0.2 142);   /* primary */
+  --primitive-brand-600: oklch(45% 0.19 142);
+  --primitive-brand-700: oklch(38% 0.17 142);
+  --primitive-brand-800: oklch(30% 0.14 142);
+  --primitive-brand-900: oklch(20% 0.1 142);
+
+  /* Accent secondary — teal/cyan */
+  --primitive-accent-50: oklch(96% 0.04 180);
+  --primitive-accent-100: oklch(93% 0.08 180);
+  --primitive-accent-200: oklch(85% 0.12 180);
+  --primitive-accent-300: oklch(75% 0.15 180);
+  --primitive-accent-400: oklch(60% 0.18 180);
+  --primitive-accent-500: oklch(50% 0.2 180);
+  --primitive-accent-600: oklch(45% 0.19 180);
+  --primitive-accent-700: oklch(38% 0.17 180);
+
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* PRIMITIVE TYPOGRAPHY */
+  /* ─────────────────────────────────────────────────────────────────────── */
+
+  --primitive-font-sans:  'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --primitive-font-serif: 'Crimson Pro', Georgia, 'Times New Roman', serif;
+  --primitive-font-mono:  'Courier New', monospace;
+
+
+  --primitive-line-height-very-tight: 0.8;
+  --primitive-line-height-tight: 1.1;
+  --primitive-line-height-normal: 1.8;
+  --primitive-line-height-relaxed: 2;
+
+
+  --primitive-letter-spacing-extra-tight: -0.1em;
+  --primitive-letter-spacing-tight: -0.01em;
+  --primitive-letter-spacing-normal: 0;
+  --primitive-letter-spacing-wide: 0.08em;
+
+  --primitive-font-weight-normal: 400;
+  --primitive-font-weight-medium: 500;
+  --primitive-font-weight-semibold: 600;
+  --primitive-font-weight-bold: 700;
+  --primitive-font-weight-extrabold: 800;
+
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* PRIMITIVE SPACING — 4px base unit */
+  /* ─────────────────────────────────────────────────────────────────────── */
+
+  --primitive-space-0: 0;
+  --primitive-space-1: 0.25rem;  /* 4px */
+  --primitive-space-2: 0.5rem;   /* 8px */
+  --primitive-space-3: 0.75rem;  /* 12px */
+  --primitive-space-4: 1rem;     /* 16px */
+  --primitive-space-6: 1.5rem;   /* 24px */
+  --primitive-space-8: 2rem;     /* 32px */
+  --primitive-space-12: 3rem;    /* 48px */
+  --primitive-space-16: 4rem;    /* 64px */
+  --primitive-space-20: 5rem;    /* 80px */
+  --primitive-space-24: 6rem;    /* 96px */
+
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* PRIMITIVE BORDER RADIUS */
+  /* ─────────────────────────────────────────────────────────────────────── */
+
+  --primitive-radius-0: 0;
+  --primitive-radius-1: 0.25rem;  /* 4px */
+  --primitive-radius-2: 0.5rem;   /* 8px */
+  --primitive-radius-3: 0.75rem;  /* 12px */
+  --primitive-radius-4: 2rem;     /* 16px */
+  --primitive-radius-full: 9999px;
+
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* PRIMITIVE MOTION — Material 3 curves */
+  /* ─────────────────────────────────────────────────────────────────────── */
+
+  --primitive-duration-instant: 50ms;
+  --primitive-duration-fast: 150ms;
+  --primitive-duration-standard: 300ms;
+  --primitive-duration-slow: 500ms;
+  --primitive-duration-enter: 350ms;
+  --primitive-duration-exit: 200ms;
+
+  --primitive-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --primitive-ease-decelerate: cubic-bezier(0, 0, 0, 1);
+  --primitive-ease-accelerate: cubic-bezier(0.3, 0, 1, 1);
+  --primitive-ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* PRIMITIVE ELEVATION — typographic shadows */
+  /* ─────────────────────────────────────────────────────────────────────── */
+
+  --primitive-shadow-0: none;
+  --primitive-shadow-1: 0 1px 3px hsl(0 0% 0% / 0.08);
+  --primitive-shadow-2: 0 4px 16px hsl(0 0% 0% / 0.12);
+  --primitive-shadow-3: 0 8px 32px hsl(0 0% 0% / 0.16);
+  --primitive-shadow-4: 0 16px 48px hsl(0 0% 0% / 0.24);
+
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* PRIMITIVE Z-INDEX SCALE */
+  /* ─────────────────────────────────────────────────────────────────────── */
+
+  --primitive-z-hide: -1;
+  --primitive-z-base: 0;
+  --primitive-z-dropdown: 100;
+  --primitive-z-sticky: 500;
+  --primitive-z-fixed: 1000;
+  --primitive-z-modal-backdrop: 1100;
+  --primitive-z-modal: 1200;
+  --primitive-z-popover: 1300;
+  --primitive-z-tooltip: 1400;
+
+  /* ═════════════════════════════════════════════════════════════════════════ */
+  /* TIER 2: SEMANTIC TOKENS — Role-based, theme-aware */
+  /* Theme: DARK (default) */
+  /* ═════════════════════════════════════════════════════════════════════════ */
+
+  /* BACKGROUND & SURFACES — Warm darks, not pure black */
+  --color-background: var(--theme-dark-bg);
+  --color-surface: #202020;
+  --color-surface-variant: #242424;
+  --color-outline: #404040;
+  --color-outline-variant: #505050;
+
+  /* CONTENT ON SURFACES */
+  --color-on-surface: var(--primitive-neutral-0);
+  --color-on-surface-variant: var(--primitive-neutral-300);
+  --color-on-surface-subtle: var(--primitive-neutral-400);
+
+  /* ICON & INTERACTIVE COLORS */
+  --color-icon: var(--primitive-neutral-100);
+  --color-link: var(--color-primary);
+  /* Hover: primary mixed 75% with white for a lighter tint */
+  --color-link-hover: color-mix(in oklch, var(--color-primary) 75%, white);
+
+  /* BRAND & ACCENT */
+  /* --color-primary: var(--primitive-brand-500); */  /* revert: restore accent colour */
+  --color-primary: oklch(93% 0 0);  /* near-white for dark mode */
+  --color-on-primary: var(--primitive-neutral-950);
+  --color-primary-container: var(--primitive-brand-900);
+
+  --color-secondary: var(--primitive-accent-500);
+
+  /* SURFACE SYSTEM — 5 elevation levels */
+  --surface-0: var(--color-background);
+  --surface-1: #ffffff08;
+  --surface-2: #ffffff10;
+  --surface-3: #2a2a2a;
+  --surface-4: #303030;
+
+  /* color-surface-N aliases — used by components */
+  --color-surface-0: var(--surface-0);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-surface-4: var(--surface-4);
+
+  --surface-2-translucent: hsl(0 0% 22% / 0.6);
+  --surface-3-translucent: hsl(0 0% 26% / 0.65);
+  --surface-4-translucent: hsl(0 0% 30% / 0.7);
+
+  /* GLASS MORPHISM — reusable translucent surface tokens */
+  --glass-bg: rgba(255, 255, 255, 0.08);
+  --glass-bg-subtle: rgba(255, 255, 255, 0.06);
+  --glass-border: rgba(255, 255, 255, 0.16);
+  --glass-border-subtle: rgba(255, 255, 255, 0.14);
+  --glass-border-thin: rgba(255, 255, 255, 0.02);
+  --glass-border-hover: rgba(255, 255, 255, 0.28);
+  --glass-backdrop: blur(20px) saturate(180%);
+  --glass-backdrop-subtle: blur(12px) saturate(160%);
+  --glass-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  --glass-shadow-pill: 0 4px 32px rgba(0, 0, 0, 0.28);
+  --glass-inset-light: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  --glass-inset-light-hover: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  --glass-inset-dark: inset 0 -1px 0 rgba(0, 0, 0, 0.12);
+  --glass-radius: var(--radius-lg);
+
+  /* STATE LAYER */
+  --state-layer-color: var(--color-on-surface);
+  --state-hover-opacity: 0.08;
+
+  /* SCROLLBAR */
+  --scrollbar-thumb: var(--color-on-surface-subtle);
+  --scrollbar-thumb-hover: var(--primitive-neutral-400);
+
+  /* TYPOGRAPHY */
+  --font-family-body:  var(--primitive-font-sans);
+  --font-family-serif: var(--primitive-font-serif);
+  --font-family-mono:  var(--primitive-font-mono);
+
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* TYPOGRAPHY SIZE SCALE — Medium (default, balanced) */
+  /* ─────────────────────────────────────────────────────────────────────── */
+
+  --type-display-size: clamp(3.5rem, 8vw, 7rem);
+  --type-h1-size: clamp(2.5rem, 5vw, 4rem);
+  --type-h2-size: clamp(2rem, 3.5vw, 3.125rem);
+  --type-h3-size: clamp(1.75rem, 3.5vw, 3.75rem);
+  --type-h4-size: clamp(1.25rem, 2.5vw, 1.875rem);
+  --type-h5-size: clamp(1rem, 1.8vw, 1.25rem);
+  --type-h6-size: clamp(0.875rem, 1.5vw, 1rem);
+  --type-body-lg-size: clamp(1.125rem, 1.5vw, 1.375rem);
+  --type-body-size: clamp(1rem, 1.2vw, 1.125rem);
+  --type-body-sm-size: clamp(0.875rem, 1vw, 1rem);
+  --type-label-size: clamp(0.75rem, 1vw, 0.875rem);
+  --type-label-sm-size: clamp(0.6875rem, 0.9vw, 0.8125rem);
+  --type-caption-size: clamp(0.625rem, 0.8vw, 0.875rem);
+  --type-overline-size: clamp(0.625rem, 0.9vw, 0.85rem);
+  --type-code-size: clamp(0.875rem, 1vw, 1rem);
+
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* TYPOGRAPHY SPACING SCALE — Normal (default, balanced) */
+  /* ─────────────────────────────────────────────────────────────────────── */
+
+  --type-display-line-height: 1.1;
+  --type-display-letter-spacing: -0.02em;
+
+  --type-h1-line-height: 0.7;
+  --type-h1-letter-spacing: -0.02em;
+
+  --type-h2-line-height: 1.25;
+  --type-h2-letter-spacing: -0.01em;
+
+  --type-h3-line-height: 1.2;
+  --type-h3-letter-spacing: 0em;
+
+  --type-h4-line-height: 1.25;
+  --type-h4-letter-spacing: 0em;
+
+  --type-h5-line-height: 1.3;
+  --type-h5-letter-spacing: 0em;
+
+  --type-h6-line-height: 1.35;
+  --type-h6-letter-spacing: 0em;
+
+  --type-body-lg-line-height: 1.4;
+  --type-body-lg-letter-spacing: 0em;
+
+  --type-body-line-height: 1.5;
+  --type-body-letter-spacing: 0em;
+
+  --type-body-sm-line-height: 1.3;
+  --type-body-sm-letter-spacing: 0em;
+
+  --type-label-line-height: 1.4;
+  --type-label-letter-spacing: 0.05em;
+  --type-label-weight: 600;
+
+  --type-label-sm-line-height: 1.35;
+  --type-label-sm-letter-spacing: 0.05em;
+  --type-label-sm-weight: 600;
+
+  --type-caption-line-height: 1.4;
+  --type-caption-letter-spacing: 0.25em;
+
+  --type-overline-line-height: 1.2;
+  --type-overline-letter-spacing: 0.1em;
+  --type-overline-weight: 700;
+  --type-overline-transform: uppercase;
+
+  /* Legacy aliases for backward compatibility */
+  --text-size-h1: var(--type-h1-size);
+  --text-size-h2: var(--type-h2-size);
+  --text-size-h3: var(--type-h3-size);
+  --text-size-h4: var(--type-h4-size);
+  --text-size-h5: var(--type-h5-size);
+  --text-size-body: var(--type-body-size);
+  --text-size-caption: var(--type-caption-size);
+
+  --text-line-height-h1: var(--type-h1-line-height);
+  --text-line-height-h2: var(--type-h2-line-height);
+  --text-line-height-body: var(--type-body-line-height);
+
+  --text-letter-spacing-h1: var(--type-h1-letter-spacing);
+  --text-letter-spacing-h2: var(--type-h2-letter-spacing);
+  --text-letter-spacing-body: var(--type-body-letter-spacing);
+
+  /* Line spacing variants for header and body */
+  --line-spacing-header-tight: 0.6;
+  --line-spacing-header-normal: 1;
+  --line-spacing-header-relaxed: 1.6;
+
+  --line-spacing-body-tight: 1.3;
+  --line-spacing-body-normal: 1.5;
+  --line-spacing-body-relaxed: 1.6;
+
+  --text-weight-h1: var(--primitive-font-weight-extrabold);
+  --text-weight-h2: var(--primitive-font-weight-bold);
+  --text-weight-body: var(--primitive-font-weight-normal);
+  --text-weight-label: var(--primitive-font-weight-semibold);
+
+  /* Shorthand aliases used by components */
+  --text-weight-normal: var(--primitive-font-weight-normal);
+  --text-weight-medium: var(--primitive-font-weight-medium);
+  --text-weight-semibold: var(--primitive-font-weight-semibold);
+  --text-weight-bold: var(--primitive-font-weight-bold);
+  --text-weight-extrabold: var(--primitive-font-weight-extrabold);
+
+  /* Text size scale: sm for modern alias system */
+  --text-size-sm: var(--type-body-size);
+  /* Was referenced 4x (nav menu/text buttons) but never defined — the
+     var() failed silently and those elements inherited their size. */
+  --text-size-small: var(--type-body-sm-size);
+  /* Shared "lede" style for section intro/description headings (was the
+     same clamp duplicated in main.css and posts-tabs-grid.css). */
+  --text-size-lede: clamp(1.1rem, 2.4vw, 1.6rem);
+
+  /* SPACING — t-shirt sizes */
+  --space-xs: clamp(0.25rem, 0.5vw, 0.5rem);
+  --space-sm: clamp(0.5rem, 1vw, 1rem);
+  --space-md: clamp(1rem, 2vw, 1.5rem);
+  --space-lg: clamp(1.5rem, 4vw, 3rem);
+  --space-xl: clamp(2rem, 8vw, 4rem);
+  --space-2xl: clamp(3rem, 12vw, 6rem);
+  --space-3xl: clamp(4rem, 16vw, 8rem);
+  --space-4xl: clamp(5rem, 18vw, 10rem);
+
+  --space-section: clamp(3rem, 8vw, 6rem);
+
+  /* Primitive spacing aliases for hero tag pills */
+  --space-1: var(--primitive-space-1);
+  --space-3: var(--primitive-space-3);
+
+  /* CROSS-THEME PAGE PRIMITIVES — each theme's page background and primary
+     ink, defined ONCE and readable from BOTH themes. Two consumers each:
+     the theme's own --color-background/--color-on-surface, and the OPPOSITE
+     theme's --shift-bg/--shift-ink (the palette-flip targets). Before these
+     existed, the shift targets were hardcoded copies and silently drifted
+     when a theme background was retuned (dark mode's "light" reverse kept
+     showing the old bluish #F1F3F9 after light was retuned to #FAFAF8).
+     Retune page backgrounds HERE — and remember the anti-flash hexes in
+     default.hbs (+ theme.js fallback) are pre-CSS copies that must be
+     updated by hand alongside (see COMMON_ISSUES.md). */
+  --theme-light-bg: #FAFAF8;
+  --theme-light-ink: #1a1a1a;
+  --theme-dark-bg: #1d1e1f;
+  --theme-dark-ink: var(--primitive-neutral-0);
+
+  /* SHIFT PALETTE — targets for the reusable section palette-flip transition
+     (see profile.css "reversed-palette-on-entry" + background-layer.js).
+     A section scrubs --profile-shift 0→1 and its surfaces/text blend toward
+     these. They flip per theme so the shift always reads as the OPPOSITE of
+     the current theme (dark/dim sites shift to a light panel with dark ink,
+     light sites shift to a dark panel with light ink) — deliberately NOT
+     wired to the theme system itself: it's a scroll animation, the actual
+     theme (and its toggle) stays untouched. Reusable by any future section.
+     References the cross-theme primitives above so they can never drift
+     from the real theme backgrounds again. */
+  --shift-bg: var(--theme-light-bg);
+  --shift-ink: var(--theme-light-ink);
+
+  /* SHIFT SCOPE — where the palette-flip paints. Both are 0/1 multipliers
+     on --profile-shift, so switching modes is a token change, no JS:
+       --shift-scope-page:  blend the full-viewport #page-backdrop (main.css)
+                            — the whole page background shifts.
+       --shift-scope-panel: paint the section-scoped ::before panel
+                            (profile.css) — shift clipped to the section box,
+                            structurally can't tint neighbouring sections.
+     Text/nav/icon/particle blends follow --profile-shift regardless of scope.
+     Both on at once is harmless (panel matches backdrop, edge invisible). */
+  --shift-scope-page: 1;
+  --shift-scope-panel: 0;
+
+  /* LAYOUT */
+  --max-width: 1800px;
+  --content-padding: clamp(1rem, 4vw, 4rem);
+
+  /* Content width — easily configurable by page_width setting */
+  --content-max-width-text: 800px;
+  --content-max-width-wide: 1000px;
+
+  /* RADIUS */
+  --radius-sm: var(--primitive-radius-2);
+  --radius-md: var(--primitive-radius-3);
+  --radius-lg: var(--primitive-radius-4);
+  --radius-full: var(--primitive-radius-full);
+
+  /* MOTION */
+  --duration-fast: var(--primitive-duration-fast);
+  --duration-standard: var(--primitive-duration-standard);
+  --duration-enter: var(--primitive-duration-enter);
+  --duration-exit: var(--primitive-duration-exit);
+
+  --ease-standard: var(--primitive-ease-standard);
+  --ease-decelerate: var(--primitive-ease-decelerate);
+  --ease-accelerate: var(--primitive-ease-accelerate);
+  --ease-spring: var(--primitive-ease-spring);
+
+  /* ELEVATION */
+  --elevation-0: var(--primitive-shadow-0);
+  --elevation-1: var(--surface-1);
+  --elevation-2: var(--surface-2);
+  --elevation-3: var(--surface-3);
+  --elevation-4: var(--surface-4);
+
+  /* Z-INDEX */
+  --z-hide: var(--primitive-z-hide);
+  --z-base: var(--primitive-z-base);
+  --z-dropdown: var(--primitive-z-dropdown);
+  --z-sticky: var(--primitive-z-sticky);
+  --z-fixed: var(--primitive-z-fixed);
+  --z-modal-backdrop: var(--primitive-z-modal-backdrop);
+  --z-modal: var(--primitive-z-modal);
+  --z-popover: var(--primitive-z-popover);
+  --z-tooltip: var(--primitive-z-tooltip);
+
+  /* RGB CHANNEL VARIABLES — for rgba() usage in overlays */
+  --blackrgb: 0, 0, 0;
+  --whitergb: 255, 255, 255;
+
+  /* COMPONENT TOKENS — Tier 3 */
+  /* Navigation */
+  --nav-bg: rgba(24, 24, 24, 0.7);
+  --nav-backdrop-blur: 10px;
+  --nav-height: 60px;
+  --nav-gradient: linear-gradient(
+    to bottom,
+    rgba(33, 36, 35, 0.85) 0%,
+    rgba(33, 36, 35, 0.5) 45%,
+    rgba(33, 36, 35, 0.28) 70%,
+    rgba(33, 36, 35, 0) 100%
+  );
+
+  /* Cards */
+  --card-bg: var(--surface-2);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* TYPOGRAPHY SPACING CONFIGURATION: TIGHT — Compact, magazine density */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+:root[data-type-space="tight"] {
+  --type-display-line-height: 1.05;
+  --type-display-letter-spacing: -0.04em;
+
+  --type-h1-line-height: 2.5;
+  --type-h1-letter-spacing: -0.04em;
+
+  --type-h2-line-height: 1.05;
+  --type-h2-letter-spacing: -0.02em;
+
+  --type-h3-line-height: 1.1;
+  --type-h3-letter-spacing: -0.01em;
+
+  --type-h4-line-height: 1.15;
+  --type-h4-letter-spacing: 0em;
+
+  --type-h5-line-height: 1.2;
+  --type-h5-letter-spacing: 0em;
+
+  --type-h6-line-height: 1.25;
+  --type-h6-letter-spacing: 0em;
+
+  --type-body-lg-line-height: 1.4;
+  --type-body-lg-letter-spacing: -0.005em;
+
+  --type-body-line-height: 1.5;
+  --type-body-letter-spacing: 0em;
+
+  --type-body-sm-line-height: 1.4;
+  --type-body-sm-letter-spacing: 0em;
+
+  --type-label-line-height: 1.3;
+  --type-label-letter-spacing: 0.04em;
+
+  --type-label-sm-line-height: 1.25;
+  --type-label-sm-letter-spacing: 0.04em;
+
+  --type-caption-line-height: 1.3;
+  --type-caption-letter-spacing: 0.01em;
+
+  --type-overline-line-height: 1.1;
+  --type-overline-letter-spacing: 0.08em;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* TYPOGRAPHY SPACING CONFIGURATION: RELAXED — Open, airy, long-form reading */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+:root[data-type-space="relaxed"] {
+  --type-display-line-height: 1.15;
+  --type-display-letter-spacing: 0em;
+
+  --type-h1-line-height: 2;
+  --type-h1-letter-spacing: -0.01em;
+
+  --type-h2-line-height: 1.25;
+  --type-h2-letter-spacing: 0em;
+
+  --type-h3-line-height: 1.3;
+  --type-h3-letter-spacing: 0.01em;
+
+  --type-h4-line-height: 1.35;
+  --type-h4-letter-spacing: 0.01em;
+
+  --type-h5-line-height: 1.4;
+  --type-h5-letter-spacing: 0.01em;
+
+  --type-h6-line-height: 1.45;
+  --type-h6-letter-spacing: 0.01em;
+
+  --type-body-lg-line-height: 1.8;
+  --type-body-lg-letter-spacing: 0.01em;
+
+  --type-body-line-height: 1.9;
+  --type-body-letter-spacing: 0.02em;
+
+  --type-body-sm-line-height: 1.75;
+  --type-body-sm-letter-spacing: 0.01em;
+
+  --type-label-line-height: 1.5;
+  --type-label-letter-spacing: 0.06em;
+
+  --type-label-sm-line-height: 1.45;
+  --type-label-sm-letter-spacing: 0.06em;
+
+  --type-caption-line-height: 1.6;
+  --type-caption-letter-spacing: 0.03em;
+
+  --type-overline-line-height: 1.3;
+  --type-overline-letter-spacing: 0.12em;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* PAGE WIDTH CONFIGURATION — Adjust content width tokens per page_width setting */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Wide mode — more spacious text and images */
+:root[data-page-width='wide'] {
+  --content-max-width-text: 780px;
+  --content-max-width-wide: 1100px;
+}
+
+/* Full mode — maximum width for both */
+:root[data-page-width='full'] {
+  --content-max-width-text: 850px;
+  --content-max-width-wide: 1800px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* THEME VARIANT: LIGHT */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+:root[data-theme='light'] {
+  /* SHIFT PALETTE — light site shifts to the dark theme's palette (see the
+     cross-theme primitives in base :root — single source, can't drift). */
+  --shift-bg: var(--theme-dark-bg);
+  --shift-ink: var(--theme-dark-ink);
+
+  /* BACKGROUND & SURFACES — Warm lights, not pure white */
+  --color-background: var(--theme-light-bg);
+  --color-surface: #F5F4F1;
+  --color-surface-variant: #dfe2e9;
+  --color-outline: #c5cad8;
+  --color-outline-variant: #b5bcc8;
+
+  /* CONTENT */
+  --color-on-surface: var(--theme-light-ink);
+  --color-on-surface-variant: #4a4a4a;
+  --color-on-surface-subtle: #6b7d7d;
+
+  /* Navigation */
+  --nav-bg: rgba(24, 24, 24, 0.8);
+
+  /* ICON & INTERACTIVE COLORS */
+  --color-icon: var(--primitive-neutral-800);
+  --color-link: var(--color-primary);
+  /* Hover: primary mixed 75% with black for a darker shade in light mode */
+  --color-link-hover: color-mix(in oklch, var(--color-primary) 75%, black);
+
+  /* BRAND */
+  /* --color-primary: var(--primitive-brand-600); */  /* revert: restore accent colour */
+  --color-primary: oklch(12% 0 0);  /* near-black for light mode */
+  --color-on-primary: var(--primitive-neutral-0);
+  --color-primary-container: var(--primitive-brand-100);
+
+  --color-secondary: var(--primitive-accent-600);
+
+  /* SURFACES */
+  --surface-0: var(--color-background);
+  --surface-1: #00000010;
+  --surface-2: #00000012;
+  --surface-3: #d5d9e0;
+  --surface-4: #cbcfd6;
+
+  /* color-surface-N aliases */
+  --color-surface-0: var(--surface-0);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-surface-4: var(--surface-4);
+
+  --surface-2-translucent: rgba(223, 226, 233, 0.6);
+  --surface-3-translucent: rgba(213, 217, 224, 0.65);
+  --surface-4-translucent: rgba(203, 207, 214, 0.7);
+
+  /* GLASS MORPHISM — light theme overrides */
+  --glass-bg: rgba(0, 0, 0, 0.08);
+  --glass-bg-subtle: rgba(0, 0, 0, 0.06);
+  --glass-border: rgba(0, 0, 0, 0.16);
+  --glass-border-subtle: rgba(0, 0, 0, 0.14);
+  --glass-border-thin: rgba(0, 0, 0, 0.10);
+  --glass-border-hover: rgba(0, 0, 0, 0.28);
+  --glass-inset-light: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  --glass-inset-light-hover: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  --glass-inset-dark: inset 0 -1px 0 rgba(0, 0, 0, 0.08);
+  --glass-shadow: 0 4px 30px rgba(0, 0, 0, 0.08);
+  --glass-shadow-pill: 0 4px 32px rgba(0, 0, 0, 0.12);
+
+  /* STATE */
+  --state-layer-color: var(--color-on-surface);
+  --state-hover-opacity: 0.08;
+
+  /* SCROLLBAR — darker on light mode */
+  --scrollbar-thumb: #6a6a6a;
+  --scrollbar-thumb-hover: #3a3a3a;
+
+  /* ELEVATION — lighter shadows */
+  --elevation-0: var(--primitive-shadow-0);
+  --elevation-1: 0 1px 3px hsl(0 0% 0% / 0.04);
+  --elevation-2: 0 4px 16px hsl(0 0% 0% / 0.08);
+  --elevation-3: 0 8px 32px hsl(0 0% 0% / 0.12);
+  --elevation-4: 0 16px 48px hsl(0 0% 0% / 0.16);
+
+  /* RGB CHANNEL VARIABLES — for rgba() usage in overlays */
+  --blackrgb: 0, 0, 0;
+  --whitergb: 255, 255, 255;
+
+  /* COMPONENT TOKENS — Tier 3 */
+  /* Navigation */
+  --nav-bg: rgba(24, 24, 24, 0.7);
+  --nav-backdrop-blur: 10px;
+  --nav-height: 60px;
+  --nav-gradient: linear-gradient(to bottom, rgba(0, 0, 0, 0.05) 0%, rgba(0, 0, 0, 0.02) 55%, rgba(0, 0, 0, 0.01) 80%, rgba(0, 0, 0, 0) 100%);
+
+  /* Cards */
+  --card-bg: var(--surface-2);
+
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* THEME VARIANT: DIM (mid-tone, like Twitter dim mode) */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+:root[data-theme='dim'] {
+  /* BACKGROUND & SURFACES — Mid-tone grays */
+  --color-background: #1d1e1f;
+  --color-surface: #323232;
+  --color-surface-variant: #3d3d3d;
+  --color-outline: #505050;
+  --color-outline-variant: #4a4a4a;
+
+  /* CONTENT */
+  --color-on-surface: #f5f5f5;
+  --color-on-surface-variant: #d0d0d0;
+  --color-on-surface-subtle: #868686;
+
+  /* Navigation */
+  --nav-bg: rgba(24, 24, 24, 0.7);
+
+  /* ICON & INTERACTIVE COLORS */
+  --color-icon: oklch(95% 0 0);
+  --color-link: var(--color-primary);
+  /* Hover: primary mixed 75% with white for a lighter tint in dim mode */
+  --color-link-hover: color-mix(in oklch, var(--color-primary) 5%, white);
+
+  /* BRAND */
+  /* --color-primary: var(--primitive-brand-400); */  /* revert: restore accent colour */
+  --color-primary: oklch(88% 0 0);  /* near-white for dim mode */
+  --color-on-primary: var(--primitive-neutral-950);
+  --color-primary-container: var(--primitive-brand-800);
+
+  --color-secondary: var(--primitive-accent-400);
+
+  /* SURFACES */
+  --surface-0: var(--color-background);
+  --surface-1: #222222;
+  --surface-2: #242424;
+  --surface-3: #474747;
+  --surface-4: #505050;
+
+  /* color-surface-N aliases */
+  --color-surface-0: var(--surface-0);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-surface-4: var(--surface-4);
+
+  --surface-2-translucent: rgba(61, 61, 61, 0.6);
+  --surface-3-translucent: rgba(71, 71, 71, 0.65);
+  --surface-4-translucent: rgba(80, 80, 80, 0.7);
+
+  /* STATE */
+  --state-hover-opacity: 0.1;
+
+  /* SCROLLBAR */
+  --scrollbar-thumb: var(--color-on-surface-subtle);
+  --scrollbar-thumb-hover: var(--primitive-neutral-300);
+
+  /* RGB CHANNEL VARIABLES — for rgba() usage in overlays */
+  --blackrgb: 0, 0, 0;
+  --whitergb: 255, 255, 255;
+
+  /* COMPONENT TOKENS — Tier 3 */
+  /* Navigation */
+  --nav-bg: rgba(24, 24, 24, 0.6);
+  --nav-backdrop-blur: 10px;
+  --nav-height: 60px;
+
+  /* Cards */
+  --card-bg: var(--surface-2);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* TYPE SIZE SCALING — Controlled via Ghost theme setting (data-type-size)   */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Compact (sm) — smaller, tighter fonts */
+body[data-type-size='sm'] {
+  --text-size-sm: clamp(0.875rem, 0.95vw, 0.9375rem);
+  --text-size-body: clamp(0.9375rem, 1rem, 1rem);
+  --text-size-h1: clamp(4.5rem, 12vw, 8rem);
+  --text-size-h2: clamp(2rem, 11vw, 4rem);  
+  --text-size-h3: clamp(1.575rem, 2.4vw, 2.5rem);
+  --text-size-h4: clamp(1.125rem, 1.6vw, 2.2rem);
+  --text-size-h5: clamp(0.9rem, 1.4vw, 1.4rem);
+  --text-size-h6: clamp(0.7875rem, 1.15vw, 1.1rem);
+}
+
+/* Balanced (md) — default balanced fonts */
+body[data-type-size='md'] {
+  --text-size-sm: clamp(1rem, 1.2vw, 1.125rem);
+  --text-size-body: clamp(1rem, 1.2vw, 1.125rem);
+  --text-size-h1: clamp(4.5rem, 13vw, 7rem);
+  --text-size-h2: clamp(2rem, 10vw, 4rem);
+  --text-size-h3: clamp(2rem, 3vw, 2.75rem);
+  --text-size-h4: clamp(1.5rem, 2vw, 2.25rem);
+  --text-size-h5: clamp(1rem, 1.6vw, 1.8rem);
+  --text-size-h6: clamp(0.875rem, 1.5vw, 1rem);
+}
+
+/* Generous (lg) — largest, most spacious fonts */
+body[data-type-size='lg'] {
+  --text-size-sm: clamp(1.125rem, 1.2vw, 1.375rem);
+  --text-size-body: clamp(1.125rem, 1.3vw, 1.275rem);
+  --text-size-h1: clamp(5rem, 14vw, 8rem);
+  --text-size-h2: clamp(2.5rem, 10vw, 5rem);
+  --text-size-h3: clamp(2rem, 3.5vw, 2.625rem);
+  --text-size-h4: clamp(1.5rem, 3vw, 2.25rem);
+  --text-size-h5: clamp(1.25rem, 2vw, 1.5rem);
+  --text-size-h6: clamp(1rem, 1.8vw, 1.25rem);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* FONT FAMILY UTILITIES                                                      */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Apply to any element: <p class="serif">, <h2 class="sans">, etc.
+   Inherits down — safe to put on section containers.                         */
+
+.serif,
+[class*="serif"] .serif-children {
+  font-family: var(--font-family-serif);
+  font-weight: 500 !important;
+}
+
+.sans {
+  font-family: var(--font-family-body);
+}

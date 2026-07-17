@@ -1,0 +1,82 @@
+{{!--
+  HERO SECTION
+  Mirrors the React reference component at reference/src/components/sections/Hero.tsx.
+  Custom fields (set in Ghost Admin › Design):
+    @custom.hero_name        — top label, e.g. "Hello, I'm Prem."
+    @custom.hero_title       — main headline
+    @custom.hero_description — supporting paragraph
+  Portrait image: theme-responsive, hardcoded paths
+    Dark mode: /content/images/prem-back-dark.png
+    Light mode: /content/images/prem-back-light.png (switched via JavaScript)
+--}}
+
+<section class="hero" data-section-id="hero" data-home-hero-width="{{@custom.home_hero_width}}" data-hero-background="{{@custom.home_hero_background}}"
+  data-gradient-config="hero"
+  data-gradient-start-color="#0f172a"
+  data-gradient-end-color="#1e3a5f"
+  data-gradient-angle="135"
+  data-gradient-distortion-speed="1.0"
+  data-gradient-distortion-intensity="0.3"
+  data-gradient-distortion-complexity="4"
+  data-gradient-morph-speed="0.6">
+  <div class="hero-bg">
+    <div class="hero-container">
+
+      {{!-- LEFT: text content --}}
+      <div class="hero-content">
+
+        {{!-- Top label — "Hello, I'm Prem." --}}
+        <p class="hero-intro text-eyebrow" id="hero-intro">
+          {{#if @custom.hero_name}}{{@custom.hero_name}}{{else}}Name{{/if}}
+        </p>
+
+        {{!-- Main headline --}}
+        <h1 class="hero-headline serif" id="hero-headline" data-animate="word">
+          {{#if @custom.hero_title}}{{@custom.hero_title}}{{else}}Your Title Here{{/if}}
+        </h1>
+
+        <p class="hero-description" id="hero-description">
+          {{#if @custom.hero_description}}{{@custom.hero_description}}{{else}}Your description here.{{/if}}
+        </p>
+
+        {{!-- Tag pills/bullets 
+        {{#if @custom.hero_bullet_1}}
+        <div class="hero-tags" id="hero-tags">
+          <span class="tag">{{@custom.hero_bullet_1}}</span>
+          {{#if @custom.hero_bullet_2}}<span class="tag">{{@custom.hero_bullet_2}}</span>{{/if}}
+          {{#if @custom.hero_bullet_3}}<span class="tag">{{@custom.hero_bullet_3}}</span>{{/if}}
+          {{#if @custom.hero_bullet_4}}<span class="tag">{{@custom.hero_bullet_4}}</span>{{/if}}
+        </div>
+        {{/if}}--}}
+
+      </div>{{!-- /.hero-content --}}
+
+    </div>{{!-- /.hero-container --}}
+
+    {{!-- RIGHT: image — inside hero-bg so it respects background --}}
+    <div class="hero-image-wrapper" id="hero-image-wrapper">
+   
+      {{#if @site.cover_image}}
+        <img
+          src="{{@site.cover_image}}"
+          alt="{{@site.title}}"
+          class="hero-image hero-image-main"
+          loading="eager"
+        >
+      {{/if}}
+
+      {{!-- Portrait image (theme-responsive) --}}
+      <img
+        src=""
+        alt="{{@site.title}}"
+        class="hero-image hero-image-blink"
+        id="hero-portrait"
+        data-dark-src="/content/images/prem-front-dark.png"
+        data-light-src="/content/images/prem-front-light.png"
+        loading="eager"
+      >
+    </div>
+  </div>{{!-- /.hero-bg --}}
+</section>{{!-- /.hero --}}
+
+{{!-- Animation handled by unified scroll-scrub-anim.js via data-animate attribute --}}

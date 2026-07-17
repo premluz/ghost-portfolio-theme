@@ -1,0 +1,211 @@
+/* ═════════════════════════════════════════════════════════════ */
+/* LOGOS RIBBON                                                  */
+/* Kinetic 3D-perspective marquee                                */
+/* ═════════════════════════════════════════════════════════════ */
+
+/* ── 0b. Inner wrapper — visual container, 100vh ────────────────────── */
+.logos-ribbon-sticky-inner {
+  height: 160vh;
+  overflow: hidden;
+}
+
+
+  .logos-ribbon-section {
+    padding: 800px 0 200px 0;
+
+  }
+
+/* ── Pinned text — fixed to viewport, not to section ────────────── */
+/* Lives inside sticky-inner (no transform/perspective ancestor),          */
+/* so position:fixed is truly viewport-fixed.                              */
+.logos-ribbon-sticky-inner .pin-bottom-left {
+  position: fixed;
+  /* Initial hidden state set by GSAP (autoAlpha:0); no CSS transition —
+     the word-reveal animation IS the entry, no separate fade. */
+  opacity: 0;
+  visibility: hidden;
+}
+
+/* ── 1. Section — full-bleed clipping viewport + 3D camera ─── */
+.logos-ribbon-section {
+  /* Full-bleed breakout — same technique as .logos-scroll-section */
+  position: relative;
+  left: 50%;
+  right: 50%;
+  margin-left: -50vw;
+  margin-right: -50vw;
+  width: 100vw;
+  /* Pushes this (now the first child after .hero) below the fixed,
+     full-viewport .hero — relocated from the removed .page-content-wrapper
+     div, which used to be the parent of every homepage section after the
+     hero and existed only to carry this one rule. See its mobile reset
+     below (max-width: 768px).
+     The `- 6rem` folds in a fine-tuning nudge that used to live as a
+     separate inline `style="margin-top: -6rem"` on this same element
+     (removed from logos-ribbon.hbs) — the two margins stacked (parent's
+     100vh + this element's own -6rem), net 100vh - 6rem, so combining
+     them here keeps the exact same rendered position, just in one place
+     instead of split across a stylesheet and an inline override. */
+  margin-top: calc(100vh - 6rem);
+
+  overflow: hidden;
+
+  /* Fills the sticky inner container (100vh from parent) */
+  display: flex;
+  align-items: center;  /* vertically center the ribbon carrier */
+
+
+}
+
+/* ── 2. Carrier — over-wide, diagonal + depth-warped ────────── */
+.logos-ribbon-carrier {
+  flex-shrink: 0;   /* prevent flex from collapsing the 160vw carrier */
+  /* Wider than 100vw so diagonal corners are always filled */
+  width: 160vw;
+  position: relative;
+  left: -30vw;
+
+  /* rotateZ: diagonal slant across the screen                   */
+  /* rotateY: 3D depth warp — left side recedes, right advances  */
+  /*transform: rotateZ(-8deg) rotateY(18deg);
+  transform-style: preserve-3d;*/
+}
+
+/* ── 3. Track — horizontal flex row, GSAP animates x ─────────── */
+.logos-ribbon-track {
+  display: flex;
+  align-items: center;
+  gap: 160px;
+  padding: 36px 0;
+  will-change: transform;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ── Individual logo slots ───────────────────────────────────── */
+.logos-ribbon-item {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  height: 70px;
+}
+
+.logos-ribbon-item img {
+  height: 100%;
+  width: auto;
+  max-width: 450px;
+  object-fit: contain;
+  object-position: center;
+
+  /* Dark/dim mode: force white */
+  filter: brightness(0) invert(1);
+  opacity: 1;
+
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+
+.logos-ribbon-item:hover img {
+  opacity: 1;
+}
+
+/* ── Letter-reveal character spans ─────────────────────────────── */
+/* .lr-word clips its children; .lr-char is the animated unit.    */
+.lr-word {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+}
+
+.lr-char {
+  display: inline-block;
+}
+
+/* ── Pullable state (future interaction hook) ────────────────── */
+.logos-ribbon-item[data-pullable] {
+  cursor: pointer;
+}
+
+.logos-ribbon-item[data-pullable] img {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.logos-ribbon-item[data-pullable]:hover img {
+  opacity: 1;
+  transform: scale(1.08);
+}
+
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .logos-ribbon-sticky-inner {
+    height: 100svh;
+  }
+
+
+  .logos-ribbon-section {
+    padding: 200px 0 200px 0;
+    /* Relocated from the removed .page-content-wrapper's own mobile
+       override (margin-top: 0), combined with the removed inline
+       -6rem nudge that applied unconditionally (no media query) — net
+       0 - 6rem, so -6rem here reproduces the original combined mobile
+       position exactly. */
+    margin-top: -6rem;
+  }
+
+  .pin-bottom-left {
+    bottom: clamp(2rem, 4vh, 3.5rem);
+    left:   var(--content-padding, 1.5rem);
+    right:  var(--content-padding, 1.5rem);
+  }
+
+  .logos-ribbon-carrier {
+    width: 200vw;
+    left: -50vw;
+    /* Soften 3D on small screens — less distortion */
+
+  }
+
+  .logos-ribbon-track {
+    gap: 56px;
+    padding: 28px 0;
+  }
+
+  .logos-ribbon-item {
+    height: 34px;
+  }
+
+  .logos-ribbon-item img {
+    max-width: 170px;
+  }
+}
+
+@media (max-width: 480px) {
+  .logos-ribbon-section {
+    padding: 200px 0 200px 0;
+
+  }
+  
+
+  .logos-ribbon-track {
+    gap: 44px;
+  }
+
+  .logos-ribbon-item {
+    height: 28px;
+  }
+
+  .logos-ribbon-item img {
+    max-width: 130px;
+  }
+}
+
+/* ── Theme-responsive logo colour ───────────────────────────── */
+/* Light mode: render logos dark so they're visible on light bg  */
+:root[data-theme='light'] .logos-ribbon-item img {
+  filter: brightness(0) !important;
+  opacity: 1;
+}
+
+:root[data-theme='light'] .logos-ribbon-item:hover img {
+  opacity: 1;
+}

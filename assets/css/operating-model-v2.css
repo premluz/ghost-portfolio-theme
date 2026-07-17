@@ -1,0 +1,271 @@
+/* ═════════════════════════════════════════════════════════════════ */
+/* OPERATING MODEL V2 — Evidence Carousel                            */
+/* Scroll-driven experience with seamless category transitions        */
+/* ═════════════════════════════════════════════════════════════════ */
+
+.operating-model-v2 {
+  width: 100%;
+  position: relative;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.om-stage {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* ── CATEGORY CONTAINER ──────────────────────────────────────── */
+
+.om-category {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 1;
+  will-change: opacity, pointer-events;
+}
+
+.om-category[data-category="products"] {
+  z-index: 3;
+}
+
+.om-category[data-category="systems"] {
+  z-index: 2;
+}
+
+.om-category[data-category="teams"] {
+  z-index: 1;
+}
+
+/* ── HEADER (Heading + Description) ──────────────────────────── */
+
+.om-header {
+  flex-shrink: 0;
+  padding: var(--space-xl) var(--content-padding) 0;
+  margin-bottom: var(--space-2xl);
+  will-change: opacity, transform;
+}
+
+.om-heading {
+  font-size: var(--text-size-h2);
+  line-height: var(--text-line-height-h1);
+  letter-spacing: var(--text-letter-spacing-h1);
+  font-weight: var(--text-weight-extrabold, 800);
+  color: var(--color-on-surface);
+  margin: 48px 0 var(--space-md) 0;
+  opacity: 1;
+  filter: none;
+}
+
+.om-description {
+  font-size: var(--text-size-h4, 1rem);
+  line-height: var(--text-line-height-body, 1.8);
+  color: var(--color-on-surface-variant);
+  margin: 0;
+  max-width: 640px;
+}
+
+/* ── CAROUSEL CONTAINER ──────────────────────────────────────── */
+
+.om-carousel {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+}
+
+.om-carousel-track {
+  display: flex;
+  gap: 40px;
+  height: 100%;
+  will-change: transform;
+}
+
+/* ── CARD STYLES ─────────────────────────────────────────────── */
+
+.om-card {
+  flex: 0 0 30vw;
+  height: 45vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+ /* border: 1px solid var(--glass-border);
+  backdrop-filter: var(--glass-backdrop);
+  -webkit-backdrop-filter: var(--glass-backdrop); */
+}
+
+/* Screenshot Mode */
+.om-card-screenshot {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.om-card-screenshot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--radius-lg);
+}
+
+/* Video Mode */
+.om-card-video {
+  background: #000;
+  border: none;
+  box-shadow: none;
+}
+
+.om-card-video video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--radius-lg);
+}
+
+/* Text Mode */
+.om-card-text {
+  padding: var(--space-2xl);
+
+
+}
+
+.text-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  height: 100%;
+  justify-content: center;
+}
+
+.text-content h3 {
+  font-size: var(--text-size-h1);
+  font-weight: var(--text-weight-extrabold, 800);
+  color: var(--color-on-surface);
+  margin: 0;
+}
+
+.text-content p {
+  font-size: var(--text-size-body);
+  line-height: var(--text-line-height-body, 1.8);
+  color: var(--color-on-surface-variant);
+  margin: 0;
+}
+
+/* Metric Mode (reuse stats-parallax styling) */
+.om-card-metric {
+  padding: var(--space-2xl);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--glass-radius);
+
+}
+
+.metric-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  text-align: center;
+}
+
+.metric-eyebrow {
+  display: block;
+  font-size: var(--text-size-eyebrow);
+  font-weight: var(--text-weight-semibold, 600);
+  color: var(--color-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.metric-value {
+  display: block;
+  font-size: clamp(2rem, 12vw, 12rem);
+  font-weight: var(--text-weight-extrabold, 800);
+  color: var(--color-primary);
+  line-height: 1;
+}
+
+/* ── LIGHT THEME OVERRIDES ──────────────────────────────────── */
+
+:root[data-theme='light'] .om-heading {
+  color: var(--color-on-surface);
+}
+
+:root[data-theme='light'] .om-description {
+  color: var(--color-on-surface-variant);
+}
+
+:root[data-theme='light'] .text-content h3 {
+  color: var(--color-on-surface);
+}
+
+:root[data-theme='light'] .text-content p {
+  color: var(--color-on-surface-variant);
+}
+
+:root[data-theme='light'] .metric-eyebrow {
+  color: var(--color-on-surface-variant);
+}
+
+/* ── MOBILE RESPONSIVE ──────────────────────────────────────── */
+
+@media (max-width: 1024px) {
+  .om-header {
+    padding: var(--space-lg) var(--content-padding) 0;
+    margin-bottom: var(--space-xl);
+  }
+
+  .om-heading {
+    font-size: var(--text-size-h3);
+  }
+
+  .om-description {
+    font-size: var(--text-size-body);
+  }
+
+  .om-card {
+    flex: 0 0 80vw;
+    height: 60vh;
+  }
+
+  .om-carousel-track {
+    gap: 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .om-header {
+    padding: var(--space-md) var(--content-padding) 0;
+  }
+
+  .om-heading {
+    font-size: var(--text-size-h4);
+  }
+
+  .om-card {
+    flex: 0 0 100vw;
+    height: 50vh;
+  }
+
+  .om-carousel-track {
+    gap: 16px;
+  }
+
+  .text-content h3 {
+    font-size: var(--text-size-body);
+  }
+
+  .metric-value {
+    font-size: clamp(1.5rem, 6vw, 2.5rem);
+  }
+}

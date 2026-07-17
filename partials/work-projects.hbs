@@ -1,0 +1,39 @@
+{{!--
+  WORK-PROJECTS SECTION
+  Experimental/smaller work only — the featured set now lives exclusively
+  in about-projects.hbs's varied grid; this section used to ALSO show the
+  same tag:featured posts in its own "Real products..." block above this
+  one, duplicating that content back-to-back on the Work page. Removed
+  that block, leaving just the experimental listing, on a 3-per-row grid
+  (see .posts-grid-cards in posts-tabs-grid.css).
+
+  NOTE: deliberately does NOT filter on featured:true (Ghost's native
+  "feature this post" toggle) — that flag curates the HOMEPAGE teaser
+  (posts-tabs.hbs/posts-tabs-grid.hbs), a handpicked subset. tag:experimental
+  is a separate custom tag, unrelated to the featured:true flag despite the
+  name overlap.
+--}}
+<section class="work-projects-section">
+  <div class="container">
+    <div style="margin: 20vh 0 20vh 0">
+    <h2 class="page-title">The Lab</h2>
+    <p class="page-excerpt">Pitches, smaller projects, and explorations.</p>
+    </div>
+    <div class="posts-grid-cards">
+      {{#get "posts" filter="tag:hash-work+tag:experimental" limit="100" include="tags,authors"}}
+        {{#foreach posts}}
+          {{> post-card-grid}}
+        {{/foreach}}
+      {{/get}}
+    </div>
+
+  </div>
+</section>
+
+{{!-- Populates .grid-card-category/-description/-logo/-bullets/etc. per
+      card via a per-post metadata fetch — the only script that does this,
+      shared with posts-tabs-grid.hbs. Without it every card renders with
+      empty text content (confirmed the actual cause of a broken-looking
+      layout during verification). --}}
+<script src="{{asset "js/posts-tabs-grid.js"}}"></script>
+

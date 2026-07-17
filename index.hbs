@@ -1,0 +1,63 @@
+{{!< default}}
+{{> preloader}}
+
+<section class="home">
+
+  {{!-- Hero section — configured via Ghost Admin › Design › Custom Fields --}}
+{{> hero }}
+ 
+
+
+    {{!-- Logos scroll section — infinite scrolling client logos --}}
+
+
+
+    {{!-- Statement slide — design clarity statement --}}
+    {{!-- Sticky outer gives 200vh scroll while section pins at top --}}
+
+   {{!-- Logos ribbon — sticky outer gives 300vh for ribbon scroll --}}
+
+
+
+
+    {{!-- Word animation section — scroll-triggered word drop animation
+    {{> word-animation}}--}}
+  {{> logos-ribbon}}
+    {{!-- Operating model stacked — headers accumulate horizontally --}}
+
+ {{> operating-model}}
+   
+    {{!-- Original: {{> operating-model-v2}} --}}
+
+    {{!-- Stats parallax — scrolls in after operating model unpins --}}
+  
+    
+    <div data-home-content-width="{{@custom.home_content_width}}">
+{{> posts-tabs}}
+{{> posts-tabs-grid-lab}}
+
+{{> profile}}
+
+   {{!-- Experimental projects lab section --}}
+   
+
+   {{> testimonials}}
+ 
+ 
+    </div>
+
+    {{!--
+  {{#if pagination.next}}
+    <div class="pagination">
+      <div class="container text-center">
+        {{#if pagination.prev}}
+          <a href="{{pagination.prev}}" class="pagination-link">← Previous</a>
+        {{/if}}
+        <span class="pagination-info">Page {{pagination.page}} of {{pagination.pages}}</span>
+        {{#if pagination.next}}
+          <a href="{{pagination.next}}" class="pagination-link">Next →</a>
+        {{/if}}
+      </div>
+    </div>
+  {{/if}}--}}
+</section>

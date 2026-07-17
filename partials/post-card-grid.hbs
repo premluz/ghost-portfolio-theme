@@ -1,0 +1,34 @@
+<article class="grid-card" data-post-url="{{url}}"{{#if tags}} data-tag-slugs="{{#foreach tags}}{{slug}} {{/foreach}}"{{/if}}>
+  <a href="{{url}}" class="grid-card-link" data-transition>
+    {{#if feature_image}}
+      <div class="grid-card-image">
+        {{!-- Video: primary thumbnail if available (populated by JS if video metadata exists) --}}
+        <video autoplay muted playsinline loop class="grid-card-video"></video>
+        {{!-- Fallback: image if no video --}}
+        <img src="{{feature_image}}" alt="{{title}}" loading="lazy" data-skip-reveal class="grid-card-image-fallback">
+      </div>
+    {{/if}}
+    <div class="grid-card-content">
+      {{!-- LINE 1: Category (eyebrow) + Logo, side by side --}}
+      <div class="grid-card-line1">
+        <div class="grid-card-category"></div>
+        <img class="grid-card-logo" alt="Project logo" data-skip-reveal>
+      </div>
+      {{!-- Case study title: full width, own line --}}
+      <div class="grid-card-description"></div>
+      {{!-- Result stat (e.g. "-33 -> +62 NPS improvement") — populated from
+            meta.result by posts-tabs-grid.js, same fetch as everything else
+            on this card. Empty/hidden unless a post actually sets it. --}}
+      <div class="grid-card-result"></div>
+
+      {{!-- LINE 2: Bullets + Testimonial (on hover) 
+      <div class="grid-card-line2">
+        <ul class="grid-card-bullets"></ul>
+        <div class="grid-card-testimonial-container">
+          <p class="grid-card-testimonial"></p>
+          <p class="grid-card-endorser"></p>
+        </div>
+      </div>--}}
+    </div>
+  </a>
+</article>

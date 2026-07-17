@@ -1,0 +1,27 @@
+<section class="about-section" id="aboutme">
+  <header class="about-header">
+    <h2 class="brand h1">Open-minded with a</h2>
+    <p class="section-description">bright personality and small ego.</p>
+  </header>
+
+  <div class="about-grid">
+    {{#get "posts" filter="tag:about" limit="100" include="tags,authors,html"}}
+      {{#foreach posts}}
+        {{> about-card}}
+      {{/foreach}}
+    {{/get}}
+    {{!-- Find all about posts link hidden for now --}}
+    {{!--
+    {{#get "tags" filter="slug:about"}}
+      {{#tags}}
+        <div class="find-out-more-card">
+          <a href="{{url}}" class="find-out-more-link">
+            <h3 class="find-out-more-text">Find all</h3>
+            <img src="{{asset "icons/arrow-right.svg"}}" alt="" class="find-out-more-icon">
+          </a>
+        </div>
+      {{/tags}}
+    {{/get}}
+    --}}
+  </div>
+</section>

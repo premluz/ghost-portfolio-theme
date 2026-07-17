@@ -1,0 +1,977 @@
+<div id="particle-morph-demo" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; opacity: 1; pointer-events: none;">
+  <div id="particles" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></div>
+</div>
+
+<!-- Load modular particle system -->
+<script src="{{asset 'js/particle-state.js'}}"></script>
+<script src="{{asset 'js/shape-definitions.js'}}"></script>
+<script src="{{asset 'js/dispersed-variants.js'}}"></script>
+<script src="{{asset 'js/trigger-system.js'}}"></script>
+<script src="{{asset 'js/fade-controller.js'}}"></script>
+<script src="{{asset 'js/particle-animation-loop.js'}}"></script>
+<script src="{{asset 'js/particle-morph-system.js'}}"></script>
+
+<script>
+console.log('[PARTICLE-MORPH] Script executing...');
+console.log('[PARTICLE-MORPH] GPU System:', !!window.gpuParticleSystem);
+console.log('[PARTICLE-MORPH] THREE:', !!window.THREE);
+
+function debug(msg) {
+  console.log(msg);
+}
+
+console.log('[PARTICLE-MORPH] Debug function ready');
+debug('[particle-morph] 🎬 Initializing modular particle system');
+debug('[particle-morph] THREE available: ' + !!window.THREE);
+debug('[particle-morph] ParticleMorphSystem available: ' + !!window.ParticleMorphSystem);
+
+// Particles only run on the home page. Skip on: individual post pages
+// (post-template), about, contact, and the /work/ index. page-about /
+// page-contact are real Ghost body classes for those page templates; the
+// /work/ index has no underlying page resource though (it's a custom
+// collection route — see routes.yaml), so body_class renders empty there
+// and it has to be matched by pathname instead. (Individual project pages
+// under /work/{slug}/ are post-template, already caught above.)
+const isPostPage = document.body.classList.contains('post-template');
+const isAboutPage = document.body.classList.contains('page-about');
+const isContactPage = document.body.classList.contains('page-contact');
+const isWorkIndexPage = /^\/work\/(page\/\d+\/)?$/.test(window.location.pathname);
+// prefers-reduced-motion (see device-capability.js) is an accessibility
+// setting, not a performance proxy — always respected regardless of
+// hardware, same as the page-type exclusions below. Unlike __lowEndDevice
+// (which still gets the hero's helix once, then tears down — see
+// setupCardTriggers() gating further down), reduced-motion skips the
+// particle system entirely: no motion at all, not even once.
+const isPostPageOrExcluded = isPostPage || isAboutPage || isContactPage || isWorkIndexPage || window.__prefersReducedMotion;
+if (isPostPageOrExcluded) {
+  debug('[particle-morph] ⏸️  Excluded page or prefers-reduced-motion detected — particles disabled');
+  // Hide particle container
+  const particleContainer = document.getElementById('particle-morph-demo');
+  if (particleContainer) {
+    particleContainer.style.display = 'none';
+  }
+  // Exit without initializing
+  // Don't throw error, just skip
+}
+
+let attempts = 0;
+const maxAttempts = 200; // 20 seconds at 100ms intervals
+
+async function registerScrollTriggersOnGPU() {
+  // Wait for GPU system to be ready
+  let attempts = 0;
+  while (!window.gpuParticleSystem || !window.gpuParticleSystem.isRunning) {
+    if (attempts > 100) {
+      debug('[particle-morph] ❌ GPU system failed to start after 10s, skipping triggers');
+      return;
+    }
+    await new Promise(r => setTimeout(r, 100));
+    attempts++;
+  }
+
+  const gpu = window.gpuParticleSystem;
+  debug('[particle-morph] GPU system ready, registering scroll triggers');
+
+  // Expose for compatibility
+  window.particleSystem = gpu;
+
+  // Hero: scroll up→helix, scroll down→dispersed
+  const hero = document.querySelector('.hero');
+  if (hero && typeof ScrollTrigger !== 'undefined') {
+    debug('[particle-morph] Hero trigger: registered');
+    ScrollTrigger.create({
+      trigger: hero,
+      start: 'bottom center',  // Define explicit range to prevent overlap
+      end: 'bottom top',
+      onEnter: () => {
+        debug('[particle-morph] [SCROLL] Hero entered → morphing to dispersed');
+        gpu.morphTo('dispersed', 200);
+      },
+      onLeaveBack: () => {
+        debug('[particle-morph] [SCROLL] Hero left UP → morphing to helix');
+        gpu.morphTo('helix', 400);
+      },
+      onLeave: () => {
+        debug('[particle-morph] [SCROLL] Hero left DOWN');
+      }
+    });
+  } else {
+    debug('[particle-morph] Hero element not found');
+  }
+
+  // Operating model: scroll into it → sphere (start AFTER hero ends)
+  const operatingModel = document.querySelector('#operating-model-stacked');
+  if (operatingModel && typeof ScrollTrigger !== 'undefined') {
+    debug('[particle-morph] Operating model trigger: registered');
+    ScrollTrigger.create({
+      trigger: operatingModel,
+      start: 'top center',  // Define explicit range to prevent overlap with hero
+      end: 'top top',
+      onEnter: () => {
+        debug('[particle-morph] [SCROLL] Operating model entered → morphing to sphere');
+        gpu.morphTo('sphere', 400);
+      },
+      onLeaveBack: () => {
+        debug('[particle-morph] [SCROLL] Operating model left UP → morphing to helix');
+        gpu.morphTo('helix', 400);
+      }
+    });
+  } else {
+    debug('[particle-morph] Operating model element not found');
+  }
+
+  // Testimonials → dispersed (only if scrolling DOWN, not UP from hero)
+  // Track scroll direction: only morph when scrolling down past testimonials
+  let scrollDirection = 'down';
+  let lastScrollY = window.scrollY;
+  window.addEventListener('scroll', () => {
+    scrollDirection = window.scrollY > lastScrollY ? 'down' : 'up';
+    lastScrollY = window.scrollY;
+  });
+
+  const testimonials = document.querySelector('[data-testimonials], .testimonials-section, #testimonials');
+  if (testimonials) {
+    debug('[particle-morph] Testimonials trigger: registered');
+    ScrollTrigger.create({
+      trigger: testimonials,
+      onEnter: () => {
+        // Only morph to dispersed if scrolling DOWN (not returning from hero)
+        if (scrollDirection === 'down') {
+          debug('[particle-morph] [SCROLL] Testimonials entered (down) → morphing to dispersed');
+          gpu.morphTo('dispersed', 400);
+        } else {
+          debug('[particle-morph] [SCROLL] Testimonials entered (up) → keeping helix');
+        }
+      }
+    });
+  }
+
+  debug('[particle-morph] ✅ GPU scroll triggers registered');
+}
+
+async function initParticleMorphModular() {
+  // Skip on post/about/contact/work pages — see isPostPageOrExcluded above
+  if (isPostPageOrExcluded) return;
+  attempts++;
+
+  debug('[particle-morph] Checking for GPU system... gpuParticleSystem=' + (!!window.gpuParticleSystem) + ' particleSystem=' + (!!window.particleSystem));
+
+  // The GPU system initializes asynchronously (after preloader:done + WebGPU
+  // adapter setup in gpu-particle-integration.hbs). Checking once at t=0
+  // always saw undefined, fell into the old THREE.js path, stalled waiting
+  // for window.THREE and never registered any triggers. Wait for it instead —
+  // but only if that include is actually present on the page. Without this
+  // check, commenting out the gpu-particle-integration partial in default.hbs
+  // (the supported way to switch to the old system) silently added a 15s
+  // delay before the old system ever started, every single load.
+  if (window.__gpuIntegrationPresent) {
+    let gpuWaitAttempts = 0;
+    while (!window.gpuParticleSystem && gpuWaitAttempts < 150) { // up to 15s
+      if (gpuWaitAttempts % 20 === 0) debug('[particle-morph] Waiting for GPU system... (' + (gpuWaitAttempts / 10) + 's)');
+      await new Promise(r => setTimeout(r, 100));
+      gpuWaitAttempts++;
+    }
+  } else {
+    debug('[particle-morph] gpu-particle-integration not present on this page — skipping GPU wait, going straight to old system');
+  }
+
+  // Use GPU system if present and actually supported (not the fallback shim)
+  const useGPUSystem = !!window.gpuParticleSystem && window.gpuParticleSystem.isSupported?.() !== false;
+  debug('[particle-morph] useGPUSystem=' + useGPUSystem + ', gpuParticleSystem=' + (!!window.gpuParticleSystem) + ', gpuIsSupported=' + (window.gpuParticleSystem?.isSupported?.()));
+  if (useGPUSystem) {
+    debug('[particle-morph] ✅ GPU system detected — skipping old THREE.js system, scroll triggers will use GPU');
+  } else {
+    debug('[particle-morph] No GPU system found, will initialize old THREE.js system');
+  }
+
+  // Skip old system dependencies if GPU system is available
+  if (!useGPUSystem) {
+    if (!window.THREE) {
+      if (attempts % 20 === 0) debug('[particle-morph] Waiting for THREE... (attempt ' + attempts + ')');
+      if (attempts < maxAttempts) {
+        setTimeout(initParticleMorphModular, 100);
+      } else {
+        debug('[particle-morph] ❌ THREE.js failed to load after ' + (maxAttempts * 100) + ' ms');
+      }
+      return;
+    }
+
+    if (!window.StateRegistry) {
+      if (attempts % 20 === 0) debug('[particle-morph] Waiting for StateRegistry... (attempt ' + attempts + ')');
+      if (attempts < maxAttempts) {
+        setTimeout(initParticleMorphModular, 100);
+      } else {
+        debug('[particle-morph] ❌ particle-state.js failed to load');
+      }
+      return;
+    }
+
+    if (!window.ShapeRegistry) {
+      if (attempts % 20 === 0) debug('[particle-morph] Waiting for ShapeRegistry... (attempt ' + attempts + ')');
+      if (attempts < maxAttempts) {
+        setTimeout(initParticleMorphModular, 100);
+      } else {
+        debug('[particle-morph] ❌ shape-definitions.js failed to load');
+      }
+      return;
+    }
+
+    if (!window.TriggerManager) {
+      if (attempts % 20 === 0) debug('[particle-morph] Waiting for TriggerManager... (attempt ' + attempts + ')');
+      if (attempts < maxAttempts) {
+        setTimeout(initParticleMorphModular, 100);
+      } else {
+        debug('[particle-morph] ❌ trigger-system.js failed to load');
+      }
+      return;
+    }
+
+    if (!window.FadeController) {
+      if (attempts % 20 === 0) debug('[particle-morph] Waiting for FadeController... (attempt ' + attempts + ')');
+      if (attempts < maxAttempts) {
+        setTimeout(initParticleMorphModular, 100);
+      } else {
+        debug('[particle-morph] ❌ fade-controller.js failed to load');
+      }
+      return;
+    }
+
+    if (!window.ParticleAnimationLoop) {
+      if (attempts % 20 === 0) debug('[particle-morph] Waiting for ParticleAnimationLoop... (attempt ' + attempts + ')');
+      if (attempts < maxAttempts) {
+        setTimeout(initParticleMorphModular, 100);
+      } else {
+        debug('[particle-morph] ❌ particle-animation-loop.js failed to load');
+      }
+      return;
+    }
+
+    if (!window.ParticleMorphSystem) {
+      if (attempts % 20 === 0) debug('[particle-morph] Waiting for ParticleMorphSystem... (attempt ' + attempts + ')');
+      if (attempts < maxAttempts) {
+        setTimeout(initParticleMorphModular, 100);
+      } else {
+        debug('[particle-morph] ❌ particle-morph-system.js failed to load');
+      }
+      return;
+    }
+  }
+
+  debug('[particle-morph] ✅ All modules ready');
+
+  // If GPU system is available, use it; otherwise create old THREE.js system
+  let system;
+
+  if (useGPUSystem) {
+    debug('[particle-morph] Using GPU system for scroll triggers');
+    system = window.gpuParticleSystem;
+    window.particleSystem = system; // Compatibility alias for card-animations/main.js
+    // Register scroll triggers for GPU system (commented out because GPU is disabled)
+    // await registerScrollTriggersOnGPU();
+  } else {
+    debug('[particle-morph] Creating ParticleMorphSystem (old THREE.js system)...');
+
+    const container = document.getElementById('particles');
+    const demoDiv = document.getElementById('particle-morph-demo');
+
+    if (!container || !demoDiv) {
+      debug('[particle-morph] ❌ Missing DOM elements - container: ' + !!container + ' demoDiv: ' + !!demoDiv);
+      return;
+    }
+
+    try {
+      // Detect mobile by viewport width AND touch capability
+      const isMobile = window.innerWidth < 768 || window.matchMedia('(max-width: 768px)').matches;
+      // Low-end devices get a flat, much lower count regardless of
+      // mobile/desktop — with additive blending, overdraw (overlapping
+      // transparent points) is the actual cost, not point count alone, so
+      // a smaller/sparser field reads almost identically while cutting
+      // fill-rate substantially. Only ever matters for the hero's brief
+      // one-time helix formation (see setupHeroExitTeardown() below).
+      const particleCount = window.__lowEndDevice ? 1800 : (isMobile ? 3600 : 10000);
+      debug(`[particle-morph] Window size: ${window.innerWidth}x${window.innerHeight}`);
+      debug(`[particle-morph] ${window.__lowEndDevice ? 'LOW-END' : (isMobile ? 'MOBILE' : 'DESKTOP')} mode - ${particleCount} particles`);
+
+      system = new window.ParticleMorphSystem(container, {
+        particleCount: particleCount,
+        morphDuration: 500
+      });
+
+      // Wait for async initialization to complete
+      await system.initializeModules();
+      debug('[particle-morph] Modules initialized');
+
+      // Start with dispersed particles BEFORE registering observers so that any
+      // IntersectionObserver callbacks that fire immediately on observation (for
+      // elements already in the viewport) see a valid currentState and cannot
+      // trigger a morph until the user has actually scrolled past the hero.
+      system.start('dispersed');
+      debug('[particle-morph] ✅ System initialized and animating');
+
+      // Exposed here (not at the end of setupCardTriggers(), where it used
+      // to only happen after every other trigger was registered) so
+      // scroll-scrub-anim.js's hero helix-morph poll (which waits
+      // specifically for window.particleSystem.morphTo) can find it as
+      // early as possible — this must exist even on low-end devices, which
+      // skip setupCardTriggers() entirely below but still get the hero's
+      // one-time helix formation.
+      window.particleSystem = system;
+      window.particleMorphSystem = system;
+
+      // On cached/refresh visits, fade particles in immediately — no observer needed
+      if (!window.__preloaderRunning) {
+        system.handleTriggerAction({ action: 'fade-in', duration: 150 });
+      }
+
+      // Initialize Lab wave binding (scroll-driven particle color gradient +
+      // orb deformation progress). A flat 50ms delay silently no-op'd here:
+      // window.BackgroundLayer (a separate <script src>) frequently isn't
+      // parsed/executed yet at 50ms on a cold load, and initLabWave() just
+      // returns early when it's missing — nothing ever retried, so the
+      // whole binding permanently never happened. Poll-and-retry instead
+      // (same pattern already used for the hero helix-on-load and the work
+      // page's dispersed-on-load fixes elsewhere in this codebase).
+      //
+      // Skipped entirely on low-end devices: its bindShift() binding attaches
+      // a plain window 'scroll' listener that calls getBoundingClientRect()
+      // on EVERY scroll event site-wide for the rest of the page's life,
+      // regardless of whether the Lab section is anywhere near the
+      // viewport — profiled under simulated old hardware as the single
+      // largest source of scroll-jank on the page, dwarfing the particle
+      // system itself. It would also never have any visible effect here
+      // anyway, since low-end devices already skip the trigger that morphs
+      // TO 'lab' in the first place (setupCardTriggers() isn't called).
+      if (!window.__lowEndDevice) {
+        let labWaveAttempts = 0;
+        const waitForBackgroundLayerThenInitLabWave = () => {
+          if (window.BackgroundLayer && window.BackgroundLayer.bindShift) {
+            debug('[particle-morph] Calling system.initLabWave()');
+            system.initLabWave();
+          } else if (labWaveAttempts++ < 100) {
+            setTimeout(waitForBackgroundLayerThenInitLabWave, 80);
+          } else {
+            debugWarn('[particle-morph] BackgroundLayer never became available — Lab wave/orb not initialized');
+          }
+        };
+        waitForBackgroundLayerThenInitLabWave();
+      }
+
+      // Refresh ScrollTrigger positions after DOM layout changes from particle system init
+      if (typeof ScrollTrigger !== 'undefined' && typeof ScrollTrigger.refresh === 'function') {
+        setTimeout(() => {
+          ScrollTrigger.refresh();
+          debug('[particle-morph] ScrollTrigger refreshed');
+        }, 100);
+      }
+    } catch (error) {
+      debug('[particle-morph] ❌ Old system init failed: ' + error.message);
+      return;
+    }
+  }
+
+  try {
+    // Low-end-device path: no section triggers are registered (see the
+    // __lowEndDevice branch below), so the hero's one-time helix formation
+    // (scroll-scrub-anim.js) is the entire particle experience. Once the
+    // hero itself scrolls out of view, there's nothing left for the
+    // particle system to do — fade it out, then actually cancel the RAF
+    // loop and free the WebGL renderer/geometry/materials. Fading alone
+    // would leave Three.js rendering every frame behind a hidden canvas,
+    // paying the exact GPU/CPU cost this whole feature exists to avoid.
+    const setupHeroExitTeardown = () => {
+      const hero = document.querySelector('.hero');
+      if (!hero) {
+        debug('[particle-morph] Low-end teardown: .hero not found, skipping');
+        return;
+      }
+      let disposed = false;
+      const heroExitObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting && !disposed) {
+            disposed = true;
+            debug('[particle-morph] Low-end device — hero scrolled past, fading out then disposing particle system');
+            if (system.fadeController && typeof system.fadeController.fadeOut === 'function') {
+              system.fadeController.fadeOut(600);
+              setTimeout(() => system.dispose(), 650);
+            } else {
+              system.dispose();
+            }
+            heroExitObserver.disconnect();
+          }
+        });
+      }, { threshold: 0 });
+      heroExitObserver.observe(hero);
+    };
+
+    // Setup trigger system with viewport-based morphing and reverse animation on scroll up
+    const setupCardTriggers = () => {
+      const morphDuration = 400; // Card morph: 400ms
+      const stateSequence = ['dispersed', 'helix', 'mobile', 'note', 'clapper', 'diamond', 'globe', 'chart', 'game', 'email'];
+
+      // Skip initial observer callbacks from IntersectionObserver (for already-visible elements on load)
+      let observerInitComplete = false;
+      setTimeout(() => { observerInitComplete = true; }, 100);
+
+      const createViewportTrigger = (name, element, enterState) => {
+        if (!element) {
+          debug(`[trigger-setup] ${name}: element not found, skipping`);
+          return;
+        }
+
+        const enterIdx = stateSequence.indexOf(enterState);
+        debug(`[trigger-setup] ${name}: registered for state "${enterState}"`);
+
+        const observer = new IntersectionObserver((entries) => {
+          if (!observerInitComplete) return; // Skip initial callback
+
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              debug(`[trigger] ${name} entered → morph to ${enterState}`);
+              if (useGPUSystem) {
+                system.morphTo(enterState, morphDuration);
+              } else {
+                system.handleTriggerAction({ action: 'morph', state: enterState, duration: morphDuration });
+              }
+            } else {
+              const prevIdx = Math.max(0, enterIdx - 1);
+              const prevState = stateSequence[prevIdx];
+              debug(`[trigger] ${name} left → morph back to ${prevState}`);
+              if (useGPUSystem) {
+                system.morphTo(prevState, morphDuration);
+              } else {
+                system.handleTriggerAction({ action: 'morph', state: prevState, duration: morphDuration });
+              }
+            }
+          });
+        }, { threshold: 0.1 });
+
+        observer.observe(element);
+      };
+
+      // Hero fade-in is handled directly after init (cached) or by preloader._runParticles() (first visit)
+
+      // Helix morph: hero-entrance-tied (initHero() in scroll-scrub-anim.js)
+      // + scroll-based (repeatable, below)
+      let preloaderHelixTriggered = false;
+      const doHelixMorph = () => {
+        if (preloaderHelixTriggered) return; // Only morph once
+        preloaderHelixTriggered = true;
+        debug('[trigger] morphing to helix (1600ms)');
+        system.morphTo('helix', 600);
+      };
+
+      // A previous "Trigger 1: time-based, 200ms after preloader" here assumed
+      // this code only runs once the preloader has actually finished — true
+      // for the GPU path (gpu-particle-integration.hbs waits for
+      // preloader:done before creating that system), but NOT for this
+      // (legacy THREE.js) path: particle-morph.hbs's own init is scheduled via
+      // `setTimeout(initParticleMorphModular, localStorage.getItem('preloader_seen') ? 0 : 500)`
+      // near the bottom of this file, and preloader.js's IIFE sets
+      // `preloader_seen` in localStorage SYNCHRONOUSLY at its very top — before
+      // the preloader animation has even started, let alone finished (see
+      // COMMON_ISSUES.md). So `preloader_seen` already reads true here on
+      // EVERY visit, firing this code (and its 200ms timer) almost
+      // immediately on page load — while the preloader's burst+dispersed
+      // sequence (preloader.js _runParticles()) is often still mid-flight.
+      // The result: particles morph to helix within ~200ms of load, well
+      // before the intended "burst into dispersed, stay dispersed until hero
+      // actually reveals" sequencing — visually reading as "the burst goes
+      // straight to helix" instead of dispersed-then-helix. Removed rather
+      // than retimed: initHero()'s own delayedCall already ties the helix
+      // morph correctly to hero's actual entrance, making this redundant as
+      // well as wrong.
+
+      // Trigger 2: Scroll-based (statement section enters/exits) - repeatable
+      const statementSlide = document.querySelector('#helix') || document.querySelector('.positioning-slide-main');
+      debug(`[trigger-setup] helix section found: ${!!statementSlide}`);
+      if (statementSlide) {
+        // Skip initial observer callback from IntersectionObserver (for already-visible elements on load)
+        let helixObserverReady = false;
+        setTimeout(() => { helixObserverReady = true; }, 100);
+
+        const statementObserver = new IntersectionObserver((entries) => {
+          if (!helixObserverReady) return; // Skip initial callback
+
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              debug('[trigger] helix section visible → morph to helix');
+              doHelixMorph();
+            }
+          });
+        }, { threshold: 0.5 });
+        statementObserver.observe(statementSlide);
+      }
+
+      // Card particle morphing is triggered by card-animations.js IntersectionObserver
+      // Both card animation and particle morph happen from same observer
+      debug('[trigger-setup] Card morphing handled by card-animations.js (shared observer)');
+
+      // Particles morph to card shapes (driven by card observers in main.js) — no fade-out here
+
+      // Profile → terrain (a continuously-rolling ground plane — see
+      // uTerrainAmp/Freq/Speed in particle-animation-loop.js's vertex
+      // shader, and the TERRAIN shape in shape-definitions.js). The design
+      // role shifting metaphor: the whole field changes character here,
+      // like Lab, rather than settling into a resolved object.
+      // DON'T morph if hero is still visible (helix takes priority). The
+      // hero-visible check used to run ONCE, synchronously, inside the
+      // IntersectionObserver callback — if the callback happened to fire
+      // (e.g. its one guaranteed initial call right after .observe(), when
+      // profile is already scrolled fully into view) before whatever
+      // separate mechanism hides .hero had actually done so yet, the morph
+      // was skipped and NEVER retried: once parked at a stable scroll
+      // position with no further threshold crossing, no later callback
+      // ever fires to re-check. That race — real, not just theoretical,
+      // reproduced by scrolling straight to the section right after page
+      // load — is exactly why the terrain morph looked like it "used to
+      // work" but not reliably: whichever side of the race won varied
+      // run to run. Now polls (same pattern as the Lab GLB-readiness wait
+      // above) until hero is confirmed hidden instead of checking once.
+      const profileSection = document.querySelector('.profile');
+      if (profileSection) {
+        const tryMorphToTerrain = (attempt = 0) => {
+          const heroElement = document.querySelector('.hero');
+          const heroVisible = heroElement && window.getComputedStyle(heroElement).display !== 'none';
+          if (!heroVisible) {
+            debug('[trigger] Profile entered → morph to terrain');
+            system.morphTo('terrain', 600);
+          } else if (attempt < 50) {
+            debug('[trigger] Profile visible but hero still visible → retrying (' + attempt + ')');
+            setTimeout(() => tryMorphToTerrain(attempt + 1), 100);
+          } else {
+            debug('[trigger] Profile entered but hero never hid after 5s — giving up, keeping helix');
+          }
+        };
+
+        const profileObserver = new IntersectionObserver((entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting && entry.intersectionRatio > 0.2) {
+              tryMorphToTerrain();
+            } else if (!entry.isIntersecting || entry.intersectionRatio <= 0.2) {
+              debug('[trigger] Profile fading → release');
+            }
+          });
+        }, { threshold: [0.1, 0.2] });
+        profileObserver.observe(profileSection);
+      }
+
+      // Testimonials → dispersed (but release when mostly out of view)
+      // DON'T morph if hero is still visible (helix takes priority)
+      const testimonialsSection = document.querySelector('[data-testimonials], .testimonials-section, #testimonials');
+      if (testimonialsSection) {
+        const testimonialsObserver = new IntersectionObserver((entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting && entry.intersectionRatio > 0.2) {
+              // Check if hero is still visible — if so, don't override helix morph
+              const heroElement = document.querySelector('.hero');
+              const heroVisible = heroElement && window.getComputedStyle(heroElement).display !== 'none';
+
+              if (!heroVisible) {
+                // Only morph to dispersed if hero is NOT visible
+                debug('[trigger] Testimonials entered → morph to dispersed');
+                system.morphTo('dispersed', 400);
+              } else {
+                debug('[trigger] Testimonials visible but hero still visible → keeping helix');
+              }
+            } else if (!entry.isIntersecting || entry.intersectionRatio <= 0.2) {
+              // Release when less than 20% visible (allow footer trigger to take over)
+              debug('[trigger] Testimonials fading → release');
+            }
+          });
+        }, { threshold: [0.1, 0.2] });
+        testimonialsObserver.observe(testimonialsSection);
+      }
+
+      // Stats parallax → dispersed
+      const statsSection = document.getElementById('stats-scroll') || document.querySelector('.stats-parallax');
+      if (statsSection) {
+        const statsObserver = new IntersectionObserver((entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              debug('[trigger] Stats parallax entered → morph to dispersed');
+              system.morphTo('dispersed', 1200);
+            }
+          });
+        }, { threshold: 0.1 });
+        statsObserver.observe(statsSection);
+      }
+
+      // Footer → helix on enter (using IntersectionObserver, like hero)
+      const footerSection = document.getElementById('footer');
+      debug(`[trigger-setup] footer found: ${!!footerSection}`);
+      if (footerSection) {
+        let footerObserverReady = false;
+        setTimeout(() => { footerObserverReady = true; }, 100);
+
+        const footerObserver = new IntersectionObserver((entries) => {
+          if (!footerObserverReady) return; // Skip initial callback
+
+          entries.forEach((entry) => {
+            if (entry.isIntersecting && entry.intersectionRatio > 0.1) {
+              // Morph to grid when footer enters (more than 10% visible) —
+              // the interactive "technical drawing paper" lattice (mouse
+              // wave + click ripple, see particle-animation-loop.js).
+              // Previously morphed to helix here.
+              debug('[trigger] Footer entered → morph to grid');
+              if (system && typeof system.morphTo === 'function') {
+                system.morphTo('grid', 600);
+              }
+            } else if (!entry.isIntersecting || entry.intersectionRatio <= 0.1) {
+              // Release when footer leaves (scrolling back up, out of the
+              // footer) — morph back to dispersed. Previously this branch
+              // only logged and never actually called morphTo(), so
+              // particles stayed in helix form after leaving the footer.
+              debug('[trigger] Footer fading → release, morph to dispersed');
+              if (system && typeof system.morphTo === 'function') {
+                system.morphTo('dispersed', 400);
+              }
+            }
+          });
+        }, { threshold: [0.1, 0.2] });
+
+        footerObserver.observe(footerSection);
+        debug('[trigger] Footer observer registered');
+      }
+
+      // helix-on-scroll-up is handled by the hero section's onLeaveBack trigger below
+
+      // ── Scroll-position triggers (ScrollTrigger) ────────────────────────────
+      // When helix section reaches center of viewport → morph to helix.
+      // When scrolling back above hero bottom → morph to dispersed.
+      // Guard: check window.ScrollTrigger (GSAP plugin) rather than gsap.plugins
+      // which may not be populated if registerPlugin was called before the plugin loaded.
+      if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined' && typeof ScrollTrigger.getAll === 'function') {
+        const helix = document.getElementById('helix') || document.querySelector('.statement-slide-main');
+        const hero = document.querySelector('.hero');
+
+        // Only morph to helix after user has actually scrolled (not on page load)
+        let hasScrolled = false;
+        window.addEventListener('scroll', () => {
+          if (window.scrollY > 100) hasScrolled = true;
+        }, { once: true });
+
+        if (helix) {
+          // Morph to helix when helix section reaches viewport center + 800px offset (going down)
+          // and back to dispersed when scrolling back up past it
+          gsap.to({}, {
+            scrollTrigger: {
+              trigger: helix,
+              start: 'top center+=800',
+              end: 'bottom center+=800',
+              onEnter: function () {
+                if (hasScrolled) {
+                  system.morphTo('helix', 500);
+                }
+              }
+              // onLeaveBack removed: firing dispersed here overrides the helix
+              // set by operating-model's onLeaveBack when scrolling back to hero
+            }
+          });
+        }
+
+        const operatingModel = document.getElementById('operating-model');
+        const logosRibbon = document.getElementById('logos-ribbon');
+
+
+        // Operating model scroll trigger (800px offset)
+        if (operatingModel) {
+          gsap.to({}, {
+            scrollTrigger: {
+              trigger: operatingModel,
+              start: 'top center+=800',
+              end: 'bottom center+=800',
+              onEnter: function () {
+              },
+              onLeaveBack: function () {
+              }
+            }
+          });
+        }
+
+        // Logos ribbon scroll trigger (800px offset) - pin text container while scrolling
+        if (logosRibbon) {
+          var logosRibbonOuter = logosRibbon.closest('.logos-ribbon-sticky-outer');
+          var textContainer = logosRibbonOuter ? logosRibbonOuter.querySelector('.positioning-container.pin-bottom-left') : null;
+
+          if (textContainer) {
+            // Animate in on enter
+            gsap.fromTo(textContainer, {
+              opacity: 0,
+              visibility: 'hidden',
+              filter: 'blur(8px)',
+              y: 20
+            }, {
+              opacity: 1,
+              visibility: 'visible',
+              filter: 'blur(0px)',
+              y: 0,
+              duration: 0.5,
+              ease: 'power2.out'
+            });
+
+            // Keep pinned while scrolling through logos-ribbon
+            gsap.to({}, {
+              scrollTrigger: {
+                trigger: logosRibbon,
+                start: 'top center+=800',
+                end: 'bottom center+=800',
+                pin: textContainer,
+                pinSpacing: false,
+                onEnter: function () {
+                  gsap.to(textContainer, {
+                    opacity: 1,
+                    visibility: 'visible',
+                    duration: 0.3
+                  });
+                  if (window.statementReveal) {
+                    window.statementReveal();
+                  }
+                },
+                onLeave: function () {
+                  gsap.to(textContainer, {
+                    opacity: 0,
+                    visibility: 'hidden',
+                    duration: 0.3
+                  });
+                },
+                onLeaveBack: function () {
+                  gsap.to(textContainer, {
+                    opacity: 0,
+                    visibility: 'hidden',
+                    duration: 0.3
+                  });
+                }
+              }
+            });
+          }
+        }
+
+        if (hero) {
+          // Morph to helix when scrolling back up into the hero section
+          gsap.to({}, {
+            scrollTrigger: {
+              trigger: hero,
+              start: 'bottom center',
+              end: 'bottom top',
+              onLeaveBack: function () {
+                system.morphTo('helix', 500);
+              }
+            }
+          });
+        }
+
+        // work-grid section → dispersed on enter
+        const workGrid = document.getElementById('work-grid');
+        if (workGrid) {
+          ScrollTrigger.create({
+            trigger: workGrid,
+            start: 'top 70%',
+            onEnter: () => system.morphTo('dispersed', 400),
+          });
+        }
+
+        // work-grid-lab section → lab shape on enter
+        // Uses IntersectionObserver instead of a ScrollTrigger pixel-position
+        // trigger — this page has many async, unpredictable-timing layout
+        // shifts below the hero (om-stacked's 3 rebuilds, per-card metadata
+        // fetches in post-and-cards.js/posts-tabs-grid.js, font loading)
+        // that can grow/shrink content ABOVE this section after the trigger
+        // was created. A ScrollTrigger caches an absolute scroll-pixel
+        // start value and only recomputes it on an explicit refresh() — if
+        // any of those shifts land after the last refresh (or a refresh
+        // throws before reaching this trigger in ScrollTrigger's internal
+        // list), the cached start silently drifts, firing the morph while
+        // the section is still ~1 viewport-height+ away. IntersectionObserver
+        // has no such cache — it re-checks live geometry every frame.
+        const labIntro = document.getElementById('work-grid-lab');
+        debug(`[trigger-setup] work-grid-lab found: ${!!labIntro}`);
+        if (labIntro) {
+          let labEntered = false;
+          const doLabMorph = () => {
+            const rect = labIntro.getBoundingClientRect();
+            debug(`[trigger] work-grid-lab entered → morph to lab (rect.top=${Math.round(rect.top)}, viewportH=${window.innerHeight})`);
+            if (system && typeof system.morphTo === 'function') {
+              debug('[trigger] calling system.morphTo("lab", 400), system isGPU=' + (system.isGPU !== false));
+              if (!useGPUSystem && !window.particleSystemGLBsReady) {
+                debug('[trigger] GLBs not ready yet, waiting before morph to lab');
+                let labWaitAttempts = 0;
+                const waitForLabGLB = () => {
+                  if (window.particleSystemGLBsReady || labWaitAttempts > 100) {
+                    debug('[trigger] GLBs ready (or timeout), now calling system.morphTo("lab", 400)');
+                    system.morphTo('lab', 200);
+                  } else {
+                    labWaitAttempts++;
+                    setTimeout(waitForLabGLB, 100);
+                  }
+                };
+                waitForLabGLB();
+              } else {
+                system.morphTo('lab', 200);
+              }
+            } else {
+              debug('[trigger] work-grid-lab entered but system.morphTo unavailable');
+            }
+          };
+          // threshold:0/rootMargin:'0px' means "any overlap at all counts" —
+          // for a section this tall (its own internal carousel/scroll-scrub
+          // range keeps its total bounding box much taller than one
+          // viewport), that stays true long after its TOP has scrolled
+          // well past: reproduced with rect.top around -859 (almost a full
+          // viewport height above) still reporting isIntersecting:true,
+          // because the section's BOTTOM edge hadn't cleared the viewport
+          // yet. That fired doLabMorph() again well after the user had
+          // already scrolled on to Profile (whose own trigger had already
+          // correctly morphed to 'terrain'), silently reverting it back to
+          // 'lab' — the actual cause of "terrain doesn't morph" being
+          // intermittent rather than a Profile/terrain-side bug at all.
+          // Require the section's TOP edge to actually be near the
+          // viewport (not just any part of a tall box) so this only fires
+          // for a genuine top-down entry, not a lingering tail-end overlap.
+          // rootMargin bottom expanded 30% of viewport height so the morph
+          // fires earlier — while the section is still partially below the
+          // fold — instead of waiting for its top edge to actually enter
+          // the real viewport.
+          const labTriggerOffset = Math.round(window.innerHeight * 0.3);
+          const labObserver = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+              const topNearViewport = entry.boundingClientRect.top > -window.innerHeight * 0.5;
+              if (entry.isIntersecting && topNearViewport && !labEntered) {
+                labEntered = true;
+                doLabMorph();
+              } else if (!entry.isIntersecting || !topNearViewport) {
+                labEntered = false;
+              }
+            });
+          }, { rootMargin: `0px 0px ${labTriggerOffset}px 0px`, threshold: 0 });
+          labObserver.observe(labIntro);
+        }
+
+        debug('[particle-morph] ScrollTriggers initialized');
+      } else {
+        debug('[particle-morph] ScrollTrigger not available (typeof: ' + typeof ScrollTrigger + ')');
+      }
+
+      if (!useGPUSystem) {
+        system.triggerManager.init((action) => system.handleTriggerAction(action));
+        // window.particleSystem/particleMorphSystem are exposed earlier now
+        // (right after system.start('dispersed')) — see that comment.
+      }
+    };
+
+    if (window.__lowEndDevice) {
+      // Low-end device: the hero's own helix formation (triggered
+      // separately by scroll-scrub-anim.js against window.particleSystem,
+      // already exposed above) still plays once — but every OTHER section
+      // trigger this single function call would otherwise register
+      // (sphere, terrain, grid, lab, footer, testimonials, tabs, hero
+      // scroll-direction triggers) is skipped entirely, and setupHeroExitTeardown()
+      // below fully cancels the render loop and frees GPU resources once
+      // the hero scrolls out of view, instead of leaving it running hidden.
+      debug('[particle-morph] Low-end device — skipping all post-hero scroll triggers, will dispose after hero');
+      setupHeroExitTeardown();
+    } else {
+      // One-time setup for non-card observers (hero, statement, tabs)
+      // Card particle morphing is handled by card-animations.js IntersectionObserver
+      setupCardTriggers();
+    }
+
+    // Expose for potential future use - but cards now handled by ScrollTrigger
+    // This prevents duplicate IntersectionObserver creation
+    window.reinitializeParticleTriggers = () => {
+      debug('[trigger-setup] Reinitialize called - cards handled by ScrollTrigger, skipping');
+    };
+
+    } catch (err) {
+      if (!useGPUSystem) {
+        debug('[particle-morph] ❌ Error during initialization: ' + err.message);
+        debug('[particle-morph] Stack: ' + err.stack);
+      }
+    }
+  }
+debug('[particle-morph] Starting initialization...');
+setTimeout(initParticleMorphModular, localStorage.getItem('preloader_seen') ? 0 : 500);
+
+// ── Inline theme patch (not cached — always fresh) ─────────────────────────
+// Fixes:
+// 1. Broken regex in cached generateParticleColors — inline canvas colour reader instead.
+// 2. EffectComposer race condition — async _initComposer() re-enables bloom after patch.
+//    Fixed with Object.defineProperty so the getter always respects current theme.
+// 3. mix-blend-mode:screen invisible on light backgrounds — normal + transparent renderer.
+(function installThemePatch() {
+  var sys = window.particleSystem;
+  if (!sys || !sys.loop || !sys.loop.particles) {
+    setTimeout(installThemePatch, 300);
+    return;
+  }
+
+  var loop = sys.loop;
+  var demo = document.getElementById('particle-morph-demo');
+
+  // ── Robust colour reader (canvas, works for hex/rgb/named) ──────────────
+  function readCSSColor(variable) {
+    var raw = getComputedStyle(document.documentElement).getPropertyValue(variable).trim();
+    if (!raw) return [90/255, 216/255, 255/255];
+    var cvs = document.createElement('canvas');
+    cvs.width = cvs.height = 1;
+    var ctx = cvs.getContext('2d');
+    ctx.fillStyle = raw;
+    ctx.fillRect(0, 0, 1, 1);
+    var d = ctx.getImageData(0, 0, 1, 1).data;
+    return [d[0]/255, d[1]/255, d[2]/255];
+  }
+
+  function generateColors(count) {
+    var c = readCSSColor('--color-particles');
+    var arr = new Float32Array(count * 3);
+    for (var i = 0; i < count; i++) {
+      arr[i*3] = c[0]; arr[i*3+1] = c[1]; arr[i*3+2] = c[2];
+    }
+    return arr;
+  }
+
+  // ── SINGLE PIPELINE (2026-07-17): transparent canvas + normal element
+  // compositing, both themes, at every shift value. The old dual pipeline
+  // (opaque-black canvas + mix-blend-mode:screen in dark mode) existed
+  // solely so UnrealBloomPass had an opaque buffer to composite; bloom is
+  // gone (replaced by in-sprite glow in particle-animation-loop.js's
+  // fragment shader), so the 0.65 shift-threshold pipeline flip, the
+  // black-flash bridge frame, the composer interceptor getters and the
+  // canvas opacity dip that smoothed the flip are all obsolete and removed.
+  // Particles now render identically over any backdrop — dark, light, or
+  // mid-shift — and macOS rubber-band overscroll can never expose an opaque
+  // black buffer again (there isn't one).
+  function applyTheme() {
+    var isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    var geo = loop.particles && loop.particles.geometry;
+
+    // Update colour buffer with correct count + working colour reader
+    if (geo && geo.attributes.position) {
+      var count  = geo.attributes.position.count;
+      var colors = generateColors(count);
+      if (geo.attributes.color && geo.attributes.color.array.length === colors.length) {
+        geo.attributes.color.array.set(colors);
+        geo.attributes.color.needsUpdate = true;
+      } else if (geo.attributes.color) {
+        geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        geo.attributes.color.needsUpdate = true;
+      }
+      console.log('[particle-theme-patch] color updated, isLight=' + isLight +
+                  ' count=' + count +
+                  ' sample=[' + Array.from(colors.slice(0, 3)).map(function(v){ return v.toFixed(3); }) + ']');
+    }
+
+    // Defensive: enforce the single-pipeline invariants in case any other
+    // code (old cached JS, console experiments) flipped them.
+    loop.renderer.setClearColor(0x000000, 0);
+    if (demo) {
+      demo.style.mixBlendMode = 'normal';
+      demo.style.filter = 'none';
+      demo.style.opacity = '1';
+    }
+  }
+
+  sys.updateColors = applyTheme;
+  applyTheme();
+  debug('[particle-morph] theme patch installed');
+}());
+</script>

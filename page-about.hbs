@@ -1,0 +1,53 @@
+{{!< default}}
+{{#page}}
+{{!-- .post + data-post-hero, .post-header/.post-title/.post-excerpt/.post-image
+     combo classes, and .gh-canvas (in place of the old plain .page-body div)
+     all reuse page.hbs's already-correct width system verbatim — same
+     classes, zero new CSS. Previously this page had its own one-off
+     .page-header (flat padding, no page-width cap) and a .page-body>.gh-content
+     with no .gh-canvas ancestor at all, so .gh-content's `grid-template-
+     columns: inherit` had no real named-line grid to inherit from and its
+     children's `grid-column: wide-start/wide-end` was a no-op — meaning the
+     body text had no width cap either, not just the hero. See
+     PAGE-WIDTH-SYSTEM.md. --}}
+<section class="page page-about post" data-post-hero="{{@custom.page_hero_width}}" data-page-id="{{id}}">
+  <header class="post-header page-header page-about-header">
+   
+    <div class="container" >
+      <h1 class="post-title page-title">{{title}}</h1>
+      {{#if custom_excerpt}}
+        <p class="post-excerpt page-excerpt">{{custom_excerpt}}</p>
+      {{else if excerpt}}
+        <p class="post-excerpt page-excerpt">{{excerpt}}</p>
+      {{/if}}
+    </div>
+
+    {{!-- Inside <header>, not a sibling after it — matching post.hbs exactly
+          (page.hbs puts this figure after </header> instead, which is itself
+          a latent version of the same bug this fixes). initPostHeaderAnimation
+          in main.js (the only thing that reveals .post-image img, whose base
+          CSS starts it at opacity:0) does `headerEl.querySelector('.post-image
+          img, ...')` — a descendant search. As a sibling, that query finds
+          nothing and the reveal never fires, leaving the image permanently
+          invisible once it carries the .post-image class (and its opacity:0
+          initial state) needed for the width-system fix above. --}}
+    {{#if feature_image}}
+      <figure class="post-image page-image">
+        <img src="{{feature_image}}" alt="{{title}}" loading="lazy" data-skip-reveal>
+      </figure>
+    {{/if}}
+    
+  </header>
+
+  {{> logos-scroll}}
+  <div class="gh-canvas" data-page-content-width="{{@custom.page_content_width}}">
+    <div class="gh-content">
+      {{content}}
+    </div>
+  </div>
+
+  <div class="page-sections" data-page-content-width="{{@custom.page_content_width}}">
+     {{> personal}}
+  </div>
+</section>
+{{/page}}

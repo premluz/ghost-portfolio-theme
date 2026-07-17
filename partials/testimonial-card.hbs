@@ -1,0 +1,15 @@
+<article class="testimonial-card" data-testimonial-url="{{url}}" data-testimonial-title="{{title}}">
+  <div class="testimonial-content">
+    <!--<div class="testimonial-author">
+      <h3 class="testimonial-name">{{title}}</h3>
+    </div>-->
+    {{!-- Snippet from testimonialMeta (big text on home page) --}}
+    <div class="testimonial-snippet serif"></div>
+    {{!-- Source from testimonialMeta (regular text underneath) --}}
+    <div class="testimonial-source"></div>
+    {{!-- Fallback to excerpt if no snippet --}}
+    {{#if excerpt}}
+      <div class="testimonial-excerpt" style="display: none;">{{excerpt}}</div>
+    {{/if}}
+  </div>
+</article>

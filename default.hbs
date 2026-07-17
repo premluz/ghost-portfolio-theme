@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#1d1e1f">
+  <script>
+    // Apply saved theme and set root background immediately to prevent white flash
+    // Runs before any CSS or external resource can trigger a paint.
+    // ⚠ REGRESSION MAGNET: an old copy of this block was pasted back once
+    // (stale hexes + body background rules) and broke the profile palette
+    // shift in light mode. If you edit this block, keep three invariants:
+    //   1. Hexes here are manual copies of tokens.css's --theme-light-bg /
+    //      --theme-dark-bg — update together (see COMMON_ISSUES.md).
+    //   2. NEVER set a body background (inline or in the <style> below):
+    //      body must stay transparent so the fixed #page-backdrop can paint
+    //      the shiftable page background (CSS paint order puts it below
+    //      in-flow block backgrounds — an opaque body hides it silently).
+    //   3. window.__THEME_BG_COLORS__ is read by theme.js — keep exporting it.
+    (function() {
+      // Single source of truth for the anti-flash hex values — exposed on
+      // window so theme.js's setTheme() reads these instead of keeping its
+      // own copy (they'd previously drift independently). The <style>
+      // fallback below can't reference this (CSS, no JS) and stays a
+      // necessarily-separate hardcoded copy — keep it in sync manually.
+      var THEME_BG = { light: '#FAFAF8', dim: '#1d1e1f', dark: '#1d1e1f' };
+      window.__THEME_BG_COLORS__ = THEME_BG;
+
+      var saved = localStorage.getItem('theme-preference');
+      var defaultTheme = '{{@custom.color_scheme}}';
+      var theme = saved !== null ? saved : defaultTheme;
+
+      if (theme === 'auto' || theme === 'dim') {
+        var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        theme = prefersDark ? 'dark' : 'light';
+      }
+
+      var bg = THEME_BG[theme] || THEME_BG.dark;
+      var colorScheme = (theme === 'light') ? 'light' : 'dark';
+
+      // Set inline style on html immediately (before CSS loads) to prevent
+      // white flash. html ONLY — see invariant 2 above re: body.
+      document.documentElement.style.backgroundColor = bg;
+      document.documentElement.style.colorScheme = colorScheme;
+
+      // Also set data-theme for CSS selectors
+      if (theme === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light');
+      } else if (theme === 'dim') {
+        document.documentElement.setAttribute('data-theme', 'dim');
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+      }
+
+      // Keep theme-color and color-scheme meta tags in sync (browser paints before CSS)
+      var metaTheme = document.querySelector('meta[name="theme-color"]');
+      if (metaTheme) metaTheme.setAttribute('content', bg);
+      var metaScheme = document.querySelector('meta[name="color-scheme"]');
+      if (metaScheme) metaScheme.setAttribute('content', colorScheme);
+    })();
+  </script>
+  <script src="{{asset "js/device-capability.js"}}?v={{@site.updated_at}}"></script>
+  <style>
+    /* Defensive anti-flash fallback: ROOT background only, before CSS loads.
+       Hexes are manual copies of tokens.css --theme-*-bg — keep in sync.
+       NO body rules here ON PURPOSE (invariant 2 in the script above):
+       body stays transparent so the fixed #page-backdrop can carry the
+       scroll-driven palette shift. The html background covers pre-CSS flash. */
+    html { background-color: #1d1e1f; }
+    html[data-theme='light'] { background-color: #FAFAF8; }
+    html[data-theme='dim'] { background-color: #1d1e1f; }
+
+    /* Hide preloader immediately — no blink on page load */
+    #preloader { display: none !important; }
+
+    /* Navigation visible immediately — no blink, no animation */
+    .gh-navigation {
+      animation: none !important;
+      opacity: 1 !important;
+      visibility: visible !important;
+      pointer-events: auto !important;
+    }
+  </style>
+  <!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-RY8TQWPDHZ"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-RY8TQWPDHZ');
+</script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{meta_title}}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  {{!-- Preconnect to CDNs used by particle system --}}
+  <link rel="preconnect" href="https://unpkg.com" crossorigin>
+  {{!-- Preload 3D shape files so they are in cache when JS requests them --}}
+  <link rel="preload" href="/content/images/mobile.glb"  as="fetch" crossorigin>
+  <link rel="preload" href="/content/images/note.glb"    as="fetch" crossorigin>
+  <link rel="preload" href="/content/images/clapper.glb" as="fetch" crossorigin>
+  <link rel="preload" href="/content/images/diamond.glb" as="fetch" crossorigin>
+  <link rel="preload" href="/content/images/globe.glb"   as="fetch" crossorigin>
+  <link rel="preload" href="/content/images/game.glb"    as="fetch" crossorigin>
+  <link rel="preload" href="/content/images/email.glb"   as="fetch" crossorigin>
+  <link rel="preload" href="/content/images/camera.glb"  as="fetch" crossorigin>
+  <link rel="preload" href="/content/images/sim.glb"     as="fetch" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&display=swap">
+  {{!-- Bust aggressive caches using site updated timestamp --}}
+  <link rel="stylesheet" href="{{asset "css/tokens.css"}}?v={{@site.updated_at}}">
+  <link rel="stylesheet" href="{{asset "css/main.css"}}?v={{@site.updated_at}}">
+  <link rel="stylesheet" href="{{asset "css/modal.css"}}?v={{@site.updated_at}}">
+  <link rel="stylesheet" href="{{asset "css/logos-scroll.css"}}?v={{@site.updated_at}}">
+  <link rel="stylesheet" href="{{asset "css/logos-ribbon.css"}}?v={{@site.updated_at}}">
+  <link rel="stylesheet" href="{{asset "css/posts-tabs-grid.css"}}?v={{@site.updated_at}}">
+  <link rel="stylesheet" href="{{asset "css/posts-tabs-grid-lab.css"}}?v={{@site.updated_at}}">
+  <link rel="stylesheet" href="{{asset "css/post-card-grid.css"}}?v={{@site.updated_at}}">
+  <link rel="stylesheet" href="{{asset "css/post-cards-lab.css"}}?v={{@site.updated_at}}">
+  <link rel="stylesheet" href="{{asset "css/profile.css"}}?v={{@site.updated_at}}">
+  <link rel="stylesheet" href="{{asset "css/operating-model-stacked.css"}}?v={{@site.updated_at}}">
+  {{!-- Original: <link rel="stylesheet" href="{{asset "css/operating-model-v2.css"}}?v={{@site.updated_at}}"> --}}
+  <style>
+    /*
+     * Accent color injection from Ghost admin settings.
+     * Only --color-primary is set here. All other semantic tokens
+     * (--color-link, --color-link-hover, --color-secondary) are
+     * derived from --color-primary inside tokens.css to keep one
+     * source of truth and avoid cascade conflicts.
+     */
+    :root {
+      /* Ghost accent color injection — commented out; tokens.css uses near-white instead
+      {{#if @site.accent_color}}
+        --color-primary: {{@site.accent_color}};
+      {{/if}}
+      */
+      {{#if @site.icon}}
+        --publication-icon: url('{{@site.icon}}');
+      {{/if}}
+      --color-particles: #1D4551; /* darkened further (~30%) from #296274 — still reading too bright */
+    }
+
+    :root[data-theme='light'] {
+      /* Ghost accent color injection — commented out; tokens.css uses near-black instead
+      {{#if @site.accent_color}}
+        --color-primary: {{@site.accent_color}};
+      {{else}}
+        --color-primary: #60A26B;
+      {{/if}}
+      */
+      --color-particles: #17516E; /* darkened from #2787B7 per explicit "make light mode more darker" request */
+    }
+
+    :root[data-theme='dim'] {
+      /* Ghost accent color injection — commented out; tokens.css uses near-white instead
+      {{#if @site.accent_color}}
+        --color-primary: {{@site.accent_color}};
+      {{/if}}
+      */
+    }
+  </style>
+  <script>
+    (function() {
+      if (window.location.pathname !== '/') return;
+      // Only pre-hide the nav for a genuine fresh landing/refresh, not an
+      // in-site click (e.g. the logo) — page-transition.js navigates via
+      // window.location.href (a real page load, not a client-side route),
+      // so document.referrer reliably reflects where we came from. Same
+      // check preloader.js uses for its own skip path (assets/js/preloader.js) —
+      // keep both in sync if this logic changes. Replaces the old
+      // localStorage 'preloader_seen' once-per-session flag.
+      var cameFromSameSite = false;
+      try {
+        cameFromSameSite = !!document.referrer && new URL(document.referrer).origin === window.location.origin;
+      } catch (e) {}
+      if (!cameFromSameSite) {
+        document.documentElement.classList.add('preloading');
+      }
+    })();
+  </script>
+  {{ghost_head}}
+</head>
+<body class="{{body_class}}" data-page-width="{{@custom.page_width}}" data-card-style="{{@custom.card_style}}" data-typography-header="{{@custom.typography_style_header}}" data-typography-body="{{@custom.typography_style_body}}" data-line-spacing-header="{{@custom.line_spacing_header}}" data-line-spacing-body="{{@custom.line_spacing_body}}" data-type-size="{{@custom.type_size}}" data-contact-email="{{#if @site.email}}{{@site.email}}{{else}}przemek.luczak@gmail.com{{/if}}">
+  <!-- Fixed viewport backdrop — REQUIRED, do not remove (it went missing once
+       and silently broke two things at once). It (1) paints the page-scoped
+       palette shift: .page-backdrop in main.css blends var(--color-background)
+       toward var(--shift-bg) by --profile-shift — body is transparent ON
+       PURPOSE so this layer shows (see body rule in main.css); and (2) gives
+       the particle canvas's dark-mode mix-blend-mode:screen a backdrop that
+       can't rubber-band away during macOS overscroll (raw opaque-black canvas
+       showed without it). -->
+  <div id="page-backdrop" class="page-backdrop"></div>
+
+  <!-- Fixed background gradient layer (fades between colors as you scroll) -->
+ <!-- <div id="page-gradient" class="page-gradient-bg"></div>-->
+
+  <!-- Initialize canvas dimensions on load - DISABLED -->
+  <!-- <script>
+    (function() {
+      const canvas = document.getElementById('gradient-canvas');
+      if (canvas) {
+        function resizeCanvas() {
+          canvas.width = window.innerWidth;
+          canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+      }
+    })();
+  </script> -->
+
+  {{#if @custom.show_scroll_progress}}<div class="scroll-progress"></div>{{/if}}
+
+  {{> navigation}}
+
+
+  <!-- GPU Particle System Canvas (matches old particle system z-index + blend mode) -->
+  <canvas id="gpu-canvas"
+          style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; mix-blend-mode: screen;">
+  </canvas>
+
+  <!-- Hidden video element for webcam feed (gesture tracking) -->
+  <video id="gesture-video" playsinline
+         style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;"></video>
+
+  <main>
+    {{{body}}}
+  </main>
+
+
+  <footer class="gh-footer" id="footer" data-footer-width="{{@custom.footer_width}}">
+    <div class="footer-bg">
+      <div class="footer-content">
+        <div class="footer-signup-section">
+          <!--<h2 class="footer-title">{{@site.title}}</h2>-->
+
+          <h2 class="footer-title">Building something complex?</h2>
+                 <p class="footer-description">I can help land it faster.</p>
+          <a href="/contact" data-transition class="button footer-button" aria-label="Email">
+           Let's make it happen
+          </a>
+          <!-- <form class="footer-form" data-members-form>
+            <input
+              type="email"
+              class="footer-input"
+              name="email"
+              placeholder="Your email address"
+              required
+              data-members-email
+            >
+            <button type="submit" class="button footer-button" aria-label="Subscribe">
+              Subscribe
+              <img src="{{asset "icons/arrow-right.svg"}}" alt="Subscribe" class="footer-button-icon">
+            </button>
+            <p class="footer-form-message" data-members-error></p>
+          </form>-->
+
+        
+        </div>
+
+        <div class="footer-bottom">
+          <!-- <div class="footer-nav">
+            <a href="{{@site.url}}">Home</a>
+            <a href="{{#get 'pages' limit='1' filter='slug:about'}}{{url}}{{else}}{{@site.url}}about/{{/get}}">About</a>
+          </div>-->
+          <!--<div class="footer-credit">
+            <p>&copy; {{date format="YYYY"}} <strong>{{@site.title}}</strong> • Powered by <a href="https://ghost.org" target="_blank" rel="noopener">Ghost</a></p>
+          </div>-->
+
+          <div class="footer-meta">
+            <p class="footer-meta-text">Designed and built in the browser. The challenge was restraint.</p>
+          </div>
+        </div>
+      </div>
+      
+    </div>
+
+  </footer>
+
+  <!-- GSAP + ScrollTrigger -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+  <script>if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') { gsap.registerPlugin(ScrollTrigger); }</script>
+
+  <!-- Console cleanup: suppress verbose module logs. Installed this early
+       (before three.js/preloader/intro/gradient-layer/etc. load) so no
+       script gets a chance to log before the gate is active — moving this
+       later (it used to sit near the end of <body>) left ~50 early
+       top-level logs from those scripts ungated regardless of DEBUG_SCROLL. -->
+  <script>
+  (function() {
+    const originalLog = console.log;
+    const originalWarn = console.warn;
+    const originalError = console.error;
+    const suppressPatterns = [
+      /\[gradient-layer\]/i,
+      /\[gradient-animation-loop\]/i,
+      /\[testimonial-modal\]/i,
+      /\[post-and-cards\]/i,
+      /\[ShapeLoader\] Failed to load GLB/i,
+      /\[intro\]/i,
+      /assets\/glb\//i,  // Suppress all GLB 404 errors
+      /Missing elements/i
+    ];
+
+    const shouldSuppress = (msg) => {
+      const text = msg?.toString?.() || '';
+      return suppressPatterns.some(pattern => pattern.test(text));
+    };
+
+    // Silent by default — set window.DEBUG_SCROLL = true (devtools/URL) to
+    // see the 300+ scroll/particle/morph logs this theme normally emits.
+    // suppressPatterns above stays applied even in debug mode — those are
+    // separately-known noise (GLB 404s, gradient-layer spam), not wanted
+    // either way. console.error is never gated by the flag, only by
+    // suppressPatterns, matching debug.js's debugError() "always log
+    // errors, even in production" behavior.
+    console.log = function(...args) {
+      if (!window.DEBUG_SCROLL) return;
+      if (shouldSuppress(args[0])) return;
+      originalLog.apply(console, args);
+    };
+
+    console.warn = function(...args) {
+      if (!window.DEBUG_SCROLL) return;
+      if (shouldSuppress(args[0])) return;
+      originalWarn.apply(console, args);
+    };
+
+    console.error = function(...args) {
+      if (!shouldSuppress(args[0])) {
+        originalError.apply(console, args);
+      }
+    };
+  })();
+  </script>
+
+  <!-- Loaded this early so window.resizeManager exists before any later
+       script that might subscribe to it during synchronous top-level
+       execution (most subscribe from inside a constructor/init function
+       called later, but this guarantees correctness regardless). -->
+  <script src="{{asset "js/managers/ResizeManager.js"}}"></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/": "https://unpkg.com/three@0.160.0/"
+      }
+    }
+  </script>
+  <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+  <script src="https://unpkg.com/@fiddle-digital/string-tune@1.1.47/dist/index.js"></script>
+  <script src="https://unpkg.com/string-tune-3d@0.0.9/dist/index.js"></script>
+  <script src="https://unpkg.com/split-type@0.3.4/umd/index.min.js"></script>
+  <script src="{{asset "js/preloader.js"}}"></script>
+  <script src="{{asset "js/intro.js"}}"></script>
+  <script src="{{asset "js/gradient-layer.js"}}"></script>
+  <script src="{{asset "js/background-layer.js"}}"></script>
+  <script src="{{asset "js/surface-effect-layer.js"}}?v={{@site.updated_at}}"></script>
+  <script src="{{asset "js/scroll-scrub-anim.js"}}"></script>
+  <!-- DISABLED: Canvas gradient rendering (use CSS gradients instead) -->
+  <!-- <script src="{{asset "js/gradient-config.js"}}"></script>
+  <script src="{{asset "js/glsl-gradient-manager.v2.js"}}"></script>
+  <script src="{{asset "js/glsl-gradient-enhanced.js"}}"></script> -->
+  <script src="{{asset "js/modal.js"}}"></script>
+  <script src="{{asset "js/modal-data.js"}}"></script>
+  <!-- DISABLED: Dynamic gradient rendering (use CSS gradients instead) -->
+  <!-- <script src="{{asset "js/project-gradient.js"}}"></script> -->
+  <script src="{{asset "js/particle-engine.js"}}"></script>
+
+  <!-- PHASE 2: New modular architecture (foundation + Day 2 modules) -->
+  <script src="{{asset "js/CONSTANTS.js"}}"></script>
+  <script src="{{asset "js/managers/InitializationManager.js"}}"></script>
+  <script src="{{asset "js/managers/ObserverManager.js"}}"></script>
+  <script src="{{asset "js/debug.js"}}"></script>
+
+  <!-- Phase 2 Day 2 Modules -->
+  <script src="{{asset "js/theme.js"}}"></script>
+  <script src="{{asset "js/scroll-progress.js"}}"></script>
+  <script src="{{asset "js/ui-utilities.js"}}"></script>
+
+  <!-- Phase 2 Day 3 Modules -->
+  <script src="{{asset "js/heading-animations.js"}}"></script>
+  <script src="{{asset "js/card-scroll-reveal.js"}}"></script>
+
+  <!-- Phase 2 Day 4-6 Modules -->
+  <script src="{{asset "js/post-utilities.js"}}"></script>
+  <script src="{{asset "js/table-of-contents.js"}}"></script>
+  <script src="{{asset "js/feature-modules.js"}}"></script>
+  <script src="{{asset "js/post-and-cards.js"}}"></script>
+
+  <!-- Modular Animated Gradient Background System -->
+  <script src="{{asset "js/gradient-distortion.js"}}"></script>
+  <script src="{{asset "js/gradient-animation-loop.js"}}"></script>
+  <!--<script src="{{asset "js/gradient-morph-system.js"}}"></script>-->
+
+  <!-- Gesture system disabled -->
+  <!-- <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="{{asset "js/gesture-hand-tracker.js"}}"></script>
+  <script src="{{asset "js/gesture-detector.js"}}"></script>
+  <script src="{{asset "js/particle-gesture-controller.js"}}"></script> -->
+
+  <!-- GPU Particle System (Production Setup) -->
+  <script src="{{asset "js/gpu-particles/gpu-shader-compiler.js"}}"></script>
+  <script src="{{asset "js/gpu-particles/gpu-compute-engine.js"}}"></script>
+  <script src="{{asset "js/gpu-particles/gpu-renderer.js"}}"></script>
+  <!-- Week 2: Morphing & Shape Loading -->
+  <script src="{{asset "js/gpu-particles/gpu-particle-state.js"}}"></script>
+  <script src="{{asset "js/gpu-particles/shape-loader.js"}}"></script>
+  <script src="{{asset "js/gpu-particles/gpu-morph-controller.js"}}"></script>
+  <!-- Week 3: Scroll, Registry, Monitoring, Fallback, Tests -->
+  <script src="{{asset "js/gpu-particles/gpu-scroll-driver.js"}}"></script>
+  <script src="{{asset "js/gpu-particles/gpu-shape-registry.js"}}"></script>
+  <script src="{{asset "js/gpu-particles/gpu-performance-monitor.js"}}"></script>
+  <script src="{{asset "js/gpu-particles/gpu-fallback.js"}}"></script>
+  <script src="{{asset "js/gpu-particles/gpu-particle-system.test.js"}}"></script>
+  <script src="{{asset "js/gpu-particles/gpu-particle-system.js"}}"></script>
+
+  <script src="{{asset "js/main.js"}}"></script>
+  <script src="{{asset "js/sticky-nav.js"}}"></script>
+  <script src="{{asset "js/word-animation.js"}}"></script>
+  <script src="{{asset "js/logos-scroll.js"}}"></script>
+  <script src="{{asset "js/horiz-scroll.js"}}"></script>
+  <!-- <script src="{{asset "js/testimonials-scroll.js"}}"></script> -->
+  <!-- <script src="{{asset "js/sequence-animation.js"}}"></script> -->
+  <script src="{{asset "js/card-animations.js"}}"></script>
+  <script src="{{asset "js/page-transition.js"}}"></script>
+  {{#is "post"}}
+  <script src="{{asset "js/group-layout.js"}}"></script>
+  {{/is}}
+  {{ghost_foot}}
+
+  <!-- GPU Particle System Integration (Production Setup) -->
+ <!-- {{> gpu-particle-integration}} -->
+
+  {{> particle-morph}}
+
+  <!-- Bottom fade gradient pane - creates illusion of content fading in -->
+  <div class="bottom-fade-pane"></div>
+
+</body>
+</html>

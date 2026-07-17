@@ -1,0 +1,36 @@
+{{!< default}}
+{{#page}}
+<section class="page page-about" data-page-id="{{id}}">
+  <header class="page-header" data-page-content-width="{{@custom.page_content_width}}">
+    <h1 class="page-title">{{title}}</h1>
+    {{#if custom_excerpt}}
+      <p class="page-excerpt">{{custom_excerpt}}</p>
+    {{else if excerpt}}
+      <p class="page-excerpt">{{excerpt}}</p>
+    {{/if}}
+  </header>
+
+  {{!-- Logos scroll section — infinite scrolling client logos --}}
+  {{> logos-scroll}}
+  {{#if feature_image}}
+    <figure class="page-image" data-page-content-width="{{@custom.page_content_width}}">
+      <img src="{{feature_image}}" alt="{{title}}" loading="lazy" data-skip-reveal>
+    </figure>
+  {{/if}}
+
+  <div class="page-body" data-page-content-width="{{@custom.page_content_width}}">
+    <div class="page-grid">
+      <div class="gh-content page-content">
+        {{content}}
+      </div>
+    </div>
+  </div>
+
+  <div class="page-sections" data-page-content-width="{{@custom.page_content_width}}">
+    {{> about}}
+    {{> personal}}
+  </div>
+
+ 
+</section>
+{{/page}}

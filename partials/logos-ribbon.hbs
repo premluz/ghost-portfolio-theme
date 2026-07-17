@@ -1,0 +1,185 @@
+{{!--
+  LOGOS RIBBON
+  Kinetic 3D-perspective marquee. Three-layer architecture:
+    1. Section  — clipping viewport + 3D camera (perspective)
+    2. Carrier  — over-wide container with rotateZ (diagonal) + rotateY (depth)
+    3. Track    — flex logos, x-translated by GSAP for seamless infinite loop
+
+  Future interaction: add [data-pullable] to any .logos-ribbon-item and wire up
+  the pull-out hook at the bottom of the init script.
+
+
+
+<section class="positioning-slide positioning-slide-main" id="helix-alt" style="margin-bottom: 0;">
+  <div class="positioning-container">
+    <h2 class="positioning-heading serif">Complexity takes different forms</h2>
+    <p class="positioning-description">Trust · Decision-making · Workflows · Intelligence · Scale · Velocity</p>
+  </div>
+</section>
+--}}
+<section class="logos-ribbon-section" id="logos-ribbon" aria-label="Clients and collaborators">
+  <div class="logos-ribbon-carrier">
+    <div class="logos-ribbon-track" id="logosRibbonTrack">
+
+      {{!-- ── Set A ─────────────────────────────────────────── --}}
+      <div class="logos-ribbon-item" data-ribbon-logo="GalaChain">
+        <img src="/content/images/logos/GalaChain.svg" alt="GalaChain" loading="lazy" draggable="false">
+      </div>
+      <div class="logos-ribbon-item" data-ribbon-logo="PlayStation">
+        <img src="/content/images/logos/PlayStation.svg" alt="PlayStation" loading="lazy" draggable="false">
+      </div>
+      <div class="logos-ribbon-item" data-ribbon-logo="Vodafone">
+        <img src="/content/images/logos/Vodafone.svg" alt="Vodafone" loading="lazy" draggable="false">
+      </div>
+      <div class="logos-ribbon-item" data-ribbon-logo="TheBodyShop">
+        <img src="/content/images/logos/Tracr.svg" alt="The Body Shop" loading="lazy" draggable="false">
+      </div>
+      <div class="logos-ribbon-item" data-ribbon-logo="Deutsche_Bank">
+        <img src="/content/images/logos/Deutsche_Bank.svg" alt="Deutsche Bank" loading="lazy" draggable="false">
+      </div>
+
+      {{!-- ── Set B — duplicate for seamless loop ───────────── --}}
+      <div class="logos-ribbon-item" data-ribbon-logo="GalaChain">
+        <img src="/content/images/logos/GalaChain.svg" alt="GalaChain" loading="lazy" draggable="false">
+      </div>
+      <div class="logos-ribbon-item" data-ribbon-logo="PlayStation">
+        <img src="/content/images/logos/PlayStation.svg" alt="PlayStation" loading="lazy" draggable="false">
+      </div>
+      <div class="logos-ribbon-item" data-ribbon-logo="Vodafone">
+        <img src="/content/images/logos/Vodafone.svg" alt="Vodafone" loading="lazy" draggable="false">
+      </div>
+      <div class="logos-ribbon-item" data-ribbon-logo="Deutsche_Bank">
+        <img src="/content/images/logos/Deutsche_Bank.svg" alt="Deutsche Bank" loading="lazy" draggable="false">
+      </div>
+      <div class="logos-ribbon-item" data-ribbon-logo="Vodafone">
+        <img src="/content/images/logos/Vodafone.svg" alt="Vodafone" loading="lazy" draggable="false">
+        </div>
+      <div class="logos-ribbon-item" data-ribbon-logo="TheBodyShop">
+        <img src="/content/images/logos/Tracr.svg" alt="The Body Shop" loading="lazy" draggable="false">
+      </div>
+
+    </div>
+
+  </div>
+
+</section>
+
+
+
+
+<script>
+(function () {
+  'use strict';
+
+  // ── Animation strategy: word-reveal blur ────────────────────────────────
+  // Returns { reveal(), hide() }.
+  // To switch animation style: replace this factory with a different one,
+  // e.g. var anim = createFadeAnim(container, heading, desc);
+  function createLineRevealAnim(container, heading, desc) {
+    var rawH2 = heading.textContent.trim();
+    heading.innerHTML = '';
+
+    // Split heading into lines (2 words per line)
+    var words = rawH2.split(/\s+/);
+    var lines = [];
+    var currentLine = '';
+    for (var i = 0; i < words.length; i++) {
+      currentLine += (currentLine ? ' ' : '') + words[i];
+      if ((i + 1) % 2 === 0 || i === words.length - 1) {
+        lines.push(currentLine);
+        currentLine = '';
+      }
+    }
+
+    var lineEls = lines.map(function (lineText) {
+      var line = document.createElement('div');
+      line.className = 'logos-ribbon-line';
+      line.textContent = lineText.trim();
+      heading.appendChild(line);
+      return line;
+    });
+
+    var descWords = [];
+    if (desc) {
+      desc.innerHTML = desc.textContent.trim().split(' ').map(function (w) {
+        return '<span class="lr-word">' + w + '</span>';
+      }).join(' ');
+      descWords = Array.prototype.slice.call(desc.querySelectorAll('.lr-word'));
+    }
+
+    return {
+      reveal: function () { },
+      hide:   function () { }
+    };
+  }
+
+  function initLogosRibbon() {
+    var section = document.getElementById('logos-ribbon');
+    var track   = document.getElementById('logosRibbonTrack');
+    if (!section || !track) return;
+
+    if (typeof gsap === 'undefined') {
+      setTimeout(initLogosRibbon, 100);
+      return;
+    }
+
+    requestAnimationFrame(function () {
+      var halfWidth = track.scrollWidth / 2;
+      if (halfWidth <= 0) { setTimeout(initLogosRibbon, 200); return; }
+
+      // ── Scroll-delta ribbon drive ─────────────────────────────────────
+      // ScrollTrigger scrub is unreliable inside transformed containers
+      // (page-content-wrapper). Raw delta + lerp works everywhere and
+      // gives a natural momentum feel without any scrub lag artifacts.
+      //
+      // Formula: display = xCurrent % halfWidth
+      //   xCurrent=0   → 0     (ribbon at start)
+      //   xCurrent=-800 → -800  (scrolled left)
+      //   xCurrent=-halfWidth → 0 via modulo (seamless loop)
+      var xCurrent = 800;
+      var xTarget  = 800;
+      var lastY    = window.scrollY;
+      var raf      = null;
+
+      window.addEventListener('scroll', function () {
+        xTarget -= (window.scrollY - lastY) * 2.2;
+        lastY = window.scrollY;
+        if (!raf) raf = requestAnimationFrame(ribbonStep);
+      }, { passive: true });
+
+      function ribbonStep() {
+        raf = null;
+        var diff = xTarget - xCurrent;
+        xCurrent += diff * 0.1;
+        // Wrap to [-halfWidth, 0) — correct at 0, seamless at -halfWidth
+        var display = xCurrent % halfWidth;
+        gsap.set(track, { x: display });
+        if (Math.abs(diff) > 0.05) raf = requestAnimationFrame(ribbonStep);
+      }
+
+      // Animation for this section is now handled by unified scroll-scrub-anim.js
+      // H2 and P have data-animate attributes that trigger automatic animations
+
+      // ── Slow down vertical scroll through this section (2x slower) ────────
+      if (typeof ScrollTrigger !== 'undefined') {
+        ScrollTrigger.create({
+          trigger: section,
+          start: 'top top',
+          end: 'bottom bottom+=200%',
+          markers: false
+        });
+      }
+
+      // ── Future pull-out hook ──────────────────────────────────────────────
+      // Add [data-pullable] to any .logos-ribbon-item, then wire here:
+      //   track.querySelectorAll('[data-pullable]').forEach(function (item) { … });
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initLogosRibbon);
+  } else {
+    initLogosRibbon();
+  }
+}());
+</script>

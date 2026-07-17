@@ -1,0 +1,101 @@
+{{!-- POST PAGE: Show next post chronologically (older), cycle to latest if at end --}}
+{{#post}}
+  <section class="post-navigation" data-post-id="{{id}}" data-published-at="{{published_at}}" data-post-tags="{{#foreach tags}}{{slug}}{{#unless @last}},{{/unless}}{{/foreach}}"></section>
+  <script>
+    (function() {
+      const nav = document.querySelector('.post-navigation[data-post-id]');
+      if (!nav) return;
+
+      const currentId = nav.dataset.postId;
+      const currentDate = new Date(nav.dataset.publishedAt);
+      const tagsStr = nav.dataset.postTags;
+      const tags = tagsStr.split(',').map(t => t.trim()).filter(Boolean);
+      const categoryTag = tags.find(t => t !== 'work') || 'featured';
+
+      console.log('[post-nav] Current:', currentId, 'Date:', currentDate, 'Category:', categoryTag);
+
+      // Fetch featured posts and find older ones
+      const key = window.ghostContentKey || '53c1eef4fff835def4f59619d6';
+      const apiUrl = `/ghost/api/content/posts/?key=${key}&filter=tag:${categoryTag}&fields=id,title,url,feature_image,published_at,reading_time,html&order=published_at%20desc&limit=100`;
+
+      fetch(apiUrl)
+        .then(r => r.json())
+        .then(data => {
+          const posts = data.posts || [];
+          console.log('[post-nav] Found', posts.length, 'posts with tag', categoryTag);
+
+          // Find posts older than current
+          const olderPosts = posts.filter(p => new Date(p.published_at) < currentDate && p.id !== currentId);
+          console.log('[post-nav] Older posts:', olderPosts.length);
+
+          let nextPost;
+          if (olderPosts.length > 0) {
+            // Most recent older post
+            nextPost = olderPosts[0];
+          } else {
+            // Cycle to newest (latest) post
+            nextPost = posts[0];
+          }
+
+          if (!nextPost) return;
+
+          // Calculate reading time from full content (~200 words/min)
+          let readingTime = nextPost.reading_time;
+          if (!readingTime && nextPost.html) {
+            // Strip HTML tags and count words
+            const text = nextPost.html.replace(/<[^>]*>/g, '');
+            const wordCount = text.split(/\s+/).filter(w => w.length > 0).length;
+            readingTime = Math.max(1, Math.round(wordCount / 200));
+          }
+          const readingTimeHTML = readingTime ? `<span class="reading-time">${readingTime} min read</span>` : '';
+          const html = `
+                <section class="post-navigation">
+            <div class="post-nav-section">
+              <a href="${nextPost.url}" rel="next" class="post-nav-card">
+                <div class="post-nav-inner">
+                  ${nextPost.feature_image ? `<div class="post-nav-image-container"><img src="${nextPost.feature_image}" alt="${nextPost.title}" class="post-nav-image"></div>` : ''}
+                  <div class="post-nav-item-content">
+                    <p class="post-nav-eyebrow">NEXT UP</p>
+                    <h3 class="post-nav-title">${nextPost.title}</h3>
+                    
+                  </div>
+                </div>
+              </a>
+            </div>
+          `;
+          nav.innerHTML = html;
+        })
+        .catch(e => console.error('[post-nav]', e));
+    })();
+  </script>
+{{else}}
+  {{!-- HOMEPAGE: Show latest featured work post --}}
+  {{#get "posts" filter="featured:true+tag:hash-work" order="published_at desc" limit="1"}}
+    {{#if posts}}
+      <section class="post-navigation">
+      <!--  <header>
+          <h2>Next up</h2>
+        </header>
+        <div class="post-nav-section">
+          <a href="{{posts.[0].url}}" class="post-nav-card">
+            <div class="post-nav-inner">
+              {{#if posts.[0].feature_image}}
+                <div class="post-nav-image-container">
+                  <img src="{{posts.[0].feature_image}}" alt="{{posts.[0].title}}" class="post-nav-image">
+                </div>
+              {{/if}}
+
+              <div class="post-nav-item-content">
+                <p class="post-nav-eyebrow">NEXT UP</p>
+                <h3 class="post-nav-title">{{posts.[0].title}}</h3>
+               <!-- {{#if posts.[0].reading_time}}
+                  <span class="reading-time">{{posts.[0].reading_time}} min read</span>
+                {{/if}}-->
+              </div>
+            </div>
+          </a>
+        </div>
+      </section>
+    {{/if}}
+  {{/get}}
+{{/post}}

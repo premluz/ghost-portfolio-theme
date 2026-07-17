@@ -1,0 +1,67 @@
+{{!< default}}
+{{!--
+  /work/ is a collection route (see routes.yaml: filter tag:hash-work,
+  template "work"), not a Ghost Page resource — there's no underlying page
+  object here, so {{title}}/{{custom_excerpt}}/{{excerpt}} have nothing to
+  bind to and always render empty. Hardcoded text instead, matching the
+  same convention already used for the "Lab" sub-heading further down this
+  same page (posts-tabs-grid-lab.hbs's <h2 class="positioning-heading">).
+--}}
+<main class="main-content">
+  <!-- WebGL GLSL gradient background — disabled for now (hidden per request).
+        third-party, single-instance-only lib (id="c" and data-gradient="wrapper"
+        are hardcoded inside the bundle, "do not touch" per its own readme).
+        Scoped to this page only (script tag below), so there's no conflict
+        with any other page ever needing a second instance. Fixed + low
+        z-index so it sits behind .page-work's content (.page already
+        carries z-index:2 — see main.css — for exactly this purpose, same
+        mechanism the particle canvas and #page-gradient use).
+  <div class="glsl-gradient-bg" data-gradient="wrapper">
+    <canvas id="c" data-time="0.08" data-noise="0.6" data-multx="1" data-multy="1"></canvas>
+  </div>
+  -->
+
+  <section class="page page-work">
+    <header class="page-header" data-page-content-width="{{@custom.page_content_width}}">
+      <h1 class="page-title">Work</h1>
+      <p class="page-excerpt">Selected projects across product, systems, and teams.</p>
+    </header>
+
+    <div class="container">
+      <section class="work-section">
+            {{> about-projects}}
+            {{> work-projects}}
+      </section>
+    </div>
+  </section>
+</main>
+
+<script>
+(function() {
+  'use strict';
+  // This page has none of the homepage-specific sections particle-morph.hbs's
+  // triggers key off (.hero, #operating-model-stacked, .profile, etc.), so
+  // nothing there ever sets an initial shape here — poll for the particle
+  // system (same pattern as scroll-scrub-anim.js's initHero() helix fix, for
+  // the same reason: this page has no preloader to cover the async
+  // THREE.js/GLB init time) and settle on dispersed once it's ready.
+  let attempts = 0;
+  const maxAttempts = 100; // 100 * 80ms = 8s
+  const waitForParticleSystemThenDisperse = () => {
+    if (window.particleSystem?.morphTo) {
+      window.particleSystem.morphTo('dispersed', 400);
+    } else if (attempts++ < maxAttempts) {
+      setTimeout(waitForParticleSystemThenDisperse, 80);
+    }
+  };
+  waitForParticleSystemThenDisperse();
+})();
+</script>
+
+{{!-- Self-contained bundle (twgl.js etc. inlined by its own Vite build —
+      confirmed no external CDN calls at runtime), auto-initializes on
+      load: finds [data-gradient="wrapper"] + #c above, no init() call
+      needed. window.Gradient.call.mode()/swap() available afterward if
+      we want light/dark toggling or a param swap later.
+      Disabled for now along with the markup above (hidden per request). --}}
+<!-- <script src="{{asset "glsl-gradient/lib/gradient.02.js"}}"></script> -->

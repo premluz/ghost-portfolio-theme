@@ -1,0 +1,76 @@
+{{!--
+  PROFILE SECTION
+  Mirrored from the HERO SECTION partial.
+  Custom fields (set in Ghost Admin › Design):
+    @custom.profile_name        — top label
+    @custom.profile_title       — main headline
+    @custom.profile_description — supporting paragraph
+    @custom.profile_bullet_1/2/3 — tag pills
+    @custom.profile_image       — portrait / right-side image (falls back to site cover)
+--}}
+
+<section class="profile" id="about" data-section-id="profile" data-home-profile-width="{{@custom.home_profile_width}}" data-profile-background="{{@custom.home_profile_background}}">
+      <div class="profile-bg">
+    <div class="profile-container">
+
+      {{!-- LEFT: text content --}}
+      <div class="profile-content">
+
+        {{!-- Top label 
+        <p class="profile-intro" id="profile-intro" data-animate="letter">
+          {{#if @custom.profile_name}}{{@custom.profile_name}}{{else}}I'm Prem{{/if}}
+        </p>--}}
+
+        {{!-- Main headline --}}
+        <h2 class="profile-headline serif" id="profile-headline" data-animate="word">
+          {{#if @custom.profile_title}}{{@custom.profile_title}}{{else}}The design role is shifting.{{/if}}
+        </h2>
+        {{!-- Supporting description (each paragraph animates like testimonial cards) --}}
+        <div class="profile-description" id="profile-description">
+
+          <p class="profile-paragraph" data-card-reveal="default" style="margin-bottom: 24px;">
+           AI has collapsed the distance between idea and working product. The walls between strategy, design and engineering are dissolving into one faster loop. What's left scarce is judgment.  <br /><br />That's the model I work in.
+          </p>
+        </div>
+
+
+        {{!-- Six items grid: how I work, in practice --}}
+        <div class="profile-items" id="profile-items">
+          <div class="profile-item" data-card-reveal="slide-left" data-item-index="0">
+            <h3 class="profile-item-header">Partner</h3>
+            <p class="profile-item-description">With engineers, product and executives, in their language. Influence earned by work.</p>
+          </div>
+          <div class="profile-item" data-card-reveal="slide-left" data-item-index="1">
+            <h3 class="profile-item-header">Lead</h3>
+            <p class="profile-item-description">Hands-on at one end; mentoring, vision and design ops at the other.</p>
+          </div>
+          <div class="profile-item" data-card-reveal="slide-left" data-item-index="2">
+            <h3 class="profile-item-header">Build</h3>
+            <p class="profile-item-description">Close to code. Agentic-ready products, systems and teams. Capability that compounds.</p>
+          </div>
+          <div class="profile-item" data-card-reveal="slide-left" data-item-index="3">
+            <h3 class="profile-item-header">Care</h3>
+            <p class="profile-item-description">Judgment, empathy, craft, coherence. That part stays human.</p>
+          </div>
+          <div class="profile-item" data-card-reveal="slide-left" data-item-index="4">
+            <h3 class="profile-item-header">Remove</h3>
+            <p class="profile-item-description">More than I add. Killing bolt-ons and scope creep before they ship.</p>
+          </div>
+          <div class="profile-item" data-card-reveal="slide-left" data-item-index="5">
+            <h3 class="profile-item-header">Deliver</h3>
+            <p class="profile-item-description">Value from day one, across 0→1→growth.</p>
+          </div>
+        </div>
+       
+      </div>{{!-- /.profile-content --}}
+
+
+
+    </div>{{!-- /.profile-container --}}
+
+    </div>{{!-- /.profile-container --}}
+
+</section>{{!-- /.profile --}}
+
+
+{{!-- Animation handled by unified scroll-scrub-anim.js via initProfile() --}}

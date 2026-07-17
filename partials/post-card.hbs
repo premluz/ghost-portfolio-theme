@@ -1,0 +1,45 @@
+<article class="post-card" data-post-url="{{url}}"{{#if tags}} data-tag-slugs="{{#foreach tags}}{{slug}} {{/foreach}}"{{/if}}{{#if custom.gradientCss}} data-gradient-css="{{custom.gradientCss}}"{{/if}}{{#if custom.cardId}} data-cardid="{{custom.cardId}}"{{else}} data-cardid="{{slug}}"{{/if}}>
+  <a href="{{url}}" class="post-card-link" data-transition>
+    {{!-- Inner wrapper that scales on hover, while link stays stable --}}
+    <div class="post-card-inner">
+
+
+      <div class="post-card-content" data-card-reveal="slide-left" data-item-index="1">
+        <h3 class="post-card-title" data-default-title="{{longTitle}}">{{longTitle}}</h3>
+        {{!-- Project client name --}}
+      <!--<p class="text-eyebrow">Key contributions</p>-->
+        {{!-- Card description (from projectMeta) - only shows as separate section before card --}}
+      <!-- <div class="post-card-description"></div>-->
+
+        <div class="post-card-meta">
+          <!-- <time datetime="{{date format="YYYY-MM-DD"}}">{{date format="MMM DD, YYYY"}}</time>-->
+          {{!-- Keywords pills (from projectMeta cardKeywords) --}}
+         <!-- <div class="post-card-keywords"></div>-->
+          <!--{{#if @custom.show_reading_time}}
+            {{#if reading_time}}
+              <span class="reading-time">{{reading_time}}</span>
+            {{/if}}
+          {{/if}}-->
+        </div>
+        {{!-- Project result --}}
+       <!--<div class="post-card-result"></div>-->
+
+        {{#if custom_excerpt}}
+       <!--  <p class="post-card-excerpt">{{custom_excerpt}}</p>-->
+        {{else}}
+      <!--    <p class="post-card-excerpt">{{excerpt words="30"}}</p>-->
+        {{/if}}
+
+        {{!-- Testimonial quote (from projectMeta) --}}
+        <p class="post-card-testimonial serif"></p>
+        <p class="post-card-endorser"></p>
+
+      </div>
+            {{#if feature_image}}
+        <div class="post-card-image" data-card-reveal="slide-left" data-item-index="0">
+          <img src="{{feature_image}}" alt="{{title}}" loading="lazy">
+        </div>
+      {{/if}}
+    </div>
+  </a>
+</article>
