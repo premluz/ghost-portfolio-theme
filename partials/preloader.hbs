@@ -1,0 +1,47 @@
+{{!--
+  PRELOADER v2
+  Sequence:
+  1. "prem design" letter-by-letter reveal (left to right)
+  2. Dot falls from top, bounces between words
+  3. Words reverse out (right to left stagger)
+  4. Dot fades out; particle system fades in as globe
+  5. Globe surface ripples (1.2s), then bursts outward (0.5s)
+  6. Preloader fades out, hero entrance triggers
+--}}
+
+<style>
+  .preloader-wordmark {
+    display: flex;
+    align-items: center;
+    font-size: clamp(calc(3rem * var(--type-scale-heading, 1)), calc(15vw * var(--type-scale-heading, 1)), calc(12rem * var(--type-scale-heading, 1)));
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+
+  .preloader-subtitle {
+    font-size: clamp(calc(0.875rem * var(--type-scale-body, 1)), calc(2vw * var(--type-scale-body, 1)), calc(1.125rem * var(--type-scale-body, 1)));
+    font-weight: 300;
+    line-height: 1.6;
+    letter-spacing: 0;
+    margin-top: 1.5rem;
+    opacity: 0;
+    animation: preloaderSubtitleReveal 0.6s ease-out 2.5s both;
+  }
+
+  @keyframes preloaderSubtitleReveal {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+</style>
+
+<section id="preloader" class="preloader">
+  <div class="preloader-progress-bar" id="preloader-progress-bar"></div>
+  <div class="preloader-progress-pct" id="preloader-progress-pct">0%</div>
+  <div class="preloader-content">
+    <div class="preloader-wordmark" data-skip-animation="true">
+      <span class="pl-word-prem serif">prems</span><span class="preloader-dot sans">.</span><span class="pl-word-design sans">design</span>
+    </div>
+    <!--<h2 class="preloader-subtitle" id="preloader-subtitle">Product Designer</h2>-->
+  </div>
+</section>

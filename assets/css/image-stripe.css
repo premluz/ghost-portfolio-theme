@@ -1,0 +1,101 @@
+/* ═════════════════════════════════════════════════════════════ */
+/* IMAGE STRIPE — auto-scrolling ribbon of bottom-aligned glass cards */
+/* Scroll behavior lives in assets/js/horizontal-scroll.js            */
+/* (HorizontalScroll) — reusable, no UI here controls it              */
+/* ═════════════════════════════════════════════════════════════ */
+
+.image-stripe {
+  position: relative;
+  width: 100%;
+  padding: var(--space-section) 0;
+  overflow: hidden;
+  background: transparent;
+  /* Without this, z-index stays auto, which paints BELOW the particle
+     canvas (position:fixed, z-index:1 — see default.hbs) regardless of
+     DOM order. Same fix already used on .posts-tabs-section for the same
+     reason. */
+  z-index: 2;
+  background-color: var(--color-background));
+}
+
+/* ─────────────────────────────────────────────────────────── */
+/* SCROLL TRACK & CARDS                                        */
+/* ─────────────────────────────────────────────────────────── */
+
+.image-stripe-track {
+  display: flex;
+  align-items: flex-end; /* bottom-align cards of different heights */
+  gap: var(--space-lg);
+  padding: 0 var(--content-padding);
+  overflow-x: auto;
+  overflow-y: hidden;
+  cursor: grab;
+  /* Hide scrollbar — autoplay/drag drive it, no visible native scrollbar */
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.image-stripe-track::-webkit-scrollbar {
+  display: none;
+}
+
+.image-stripe-track.is-dragging {
+  cursor: grabbing;
+  scroll-behavior: auto;
+  user-select: none;
+}
+
+.stripe-card {
+  position: relative;
+  flex: 0 0 auto;
+  width: clamp(312px, 32.5vw, 520px); /* 1.3x base size */
+  height: var(--card-height, 416px); /* 1.3x base size */
+  border-radius: var(--glass-radius, 1.25rem);
+  overflow: hidden;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-backdrop);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.stripe-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--glass-shadow-pill, var(--glass-shadow));
+  border-color: var(--glass-border-hover, var(--glass-border));
+}
+
+.stripe-card-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+  transition: transform 0.5s ease;
+  /* Belt-and-suspenders alongside handleDragStart's preventDefault():
+     stops the browser from initiating native image drag-and-drop, which
+     would otherwise hijack mouse capture away from the drag-to-scroll. */
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+.stripe-card:hover .stripe-card-image {
+  transform: scale(1.05);
+}
+
+/* ─────────────────────────────────────────────────────────── */
+/* RESPONSIVE: MOBILE                                          */
+/* ─────────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .image-stripe-track {
+    padding: 0 var(--space-md);
+    gap: var(--space-md);
+  }
+
+  .stripe-card {
+    width: clamp(234px, 78vw, 364px); /* 1.3x base size */
+    height: clamp(260px, 65vw, 364px); /* 1.3x base size */
+  }
+}

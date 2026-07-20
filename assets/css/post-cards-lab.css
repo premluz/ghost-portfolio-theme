@@ -1,0 +1,72 @@
+/**
+ * POST-CARDS-LAB — Experimental projects grid
+ * 3-column layout with responsive breakpoints
+ */
+
+/* ─── Section Container ──────────────────────────────────────────────── */
+
+.post-cards-lab-section {
+  padding: 50hvh var(--content-padding);
+  background: var(--color-background);
+  position: relative;
+  z-index: 1;
+}
+
+/* ─── Grid Container — 3 columns ────────────────────────────────────── */
+
+.lab-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-lg);
+  width: 100%;
+}
+
+/* ─── Responsive ─────────────────────────────────────────────────────── */
+
+@media (max-width: 1024px) {
+  .post-cards-lab-section {
+    padding: var(--space-2xl) var(--content-padding);
+  }
+
+  .lab-statement-container {
+    margin-bottom: var(--space-xl);
+  }
+
+  .lab-cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-md);
+  }
+}
+
+@media (max-width: 768px) {
+  .post-cards-lab-section {
+    padding: var(--space-xl) var(--content-padding);
+  }
+
+  .lab-statement-heading {
+    font-size: var(--type-h3-size);
+  }
+
+  .lab-statement-description {
+    font-size: var(--type-h5-size);
+  }
+
+  .lab-cards-grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-md);
+  }
+}
+
+@media (max-width: 480px) {
+  .post-cards-lab-section {
+    padding: var(--space-lg) var(--content-padding);
+  }
+
+  .lab-statement-container {
+    margin-bottom: var(--space-lg);
+  }
+
+  .lab-cards-grid {
+    gap: var(--space-sm);
+  }
+}

@@ -1,0 +1,48 @@
+{{!--
+  POSTS-TABS-GRID-LAB SECTION
+  Grid layout for experimental projects (3-column)
+  Duplicate of posts-tabs-grid but without tabs, only experimental
+  Uses post-card-grid component for consistent styling
+--}}
+
+<section class="statement-slide" style="min-height: 10vh; margin-top: 20vh; margin-bottom: 0;">
+  <div class="statement-container">
+    <h2 class="statement-heading">Pitches, smaller projects, and explorations.</h2>
+    <h5 class="statement-description"></h5>
+  </div>
+</section>
+
+
+<section class="posts-tabs-grid-lab-section" id="work-grid-lab">
+
+   
+
+  <div class="posts-tabs-grid-lab-wrapper">
+    {{!-- Experimental grid (no tabs, just the grid) --}}
+    <div class="posts-grid-lab-cards">
+      {{#get "posts" filter="featured:true+tag:hash-work+tag:experimental" limit="100" include="tags,authors"}}
+        {{#foreach posts}}
+          {{> post-card-grid}}
+        {{/foreach}}
+      {{/get}}
+    </div>
+  </div>
+
+</section>
+
+{{!-- Shared with posts-tabs-grid.hbs: the only script that populates
+      .grid-card-title/.grid-card-description/etc. via per-card fetch() +
+      window.projectMeta extraction (initGridCardMetadata()/initGridCardHover()
+      in posts-tabs-grid.js). This partial reuses the same .grid-card markup
+      (via post-card-grid.hbs) but didn't load the script that fills it in —
+      cards rendered with structurally-empty description/title text.
+      initPostsTabsGrid() itself no-ops harmlessly here (guards on
+      .posts-tabs-grid-section, which this page doesn't have — there are no
+      tabs on the lab grid), but the metadata-wiring functions are unguarded
+      top-level calls that work off any .grid-card on the page. --}}
+<script src="{{asset "js/posts-tabs-grid.js"}}"></script>
+
+<script>
+// Lab grid particle trigger is handled centrally by particle-morph.hbs
+// (ScrollTrigger on #work-grid-lab -> morphTo('lab', 400)).
+</script>

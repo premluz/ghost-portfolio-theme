@@ -1,0 +1,22 @@
+{{!--
+  ABOUT-PAGE PROJECT SHOWCASE
+  Same {{> post-card-grid}} card and posts-tabs-grid.js metadata script as
+  the Work page — one flat loop, no per-item layout logic here. The
+  large / pair / large-mirrored / pair rhythm is pure CSS (:nth-child on
+  .about-projects-grid, see posts-tabs-grid.css) driven purely by each
+  card's position in the loop, so adding/removing posts just re-flows the
+  rhythm automatically.
+--}}
+<section class="about-projects-section">
+  <div class="container">
+    <div class="about-projects-grid">
+      {{#get "posts" filter="tag:hash-work+tag:featured" limit="100" include="tags,authors"}}
+        {{#foreach posts}}
+          {{> post-card-grid}}
+        {{/foreach}}
+      {{/get}}
+    </div>
+  </div>
+</section>
+
+<script src="{{asset "js/posts-tabs-grid.js"}}"></script>

@@ -1,0 +1,29 @@
+{{!< default}}
+{{#page}}
+<section class="page" data-page-id="{{id}}">
+  <article class="post page-single" data-post-hero="{{@custom.page_hero_width}}">
+    <header class="post-header page-header" data-page-content-width="{{@custom.page_content_width}}">
+      <div class="container">
+        <h1 class="post-title page-title">{{title}}</h1>
+        {{#if custom_excerpt}}
+          <p class="post-excerpt page-excerpt">{{custom_excerpt}}</p>
+        {{else if excerpt}}
+          <p class="post-excerpt page-excerpt">{{excerpt}}</p>
+        {{/if}}
+      </div>
+    </header>
+
+    {{#if feature_image}}
+      <figure class="post-image page-image">
+        <img src="{{feature_image}}" alt="{{title}}" loading="lazy" data-skip-reveal>
+      </figure>
+    {{/if}}
+
+    <div class="gh-canvas" data-page-content-width="{{@custom.page_content_width}}">
+      <div class="gh-content">
+        {{content}}
+      </div>
+    </div>
+  </article>
+</section>
+{{/page}}

@@ -1,0 +1,106 @@
+<nav class="gh-navigation" data-nav-layout="{{@custom.nav_layout}}" data-nav-hide-mode="stagger">
+  <div class="nav-wrapper">
+    <!-- Logo -->
+    <div class="logoandnavwrapper">
+    <a href="{{@site.url}}" data-transition class="nav-logo"  style="margin-bottom:0;">
+
+       {{!-- Split into individual letters so the minimize/expand animation
+             (main.css, keyed off .nav-hidden — see "LOGO MINIMIZE/EXPAND")
+             can fade+blur each one in/out on its own stagger delay. The
+             first letter of each word (.logo-letter-anchor) never hides —
+             it's the "p"/"d" that stay visible inside the dot once it
+             grows into the minimized badge. --}}
+       <h4 class="nav-logo-text-based">
+        <!--<span class="serif"><span class="logo-letter logo-letter-anchor">p</span><span class="logo-letter">r</span><span class="logo-letter">e</span><span class="logo-letter">m</span><span class="logo-letter logo-s-prems">s</span></span><span class="brand logo-dot">.</span><span class="sans"><span class="logo-letter logo-letter-anchor">d</span><span class="logo-letter">e</span><span class="logo-letter">s</span><span class="logo-letter">i</span><span class="logo-letter">g</span><span class="logo-letter">n</span></span><span class="sans logo-s-design">s</span>-->
+        <span class="sans"><span class="logo-letter logo-letter-anchor">P</span><span class="logo-letter">r</span><span class="logo-letter">e</span><span class="logo-letter">m</span> <span class="logo-letter logo-letter-anchor">L</span><span class="logo-letter">u</span><span class="logo-letter">c</span><span class="logo-letter">z</span><span class="logo-letter">a</span><span class="logo-letter">k</span></span>
+       </h4>
+      <!--{{#if @site.logo}}
+       <img src="{{@site.logo}}" alt="{{@site.title}}" class="nav-logo-image">
+      {{else}}
+        <div class="nav-logo-text">
+          <span>{{@site.title}}</span>
+        </div>
+      {{/if}}-->
+    </a>
+
+    {{!-- .nav-menu-icon/.nav-menu-label below: desktop shows the text label
+          only (icon hidden); mobile (main.css, max-width:768px) flips that
+          to show the icon only, turning this into an icon-only row instead
+          of hiding the whole menu as it did before. --}}
+    <!-- Desktop Menu -->
+    <ul class="nav-menu">
+      <li><a href="{{@site.url}}/work" data-transition><img src="{{asset "icons/work.svg"}}" alt="" class="nav-menu-icon"><span class="nav-menu-label">Work</span></a></li>
+      <li><a href="{{@site.url}}/about" data-transition><img src="{{asset "icons/user.svg"}}" alt="" class="nav-menu-icon"><span class="nav-menu-label">About</span></a></li>
+      <li><a href="{{@site.url}}/contact" data-transition><img src="{{asset "icons/contact.svg"}}" alt="" class="nav-menu-icon"><span class="nav-menu-label">Contact</span></a></li>
+     <!-- <li><a href="{{#get 'pages' limit='1' filter='slug:about'}}{{url}}{{else}}{{@site.url}}about/{{/get}}#aboutme">About</a></li>-->
+    </ul>
+    </div>
+
+    <!-- Right Side Controls -->
+    <div class="nav-controls">
+      <!-- Post Navigation Arrows (only on post pages) 
+      <div class="nav-post-controls" style="display: none;">
+        <a href="#" class="nav-icon-btn nav-post-prev" aria-label="Previous post" title="Previous post">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+          </svg>
+          <span class="nav-tooltip">Previous</span>
+        </a>
+        <a href="#" class="nav-icon-btn nav-post-next" aria-label="Next post" title="Next post">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+          </svg>
+          <span class="nav-tooltip">Next</span>
+        </a>
+      </div>-->
+
+      <!-- Search Button
+      <button class="nav-icon-btn search-btn" aria-label="Search" data-ghost-search>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+        <span class="nav-tooltip">Search</span>
+      </button>-->
+
+      <!-- Sign In Button
+      <a href="#/portal/signin" class="nav-text-btn" data-portal="signin">Sign in</a>-->
+
+      <!-- Subscribe Button
+      <a href="#/portal" class="button nav-button" data-portal="signup">Subscribe</a>-->
+
+      <!-- Theme Toggle  -->
+      <button class="nav-icon-btn theme-toggle" aria-label="Toggle theme">
+        <img src="{{asset "icons/sun.svg"}}" alt="Light mode" class="theme-icon-sun">
+        <img src="{{asset "icons/moon.svg"}}" alt="Dark mode" class="theme-icon-moon">
+        <span class="nav-tooltip">Theme</span>
+      </button> 
+
+      {{!-- Close button — post pages only. Collapses the nav down to just
+            this (see main.css "POST PAGE NAV"); returns to wherever the
+            post was opened from, at the same scroll position, via
+            page-transition.js's runCurtainExit(). --}}
+      {{#is "post"}}
+      <button class="nav-icon-btn nav-close-btn" aria-label="Close">
+        <img src="{{asset "icons/close.svg"}}" alt="Close" class="nav-icon-close">
+        <span class="nav-tooltip">Close</span>
+      </button>
+      {{/is}}
+
+      <!-- Hamburger Menu -->
+      <!--<button class="hamburger" aria-label="Toggle menu" aria-expanded="false">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>-->
+    </div>
+  </div>
+
+  <!-- Mobile Menu -->
+  <div class="nav-menu-mobile">
+    <a href="{{@site.url}}" class="mobile-nav-link">Home</a>
+    <a href="{{#get 'pages' limit='1' filter='slug:about'}}{{url}}{{else}}{{@site.url}}about/{{/get}}" class="mobile-nav-link">About</a>
+    <hr class="mobile-nav-divider">
+    <a href="#/portal/signin" class="mobile-nav-link" data-portal="signin">Sign in</a>
+    <a href="#/portal" class="button mobile-nav-button" data-portal="signup">Subscribe</a>
+  </div>
+</nav>

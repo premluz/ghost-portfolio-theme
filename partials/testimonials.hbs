@@ -1,0 +1,69 @@
+<section class="testimonials-section animated-scroll-sequence" data-testimonials-layout="{{@custom.testimonials_layout}}" data-skip-reveal>
+ <header class="testimonials-header" data-sequence-animate data-scroll-distance="500">
+    <h2 class="brand serif">Valued for</h2>
+    <!-- <p class="section-description">delivering without drama.</p>-->
+  </header>
+
+
+
+
+    {{!-- RIGHT: image (pinned) — theme-responsive --}}
+   <!-- <div class="profile-image-wrapper" id="profile-image-wrapper">
+
+      {{!-- Theme-responsive portrait image --}}
+      <img
+        src="/content/images/prem-front-dark.png"
+        alt="{{@site.title}}"
+        class="profile-image profile-image-main"
+        id="profile-portrait"
+        data-dark-src="/content/images/prem-front-dark.png"
+        data-light-src="/content/images/prem-front-light.png"
+        loading="eager" 
+      >
+
+      {{!-- Fallback: site cover image --}}
+     {{#if @site.cover_image}}
+        <img
+          src="{{@site.cover_image}}"
+          alt="{{@site.title}}"
+          class="profile-image profile-image-fallback"
+          loading="eager"
+        >
+      {{/if}}
+
+      <script>
+        (function(){
+          var img = document.getElementById('profile-portrait');
+          var theme = document.documentElement.getAttribute('data-theme') || 'dark';
+          if (theme === 'light') {
+            img.src = img.getAttribute('data-light-src');
+          } else {
+            img.src = img.getAttribute('data-dark-src');
+          }
+
+          // Listen for theme changes
+          window.addEventListener('themechange', function(e) {
+            if (e.detail?.theme === 'light') {
+              img.src = img.getAttribute('data-light-src');
+            } else {
+              img.src = img.getAttribute('data-dark-src');
+            }
+          });
+        })();
+      </script>
+   </div> {{!-- /.profile-image-wrapper --}}
+
+-->
+  <div class="testimonials-grid" data-testimonials-layout="{{@custom.testimonials_layout}}">
+    <div class="testimonials-track">
+      {{#get "posts" filter="tag:testimonial" limit="100" include="tags,authors,html"}}
+        {{#foreach posts}}
+          {{> testimonial-card}}
+        {{/foreach}}
+      {{/get}}
+    </div>
+
+
+    
+  </div>
+</section>

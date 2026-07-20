@@ -1,0 +1,464 @@
+/* ═════════════════════════════════════════════════════════════ */
+/* PROFILE SECTION — shared layout with HERO SECTION               */
+/* Structure identical; only positioning differs (relative vs fixed) */
+/* ═════════════════════════════════════════════════════════════ */
+
+.profile {
+  position: relative;
+  width: 100%;
+  height: 200vh;
+  padding: 0;
+  overflow: visible;
+  --profile-content-ratio: 0.668;
+  --profile-image-ratio: 0.332;
+  /* Was 0 — below the particle canvas (position:fixed, z-index:1 — see
+     default.hbs), so the whole section (including its own internally-
+     stacked .profile-bg/.profile-container children) painted underneath
+     particles regardless of DOM order. Same fix already used on
+     .posts-tabs-section/.image-stripe for the same reason. */
+  z-index: 2;
+  pointer-events: none;
+
+}
+
+/* ── Reversed-palette-on-entry ("the design role is shifting.") ──────────
+   --profile-shift (0 = normal, 1 = fully shifted) is driven by
+   BackgroundLayer.bindShift() in scroll-scrub-anim.js, tied to two
+   viewport-height ramps at this section's own top/bottom edges — see
+   background-layer.js for the full rationale. Two things make this safe
+   in ways an earlier version wasn't:
+     - The panel below is its own pseudo-element with a FIXED colour, not
+       a swap of --color-background — it can only ever paint within this
+       section's own box (a CSS background cannot escape its own element),
+       so it structurally cannot bleed onto a neighbouring section no
+       matter how much of both happen to be on screen mid-scroll.
+     - Text uses color-mix() to blend the LIVE current --color-on-surface/
+       --color-on-surface-variant toward a fixed "shifted" colour — always
+       reading the theme token fresh, never caching it, so a site theme
+       toggle at any point (before, during, after) just works with nothing
+       to reconcile. */
+.profile::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0; /* behind .profile-bg (z-index:5) / .profile-container (z-index:2) */
+  /* Theme-aware: light sites shift to this dark panel, dark/dim sites to a
+     light one — see the SHIFT PALETTE tokens in tokens.css.
+     Gated by --shift-scope-panel (0/1, tokens.css): the section-scoped
+     variant of the shift. Currently off in favour of the page-scoped
+     backdrop blend (main.css .page-backdrop) — flip the two scope flags in
+     tokens.css to switch back; this rule is kept fully functional. */
+  background-color: var(--shift-bg, #22262E);
+  opacity: calc(var(--profile-shift, 0) * var(--shift-scope-panel, 1));
+  pointer-events: none;
+
+}
+
+.profile-headline,
+.profile-item-header {
+  color: color-mix(in srgb, var(--color-on-surface), var(--shift-ink, white) calc(var(--profile-shift, 0) * 100%));
+}
+
+.profile-description,
+.profile-item-description,
+/* The paragraphs inside .profile-description don't inherit its color — the
+   global p rule re-colors them directly — so they need the blend themselves.
+   Same for .profile-intro (own color declaration below). */
+.profile-description p,
+.profile-paragraph,
+.profile-intro {
+  color: color-mix(in srgb, var(--color-on-surface-variant), var(--shift-ink, white) calc(var(--profile-shift, 0) * 100%));
+}
+
+.profile-bg {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  display: none;
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: flex-start;
+  overflow: visible;
+  z-index: 5;
+  pointer-events: none;
+  border-radius: var(--radius-3xl) !important;
+}
+
+.profile-bg * {
+  pointer-events: auto;
+}
+
+/* When profile background is disabled, remove background styling and padding */
+.profile[data-profile-background='false'] {
+  padding: 0;
+  background: none;
+  border-radius: 0;
+  margin-top: 0;
+}
+
+.profile[data-profile-background='false'] > * {
+  display: flex;
+  align-items: stretch;
+  height: calc(100vh - var(--nav-height));
+}
+
+/* ── Left: text container (golden ratio ~61.8%) ──────────────── */
+
+.profile-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: var(--space-lg) var(--content-padding);
+  min-width: 0;
+  position: relative;
+  z-index: 2;
+  overflow: visible;
+  max-height: 100vh;
+}
+
+/* Profile respects page width settings */
+body[data-page-width='contained'] .profile-container {
+  /* max-width: calc(1440px * var(--profile-content-ratio)); */
+}
+
+body[data-page-width='wide'] .profile-container {
+  /*  max-width: calc(1600px * var(--profile-content-ratio)); */
+}
+
+body[data-page-width='full'] .profile-container {
+  /*  max-width: calc(100% * var(--profile-content-ratio)); */
+}
+
+/* When profile respects page width, constrain to page width and auto height */
+.profile[data-home-profile-width='respect_page_width'] {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.profile[data-home-profile-width='respect_page_width'] .profile-bg {
+  min-height: auto;
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
+.profile[data-home-profile-width='respect_page_width'] .profile-container {
+  flex: 0 0 calc(100% * var(--profile-content-ratio));
+  max-width: calc(100% * var(--profile-content-ratio));
+  padding: var(--space-section) 0;
+  z-index: 2;
+}
+
+.profile[data-home-profile-width='respect_page_width'] .profile-image-wrapper {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  height: 100%;
+  z-index: 0;
+}
+
+body[data-page-width='wide'] .profile[data-home-profile-width='respect_page_width'] .profile-bg {
+  max-width: 1600px;
+}
+
+body[data-page-width='full'] .profile[data-home-profile-width='respect_page_width'] .profile-bg {
+  max-width: 100%;
+}
+
+/* When animation is disabled, allow content to scroll over profile image */
+
+.profile-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  width: 100%;
+  margin: 50vh 0 50vh 0;
+  height: 100%;
+  justify-content: flex-end;
+  align-items: flex-start;
+  text-align: left;
+  opacity: 1;
+  filter: blur(0px);
+}
+
+/* Top label */
+.profile-intro {
+  display: block;
+  font-size: var(--text-size-h5, 1.125rem);
+  font-weight: var(--text-weight-semibold, 600);
+  /* Shift-aware (identical to the token at --profile-shift 0) — this rule is
+     later in the file than the grouped color-mix block above, so it must
+     carry the blend itself or it would override it back to the plain token. */
+  color: color-mix(in srgb, var(--color-on-surface-variant), var(--shift-ink, white) calc(var(--profile-shift, 0) * 100%));
+  margin-bottom: 0;
+  width: auto;
+  margin-bottom: 50vh
+}
+
+/* Main headline */
+.profile-headline {
+  display: block;
+  /* Fluid: 16rem at desktop, scaling down with viewport. Line-height is
+     UNITLESS on purpose — it tracks whatever the font-size resolves to;
+     the old fixed 12rem line-height stayed huge after a media query
+     shrank the font, producing giant mobile line spacing. */
+  font-size: var(--text-size-h1);
+  /* Unitless so it always tracks the fluid font-size above. (The !important
+     this carried was armor against the body[data-line-spacing-header] h2
+     rules — that system was deleted in the typography refactor, so plain
+     class specificity now wins over the h2 element rule.) */
+  line-height: 0.75;
+  letter-spacing: var(--text-letter-spacing-h1);
+  font-weight: var(--text-weight-extrabold, 800);
+  /* color: see the color-mix() rule further down (reversed-palette-on-entry) */
+  margin-top: 0;
+  margin-bottom: 4rem;
+  width: auto;
+  opacity: 1;
+  filter: none;
+  transform: none;
+}
+
+.profile-headline .animate-word {
+  display: inline-block !important;
+  white-space: nowrap;
+}
+
+.profile-line {
+  display: block;
+  line-height: inherit;
+}
+
+/* Supporting description */
+.profile-description {
+  font-size: var(--text-size-h5);
+  line-height: var(--text-line-height-body, 1.8);
+  /* color: see the color-mix() rule further down (reversed-palette-on-entry) */
+  margin-bottom: 0;
+  /* Prevent hyphenation and word breaks */
+  hyphens: none;
+  word-break: keep-all;
+  width: 50%;
+}
+
+/* Hide paragraphs initially — GSAP handles reveal animation */
+.profile-paragraph {
+  opacity: 0;
+  transform: translateY(16px) scale(0.97);
+}
+
+/* ── Six items grid ("how I work, in practice") ──────────────── */
+
+.profile-items {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-xl) var(--space-xl);
+  margin-top: var(--space-xl);
+  width: 100%;
+}
+
+.profile-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  /* JS (card-scroll-reveal.js, 'slide-left' variant) drives the reveal;
+     this is just a no-JS/pre-paint fallback so nothing flashes at x:0. */
+  opacity: 0;
+  transform: translateX(120px);
+  padding: var(--space-md) 0;
+  
+}
+
+.profile-item-header {
+  font-size: var(--text-size-h2, 1.5rem);
+  font-weight: var(--text-weight-extrabold, 800);
+  /* color: see the color-mix() rule further up (reversed-palette-on-entry) */
+  margin: 0;
+}
+
+.profile-item-description {
+  font-size: var(--text-size-h5, 1rem);
+  line-height: var(--text-line-height-body, 1.6);
+  /* color: see the color-mix() rule further up (reversed-palette-on-entry) */
+  margin: 0;
+}
+
+/* Tag pills */
+.profile-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin: 0 0 0 -10px;
+}
+
+.profile-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-full, 9999px);
+  font-size: var(--text-size-xs);
+  font-weight: var(--text-weight-normal);
+  color: var(--color-on-surface-variant);
+  letter-spacing: var(--primitive-letter-spacing-normal);
+  background-color: var(--glass-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* ── Right: image wrapper (golden ratio ~38.2%) ────────────────── */
+
+.profile-image-wrapper {
+  /* position:absolute (not fixed) — this element now lives in
+     testimonials.hbs (.testimonials-section, position:relative), not
+     .profile. Fixed positioning let its slide-in/out transform (x:'100%'
+     in scroll-scrub-anim.js's initTestimonialsImage()) render past the
+     viewport's right edge; ancestor overflow-x:hidden never clips
+     position:fixed elements (they're viewport-anchored, not
+     ancestor-anchored), which produced a persistent site-wide horizontal
+     scrollbar. Absolute positioning anchors it to .testimonials-section
+     instead, so the same ancestor overflow-x:clip actually contains it. */
+  position: absolute;
+  bottom: 0;
+  right: 20vw;
+  height: 100dvh;
+  width: 40vw;
+  max-width: 50%;
+  z-index: 10;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: none;
+  overflow: visible;
+}
+
+/* When profile respects page width, adjust image positioning */
+.profile[data-home-profile-width='respect_page_width'] .profile-image-wrapper {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  height: 100%;
+  z-index: 0;
+}
+
+.profile-image {
+  width: auto;
+  height: 100%;
+  object-fit: contain;
+  object-position: bottom center;
+  display: block;
+  border-radius: var(--radius-lg);
+  image-orientation: none;
+  opacity: 1 !important;
+}
+
+.profile-image-main {
+  z-index: 1;
+  opacity: 1 !important;
+}
+
+.profile-image-fallback {
+  z-index: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Blink overlay — sits on top of main image, opacity controlled by scroll */
+.profile-image-blink {
+  z-index: 2;
+  opacity: 0; /* Controlled by JS scroll animation */
+}
+
+/* ── Tablet (1024px-1440px) — Animate shrink to 50/50 layout ── */
+
+@media (max-width: 1440px) and (min-width: 1025px) {
+  .profile-container {
+    transition: flex 0.3s ease, max-width 0.3s ease;
+  }
+
+  .profile-image-wrapper {
+    width: 100% !important;
+    transition: width 0.3s ease;
+  }
+}
+
+/* ── Tablet (< 1024px) — text full width, image 50% ─────── */
+
+@media (max-width: 1024px) {
+  /* Section now carries real content (the six items grid below the
+     portrait), not just a headline + one-liner — grow to fit instead of
+     clipping to a fixed 100svh/30-70 split like the old hero-style layout. */
+  .profile {
+    height: auto;
+    padding: 0;
+  }
+
+  .profile-bg {
+    position: relative !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: auto !important;
+    padding: 0 !important;
+    margin-top: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .profile-container {
+    flex: 0 0 auto !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    max-height: none !important; /* base rule's 100vh cap still applies here
+      otherwise — overflow:visible alone lets content paint past it, but the
+      box itself (and thus the flex layout height it contributes) stays
+      capped, so the image-wrapper sibling below still starts right at that
+      100vh mark and overlaps the overflowing text/items instead of after them */
+    order: 1;
+    padding: var(--space-lg) var(--content-padding) !important;
+    overflow: visible !important;
+    box-sizing: border-box !important;
+  }
+
+  .profile-content {
+    height: auto !important;
+    justify-content: flex-start !important;
+  }
+
+  .profile-image-wrapper {
+    position: relative !important;
+    width: 100% !important;
+    flex: 0 0 auto !important;
+    height: 60vh !important;
+    order: 2;
+    pointer-events: auto !important;
+    z-index: auto !important;
+    top: auto !important;
+    right: auto !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+
+  .profile-items {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-md) var(--space-sm);
+  }
+}
+
+/* ── Reduced-motion: skip GSAP initial hidden states ────────── */
+@media (prefers-reduced-motion: reduce) {
+  .profile-intro,
+  .profile-headline,
+  .profile-description,
+  .profile-image-wrapper {
+    filter: none !important;
+    transform: none !important;
+  }
+
+  .profile-tags .profile-tag {
+    transform: none !important;
+  }
+
+  .profile-item {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}

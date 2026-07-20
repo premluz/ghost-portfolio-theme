@@ -1,0 +1,16 @@
+{{!--
+  POST-CARDS-LAB SECTION
+  Experimental projects grid — 3 columns
+  Only pulls projects tagged with "experimental"
+  Class names prefixed with "lab-" to avoid conflicts with post-cards-grid
+--}}
+
+<section class="post-cards-lab-section" id="lab" data-section-id="lab">
+  {{#get "posts" filter="featured:true+tag:hash-work+tag:experimental" limit="100" include="tags,authors"}}
+    <div class="lab-cards-grid" data-posts-layout="grid">
+      {{#foreach posts}}
+        {{> post-card}}
+      {{/foreach}}
+    </div>
+  {{/get}}
+</section>

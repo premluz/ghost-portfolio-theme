@@ -1,0 +1,224 @@
+{{!< default}}
+
+{{!-- Sticky Section Navigation (outside article for proper positioning) 
+<nav class="sticky-nav" data-auto-generate="true" data-content-selector=".gh-content" data-heading-selector="h2" aria-label="Post sections"></nav>
+--}}
+{{#post}}
+
+<article class="post" data-post-hero="contained" data-post-id="{{id}}" data-post-tags="{{#foreach tags}}{{slug}}{{#unless @last}},{{/unless}}{{/foreach}}">
+  <header class="post-header">
+    <div class="container">
+      <h1 class="post-title">{{title}}</h1>
+      {{!-- Project client name --}}
+      <!--<p class="post-client" id="project-client"></p>-->
+      {{!-- Project result --}}
+    <!--  <div class="post-result" id="project-result"></div>-->
+      {{#if custom_excerpt}}
+        <p class="post-excerpt">{{custom_excerpt}}</p>
+      {{/if}}
+      <div class="post-meta">
+        <!--<time datetime="{{date format="YYYY-MM-DD"}}">{{date format="MMM DD, YYYY"}}</time>-->
+        {{!-- Keywords pills from projectMeta --}}
+        <div class="post-keywords" id="post-keywords"></div>
+       <!-- {{#if reading_time}}
+          <span class="reading-time">{{reading_time}}</span>
+        {{/if}}-->
+      </div>
+    </div>
+
+    {{#if feature_image}}
+      <figure class="post-image">
+        <img src="{{feature_image}}" alt="{{title}}" loading="lazy" data-skip-reveal>
+      </figure>
+    {{/if}}
+
+    {{!-- Project logomark container --}}
+    <div class="logomark-container" id="logomark-container">
+      <img class="logomark-image" id="logomark-image" alt="Project logo" />
+    </div>
+  </header>
+
+  {{!-- Table of Contents --}}
+  <aside class="post-toc" aria-label="Table of contents">
+    <button class="post-toc-toggle" aria-expanded="false" aria-controls="post-toc-list">
+      <span class="post-toc-icon">☰</span>
+    </button>
+    <nav class="post-toc-nav" id="post-toc-list" aria-hidden="true">
+      <ul class="post-toc-list"></ul>
+    </nav>
+  </aside>
+
+  <div class="gh-canvas" data-page-content-width="contained">
+    <div class="gh-content">
+      {{content}}
+    </div>
+  </div>
+
+  <footer class="post-footer">
+  </footer>
+</article>
+
+{{!-- Project metadata display script (runs after content) --}}
+<script>
+  function displayProjectMetadata() {
+    // Support both projectMeta (object) and projectMetaArray (array)
+    let meta = null;
+
+    if (window.projectMetaArray && Array.isArray(window.projectMetaArray) && window.projectMetaArray.length > 0) {
+      meta = window.projectMetaArray[0];
+      console.log('[metadata] Using projectMetaArray[0]:', meta);
+    } else if (window.projectMeta && Object.keys(window.projectMeta).length > 0) {
+      meta = window.projectMeta;
+      console.log('[metadata] Using projectMeta:', meta);
+    }
+
+    if (!meta || Object.keys(meta).length === 0) {
+      console.log('[metadata] No projectMeta/projectMetaArray configured.');
+      return;
+    }
+
+    if (meta.client) {
+      const clientEl = document.getElementById('project-client');
+      if (clientEl) {
+        clientEl.textContent = meta.client;
+        console.log('[metadata] Set client:', meta.client);
+      }
+    }
+
+    if (meta.result) {
+      const resultEl = document.getElementById('project-result');
+      if (resultEl) {
+        resultEl.innerHTML = meta.result;
+        console.log('[metadata] Set result:', meta.result);
+      }
+    }
+
+    const containerEl = document.getElementById('logomark-container');
+    const logomarkEl = document.getElementById('logomark-image');
+
+    if (meta.logomark && logomarkEl) {
+      // Handle relative paths by constructing full URL
+      let logomarkUrl = meta.logomark;
+      if (logomarkUrl.startsWith('/')) {
+        logomarkUrl = window.location.origin + logomarkUrl;
+      }
+      logomarkEl.src = logomarkUrl;
+      console.log('[metadata] Set logomark:', logomarkUrl);
+    }
+
+    // Handle accentColor (both camelCase and kebab-case)
+    const accentColor = meta.accentColor || meta['accent-color'];
+    if (accentColor && containerEl) {
+      containerEl.style.backgroundColor = accentColor;
+      console.log('[metadata] Set accentColor:', accentColor);
+    }
+
+    // Make container visible if either logomark or color is set
+    if (containerEl && (meta.logomark || accentColor)) {
+      containerEl.style.visibility = 'visible';
+      containerEl.style.opacity = '1';
+      console.log('[metadata] Made logomark container visible');
+    }
+
+    // Handle disable-link (both camelCase and kebab-case)
+    const disableLink = meta.disableLink || meta['disable-link'];
+    if (disableLink === true) {
+      // On post detail pages, we can't disable the entire post
+      // Instead, this would be used on post cards/homepage
+      console.log('[metadata] disable-link flag set (applies to post cards, not detail page)');
+    }
+  }
+
+  // Wait for projectMeta or projectMetaArray to be defined (set in post code injection)
+  // Named metaWaitAttempts (not attempts) — plain classic <script> tags share
+  // one global lexical scope for let/const, and particle-morph.hbs (included
+  // globally by default.hbs) declares its own top-level `let attempts` for an
+  // unrelated retry loop. Two scripts on the same page both declaring
+  // `let attempts` throws a SyntaxError that silently kills BOTH scripts
+  // entirely, including particle-morph's post-page exclusion check.
+  let metaWaitAttempts = 0;
+  const waitForMeta = () => {
+    const hasProjectMeta = window.projectMeta && Object.keys(window.projectMeta).length > 0;
+    const hasProjectMetaArray = window.projectMetaArray && Array.isArray(window.projectMetaArray) && window.projectMetaArray.length > 0;
+
+    if (hasProjectMeta || hasProjectMetaArray) {
+      displayProjectMetadata();
+      return;
+    }
+    metaWaitAttempts++;
+    if (metaWaitAttempts < 50) {
+      setTimeout(waitForMeta, 50);
+    }
+  };
+  waitForMeta();
+</script>
+
+{{!-- Testimonial metadata display script (runs after content) --}}
+<script>
+  function displayTestimonialMetadata() {
+    // testimonialMeta should be set via post codeinjection_head in Ghost admin
+    if (!window.testimonialMeta || Object.keys(window.testimonialMeta).length === 0) {
+      console.log('[testimonial] No testimonialMeta configured. Add a script to post codeinjection_head in Ghost admin.');
+      return;
+    }
+
+    const meta = window.testimonialMeta;
+    console.log('[testimonial] Found testimonialMeta:', meta);
+
+    // Display snippet on testimonial detail page if available
+    if (meta.snippet) {
+      const snippetEl = document.getElementById('testimonial-snippet');
+      if (snippetEl) {
+        snippetEl.textContent = meta.snippet;
+        snippetEl.style.display = 'block';
+        console.log('[testimonial] Set snippet:', meta.snippet);
+      }
+    }
+
+    // Display source on testimonial detail page if available
+    if (meta.source) {
+      const sourceEl = document.getElementById('testimonial-source');
+      if (sourceEl) {
+        sourceEl.textContent = meta.source;
+        sourceEl.style.display = 'block';
+        console.log('[testimonial] Set source:', meta.source);
+      }
+    }
+
+    // Display short on testimonial detail page if available
+    if (meta.short) {
+      const shortEl = document.getElementById('testimonial-short');
+      if (shortEl) {
+        shortEl.textContent = meta.short;
+        shortEl.style.display = 'block';
+        console.log('[testimonial] Set short:', meta.short);
+      }
+    }
+
+    // Display full on testimonial detail page if available
+    if (meta.full) {
+      const fullEl = document.getElementById('testimonial-full');
+      if (fullEl) {
+        fullEl.innerHTML = meta.full;
+        fullEl.style.display = 'block';
+        console.log('[testimonial] Set full:', meta.full);
+      }
+    }
+  }
+
+  // Wait for testimonialMeta to be defined (set in post code injection)
+  let testimonialAttempts = 0;
+  const waitForTestimonialMeta = () => {
+    if (window.testimonialMeta && Object.keys(window.testimonialMeta).length > 0) {
+      displayTestimonialMetadata();
+      return;
+    }
+    testimonialAttempts++;
+    if (testimonialAttempts < 50) {
+      setTimeout(waitForTestimonialMeta, 50);
+    }
+  };
+  waitForTestimonialMeta();
+</script>
+
+{{/post}}

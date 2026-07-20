@@ -1,0 +1,1333 @@
+/* ═════════════════════════════════════════════════════════════ */
+/* POST CARD GRID                                                */
+/* All post-card, posts-grid, posts-tabs, and carousel styles   */
+/* Extracted from main.css for maintainability                  */
+/* ═════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────────── */
+/* Section-level gradient overlay for posts-tabs              */
+/* ─────────────────────────────────────────────────────────── */
+
+/* .posts-tabs-section::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -2;
+  pointer-events: none;
+  opacity: var(--gradient-opacity);
+  background-image: url('/assets/images/noise.svg'), var(--gradient-bg);
+  background-size: 256px 256px, cover;
+  background-blend-mode: overlay, normal;
+  transition: opacity 0.6s ease, background-image 0.6s ease;
+} */
+
+/* ─────────────────────────────────────────────────────────── */
+/* Mobile overflow prevention                                  */
+/* ─────────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .posts-tabs-section {
+    overflow: hidden;
+    margin-left: 0;
+    margin-right: 0;
+    width: 100%;
+  }
+
+  /* Tabs always visible on mobile */
+  .posts-tabs-section {
+    opacity: 1;
+    filter: none;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────── */
+/* POSTS TABS WRAPPER & HEADER                                 */
+/* ─────────────────────────────────────────────────────────── */
+
+.posts-tabs-section {
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  position: relative;
+  overflow: visible;
+}
+
+/* This file loads last (see default.hbs), so this rule's own
+   overflow:visible above wins over the mobile overflow:hidden fix earlier
+   in this same file — same specificity, later source. Re-assert hidden
+   here so the carousel-track's off-screen cards stay contained on mobile
+   instead of becoming real page-level horizontal scroll. */
+@media (max-width: 768px) {
+  .posts-tabs-section {
+    overflow: hidden;
+  }
+}
+
+.posts-tabs-wrapper {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.posts-tabs-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-xl) var(--content-padding);
+  margin: 0 0 60px 0;
+  align-items: flex-start;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.posts-tabs-header[data-sticky-header="true"] {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: transparent;
+  padding: var(--space-xl) 0 0 var(--content-padding);
+  gap: var(--space-xs);
+  max-width: 500px;
+}
+
+.posts-tabs-buttons {
+  display: flex;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+@media (min-width: 768px) {
+  .posts-tabs-buttons {
+    gap: var(--space-lg);
+    flex-wrap: nowrap;
+  }
+}
+
+.posts-tab {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  border-radius: 0;
+  font-size: var(--text-size-h2);
+  font-weight: var(--text-weight-h2);
+  color: var(--color-on-surface-variant);
+  letter-spacing: var(--text-letter-spacing-h1);
+  transition: color var(--duration-standard) var(--ease-standard), font-size var(--duration-standard) var(--ease-standard);
+  position: relative;
+  display: inline-flex;
+  align-items: baseline;
+  white-space: nowrap;
+}
+
+@media (min-width: 768px) {
+  .posts-tab {
+    font-size: var(--text-size-h2);
+  }
+}
+
+body[data-typography-body='light'] .posts-tab,
+body[data-typography-body='regular'] .posts-tab,
+body[data-typography-body='medium'] .posts-tab {
+  font-weight: 700;
+}
+
+.posts-tab:hover {
+  color: var(--color-primary);
+}
+
+.posts-tab.active {
+  color: var(--color-primary);
+}
+
+.posts-tab:active {
+  transform: scale(0.97);
+}
+
+.posts-tabs-description {
+  font-size: var(--text-size-body);
+  color: var(--color-on-surface-variant);
+  max-width: 600px;
+  transition: opacity var(--duration-standard) var(--ease-standard);
+}
+
+.posts-tabs-container {
+  position: relative;
+  min-height: 200px;
+  overflow: visible;
+}
+
+.posts-tabs-content {
+  display: none;
+}
+
+.posts-tabs-content.active {
+  display: block;
+}
+
+/* Experimental cards appear at full size (no scroll reveal animation) */
+.posts-tabs-content-experimental .post-card {
+  opacity: 1;
+  transform: none;
+  filter: none;
+}
+
+/* ─────────────────────────────────────────────────────────── */
+/* POSTS GRID BASE                                             */
+/* ─────────────────────────────────────────────────────────── */
+
+.posts-grid {
+  width: 100%;
+  max-width: 100%;
+}
+
+.posts-grid[data-posts-layout='carousel'] {
+  padding: var(--space-section) 0;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+.posts-grid .container {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  max-width: none;
+}
+
+/* ─────────────────────────────────────────────────────────── */
+/* DEFAULT GRID LAYOUT (carousel-track base)                  */
+/* ─────────────────────────────────────────────────────────── */
+
+.carousel-track {
+  display: grid;
+  gap: var(--space-2xl);
+}
+
+.carousel-controls {
+  display: none;
+}
+
+/* ─────────────────────────────────────────────────────────── */
+/* GRID LAYOUT                                                 */
+/* ─────────────────────────────────────────────────────────── */
+
+/* .container's base rule (above) sets grid-template-columns:repeat(2,1fr)
+   for a 2-child layout (#work-cards + .carousel-track — #work-cards is a
+   bare, empty ScrollTrigger anchor for the particle system, see
+   particle-morph.hbs, never meant to render). 'list' mode already
+   overrides this to a single column; grid mode didn't, so #work-cards
+   silently claimed the first of the two column tracks and squeezed
+   .carousel-track (and every card in it) into the second — cards reading
+   small and offset from the left edge instead of using the full row. */
+.posts-grid[data-posts-layout='grid'] .container {
+  grid-template-columns: 1fr;
+  /* Base .container/.posts-tabs-container carry no horizontal inset at
+     all (confirmed: cards sat flush at the viewport edge, left:0/right:
+     1440 on a 1440px viewport, while .posts-tabs-header's own text sits
+     inset by --content-padding) — same content-padding already applied to
+     .about-projects-section/.work-projects-section's .container on the
+     /work/ page (main.css), just never carried over here. 'carousel' mode
+     intentionally has none (unpadded horizontal-scroll track) and
+     'stacked' explicitly forces 0 — this only touches grid/list. */
+  padding: 0 var(--content-padding);
+}
+
+.posts-grid[data-posts-layout='grid'] .carousel-track {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-4xl);
+  width: 100%;
+}
+
+/* Rhythm: 1 full-width row, then a paired row, repeating (same 3-item
+   cycle as .about-projects-grid — see posts-tabs-grid.css). Every 3rd
+   card starting at 1 spans both columns; the other two in each cycle
+   fall into the normal 2-up grid. Harmless on mobile: the 960px
+   breakpoint below already collapses .carousel-track to 1 column, so
+   spanning "both columns" there is a no-op.
+
+   :nth-of-type, not :nth-child — post-and-cards.js inserts a
+   .statement-slide (a <section>) as a sibling before some cards
+   (card.parentElement.insertBefore, see main.css's STATEMENT SLIDE
+   section). :nth-child counts every sibling regardless of tag, so each
+   inserted <section> would shift the child-index of every .post-card
+   after it, breaking the 1-2-1 cadence depending on how many cards
+   happen to have a cardDescription. :nth-of-type only counts same-tag
+   (<article>) siblings, so it's unaffected by the <section> insertions. */
+.posts-grid[data-posts-layout='grid'] .post-card:nth-of-type(3n+1) {
+  grid-column: 1 / -1;
+}
+
+/* Sizing/spacing below mirrors .about-projects-grid's .grid-card exactly
+   (see posts-tabs-grid.css) — same rhythm concept, so the same numbers:
+   zero outer card padding (the gap between image and content comes from
+   .post-card-content's own padding-top, not a card inset). */
+.posts-grid[data-posts-layout='grid'] .post-card {
+  padding: 0;
+}
+
+/* .post-card-inner is flex-row unconditionally in the base rule (see
+   POST CARD LINK & INNER below), built for the 'list' layout which
+   explicitly re-balances it via flex:0.9/0.7 on image/content. Grid mode
+   never got that rebalance, so it inherited content's raw flex:1 (=
+   flex-basis:0%) fighting image's width:100% (170% demanded in a row
+   that only fits 100%) — nearly all the shrink lands on content,
+   collapsing it to ~0 width and wrapping the category text one letter
+   per line.
+
+   Paired (2-up) cards: stack image-on-top/content-below — sidesteps the
+   width fight entirely and matches how .post-card-client/-description
+   below are already styled as plain full-width blocks, not row
+   companions. DOM order is content-then-image, so `order` flips the
+   visual order to put the image first without touching the markup.
+   Full-width row cards (nth-of-type(3n+1) below) get their own row layout
+   instead — content reads next to the image there, not above it. */
+.posts-grid[data-posts-layout='grid'] .post-card-inner {
+  flex-direction: column;
+  /* Base rule sets gap: var(--space-4xl) (~10rem) unconditionally — left
+     as-is here it stacks with .post-card-content's own 2rem top-padding
+     below (confirmed: measured gap was 160px + 32px = 192px). The content
+     padding alone is the intended full gap, matching
+     .grid-card-content — zero this out so it isn't additive. */
+  gap: 0;
+}
+
+/* Paired-card gap between image and content: was inheriting the base
+   rule's `padding: var(--space-md)` (all sides) on top of .post-card-inner
+   also carrying the base `gap: var(--space-4xl)` (~10rem desktop, see POST
+   CARD LINK & INNER) — stacking both made the image-to-description gap
+   much larger than .grid-card-content's flat `padding: 2rem 0 0 0`.
+   Mirroring that directly: no flex `gap` here at all, just a 2rem
+   top-only padding on the content itself provides the entire visual gap,
+   same mechanism as .about-projects-grid. */
+.posts-grid[data-posts-layout='grid'] .post-card-content {
+  padding: 2rem 0 0 0;
+  order: 2;
+}
+
+.posts-grid[data-posts-layout='grid'] .post-card-image {
+  order: 1;
+}
+
+/* Full-width row: side-by-side instead of stacked, natural DOM order
+   (content left, image right) — reset the paired-card `order` above.
+   gap:4rem and the 66/34 image/content split match
+   .about-projects-grid's nth-child(6n+1)/(6n+4) full-width row exactly
+   (was 60/40 with a var(--space-2xl) gap here — this is the "about-
+   projects image is larger" difference). padding-top:0 on content resets
+   the paired-card top-padding above, matching .grid-card-content's own
+   `padding-top: 0` override for its full-width rows — there's no
+   "stacking" here to bridge with padding, the row's own `gap` already
+   separates image and content horizontally. */
+.posts-grid[data-posts-layout='grid'] .post-card:nth-of-type(3n+1) .post-card-inner {
+  flex-direction: row;
+  gap: 4rem;
+  /* Content column bottom-aligned against the (taller) image, not
+     stretched to match its height with the text sitting at the top. */
+  align-items: flex-end;
+}
+
+.posts-grid[data-posts-layout='grid'] .post-card:nth-of-type(3n+1) .post-card-content {
+  order: 0;
+  flex: 1 1 34%;
+  width: 34%;
+  padding-top: 0;
+}
+
+.posts-grid[data-posts-layout='grid'] .post-card:nth-of-type(3n+1) .post-card-image {
+  order: 0;
+  flex: 1 1 66%;
+  width: 66%;
+}
+
+.posts-grid[data-posts-layout='grid'] .post-card-image {
+  overflow: hidden;
+  aspect-ratio: 1440 / 900;
+  width: 100%;
+}
+
+.posts-grid[data-posts-layout='grid'] .post-card-content {
+  width: 100%;
+}
+
+.posts-grid[data-posts-layout='grid'] .post-card-client {
+  display: block;
+  font-size: var(--text-size-caption);
+  color: var(--color-on-surface-variant);
+  margin: 0 0 var(--space-sm) 0;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.posts-grid[data-posts-layout='grid'] .post-card-description {
+  display: block;
+  font-size: var(--text-size-body);
+  color: var(--color-on-surface-variant);
+  margin: var(--space-sm) 0 0 0;
+  line-height: 1.5;
+}
+
+/* ─────────────────────────────────────────────────────────── */
+/* LIST LAYOUT                                                 */
+/* ─────────────────────────────────────────────────────────── */
+
+.posts-grid[data-posts-layout='list'] .carousel-track {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 25vh;
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .posts-grid[data-posts-layout='list'] .carousel-track {
+    gap: 100px;
+  }
+}
+
+.posts-grid[data-posts-layout='list'] .container {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-2xl);
+  max-width: none;
+  /* No padding here, unlike grid mode above — list mode's own .post-card
+     rule already sets `padding: 0 var(--content-padding)` on the card
+     itself (confirmed: 57.6px each side). Adding the same padding here
+     too would double the inset (measured: container padding pushed the
+     track to left:58, then the card's own padding would push content to
+     ~115px — visually over-inset compared to the header). */
+}
+
+.posts-grid[data-posts-layout='list'] .post-card {
+  display: flex;
+  flex-direction: row;
+  gap: var(--space-lg);
+  width: 100%;
+  overflow: visible;
+  padding: 0 var(--content-padding);
+  min-width: 0;
+  margin-bottom: var(--space-2xl);
+ margin-top: var(--space-lg) !important;
+
+}
+
+.posts-grid[data-posts-layout='list'] .post-card-image {
+  flex: 0.9;
+  aspect-ratio: 1440 / 900;
+  margin-bottom: 0;
+  order: 1;
+  /* Was overflow:visible — a no-op for the <img> here (object-fit:contain
+     below never overflows its box, so there was nothing to clip either
+     way), but it silently defeated this same border-radius for a <video>
+     (object-fit:cover, can overflow if its aspect ratio doesn't exactly
+     match the box) — the actual "rounding not full" symptom reported. */
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.posts-grid[data-posts-layout='list'] .post-card-link {
+  flex-direction: row;
+  gap: var(--space-2xl);
+  width: 100%;
+  min-width: 0;
+}
+
+.posts-grid[data-posts-layout='list'] .post-card-content {
+  flex: 0.7;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  order: 0 !important;
+  overflow-wrap: break-word;
+}
+
+.posts-grid[data-posts-layout='list'] .post-card-client,
+.posts-grid[data-posts-layout='list'] .post-card-description {
+  display: none;
+}
+
+.posts-grid[data-posts-layout='list'] .post-card-image img {
+  object-fit: contain;
+}
+
+/* Tablet — collapse list to column */
+@media (max-width: 1024px) {
+  .posts-grid[data-posts-layout='list'] .post-card {
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
+  .posts-grid[data-posts-layout='list'] .post-card-link {
+    flex-direction: column;
+    gap: var(--space-lg);
+  }
+
+  .posts-grid[data-posts-layout='list'] .post-card-inner {
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
+  .posts-grid[data-posts-layout='list'] .post-card-image {
+    flex: 0 0 auto;
+    width: 100%;
+    aspect-ratio: 1440 / 900;
+    border-radius: var(--radius-md);
+    order: -1;
+  }
+
+  .posts-grid[data-posts-layout='list'] .post-card-content {
+    order: 1;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────── */
+/* CAROUSEL LAYOUT                                             */
+/* ─────────────────────────────────────────────────────────── */
+
+.posts-grid[data-posts-layout='carousel'] {
+  padding: var(--space-md) 0;
+  width: 100%;
+}
+
+.posts-grid[data-posts-layout='carousel'] .container {
+  max-width: none;
+}
+
+.posts-grid[data-posts-layout='carousel'] .carousel-track {
+  display: flex;
+  gap: var(--space-2xl);
+  overflow-x: auto;
+  overflow-y: visible;
+  scroll-behavior: smooth;
+  scroll-snap-type: x mandatory;
+  padding: var(--space-section) 0;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-on-surface-variant) transparent;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.posts-grid[data-posts-layout='carousel'] .post-card-content {
+  padding: 0;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.posts-grid[data-posts-layout='carousel'] .carousel-track::-webkit-scrollbar {
+  height: 4px;
+}
+
+.posts-grid[data-posts-layout='carousel'] .carousel-track::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.posts-grid[data-posts-layout='carousel'] .carousel-track::-webkit-scrollbar-thumb {
+  background: var(--color-on-surface-variant);
+  border-radius: 2px;
+  opacity: 0.3;
+}
+
+.posts-grid[data-posts-layout='carousel'] .post-card {
+  flex: 0 0 auto;
+  width: min(85%, calc(100% - var(--content-padding) * 2));
+  min-width: 0;
+  max-width: 100%;
+  scroll-snap-align: center;
+  scroll-snap-stop: always;
+  height: auto;
+  box-sizing: border-box;
+}
+
+.posts-grid[data-posts-layout='carousel'] .carousel-controls {
+  display: flex;
+  gap: var(--space-md);
+  justify-content: center;
+  align-items: center;
+  margin-top: var(--space-lg);
+  padding: 0 var(--content-padding);
+}
+
+/* Carousel arrows */
+.carousel-arrow {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  transition: background-color var(--duration-fast) var(--ease-standard), opacity var(--duration-fast) var(--ease-standard);
+  width: 56px;
+  height: 56px;
+  position: relative;
+  color: var(--color-on-surface);
+  flex-shrink: 0;
+}
+
+.carousel-arrow::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  background-color: rgba(var(--primary-rgb, 74, 158, 92), 0.05);
+  border-radius: var(--radius-full);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--duration-standard) var(--ease-standard);
+  z-index: -1;
+}
+
+.carousel-arrow:hover::before {
+  opacity: 1;
+}
+
+.carousel-arrow:hover {
+  color: var(--color-primary);
+}
+
+.carousel-arrow:active {
+  transform: scale(0.97);
+}
+
+.carousel-arrow svg {
+  width: 28px;
+  height: 28px;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+}
+
+/* ─────────────────────────────────────────────────────────── */
+/* STACKED LAYOUT                                              */
+/* ─────────────────────────────────────────────────────────── */
+
+.posts-grid[data-posts-layout='stacked'] {
+  width: 100%;
+  overflow: visible;
+}
+
+.posts-grid[data-posts-layout='stacked'] .container {
+  display: block !important;
+  max-width: none !important;
+  grid-template-columns: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.posts-grid[data-posts-layout='stacked'] .carousel-track {
+  display: block !important;
+  gap: 0 !important;
+  overflow: visible !important;
+  padding-bottom: 80vh !important;
+}
+
+.stacked-card-slot {
+  position: relative;
+  width: 100%;
+}
+
+.posts-grid[data-posts-layout='stacked'] .post-card {
+  position: sticky !important;
+  top: 20vh !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-bottom: 20vh !important;
+  border-radius: var(--radius-sm) !important;
+  transform-origin: 50% 0% !important;
+  will-change: transform !important;
+  background: color-mix(in srgb, var(--surface-2) 40%, transparent) !important;
+  backdrop-filter: blur(32px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(180%) !important;
+  opacity: 1;
+  transform: none;
+  filter: none;
+  overflow: visible !important;
+  display: flex !important;
+  flex-direction: row !important;
+}
+
+.posts-grid[data-posts-layout='stacked'] .post-card:last-child {
+  margin-bottom: 30vh !important;
+}
+
+.posts-grid[data-posts-layout='stacked'] .post-card-link {
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  align-items: stretch !important;
+}
+
+.posts-grid[data-posts-layout='stacked'] .post-card-inner {
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  align-items: stretch !important;
+}
+
+.posts-grid[data-posts-layout='stacked'] .post-card-content {
+  flex: 0 0 45% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  padding: var(--space-xl) !important;
+  background: transparent !important;
+  min-width: 0 !important;
+  order: 0 !important;
+  white-space: normal !important;
+}
+
+.posts-grid[data-posts-layout='stacked'] .post-card-image {
+  flex: 1 !important;
+  width: auto !important;
+  aspect-ratio: unset !important;
+  min-height: 340px !important;
+  margin: var(--space-xl) var(--space-xl) var(--space-xl) 0 !important;
+  order: 1 !important;
+  border-radius: var(--radius-sm) !important;
+  overflow: hidden !important;
+}
+
+.posts-grid[data-posts-layout='stacked'] .post-card-image img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  border-radius: var(--radius-sm) !important;
+  opacity: 1 !important;
+  transform: none !important;
+  filter: none !important;
+}
+
+.posts-grid[data-posts-layout='stacked'] .post-card-title {
+  font-size: var(--text-size-h1) !important;
+  line-height: 1.2 !important;
+  margin: var(--space-md) 0 !important;
+  width: 100% !important;
+  display: block !important;
+  white-space: normal !important;
+  letter-spacing: 0 !important;
+  word-break: break-word !important;
+  word-spacing: 0.1em !important;
+  font-feature-settings: "zero" 0 !important;
+}
+
+@media (max-width: 900px) {
+  .posts-grid[data-posts-layout='stacked'] .post-card {
+    flex-direction: column !important;
+    top: 25vh !important;
+  }
+
+  .posts-grid[data-posts-layout='stacked'] .post-card-link {
+    flex-direction: column !important;
+  }
+
+  .posts-grid[data-posts-layout='stacked'] .post-card-inner {
+    flex-direction: column !important;
+  }
+
+  .posts-grid[data-posts-layout='stacked'] .post-card-content {
+    flex: none !important;
+    order: 0 !important;
+    padding: var(--space-xl) !important;
+  }
+
+  .posts-grid[data-posts-layout='stacked'] .post-card-image {
+    flex: none !important;
+    width: calc(100% - var(--space-xl) * 2) !important;
+    margin: 0 var(--space-xl) var(--space-xl) !important;
+    min-height: 220px !important;
+    aspect-ratio: 16 / 9 !important;
+    order: 1 !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────── */
+/* POST CARD BASE                                              */
+/* ─────────────────────────────────────────────────────────── */
+
+.post-card {
+  border-radius: var(--radius-lg);
+  overflow: visible;
+  position: relative;
+  transition:
+    background-color var(--duration-standard) var(--ease-standard),
+    transform var(--duration-standard) var(--ease-standard);
+  padding: var(--space-lg);
+}
+
+.post-card::before {
+  content: '';
+  position: absolute;
+  inset: calc(var(--space-lg) * -1);
+  border-radius: calc(var(--radius-lg) + var(--space-lg) * 0.25);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--duration-standard) var(--ease-standard);
+  z-index: 20;
+  animation: none;
+}
+
+.post-card:hover::before {
+  opacity: 1;
+  animation: layerStatePulse var(--duration-standard) var(--ease-standard);
+}
+
+.post-card > * {
+  position: relative;
+  z-index: 21;
+}
+
+/* Mobile: force all cards fully visible */
+@media (max-width: 960px) {
+  .post-card,
+  .post-card .post-card-content,
+  .post-card .post-card-image,
+  .post-card .post-card-image img,
+  .post-card .post-card-image video {
+    opacity: 1 !important;
+    transform: none !important;
+    scale: 1 !important;
+    filter: none !important;
+    x: 0 !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────── */
+/* POST CARD LINK & INNER                                      */
+/* ─────────────────────────────────────────────────────────── */
+
+.post-card-link {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  text-decoration: none;
+  color: inherit;
+  position: relative;
+  z-index: 3;
+}
+
+.post-card-link:active .post-card-inner {
+  transform: scale(0.97);
+}
+
+.post-card-inner {
+  display: flex;
+  gap: var(--space-4xl);
+  height: 100%;
+  width: 100%;
+  transition: transform 0.2s var(--ease-standard);
+  transform-origin: center;
+}
+
+/* ─────────────────────────────────────────────────────────── */
+/* POST CARD IMAGE                                             */
+/* ─────────────────────────────────────────────────────────── */
+
+.post-card-image {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1440 / 900;
+  /* Was overflow:visible with no clipping/radius of its own at all — each
+     child rounded ITS OWN box individually (img) or not at all (video).
+     That's fragile: the video rule below used to fight itself (object-fit:
+     contain + a -3px/-2px negative margin + a forced aspect-ratio, none of
+     which match the JS's own inline object-fit:cover/100%/100% — see
+     post-and-cards.js), so the video's rendered box didn't reliably match
+     its own declared border-box, and a sliver of square edge could show
+     past the curve. .grid-card-image (about-projects) instead clips at
+     the CONTAINER — overflow:hidden + border-radius here — which rounds
+     whatever's inside cleanly regardless of the child's own sizing. */
+  overflow: hidden;
+  /* var(--radius-sm) (8px) before — .grid-card-image uses var(--radius-md)
+     (12px). "Same as about-projects" means the same radius value, not
+     just "also rounded" — 8px reads visibly less rounded side by side. */
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-md);
+}
+
+.post-card-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.post-card-image video,
+.post-card-image iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Was a dual-layer <video>(.grid-card-video, position:absolute, own
+   opacity fade) stacked over this <img> (also its own independent
+   opacity fade on `load`) — two async fades racing each other with no
+   guaranteed-solid layer underneath, most visibly wrong right as the
+   video's `loop` seeks back to 0 (a paint gap with nothing reliable
+   behind it — read as a flash/glitch). Rebuilt to match .post-card-image's
+   simpler pattern instead (post-and-cards.js): when video metadata
+   exists, JS replaces this element's content with a <video> entirely
+   (posts-tabs-grid.js) — never two layers competing for the same box. */
+.grid-card-image-fallback {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  opacity: 1;
+}
+
+/* ─────────────────────────────────────────────────────────── */
+/* POST CARD CONTENT                                           */
+/* ─────────────────────────────────────────────────────────── */
+
+.post-card-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: var(--space-md);
+  width: 70%;
+  min-width: 0;
+  overflow-wrap: break-word;
+  white-space: normal;
+}
+
+.post-card-category {
+  font-size: var(--text-size-caption);
+  color: var(--color-on-surface-variant);
+  margin: 0;
+  margin-bottom: 0;
+  text-transform: uppercase;
+  letter-spacing: 3pt;
+}
+
+@media (max-width: 1024px) {
+  .post-card-category {
+    font-size: var(--text-size-eyebrow);
+    margin-bottom: 0;
+  }
+}
+
+.post-card-title {
+  display: block;
+  width: 100%;
+  font-size: var(--text-size-h3);
+  font-weight: 500 !important;
+  line-height: 1.5 !important; /* was var(--line-spacing-body-normal); token system removed */
+  margin-top: 0;
+  margin: var(--space-sm) 0;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  white-space: normal;
+  word-spacing: 0.1em;
+  letter-spacing: 0 !important;
+  font-feature-settings: "zero" 0;
+  font-kerning: auto;
+}
+
+.post-card-bullets {
+  list-style: disc;
+  padding-left: var(--space-md);
+  margin: var(--space-sm) 0;
+  font-size: var(--text-size-body);
+  color: var(--color-on-surface);
+}
+
+.post-card-bullets li {
+  margin-bottom: var(--space-xs);
+}
+
+@media (max-width: 1024px) {
+  .post-card-bullets {
+    margin-top: var(--space-md);
+  }
+}
+
+.post-card-excerpt {
+  font-size: var(--text-size-body);
+  color: var(--color-on-surface-variant);
+  flex: 1;
+  margin-bottom: var(--space-sm);
+  line-height: 1.6;
+}
+
+.post-card-meta {
+  display: flex;
+  gap: var(--space-md);
+  font-size: var(--text-size-caption);
+  color: var(--color-on-surface-variant);
+}
+
+.post-card-meta time {
+  align-content: baseline;
+}
+
+/* ─────────────────────────────────────────────────────────── */
+/* POST CARD METADATA FIELDS                                   */
+/* ─────────────────────────────────────────────────────────── */
+
+.post-card-client {
+  font-size: var(--text-size-caption);
+  color: var(--color-on-surface-variant);
+  margin: var(--space-sm) 0;
+  font-weight: 500;
+}
+
+.post-card-result {
+  font-size: var(--text-size-body);
+  color: var(--color-on-surface-variant);
+  margin: var(--space-sm) 0 var(--space-md) 0;
+  line-height: 1.5;
+}
+
+.post-card-description {
+  font-size: var(--text-size-body);
+  color: var(--color-on-surface-variant);
+  margin: var(--space-sm) 0 var(--space-sm) 0;
+  line-height: 1.5;
+}
+
+.post-card-description:empty {
+  display: none;
+}
+
+.post-card-keywords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  min-width: 0;
+  margin-top: var(--space-sm);
+}
+
+.post-card-keywords:empty {
+  display: none;
+}
+
+.post-card-keyword {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-xs) var(--space-sm);
+  background-color: rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: var(--radius-full, 9999px);
+  letter-spacing: var(--primitive-letter-spacing-normal);
+  font-size: var(--text-size-xs);
+  font-weight: 200;
+  color: var(--color-on-surface-variant);
+  white-space: nowrap;
+}
+
+/* ─────────────────────────────────────────────────────────── */
+/* CARD STYLE VARIANTS (body data-card-style)                 */
+/* Drives .post-card, operating-model cards, profile items,    */
+/* project grid cards, and posts-grid-lab grid cards.          */
+/* ─────────────────────────────────────────────────────────── */
+
+body[data-card-style='elevated'] .post-card,
+body[data-card-style='elevated'] .om-card,
+body[data-card-style='elevated'] .om-card-metric,
+body[data-card-style='elevated'] .om3-card,
+body[data-card-style='elevated'] .profile-item,
+body[data-card-style='elevated'] .posts-grid-lab-cards .grid-card,
+body[data-card-style='elevated'] .posts-grid-cards .grid-card,
+body[data-card-style='elevated'] .about-projects-grid .grid-card {
+  background-color: var(--card-bg);
+  border: none;
+}
+
+body[data-card-style='outlined'] .post-card,
+body[data-card-style='outlined'] .om-card,
+body[data-card-style='outlined'] .om-card-metric,
+body[data-card-style='outlined'] .om3-card,
+body[data-card-style='outlined'] .profile-item,
+body[data-card-style='outlined'] .posts-grid-lab-cards .grid-card,
+body[data-card-style='outlined'] .posts-grid-cards .grid-card,
+body[data-card-style='outlined'] .about-projects-grid .grid-card {
+  background-color: transparent;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius);
+}
+
+/* Profile panes invert their border with the section palette flip so the
+   outline stays visible against the shifted light/dark panel. */
+body[data-card-style='outlined'] .profile-item {
+  border-color: color-mix(in srgb, var(--glass-border), var(--glass-border-shift) calc(var(--profile-shift, 0) * 100%));
+}
+
+body[data-card-style='filled'] .post-card-image,
+body[data-card-style='filled'] .om-card2,
+body[data-card-style='filled'] .testimonial-card,
+body[data-card-style='filled'] .om-card-metric2,
+body[data-card-style='filled'] .profile-item,
+body[data-card-style='filled'] .posts-grid-lab-cards .grid-card-image,
+body[data-card-style='filled'] .posts-grid-cards .grid-card-image,
+body[data-card-style='filled'] .about-projects-grid .grid-card-image {
+  background: var(--glass-bg);
+  border: none;
+  border-radius: var(--glass-radius);
+  backdrop-filter: var(--glass-backdrop);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  padding: var(--space-lg);
+}
+/* body[data-card-style='filled'] .post-card {
+  margin: 0 var(--content-padding);
+  width: auto !important;
+    padding: var(--space-xl)   var(--space-lg) !important;
+} */
+
+body[data-card-style='filled'] .post-card-image, 
+body[data-card-style='filled'] .about-projects-grid .grid-card-image,
+body[data-card-style='filled'] .posts-grid-cards .grid-card-image,
+body[data-card-style='filled'] .posts-grid-lab-cards .grid-card-image {
+  border-radius: var(--glass-radius) !important;
+  padding: var(--space-xl)  var(--space-3xl) !important;
+}
+
+/* Both the fallback <img> AND a dynamically-inserted <video> (see
+   posts-tabs-grid.js) are absolutely positioned with an explicit
+   width/height: 100% — the img via its own class rule below, the video
+   via .grid-card-image video's base rule (posts-tabs-grid.css); the
+   video's own inline style (width/height/object-fit only, no `position`)
+   doesn't override that, so it's still absolute. For an absolutely
+   positioned element, percentage width/height resolves against the
+   parent's PADDING box, so top/left/right/bottom insets alone don't
+   shrink it — it overflows past the glass padding regardless of which of
+   the two is actually in the DOM. Sizing both explicitly against the
+   padding fixes that, and object-fit: contain (instead of cover) scales
+   the whole screenshot centered inside the frame instead of cropping it. */
+body[data-card-style='filled'] .grid-card-image .grid-card-image-fallback,
+body[data-card-style='filled'] .grid-card-image video {
+  top: var(--space-xl);
+  left: var(--space-3xl);
+  right: var(--space-3xl);
+  bottom: var(--space-xl);
+  /* !important on these three: the video (unlike the img) carries an
+     inline style (width/height/object-fit — see posts-tabs-grid.js),
+     which beats any non-!important stylesheet rule regardless of
+     selector specificity. Harmless on the img, which has no inline style
+     to compete with. */
+  width: calc(100% - (var(--space-3xl) * 2)) !important;
+  height: calc(100% - (var(--space-xl) * 2)) !important;
+  object-fit: contain !important;
+}
+
+
+/* Profile panes invert their glass background with the section palette flip
+   so filled panes stay visible and match the operating-model cards. */
+body[data-card-style='filled'] .profile-item {
+  background: color-mix(in srgb, var(--glass-bg), var(--glass-bg-shift) calc(var(--profile-shift, 0) * 100%));
+}
+
+body[data-card-style='blank'] .post-card,
+body[data-card-style='blank'] .om-card,
+body[data-card-style='blank'] .om-card-metric,
+body[data-card-style='blank'] .om3-card,
+body[data-card-style='blank'] .profile-item,
+body[data-card-style='blank'] .posts-grid-lab-cards .grid-card,
+body[data-card-style='blank'] .posts-grid-cards .grid-card,
+body[data-card-style='blank'] .about-projects-grid .grid-card {
+  background-color: transparent;
+  border: none;
+}
+
+body[data-card-style='blank'] .post-card-content {
+  padding: 0;
+}
+
+body[data-card-style='blank'] .post-card-image {
+  /* Was overflow:visible, loading after (and same specificity as) every
+     layout mode's own .post-card-image rule, so it won regardless of
+     grid/list/stacked — undoing their overflow:hidden and leaving video
+     content (object-fit:cover, can overflow its box) with square corners
+     poking past the rounded ones. "blank" only removes the card's own
+     background/border (see body[data-card-style='blank'] .post-card
+     above) — the image/video itself still reads as rounded content, no
+     card frame around it, same as every other style. */
+  overflow: hidden;
+}
+
+/* ─────────────────────────────────────────────────────────── */
+/* PAGE WIDTH CONSTRAINTS FOR POST CARDS                       */
+/* ─────────────────────────────────────────────────────────── */
+
+[data-home-content-width="respect_page_width"] .posts-grid[data-posts-layout="grid"],
+[data-home-content-width="respect_page_width"] .posts-grid[data-posts-layout="list"] {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+[data-home-content-width="respect_page_width"] .posts-grid[data-posts-layout="carousel"] {
+  width: 100%;
+  max-width: none;
+}
+
+/* ─────────────────────────────────────────────────────────── */
+/* POST NAVIGATION CARD                                        */
+/* ─────────────────────────────────────────────────────────── */
+
+.post-navigation .post-card {
+  opacity: 1;
+  transform: scale(1);
+  filter: blur(0px);}
+
+/* ─────────────────────────────────────────────────────────── */
+/* WORK GRID (post-page layout)                               */
+/* ─────────────────────────────────────────────────────────── */
+
+.work-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.work-grid .post-card {
+  display: flex;
+  flex-direction: row;
+  gap: var(--space-lg);
+  width: 100%;
+}
+
+.work-grid .post-card-image {
+  flex: 0 0 60%;
+  width: 60%;
+  aspect-ratio: 1440 / 900;
+  margin-bottom: 0;
+  order: -1;
+}
+
+.work-grid .post-card-link {
+  flex-direction: row;
+  gap: var(--space-2xl);
+  width: 100%;
+}
+
+.work-grid .post-card-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+
+@media (max-width: 960px) {
+  .work-grid .post-card {
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
+  .work-grid .post-card-image {
+    flex: 0 0 auto;
+    width: 100%;
+    order: 0;
+  }
+
+  .work-grid .post-card-link {
+    flex-direction: column;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────── */
+/* MOBILE RESPONSIVE                                           */
+/* ─────────────────────────────────────────────────────────── */
+
+@media (max-width: 960px) {
+  /* Collapse grid container to 1 column */
+  .posts-grid .container {
+    grid-template-columns: 1fr;
+  }
+
+  .posts-grid[data-posts-layout='grid'] .carousel-track {
+    grid-template-columns: 1fr;
+  }
+
+  .post-card-content {
+    width: 100%;
+  }
+
+  /* Mobile carousel */
+  .posts-grid[data-posts-layout='carousel'] .post-card {
+    flex: 0 0 auto;
+    width: min(85%, calc(100% - var(--content-padding) * 2));
+    padding: 0 !important;
+  }
+
+  .posts-grid[data-posts-layout='carousel'] .carousel-track {
+    padding: var(--space-section) var(--content-padding);
+  }
+
+  .posts-grid[data-posts-layout='list'] .post-card {
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
+  .posts-grid[data-posts-layout='list'] .post-card-link {
+    flex-direction: column;
+    gap: var(--space-lg);
+  }
+
+  .posts-grid[data-posts-layout='list'] .post-card-inner {
+    flex-direction: column;
+    gap: var(--space-lg);
+  }
+
+  .posts-grid[data-posts-layout='list'] .post-card-image {
+    flex: 0 0 auto;
+    width: 100%;
+    aspect-ratio: 1440 / 900;
+    border-radius: var(--radius-md);
+    order: -1;
+  }
+
+  .posts-grid[data-posts-layout='list'] .post-card-content {
+    order: 1;
+  }
+
+  /* Universal: stack all post-card-inner vertically on mobile, image
+     first — this forces flex-direction:column everywhere (including the
+     grid-mode nth-of-type(3n+1) full-width row cards, which are row
+     layout with order:0/order:0 — i.e. natural DOM order — on desktop),
+     but doesn't by itself fix ordering: paired grid cards already default
+     to order:2/order:1 (image before content) with nothing overriding it
+     here, so they were already correct, but the nth-of-type(3n+1) cards'
+     order:0/order:0 survived into this column layout unchanged, putting
+     content (first in post-card.hbs's markup) before the image. Explicit
+     order here overrides every layout/card variant uniformly instead of
+     patching nth-of-type(3n+1) as a one-off. */
+  .post-card-inner {
+    flex-direction: column !important;
+    gap: var(--space-md) !important;
+  }
+
+  .post-card-inner .post-card-image,
+  .post-card-inner .post-card-content {
+    width: 100% !important;
+    flex: none !important;
+  }
+
+  .post-card-inner .post-card-image {
+    order: -1 !important;
+  }
+
+  .post-card-inner .post-card-content {
+    order: 1 !important;
+  }
+
+  .work-grid .post-card-link {
+    gap: var(--space-lg);
+  }
+}

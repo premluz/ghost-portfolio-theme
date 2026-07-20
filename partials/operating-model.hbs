@@ -1,0 +1,235 @@
+
+
+
+
+
+
+<section class="statement-slide" style="min-height: 10vh; margin-top: 20vh; margin-bottom: 0;">
+  <div class="statement-container">
+    <h2 class="statement-heading">Making impact across</h2>
+    <h5 class="statement-description"></h5>
+  </div>
+</section>
+
+<section class="operating-model-v3" id="operating-model" data-page-content-width="full"> 
+  <div class="om-columns">
+
+    {{!-- Headers accumulate here as their card group scrolls into range.
+          Sticky so they stay on screen while the cards column (right) scrolls
+          past underneath at normal document-scroll speed — no pin, no scrub. --}}
+    <div class="om-headers-sticky" id="om-headers-sticky">
+      <div class="om3-header-slot" data-category="products">
+        <h1 class="om3-heading text-gradient">Products</h1>
+        <p class="om3-subtext">Owning design end-to-end, from strategy to shipped experience.</p>
+      </div>
+      <div class="om3-header-slot" data-category="systems">
+        <h1 class="om3-heading text-gradient">Systems</h1>
+        <p class="om3-subtext">Reducing complexity through design systems, reusable patterns and scalable architecture.</p>
+      </div>
+      <div class="om3-header-slot" data-category="teams">
+        <h1 class="om3-heading text-gradient">Teams</h1>
+        <p class="om3-subtext">Building alignment, improving efficiency and accelerating delivery.</p>
+      </div>
+    </div>
+
+    {{!-- Plain vertical column of cards, one group per category — this is
+          normal document flow with zero JS control over position. It scrolls
+          exactly as fast/slow as the user scrolls the page (natural scroll,
+          no scroll-hijack). Each group is just tall enough to keep its
+          category "active" (i.e. its header revealed on the left) for a
+          comfortable stretch of scroll. --}}
+    <div class="om3-cards-column" id="om3-cards-column">
+      <div class="om3-card-group" data-category="products" data-morph-shape="sphere">
+        <div class="om-card om-card-metric om3-card">
+          <div class="metric-content">
+            <span class="metric-eyebrow text-eyebrow">Assets tokenised on-chain</span>
+            <span class="metric-value">5M</span>
+          </div>
+        </div>
+        <div class="om-card om-card-metric om3-card">
+          <div class="metric-content">
+            <span class="metric-eyebrow text-eyebrow">IoT devices Connected</span>
+            <span class="metric-value">240M</span>
+          </div>
+        </div>
+        <div class="om-card om-card-metric om3-card">
+          <div class="metric-content">
+            <span class="metric-eyebrow text-eyebrow">Regions supported</span>
+            <span class="metric-value">180+</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="om3-card-group" data-category="systems" data-morph-shape="triple-sphere">
+        <div class="om-card om-card-metric om3-card">
+          <div class="metric-content">
+            <span class="metric-eyebrow text-eyebrow">Design Systems</span>
+            <span class="metric-value">0&rarr;1</span>
+          </div>
+        </div>
+        <div class="om-card om-card-metric om3-card">
+          <div class="metric-content">
+            <span class="metric-eyebrow text-eyebrow">Architecture simplified</span>
+            <span class="metric-value">10&rarr;3</span>
+          </div>
+        </div>
+        <div class="om-card om-card-metric om3-card">
+          <div class="metric-content">
+            <span class="metric-eyebrow text-eyebrow">Systems consolidated</span>
+            <span class="metric-value">3&rarr;1</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="om3-card-group" data-category="teams" data-morph-shape="torus">
+        <div class="om-card om-card-metric om3-card">
+          <div class="metric-content">
+            <span class="metric-eyebrow">Founding designer</span>
+            <span class="metric-value">0&rarr;1</span>
+          </div>
+        </div>
+        <div class="om-card om-card-metric om3-card">
+          <div class="metric-content">
+            <span class="metric-eyebrow">Design team scaled</span>
+            <span class="metric-value">1&rarr;5</span>
+          </div>
+        </div>
+        <div class="om-card om-card-metric om3-card">
+          <div class="metric-content">
+            <span class="metric-eyebrow">Dev velocity</span>
+            <span class="metric-value">2x</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<script>
+/* ─────────────────────────────────────────────────────────────────────────
+ * OPERATING MODEL — Natural-scroll header build-up + card column
+ *
+ * No GSAP pin, no scrub, no scroll-hijack of any kind. The cards column
+ * (right) is plain document flow — it moves exactly as fast as the user
+ * scrolls, nothing else touches its position.
+ *
+ * Card reveal (.om3-card) lives in card-scroll-reveal.js. Header reveal
+ * (.om3-header-slot) is bespoke, here — NOT because of what it should look
+ * like (same GSAP fade/slide-up as everywhere else), but because of what
+ * it needs to be triggered BY: .om3-header-slot sits inside .om-headers-
+ * sticky (position:sticky), so once that container sticks, all three
+ * headers' own bounding boxes stop moving relative to the viewport — they
+ * cluster together in one small, fixed region instead of being spread
+ * across the page the way .om3-card is in its own scrolling column. A
+ * per-element "reveal when THIS element's own geometry crosses a
+ * threshold" system (card-scroll-reveal.js's model) has no meaningful
+ * separation to key off there — all three ended up revealing at nearly the
+ * same scroll moment ("they appear all at once"), no matter how much
+ * padding was added to try to space them out. Keying the SAME reveal off
+ * each .om3-card-group's own intersection instead — which DOES have real,
+ * large scroll separation between categories — fixes that: headers
+ * accumulate and stay (Products appears, then Systems joins while it's
+ * still shown, then Teams), each firing only once its own card group
+ * actually scrolls into view.
+ *
+ * Driven by IntersectionObserver (not a ScrollTrigger pixel-position
+ * trigger) for the same reliability reason as the Lab-grid trigger fix
+ * (see COMMON_ISSUES.md "Lab Grid Morph Firing..."): no cached scroll
+ * position to go stale when surrounding content's height changes.
+ *
+ * Reverse-scroll exit (added): headers now also exit one by one, in
+ * reverse order, when scrolling back UP — mirroring how they accumulated.
+ * Without direction-awareness this would break the "accumulate and stay"
+ * behavior on the way down too: each group's observer entry also flips
+ * !isIntersecting the moment you scroll PAST it toward the next category,
+ * which would incorrectly hide Products again once Systems/Teams are
+ * showing. Gating the hide on isScrollingDown === false (same pattern as
+ * card-scroll-reveal.js) means it only fires while actually scrolling up.
+ * ────────────────────────────────────────────────────────────────────── */
+(function() {
+  'use strict';
+
+  function initOperatingModel() {
+    if (typeof gsap === 'undefined') return;
+
+    const section = document.getElementById('operating-model');
+    if (!section) return;
+
+    const cardGroups = Array.from(section.querySelectorAll('.om3-card-group'));
+    const headerSlots = Array.from(section.querySelectorAll('.om3-header-slot'));
+    if (!cardGroups.length || !headerSlots.length) return;
+
+    let isScrollingDown = true;
+    let lastScrollY = window.scrollY;
+    window.addEventListener('scroll', () => {
+      isScrollingDown = window.scrollY > lastScrollY;
+      lastScrollY = window.scrollY;
+    }, { passive: true });
+
+    const headerByCategory = {};
+    headerSlots.forEach((slot) => {
+      headerByCategory[slot.getAttribute('data-category')] = slot;
+      // Same starting values as card-scroll-reveal.js's "default" variant,
+      // for a consistent look even though the trigger is bespoke.
+      gsap.set(slot, { opacity: 0, y: 48, scale: 0.97 });
+    });
+
+    const revealedHeaders = new Set();
+    const revealHeader = (category) => {
+      const slot = headerByCategory[category];
+      if (!slot || revealedHeaders.has(category)) return;
+      revealedHeaders.add(category);
+      gsap.to(slot, { opacity: 1, y: 0, scale: 1, duration: 0.48, ease: 'power2.out' });
+    };
+
+    // Mirrors revealHeader — same values/easing as the pre-reveal state,
+    // reversed. Removing from revealedHeaders lets it re-reveal cleanly if
+    // the user scrolls back down again.
+    const hideHeader = (category) => {
+      const slot = headerByCategory[category];
+      if (!slot || !revealedHeaders.has(category)) return;
+      revealedHeaders.delete(category);
+      gsap.to(slot, { opacity: 0, y: 48, scale: 0.97, duration: 0.4, ease: 'power2.in' });
+    };
+
+    const morphFor = (group) => {
+      const shape = group.getAttribute('data-morph-shape');
+      if (shape && window.particleSystem?.morphTo) {
+        console.log('[om] morph →', shape, '(category:', group.getAttribute('data-category') + ')');
+        window.particleSystem.morphTo(shape, 400);
+      }
+    };
+
+    // Fires once a card group's top crosses the vertical middle of the
+    // viewport (in either scroll direction) — reveals that category's
+    // header and morphs particles to its shape. Scrolling back up naturally
+    // re-crosses the PREVIOUS group's own threshold, re-firing its morph —
+    // no explicit direction/backward-case handling needed there, each
+    // group's observer is independent. The header hide (unlike the morph)
+    // IS direction-gated — see comment above.
+    const groupObserver = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        const category = entry.target.getAttribute('data-category');
+        if (entry.isIntersecting) {
+          revealHeader(category);
+          morphFor(entry.target);
+        } else if (!isScrollingDown) {
+          hideHeader(category);
+        }
+      });
+    }, { rootMargin: '0px 0px -50% 0px', threshold: 0 });
+
+    cardGroups.forEach((group) => groupObserver.observe(group));
+
+    console.log('[om] Initialized (natural scroll, IntersectionObserver-driven)');
+  }
+
+  if (document.readyState === 'complete') {
+    initOperatingModel();
+  } else {
+    window.addEventListener('load', initOperatingModel, { once: true });
+  }
+
+})();
+</script>

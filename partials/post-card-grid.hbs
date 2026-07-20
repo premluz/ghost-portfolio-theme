@@ -1,0 +1,27 @@
+<article class="grid-card" data-post-url="{{url}}"{{#if tags}} data-tag-slugs="{{#foreach tags}}{{slug}} {{/foreach}}"{{/if}}>
+  <a href="{{url}}" class="grid-card-link" data-transition>
+    {{#if feature_image}}
+      {{!-- No separate <video> layer here (was a dual-layer opacity
+            crossfade with the <img> below, racing each other — see
+            posts-tabs-grid.js and PAGE-WIDTH-SYSTEM-adjacent notes on the
+            glitch this caused). Matches .post-card-image's own pattern:
+            JS replaces this element's innerHTML with a <video> entirely
+            when video metadata exists, no fallback layering needed. --}}
+      <div class="grid-card-image">
+        <img src="{{feature_image}}" alt="{{title}}" loading="lazy" data-skip-reveal class="grid-card-image-fallback">
+      </div>
+    {{/if}}
+    {{!-- Same card details as .post-card (post-card.hbs): category,
+          title, keywords, testimonial, endorser — no logo, no separate
+          description/result fields. Was category+logo side by side,
+          a "description" field standing in for a title, a result stat,
+          and testimonial/endorser/bullets commented out entirely. --}}
+    <div class="grid-card-content">
+      <div class="grid-card-category post-card-category"></div>
+      <h3 class="grid-card-title post-card-title"></h3>
+      <div class="grid-card-keywords post-card-keywords"></div>
+      <p class="grid-card-testimonial post-card-testimonial serif"></p>
+      <p class="grid-card-endorser post-card-endorser"></p>
+    </div>
+  </a>
+</article>

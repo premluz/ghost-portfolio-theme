@@ -1,0 +1,83 @@
+{{!< default}}
+{{#page}}
+<section class="page page-contact" data-page-id="{{id}}">
+  <header class="page-header" data-page-content-width="{{@custom.page_content_width}}">
+    <h1 class="page-title">{{title}}</h1>
+    {{#if custom_excerpt}}
+      <p class="page-excerpt">{{custom_excerpt}}</p>
+    {{else if excerpt}}
+      <p class="page-excerpt">{{excerpt}}</p>
+    {{/if}}
+  </header>
+
+  <div class="page-body" data-page-content-width="{{@custom.page_content_width}}">
+
+      <div class="gh-content">
+        {{content}}
+      </div>
+ 
+
+      <div class="page-form contact-form-card">
+        <div class="contact-form-wrapper">
+ 
+
+          <form class="contact-form" data-contact-form data-to-email="{{#if @site.email}}{{@site.email}}{{else}}przemekluczak@duck.com{{/if}}">
+          <input
+            type="text"
+            name="name"
+            placeholder="Your name"
+            class="form-input"
+            required
+          >
+
+          <input
+            type="email"
+            name="email"
+            placeholder="Your email"
+            class="form-input"
+            required
+          >
+
+          <textarea
+            name="message"
+            placeholder="Your message"
+            class="form-input"
+            required
+          ></textarea>
+
+          <div class="contact-form-actions">
+            <button
+              type="submit"
+              class="button footer-button form-submit"
+              aria-label="Send message"
+            >
+              Let's make it happen
+            </button>
+          </div>
+        </form>
+
+          <div class="contact-form-success" data-form-message hidden>
+            <p>
+              ✓ Message sent!
+            </p>
+            <p>
+              Thanks for reaching out. I'll get back to you soon.
+            </p>
+          </div>
+        </div>
+   
+    </div>
+  </div>
+</section>
+
+<script>
+  (function attachContactPageForm() {
+    var form = document.querySelector('.page-contact [data-contact-form]');
+    if (form && typeof handleContactFormSubmit === 'function') {
+      form.addEventListener('submit', handleContactFormSubmit);
+      return;
+    }
+    setTimeout(attachContactPageForm, 150);
+  })();
+</script>
+{{/page}}

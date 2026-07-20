@@ -1,0 +1,70 @@
+{{!--
+  IMAGE STRIPE
+  Horizontal auto-scrolling row of full-bleed cards, variable heights,
+  bottom-aligned (see reference: phone-mockup stripe with different-height
+  cards sharing a common baseline).
+
+  Scrolls on its own; drag/swipe pauses autoplay and lets the user move it
+  manually, with momentum on release, then autoplay resumes after a pause.
+  No user-facing speed UI — tuning knobs are the data-scroll-* attributes
+  below, set by whoever authors the section, not shown to the visitor.
+  The actual scroll behavior lives in assets/js/horizontal-scroll.js
+  (HorizontalScroll), a reusable module — not specific to this partial —
+  driven entirely by data-scroll-track + data-scroll-* attributes, so any
+  other horizontally-scrolling card row can reuse it the same way.
+
+    data-scroll-speed      px/frame the row autoplays at (default 1)
+    data-scroll-autoplay   "false" to disable autoplay, drag-only (default true)
+    data-scroll-direction  1 (right) or -1 (left) starting direction (default 1)
+--}}
+
+<section class="statement-slide" style="margin-top: 0; margin-bottom: 0;">
+  <div class="statement-container">
+    <h2 class="statement-heading">I help ambitious teams build products people understand, trust and adopt.
+  </h2>
+    <h5 class="statement-description">Pitches, smaller projects, and explorations.</h5>
+  </div>
+</section>
+
+
+<section class="image-stripe" data-stripe-id="{{#if stripeId}}{{stripeId}}{{else}}image-stripe{{/if}}">
+ 
+   
+  <div
+    class="image-stripe-track"
+    data-scroll-track
+    data-scroll-speed="1"
+    data-scroll-autoplay="true"
+    data-scroll-direction="1"
+  >
+    {{#if images}}
+      {{#each images}}
+        <div class="stripe-card" style="--card-height: {{this.height}};">
+          <img src="{{this.src}}" alt="{{this.alt}}" loading="lazy" class="stripe-card-image" data-skip-reveal>
+        </div>
+      {{/each}}
+    {{else}}
+      <div class="stripe-card" style="--card-height: 416px;">
+        <img src="/content/images/2026/04/hero-1.png" alt="" loading="lazy" class="stripe-card-image" data-skip-reveal>
+      </div>
+      <div class="stripe-card" style="--card-height: 338px;">
+        <img src="/content/images/snippets/deutchebank.png" alt="" loading="lazy" class="stripe-card-image" data-skip-reveal>
+      </div>
+      <div class="stripe-card" style="--card-height: 442px;">
+        <img src="/content/images/2026/04/hero-2.png" alt="" loading="lazy" class="stripe-card-image" data-skip-reveal>
+      </div>
+      <div class="stripe-card" style="--card-height: 390px;">
+        <img src="/content/images/2026/04/MVP.jpg" alt="" loading="lazy" class="stripe-card-image" data-skip-reveal>
+      </div>
+      <div class="stripe-card" style="--card-height: 364px;">
+        <img src="/content/images/2026/04/intro.jpg" alt="" loading="lazy" class="stripe-card-image" data-skip-reveal>
+      </div>
+      <div class="stripe-card" style="--card-height: 429px;">
+        <img src="/content/images/2026/04/hero-3.png" alt="" loading="lazy" class="stripe-card-image" data-skip-reveal>
+      </div>
+      <div class="stripe-card" style="--card-height: 403px;">
+        <img src="/content/images/2026/04/northstar.jpg" alt="" loading="lazy" class="stripe-card-image" data-skip-reveal>
+      </div>
+    {{/if}}
+  </div>
+</section>

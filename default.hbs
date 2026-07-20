@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#1d1e1f">
+  <meta name="robots" content="noindex, nofollow">
+  <script>
+    // Apply saved theme and set root background immediately to prevent white flash
+    // Runs before any CSS or external resource can trigger a paint.
+    // ⚠ REGRESSION MAGNET: an old copy of this block was pasted back once
+    // (stale hexes + body background rules) and broke the profile palette
+    // shift in light mode. If you edit this block, keep three invariants:
+    //   1. Hexes here are manual copies of tokens.css's --theme-light-bg /
+    //      --theme-dark-bg — update together (see COMMON_ISSUES.md).
+    //   2. NEVER set a body background (inline or in the <style> below):
+    //      body must stay transparent so the fixed #page-backdrop can paint
+    //      the shiftable page background (CSS paint order puts it below
+    //      in-flow block backgrounds — an opaque body hides it silently).
+    //   3. window.__THEME_BG_COLORS__ is read by theme.js — keep exporting it.
+    (function() {
+      // Single source of truth for the anti-flash hex values — exposed on
+      // window so theme.js's setTheme() reads these instead of keeping its
+      // own copy (they'd previously drift independently). The <style>
+      // fallback below can't reference this (CSS, no JS) and stays a
+      // necessarily-separate hardcoded copy — keep it in sync manually.
+      var THEME_BG = { light: '#FAFAF8', dim: '#1d1e1f', dark: '#1d1e1f' };
+      window.__THEME_BG_COLORS__ = THEME_BG;
+
+      var saved = localStorage.getItem('theme-preference');
+      var defaultTheme = '{{@custom.color_scheme}}';
+      var theme = saved !== null ? saved : defaultTheme;
+
+      if (theme === 'auto' || theme === 'dim') {
+        var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        theme = prefersDark ? 'dark' : 'light';
+      }
+
+      var bg = THEME_BG[theme] || THEME_BG.dark;
+      var colorScheme = (theme === 'light') ? 'light' : 'dark';
+
+      // Set inline style on html immediately (before CSS loads) to prevent
+      // white flash. html ONLY — see invariant 2 above re: body.
+      document.documentElement.style.backgroundColor = bg;
+      document.documentElement.style.colorScheme = colorScheme;
+
+      // Also set data-theme for CSS selectors
+      if (theme === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light');
+      } else if (theme === 'dim') {
+        document.documentElement.setAttribute('data-theme', 'dim');
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+      }
+
+      // Keep theme-color and color-scheme meta tags in sync (browser paints before CSS)
+      var metaTheme = document.querySelector('meta[name="theme-color"]');
+      if (metaTheme) metaTheme.setAttribute('content', bg);
+      var metaScheme = document.querySelector('meta[name="color-scheme"]');
+      if (metaScheme) metaScheme.setAttribute('content', colorScheme);
+    })();
+  </script>
+  <script src="{{asset "js/device-capability.js"}}?v={{@site.updated_at}}"></script>
+  <style>
+    /* Defensive anti-flash fallback: ROOT background only, before CSS loads.
+       Hexes are manual copies of tokens.css --theme-*-bg — keep in sync.
+       NO body rules here ON PURPOSE (invariant 2 in the script above):
+       body stays transparent so the fixed #page-backdrop can carry the
+       scroll-driven palette shift. The html background covers pre-CSS flash. */
+    html { background-color: #1d1e1f; }
+    html[data-theme='light'] { background-color: #FAFAF8; }
+    html[data-theme='dim'] { background-color: #1d1e1f; }
+
+    /* Hide preloader immediately — no blink on page load */
+    #preloader { display: none !important; }
+
+    /* Navigation visible immediately — no blink, no animation */
+    .gh-navigation {
+      animation: none !important;
+      opacity: 1 !important;
+      visibility: visible !important;
+      pointer-events: auto !important;
+    }
+  </style>
+  <!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-RY8TQWPDHZ"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-RY8TQWPDHZ');
+</script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{meta_title}}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  {{!-- Preconnect to CDNs used by particle system --}}
+  <link rel="preconnect" href="https://unpkg.com" crossorigin>
+  {{!-- Preload 3D shape files so they are in cache when JS requests them --}}
+  <link rel="preload" href="/content/images/mobile.glb"  as="fetch" crossorigin>
+  <link rel="preload" href="/content/images/note.glb"    as="fetch" crossorigin>
+  {{!-- clapper.glb preload removed: file deleted from Ghost content (404). Re-add if re-uploaded. --}}
+  <link rel="preload" href="/content/images/diamond.glb" as="fetch" crossorigin>
+  <link rel="preload" href="/content/images/globe.glb"   as="fetch" crossorigin>
+  <link rel="preload" href="/content/images/game.glb"    as="fetch" crossorigin>
+  <link rel="preload" href="/content/images/email.glb"   as="fetch" crossorigin>
+  <link rel="preload" href="/content/images/camera.glb"  as="fetch" crossorigin>
+  <link rel="preload" href="/content/images/sim.glb"     as="fetch" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;0,9..40,900;1,9..40,400&display=swap">
+  {{!-- Bust aggressive caches using site updated timestamp --}}
+  <link rel="stylesheet" href="{{asset "css/tokens.css"}}?v={{@site.updated_at}}">
+  <link rel="stylesheet" href="{{asset "css/main.css"}}?v={{@site.updated_at}}">
+  <link rel="stylesheet" href="{{asset "css/modal.css"}}?v={{@site.updated_at}}">
+  <link rel="stylesheet" href="{{asset "css/logos-scroll.css"}}?v={{@site.updated_at}}">
+  <link rel="stylesheet" href="{{asset "css/logos-ribbon.css"}}?v={{@site.updated_at}}">
+  <link rel="stylesheet" href="{{asset "css/image-stripe.css"}}?v={{@site.updated_at}}">
+  <link rel="stylesheet" href="{{asset "css/posts-tabs-grid.css"}}?v={{@site.updated_at}}">
+  <link rel="stylesheet" href="{{asset "css/posts-tabs-grid-lab.css"}}?v={{@site.updated_at}}">
+  <link rel="stylesheet" href="{{asset "css/post-card-grid.css"}}?v={{@site.updated_at}}">
+  <link rel="stylesheet" href="{{asset "css/post-cards-lab.css"}}?v={{@site.updated_at}}">
+  <link rel="stylesheet" href="{{asset "css/profile.css"}}?v={{@site.updated_at}}">
+  {{!-- operating-model-stacked.css unlinked 2026-07: index.hbs renders {{> operating-model}} (om3);
+       the stacked partial + its css are kept on disk as the toggle-back alternative — re-add this link if re-enabling it:
+       <link rel="stylesheet" href="{{asset "css/operating-model-stacked.css"}}?v={{@site.updated_at}}"> --}}
+  <style>
+    /*
+     * Accent color injection from Ghost admin settings.
+     * Only --color-primary is set here. All other semantic tokens
+     * (--color-link, --color-link-hover, --color-secondary) are
+     * derived from --color-primary inside tokens.css to keep one
+     * source of truth and avoid cascade conflicts.
+     */
+    :root {
+      /* Ghost accent color injection — commented out; tokens.css uses near-white instead
+      {{#if @site.accent_color}}
+        --color-primary: {{@site.accent_color}};
+      {{/if}}
+      */
+      {{#if @site.icon}}
+        --publication-icon: url('{{@site.icon}}');
+      {{/if}}
+      --color-particles: #1D4551; /* darkened further (~30%) from #296274 — still reading too bright */
+    }
+
+    :root[data-theme='light'] {
+      /* Ghost accent color injection — commented out; tokens.css uses near-black instead
+      {{#if @site.accent_color}}
+        --color-primary: {{@site.accent_color}};
+      {{else}}
+        --color-primary: #60A26B;
+      {{/if}}
+      */
+      --color-particles: #17516E; /* darkened from #2787B7 per explicit "make light mode more darker" request */
+    }
+
+    :root[data-theme='dim'] {
+      /* Ghost accent color injection — commented out; tokens.css uses near-white instead
+      {{#if @site.accent_color}}
+        --color-primary: {{@site.accent_color}};
+      {{/if}}
+      */
+    }
+  </style>
+  <script>
+    (function() {
+      if (window.location.pathname !== '/') return;
+      // Only pre-hide the nav for a genuine fresh landing/refresh, not an
+      // in-site click (e.g. the logo) — page-transition.js navigates via
+      // window.location.href (a real page load, not a client-side route),
+      // so document.referrer reliably reflects where we came from. Same
+      // check preloader.js uses for its own skip path (assets/js/preloader.js) —
+      // keep both in sync if this logic changes. Replaces the old
+      // localStorage 'preloader_seen' once-per-session flag.
+      var cameFromSameSite = false;
+      try {
+        cameFromSameSite = !!document.referrer && new URL(document.referrer).origin === window.location.origin;
+      } catch (e) {}
+      if (!cameFromSameSite) {
+        document.documentElement.classList.add('preloading');
+      }
+    })();
+  </script>
+  {{ghost_head}}
+  <script>
+    // HOMEPAGE LANDING PRE-HIDE — must run in the REAL <head>: an earlier
+    // placement deep in <body> ran after the browser had already parsed
+    // and painted the hero markup above it (seen as a one-frame flash
+    // before the entrance). Here, no paint can precede it. Same-site
+    // arrival detection mirrors preloader.js's cameFromSameSite;
+    // page-transition.js's landing branch removes the class when it takes
+    // over, and the timeout guarantees the page can never stay blank.
+    (function () {
+      try {
+        if (document.referrer && new URL(document.referrer).origin === location.origin &&
+            (location.pathname === '/' || location.pathname === '')) {
+          document.documentElement.classList.add('landing-pending');
+          // The page-level entrance owns the reveal on this load — inner
+          // hero choreography (text stagger, image fade) must not stack a
+          // second animation on top (read by scroll-scrub-anim initHero
+          // and main.js's hero image entrance).
+          window.__pageEntranceOwns = true;
+          setTimeout(function () { document.documentElement.classList.remove('landing-pending'); }, 2500);
+        }
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body class="{{body_class}}" data-page-width="{{@custom.page_width}}" data-card-style="{{@custom.card_style}}" data-typography-header="{{@custom.typography_style_header}}" data-typography-body="{{@custom.typography_style_body}}" data-type-size="{{@custom.type_size}}" data-type-size-headings="{{@custom.type_size_headings}}" data-contact-email="{{#if @site.email}}{{@site.email}}{{else}}przemek.luczak@gmail.com{{/if}}">
+  <!-- Fixed viewport backdrop — REQUIRED, do not remove (it went missing once
+       and silently broke two things at once). It (1) paints the page-scoped
+       palette shift: .page-backdrop in main.css blends var(--color-background)
+       toward var(--shift-bg) by --profile-shift — body is transparent ON
+       PURPOSE so this layer shows (see body rule in main.css); and (2) gives
+       the particle canvas's dark-mode mix-blend-mode:screen a backdrop that
+       can't rubber-band away during macOS overscroll (raw opaque-black canvas
+       showed without it). -->
+  <div id="page-backdrop" class="page-backdrop"></div>
+
+  <!-- Fixed background gradient layer (fades between colors as you scroll) -->
+ <!-- <div id="page-gradient" class="page-gradient-bg"></div>-->
+
+  <!-- Initialize canvas dimensions on load - DISABLED -->
+  <!-- <script>
+    (function() {
+      const canvas = document.getElementById('gradient-canvas');
+      if (canvas) {
+        function resizeCanvas() {
+          canvas.width = window.innerWidth;
+          canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+      }
+    })();
+  </script> -->
+
+  {{#if @custom.show_scroll_progress}}<div class="scroll-progress"></div>{{/if}}
+
+  {{> navigation}}
+
+
+  <!-- GPU Particle System Canvas (matches old particle system z-index + blend mode) -->
+  <canvas id="gpu-canvas"
+          style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; mix-blend-mode: screen;">
+  </canvas>
+
+  <!-- Hidden video element for webcam feed (gesture tracking) -->
+  <video id="gesture-video" playsinline
+         style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;"></video>
+
+  <main>
+    {{{body}}}
+  </main>
+
+
+  <footer class="gh-footer" id="footer" data-footer-width="{{@custom.footer_width}}">
+    <div class="footer-bg">
+      <div class="footer-content">
+        <div class="footer-signup-section">
+          <!--<h2 class="footer-title">{{@site.title}}</h2>-->
+
+          <h2 class="footer-title">Building something complex?</h2>
+                 <p class="footer-description">I can help ship it faster.</p>
+          <a href="/contact" data-transition class="button footer-button" aria-label="Email">
+           Let's make it happen
+          </a>
+          <!-- <form class="footer-form" data-members-form>
+            <input
+              type="email"
+              class="footer-input"
+              name="email"
+              placeholder="Your email address"
+              required
+              data-members-email
+            >
+            <button type="submit" class="button footer-button" aria-label="Subscribe">
+              Subscribe
+              <img src="{{asset "icons/arrow-right.svg"}}" alt="Subscribe" class="footer-button-icon">
+            </button>
+            <p class="footer-form-message" data-members-error></p>
+          </form>-->
+
+        
+        </div>
+
+        <div class="footer-bottom">
+          <!-- <div class="footer-nav">
+            <a href="{{@site.url}}">Home</a>
+            <a href="{{#get 'pages' limit='1' filter='slug:about'}}{{url}}{{else}}{{@site.url}}about/{{/get}}">About</a>
+          </div>-->
+          <!--<div class="footer-credit">
+            <p>&copy; {{date format="YYYY"}} <strong>{{@site.title}}</strong> • Powered by <a href="https://ghost.org" target="_blank" rel="noopener">Ghost</a></p>
+          </div>-->
+
+          <div class="footer-meta">
+            <p class="footer-meta-text">Designed and built in the browser. The challenge was restraint.</p>
+          </div>
+        </div>
+      </div>
+      
+    </div>
+
+  </footer>
+
+  <!-- GSAP + ScrollTrigger -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+  <script>if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') { gsap.registerPlugin(ScrollTrigger); }</script>
+
+  <!-- Console cleanup: suppress verbose module logs. Installed this early
+       (before three.js/preloader/intro/gradient-layer/etc. load) so no
+       script gets a chance to log before the gate is active — moving this
+       later (it used to sit near the end of <body>) left ~50 early
+       top-level logs from those scripts ungated regardless of DEBUG_SCROLL. -->
+  <script>
+  (function() {
+    const originalLog = console.log;
+    const originalWarn = console.warn;
+    const originalError = console.error;
+    const suppressPatterns = [
+      /\[gradient-layer\]/i,
+      /\[gradient-animation-loop\]/i,
+      /\[testimonial-modal\]/i,
+      /\[post-and-cards\]/i,
+      /\[ShapeLoader\] Failed to load GLB/i,
+      /\[intro\]/i,
+      /assets\/glb\//i,  // Suppress all GLB 404 errors
+      /Missing elements/i
+    ];
+
+    const shouldSuppress = (msg) => {
+      const text = msg?.toString?.() || '';
+      return suppressPatterns.some(pattern => pattern.test(text));
+    };
+
+    // Silent by default — set window.DEBUG_SCROLL = true (devtools/URL) to
+    // see the 300+ scroll/particle/morph logs this theme normally emits.
+    // suppressPatterns above stays applied even in debug mode — those are
+    // separately-known noise (GLB 404s, gradient-layer spam), not wanted
+    // either way. console.error is never gated by the flag, only by
+    // suppressPatterns, matching debug.js's debugError() "always log
+    // errors, even in production" behavior.
+    console.log = function(...args) {
+      if (!window.DEBUG_SCROLL) return;
+      if (shouldSuppress(args[0])) return;
+      originalLog.apply(console, args);
+    };
+
+    console.warn = function(...args) {
+      if (!window.DEBUG_SCROLL) return;
+      if (shouldSuppress(args[0])) return;
+      originalWarn.apply(console, args);
+    };
+
+    console.error = function(...args) {
+      if (!shouldSuppress(args[0])) {
+        originalError.apply(console, args);
+      }
+    };
+  })();
+  </script>
+
+  <!-- Loaded this early so window.resizeManager exists before any later
+       script that might subscribe to it during synchronous top-level
+       execution (most subscribe from inside a constructor/init function
+       called later, but this guarantees correctness regardless). -->
+  <script src="{{asset "js/managers/ResizeManager.js"}}"></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/": "https://unpkg.com/three@0.160.0/"
+      }
+    }
+  </script>
+  <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+  <script>
+    // HERO PARTICLE OBJECT — the single switch. 'volatility' shows the
+    // ground-plane lattice and the helix never forms in the hero;
+    // 'helix' restores the original helix and the lattice doesn't mount.
+    // Read by particle-morph.hbs, scroll-scrub-anim.js, volatility-surface.js.
+    window.HERO_PARTICLE_MODE = 'volatility';
+    window.__heroShape = () => window.HERO_PARTICLE_MODE === 'helix' ? 'helix' : 'volatility';
+
+    // PARTICLE SCENARIOS — declarative section→behavior map. Every particle
+    // scroll trigger routes through __particleApply(key, builtin, ms), so a
+    // scenario overrides what any trigger does WITHOUT touching trigger code:
+    //   ''       (or key absent) → the trigger's built-in shape
+    //   'hide'                   → fade the whole particle layer out
+    //   any shape name           → morph to that shape instead
+    // Keys: hero, hero-exit, operating-model, helix-section, profile,
+    //       profile-exit, stats, work-grid, work-cards, lab, testimonials,
+    //       footer, footer-exit
+    // Switch: edit PARTICLE_SCENARIO below, or at runtime:
+    //   setParticleScenario('hero-footer')  (persists in localStorage, reloads)
+    window.PARTICLE_SCENARIOS = {
+      full: {},                       // current site behavior, untouched
+      'hero-footer': {                // particles ONLY in hero + footer
+        'hero-exit': 'hide',
+        'operating-model': 'hide',
+        'helix-section': 'hide',
+        profile: 'hide', 'profile-exit': 'hide',
+        stats: 'hide',
+        'work-grid': 'hide', 'work-cards': 'hide',
+        lab: 'hide',
+        testimonials: 'hide',
+        'footer-exit': 'hide',
+        // hero + footer absent → their built-in shapes (volatility/helix, grid)
+      },
+    };
+    window.PARTICLE_SCENARIO = localStorage.getItem('particle_scenario') || 'hero-footer';
+
+    // SCRUB KILL-SWITCH — diagnostic + low-end escape hatch. Scrub-driven
+    // ScrollTriggers update on the main-thread rAF ticker; on weak GPUs the
+    // compositor keeps scrolling smooth while JS rAF starves, so scrubbed
+    // animations freeze mid-scroll and snap when scrolling stops. This
+    // disables every scrub trigger WITH REVERT (inline styles removed →
+    // content falls back to its visible CSS state), leaving the page fully
+    // readable, just static. Toggle from the console:
+    //   setScrubEnabled(false)  → static page (persists, reloads)
+    //   setScrubEnabled(true)   → animations back
+    // PERF HUD — diagnostic overlay for slow-machine investigation.
+    // Console: showPerfHUD() -> live rAF fps / scroll events per second /
+    // worst frame gap, top-right corner. showPerfHUD(false) removes it.
+    window.showPerfHUD = (on = true) => {
+      let el = document.getElementById('perf-hud');
+      if (!on) { if (el) el.remove(); if (window.__hudStop) window.__hudStop(); return; }
+      if (el) return;
+      el = document.createElement('div');
+      el.id = 'perf-hud';
+      el.style.cssText = 'position:fixed;top:8px;right:8px;z-index:99999;background:rgba(0,0,0,.8);color:#0f0;font:12px/1.5 monospace;padding:8px 10px;border-radius:6px;pointer-events:none;white-space:pre';
+      document.body.appendChild(el);
+      let frames = 0, scrolls = 0, last = performance.now(), worst = 0, run = true;
+      const tick = (now) => { frames++; worst = Math.max(worst, now - last); last = now; if (run) requestAnimationFrame(tick); };
+      requestAnimationFrame(tick);
+      const onScroll = () => scrolls++;
+      window.addEventListener('scroll', onScroll, { passive: true });
+      const iv = setInterval(() => {
+        el.textContent = 'rAF fps: ' + (frames * 2) + String.fromCharCode(10) + 'scroll ev/s: ' + (scrolls * 2) + String.fromCharCode(10) + 'worst frame: ' + Math.round(worst) + 'ms';
+        frames = 0; scrolls = 0; worst = 0;
+      }, 500);
+      window.__hudStop = () => { run = false; clearInterval(iv); window.removeEventListener('scroll', onScroll); };
+    };
+
+    // GLOBAL ANIMATION KILL-SWITCH — supersets the scrub switch below.
+    // Console: setAnimationsEnabled(false) → fully static site (persists):
+    //   scrub triggers off (revert to visible CSS states), GSAP time-based
+    //   tweens complete instantly (entrances land revealed), CSS
+    //   transitions/keyframes zeroed, particle layer hidden with its render
+    //   loop never started. setAnimationsEnabled(true) restores everything.
+    window.setAnimationsEnabled = (on) => {
+      if (on) { localStorage.removeItem('animations_off'); localStorage.removeItem('scrub_off'); }
+      else { localStorage.setItem('animations_off', '1'); localStorage.setItem('scrub_off', '1'); }
+      location.reload();
+    };
+    if (localStorage.getItem('animations_off')) {
+      document.documentElement.classList.add('no-anim');
+      window.__particleLayerHidden = true; // render loop gate — never draws a frame
+      // gsap loads later; as soon as it exists, make every time-based tween
+      // effectively instant (scrub tweens are progress-driven and are
+      // handled by the scrub_off path instead)
+      const tick = setInterval(() => {
+        if (window.gsap) { gsap.globalTimeline.timeScale(1000); clearInterval(tick); }
+      }, 50);
+      setTimeout(() => clearInterval(tick), 10000);
+    }
+
+    window.setScrubEnabled = (on) => {
+      if (on) localStorage.removeItem('scrub_off');
+      else localStorage.setItem('scrub_off', '1');
+      location.reload();
+    };
+    if (localStorage.getItem('scrub_off')) {
+      window.addEventListener('load', () => setTimeout(() => {
+        if (!window.ScrollTrigger) return;
+        let n = 0;
+        ScrollTrigger.getAll().forEach((st) => {
+          if (st.vars && st.vars.scrub) { st.disable(true); n++; }
+        });
+        console.log('[scrub] disabled ' + n + ' scrubbed ScrollTriggers — setScrubEnabled(true) to restore');
+      }, 1200), { once: true });
+    }
+    window.setParticleScenario = (name) => { localStorage.setItem('particle_scenario', name); location.reload(); };
+
+    // NO-HERO PAGES (hero-footer scenario): scenario 'hide' entries only
+    // take effect when a trigger fires — a page without the homepage's
+    // sections would keep whatever state the layer initialized with.
+    // NOTE: /work/, /about/, /contact/ and posts are ALSO excluded from
+    // the particle system upstream (particle-morph.hbs isPostPageOrExcluded
+    // hides the container entirely), so today this rule is belt-and-braces;
+    // it matters for any FUTURE hero-less page that isn't in that list,
+    // keeping the particles-only-on-hero-and-footer intent true there.
+    if (window.PARTICLE_SCENARIO === 'hero-footer') {
+      document.addEventListener('DOMContentLoaded', function () {
+        if (!document.querySelector('.hero')) {
+          window.__particleLayerHidden = true;
+          var layer = document.getElementById('particle-morph-demo');
+          if (layer) layer.style.opacity = '0';
+        }
+      });
+    }
+
+    // CURTAIN-RETURN GUARD: when page-transition.js is about to restore a
+    // mid-page scroll position (post → close → back to source), the page
+    // boots fresh and the particle entrance would otherwise flash/appear
+    // before (or after) the scrollThrough() sweep settles the real state.
+    // Pre-hide the layer and its render loop from the very first frame;
+    // the sweep's own triggers (hero-exit / footer / …) then take
+    // ownership on their first call. Keys are only read here — consuming
+    // them is page-transition.js's job.
+    try {
+      var __crOrigin = JSON.parse(sessionStorage.getItem('postOrigin') || 'null');
+      if (sessionStorage.getItem('curtainReturn') === '1' &&
+          __crOrigin && typeof __crOrigin.scrollY === 'number' && __crOrigin.scrollY > 100) {
+        window.__particleLayerHidden = true;
+        document.documentElement.classList.add('curtain-restoring');
+        // failsafe: never let the veil outlive the restore window
+        setTimeout(function () { document.documentElement.classList.remove('curtain-restoring'); }, 8000);
+      }
+    } catch (e) {}
+
+    window.__particleApply = function (system, key, builtinShape, duration) {
+      // Global animation kill-switch is authoritative: no morphs, and never
+      // clear the hidden flag (a show-path call here used to re-arm the
+      // render loop even though the container was display:none).
+      if (document.documentElement.classList.contains('no-anim')) return;
+      // HERO GUARDS. (1) While the curtain-return veil is up, 'hero'
+      // applications are ignored outright — the entrance morph fires at
+      // scrollY 0 BEFORE the restore sweep starts, and letting it through
+      // would show the layer only for the sweep to hide it again mid-fade
+      // (the reported flash). Only sweep-driven triggers (hero-exit,
+      // footer, …) may take ownership and drop the veil. (2) Independent
+      // of the veil: a 'hero' apply landing when the page is well past the
+      // top is stale (its trigger fires at <=8px) — never re-show mid-page.
+      const veiled = document.documentElement.classList.contains('curtain-restoring');
+      if (key === 'hero' && (veiled || window.scrollY > 150)) return;
+      document.documentElement.classList.remove('curtain-restoring');
+      const scen = window.PARTICLE_SCENARIOS[window.PARTICLE_SCENARIO] || {};
+      const target = (scen[key] === undefined || scen[key] === '') ? builtinShape : scen[key];
+      const layer = document.getElementById('particle-morph-demo');
+      if (target === 'hide') {
+        // Play the trigger's built-in morph (usually 'dispersed') UNDER the
+        // fade, so hiding reads as "particles disperse away" rather than a
+        // frozen shape dimming out — but only if the layer is currently
+        // visible (morphing an already-hidden layer is wasted work).
+        if (!window.__particleLayerHidden && system && typeof system.morphTo === 'function' && builtinShape) {
+          system.morphTo(builtinShape, duration);
+        }
+        if (layer) { layer.style.transition = 'opacity 0.6s ease'; layer.style.opacity = '0'; }
+        // Pause the render loop only AFTER the fade finishes — pausing
+        // immediately would freeze the first hidden frame and the disperse
+        // morph above would never be seen.
+        clearTimeout(window.__particleHideTimer);
+        window.__particleHideTimer = setTimeout(() => { window.__particleLayerHidden = true; }, 700);
+        return;
+      }
+      clearTimeout(window.__particleHideTimer);
+      window.__particleLayerHidden = false;
+      if (layer && layer.style.opacity === '0') { layer.style.transition = 'opacity 0.6s ease'; layer.style.opacity = '1'; }
+      if (system && typeof system.morphTo === 'function' && target) system.morphTo(target, duration);
+    };
+  </script>
+  {{!-- The volatility surface is now a morph SHAPE inside the particle system
+       (shape-definitions.js 'volatility') — the standalone canvas layer
+       (volatility-surface.js, kept on disk) is no longer loaded. --}}
+  <script src="https://unpkg.com/@fiddle-digital/string-tune@1.1.47/dist/index.js"></script>
+  <script src="https://unpkg.com/string-tune-3d@0.0.9/dist/index.js"></script>
+  <script src="https://unpkg.com/split-type@0.3.4/umd/index.min.js"></script>
+  <script src="{{asset "js/preloader.js"}}"></script>
+  <script src="{{asset "js/intro.js"}}"></script>
+  <script src="{{asset "js/gradient-layer.js"}}"></script>
+  <script src="{{asset "js/background-layer.js"}}"></script>
+  <script src="{{asset "js/surface-effect-layer.js"}}?v={{@site.updated_at}}"></script>
+  <script src="{{asset "js/scroll-scrub-anim.js"}}"></script>
+  <!-- DISABLED: Canvas gradient rendering (use CSS gradients instead) -->
+  <!-- <script src="{{asset "js/gradient-config.js"}}"></script>
+  <script src="{{asset "js/glsl-gradient-manager.v2.js"}}"></script>
+  <script src="{{asset "js/glsl-gradient-enhanced.js"}}"></script> -->
+  <script src="{{asset "js/modal.js"}}"></script>
+  <script src="{{asset "js/modal-data.js"}}"></script>
+  <!-- DISABLED: Dynamic gradient rendering (use CSS gradients instead) -->
+  <!-- <script src="{{asset "js/project-gradient.js"}}"></script> -->
+  <script src="{{asset "js/particle-engine.js"}}"></script>
+
+  <!-- PHASE 2: New modular architecture (foundation + Day 2 modules) -->
+  <script src="{{asset "js/CONSTANTS.js"}}"></script>
+  <script src="{{asset "js/managers/InitializationManager.js"}}"></script>
+  <script src="{{asset "js/managers/ObserverManager.js"}}"></script>
+  <script src="{{asset "js/debug.js"}}"></script>
+
+  <!-- Phase 2 Day 2 Modules -->
+  <script src="{{asset "js/theme.js"}}"></script>
+  <script src="{{asset "js/scroll-progress.js"}}"></script>
+  <script src="{{asset "js/ui-utilities.js"}}"></script>
+
+  <!-- Phase 2 Day 3 Modules -->
+  <script src="{{asset "js/heading-animations.js"}}"></script>
+  <script src="{{asset "js/card-scroll-reveal.js"}}"></script>
+
+  <!-- Phase 2 Day 4-6 Modules -->
+  <script src="{{asset "js/post-utilities.js"}}"></script>
+  <script src="{{asset "js/table-of-contents.js"}}"></script>
+  <script src="{{asset "js/feature-modules.js"}}"></script>
+  <script src="{{asset "js/post-and-cards.js"}}"></script>
+
+  <!-- Modular Animated Gradient Background System -->
+  <script src="{{asset "js/gradient-distortion.js"}}"></script>
+  <script src="{{asset "js/gradient-animation-loop.js"}}"></script>
+  <!--<script src="{{asset "js/gradient-morph-system.js"}}"></script>-->
+
+  <!-- Gesture system disabled -->
+  <!-- <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="{{asset "js/gesture-hand-tracker.js"}}"></script>
+  <script src="{{asset "js/gesture-detector.js"}}"></script>
+  <script src="{{asset "js/particle-gesture-controller.js"}}"></script> -->
+
+  <!-- GPU Particle System (Production Setup) -->
+  <script src="{{asset "js/gpu-particles/gpu-shader-compiler.js"}}"></script>
+  <script src="{{asset "js/gpu-particles/gpu-compute-engine.js"}}"></script>
+  <script src="{{asset "js/gpu-particles/gpu-renderer.js"}}"></script>
+  <!-- Week 2: Morphing & Shape Loading -->
+  <script src="{{asset "js/gpu-particles/gpu-particle-state.js"}}"></script>
+  <script src="{{asset "js/gpu-particles/shape-loader.js"}}"></script>
+  <script src="{{asset "js/gpu-particles/gpu-morph-controller.js"}}"></script>
+  <!-- Week 3: Scroll, Registry, Monitoring, Fallback, Tests -->
+  <script src="{{asset "js/gpu-particles/gpu-scroll-driver.js"}}"></script>
+  <script src="{{asset "js/gpu-particles/gpu-shape-registry.js"}}"></script>
+  <script src="{{asset "js/gpu-particles/gpu-performance-monitor.js"}}"></script>
+  <script src="{{asset "js/gpu-particles/gpu-fallback.js"}}"></script>
+  <script src="{{asset "js/gpu-particles/gpu-particle-system.test.js"}}"></script>
+  <script src="{{asset "js/gpu-particles/gpu-particle-system.js"}}"></script>
+
+  <script src="{{asset "js/main.js"}}"></script>
+  <script src="{{asset "js/sticky-nav.js"}}"></script>
+  <script src="{{asset "js/word-animation.js"}}"></script>
+  <script src="{{asset "js/logos-scroll.js"}}"></script>
+  <script src="{{asset "js/horiz-scroll.js"}}"></script>
+  <script src="{{asset "js/horizontal-scroll.js"}}"></script>
+  <!-- <script src="{{asset "js/testimonials-scroll.js"}}"></script> -->
+  <!-- <script src="{{asset "js/sequence-animation.js"}}"></script> -->
+  <script src="{{asset "js/card-animations.js"}}"></script>
+  <script src="{{asset "js/page-transition.js"}}"></script>
+  {{#is "post"}}
+  <script src="{{asset "js/group-layout.js"}}"></script>
+  {{/is}}
+  {{ghost_foot}}
+
+  <!-- GPU Particle System Integration (Production Setup) -->
+ <!-- {{> gpu-particle-integration}} -->
+
+ {{> particle-morph}}
+
+
+  <!-- Bottom fade gradient pane - creates illusion of content fading in -->
+  <div class="bottom-fade-pane"></div>
+
+</body>
+</html>

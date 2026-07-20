@@ -1,0 +1,61 @@
+<section class="posts-tabs-grid-section" id="work-grid" data-active-tab="featured">
+
+  {{!-- Glass switch component (mirrors posts-tabs tab-switch) --}}
+ {{> tab-switch-grid}}
+
+  <div class="posts-tabs-grid-wrapper">
+    {{!-- Featured tab --}}
+    <div class="posts-tabs-grid-panel posts-tabs-grid-panel-featured active" data-tab="featured">
+      <div class="posts-grid-cards">
+        {{#get "posts" filter="featured:true+tag:hash-work+tag:featured" limit="100" include="tags,authors"}}
+          {{#foreach posts}}
+            {{> post-card-grid}}
+          {{/foreach}}
+        {{/get}}
+      </div>
+    </div>
+
+    {{!-- Experimental tab --}}
+    <div class="posts-tabs-grid-panel posts-tabs-grid-panel-experimental" data-tab="experimental">
+      <div class="posts-grid-cards">
+        {{#get "posts" filter="featured:true+tag:hash-work+tag:experimental" limit="100" include="tags,authors"}}
+          {{#foreach posts}}
+            {{> post-card-grid}}
+          {{/foreach}}
+        {{/get}}
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<script>
+(function() {
+  'use strict';
+
+  function initWorkGridParticles() {
+    if (typeof ScrollTrigger === 'undefined') {
+      setTimeout(initWorkGridParticles, 50);
+      return;
+    }
+
+    const workGrid = document.getElementById('work-grid');
+    if (!workGrid) return;
+
+    ScrollTrigger.create({
+      trigger: workGrid,
+      start: 'top 75%',
+      onEnter: () => {
+        if (window.particleSystem && window.particleSystem.morphTo) {
+          window.particleSystem.morphTo('disperse', 400);
+        }
+      },
+    });
+  }
+
+  if (document.readyState === 'complete') initWorkGridParticles();
+  else window.addEventListener('load', initWorkGridParticles, { once: true });
+})();
+</script>
+
+<script src="{{asset "js/posts-tabs-grid.js"}}"></script>
