@@ -7483,6 +7483,7 @@ textarea::placeholder {
 
 .statement-container {
   width: 100%;
+  max-width: 80%;
   padding: 0 var(--content-padding);
   text-align: left;
   margin: 0 auto;
@@ -7498,6 +7499,9 @@ textarea::placeholder {
   word-spacing: normal;
   white-space: normal;
   padding: 0;
+  width: 100%;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .statement-description {
