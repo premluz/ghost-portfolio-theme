@@ -122,18 +122,32 @@ function _revealHeadingByLetter(heading, blurPx, unobserve) {
   if (heading.dataset.lettersSplit === 'true') {
     letters = Array.from(heading.querySelectorAll('.char'));
   } else {
-    const text = heading.textContent;
-    if (!text || !text.trim()) return;
+    if (!heading.textContent || !heading.textContent.trim()) return;
 
+    // Walk child nodes instead of flattening to textContent — textContent
+    // ignores element boundaries entirely, concatenating every text node
+    // together with no trace of a <br> that sat between them. A literal
+    // <br> in the source (e.g. posts-tabs.hbs's statement-heading) used to
+    // just vanish the first time this ran, since the old code read
+    // heading.textContent (br-blind), wiped innerHTML, and rebuilt purely
+    // from that flattened string. Preserving actual <br> elements as we
+    // rebuild keeps the line breaks intact through the character split.
+    const originalNodes = Array.from(heading.childNodes);
     heading.innerHTML = '';
     letters = [];
-    for (const char of text) {
-      const span = document.createElement('span');
-      span.className = 'char';
-      span.textContent = char;
-      heading.appendChild(span);
-      letters.push(span);
-    }
+    originalNodes.forEach(node => {
+      if (node.nodeType === Node.ELEMENT_NODE && node.tagName === 'BR') {
+        heading.appendChild(document.createElement('br'));
+        return;
+      }
+      for (const char of node.textContent || '') {
+        const span = document.createElement('span');
+        span.className = 'char';
+        span.textContent = char;
+        heading.appendChild(span);
+        letters.push(span);
+      }
+    });
     heading.dataset.lettersSplit = 'true';
     gsap.set(letters, { opacity: 0 });
   }

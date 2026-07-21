@@ -168,25 +168,22 @@ function initCardScrollReveal() {
   // all three ended up revealing at nearly the same scroll moment. Header
   // timing instead lives in operating-model.hbs, keyed off when each
   // .om3-card-group (which DOES have real scroll separation) enters view.
+  // .post-card-content/.post-card-image deliberately NOT included here —
+  // page-level entrance only (see the CSS comment in post-card-grid.css
+  // next to their opacity rule). A scroll-triggered fade for these read as
+  // a second, competing animation on top of <main>'s own reveal, and
+  // additionally raced the metadata fetch that fills in their text/video,
+  // making content appear to "fade in with the video" instead of just
+  // popping in the instant it's set.
   const cards = document.querySelectorAll(
-    '.testimonial-card, .about-card, .personal-card, .profile-paragraph, .profile-item, .om3-card, .post-card-content, .post-card-image'
+    '.testimonial-card, .about-card, .personal-card, .profile-paragraph, .profile-item, .om3-card'
   );
 
   const animatedCards = Array.from(cards).filter(card => {
     if (card.closest('.post-navigation')) return false;
-    if (card.closest('.posts-tabs-content-experimental')) return false;
     if (card.closest('[data-posts-layout="stacked"]')) return false;
     const testimonialGrid = card.closest('[data-testimonials-layout="scroll"]');
     if (testimonialGrid) return false;
-    if (card.closest('.posts-tabs-section')) {
-      // .post-card-content/.post-card-image opt in via data-card-reveal
-      // for every posts layout now (grid/carousel/list) — this is the one
-      // shared reveal system, not a per-layout duplicate. card-animations.js
-      // is fully disabled for the Work section (see its getVariant()) so
-      // there's no risk of double-animating the same elements.
-      const isPostCardPiece = card.classList.contains('post-card-content') || card.classList.contains('post-card-image');
-      if (!isPostCardPiece) return false;
-    }
     return true;
   });
 
@@ -390,6 +387,15 @@ function initCardScrollReveal() {
   // because we mark the revealed sets just like a genuine reveal would.
   window.__revealBackfill = (maxDocY) => {
     const limit = (typeof maxDocY === 'number' ? maxDocY : window.scrollY + window.innerHeight) - 40;
+    // Elements above the current scroll position have never been on screen
+    // this load — instant is correct there (nothing to see mid-snap).
+    // Elements from the scroll position down to the viewport bottom ARE
+    // currently on screen (this runs right after a curtain-return's
+    // INSTANT scroll jump, not a scrolled-through sweep), so snapping those
+    // straight to their revealed state with gsap.set read as an abrupt pop
+    // while the user is looking right at them — those get the same
+    // animated reveal a normal scroll trigger would give instead.
+    const viewportTop = window.scrollY;
     const skip = (el) => {
       const r = el.getBoundingClientRect();
       return r.width === 0 && r.height === 0; // hidden containers (tab panels etc.)
@@ -398,7 +404,9 @@ function initCardScrollReveal() {
     let count = 0;
     allRevealImages.forEach((img) => {
       if (revealedImages.has(img) || skip(img) || docTop(img) >= limit) return;
-      gsap.set(img, { opacity: 1, scale: imgCfg.scale.end, filter: `blur(${imgCfg.blur.end}px)` });
+      const props = { opacity: 1, scale: imgCfg.scale.end, filter: `blur(${imgCfg.blur.end}px)` };
+      if (docTop(img) >= viewportTop) gsap.to(img, { ...props, duration: imgCfg.duration, ease: imgCfg.ease });
+      else gsap.set(img, props);
       revealedImages.add(img);
       count++;
     });
@@ -406,12 +414,14 @@ function initCardScrollReveal() {
       if (revealedCards.has(card) || skip(card) || docTop(card) >= limit) return;
       const variantName = card.dataset.cardReveal || 'default';
       const cardCfg = SCROLL_REVEAL_CONFIG.card[variantName] || SCROLL_REVEAL_CONFIG.card.default;
+      const method = docTop(card) >= viewportTop ? 'to' : 'set';
+      const tweenOpts = method === 'to' ? { duration: cardCfg.duration, ease: cardCfg.ease } : {};
       if (variantName === 'slide-left') {
-        gsap.set(card, { opacity: 1, x: 0, filter: `blur(${cardCfg.blur.end}px)` });
+        gsap[method](card, { opacity: 1, x: 0, filter: `blur(${cardCfg.blur.end}px)`, ...tweenOpts });
       } else if (variantName === 'scale-focus') {
-        gsap.set(card, { opacity: 1, scale: cardCfg.scale.end, filter: `blur(${cardCfg.blur.end}px)` });
+        gsap[method](card, { opacity: 1, scale: cardCfg.scale.end, filter: `blur(${cardCfg.blur.end}px)`, ...tweenOpts });
       } else {
-        gsap.set(card, { opacity: 1, y: 0, scale: cardCfg.scale.end, filter: `blur(${cardCfg.blur.end}px)` });
+        gsap[method](card, { opacity: 1, y: 0, scale: cardCfg.scale.end, filter: `blur(${cardCfg.blur.end}px)`, ...tweenOpts });
       }
       revealedCards.add(card);
       count++;

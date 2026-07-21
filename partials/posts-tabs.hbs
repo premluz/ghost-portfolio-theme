@@ -30,7 +30,7 @@
             <div class="carousel-track">
               {{#get "posts" filter="featured:true+tag:hash-work+tag:featured" limit="100" include="tags,authors"}}
                 {{#foreach posts}}
-                  {{> post-card}}
+                  {{> post-card first=@first}}
                 {{/foreach}}
               {{/get}}
             </div>
@@ -58,7 +58,7 @@
             <div class="carousel-track">
               {{#get "posts" filter="featured:true+tag:hash-work+tag:experimental" limit="100" include="tags,authors"}}
                 {{#foreach posts}}
-                  {{> post-card}}
+                  {{> post-card first=@first}}
                 {{/foreach}}
               {{/get}}
             </div>

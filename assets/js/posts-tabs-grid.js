@@ -1,5 +1,21 @@
 (function() { 'use strict';
 
+// This file is <script src>'d independently from FOUR different partials
+// (about-projects.hbs, work-projects.hbs, posts-tabs-grid-lab.hbs,
+// posts-tabs-grid.hbs) — any page rendering more than one of them (e.g.
+// work.hbs renders both about-projects AND work-projects) loads and
+// EXECUTES this same script twice, since repeated <script src> tags for
+// the same URL aren't deduped by the browser. A second run's
+// loadCardMeta(gridCards[0]) sees card.__metaLoaded already true (set by
+// the first run) and returns an already-resolved Promise.resolve()
+// immediately, which then overwrote window.__firstGridCardMetaReady with
+// a trivially-resolved promise instead of the real, still in-flight one —
+// page-transition.js's reveal-gate resolved instantly instead of actually
+// waiting, which is exactly the abrupt post-reveal pop-in this was meant
+// to prevent.
+if (window.__postsTabsGridInitialized) return;
+window.__postsTabsGridInitialized = true;
+
 function initPostsTabsGrid() {
   const section = document.querySelector('.posts-tabs-grid-section');
   if (!section) return;
@@ -202,10 +218,10 @@ function initGridCardMetadata() {
   // never cared. No-IntersectionObserver browsers fall back to eager.
   const loadCardMeta = (card) => {
     const postUrl = card.getAttribute('data-post-url');
-    if (!postUrl || card.__metaLoaded) return;
+    if (!postUrl || card.__metaLoaded) return Promise.resolve();
     card.__metaLoaded = true;
 
-    fetch(postUrl)
+    return fetch(postUrl)
       .then(res => res.text())
       .then(html => {
         let metaMatch = html.match(/window\.projectMeta\s*=\s*(\{[\s\S]*?\});/);
@@ -260,35 +276,55 @@ function initGridCardMetadata() {
           }
 
           if (meta.video) {
-            // Same pattern as .post-card-image (post-and-cards.js): replace
-            // the image element's content with a <video> entirely, rather
-            // than layering a <video> + <img> with independent opacity
-            // fades racing each other (the old .grid-card-video/
-            // .grid-card-image-fallback dual-layer — see the glitch this
-            // caused, now removed from post-card-grid.hbs too). No fade
-            // needed: the video simply replaces the static poster once
-            // metadata assigns it, same as the post-card version always
-            // has. IntersectionObserver play/pause also matches
-            // post-and-cards.js, instead of the old autoplay+loop
-            // regardless of visibility.
+            // Layered ON TOP of the existing <img> (absolute, starts at
+            // opacity:0) instead of replacing it via innerHTML — replacing
+            // used to destroy the <img> the instant this ran, leaving a
+            // blank gap until the video's own loadeddata fired and its
+            // fade-in completed (image gone, then a beat of nothing, then
+            // video). The <img> now just stays put underneath and is never
+            // touched; only the video's opacity ever animates, so there's
+            // no two-layer race (unlike the OLD .grid-card-video/
+            // .grid-card-image-fallback dual-layer that caused a real
+            // glitch here before, now removed from post-card-grid.hbs too)
+            // and never a frame with nothing visible. IntersectionObserver
+            // play/pause matches post-and-cards.js.
             const imageEl = card.querySelector('.grid-card-image');
             if (imageEl) {
               const videoSrc = meta.video.startsWith('http') ? meta.video : `/content/images/videos/${meta.video}`;
-              imageEl.innerHTML = `
-                <video muted loop playsinline style="width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-sm);">
-                  <source src="${videoSrc}" type="video/mp4">
-                </video>
-              `;
-              const video = imageEl.querySelector('video');
-              if (video) {
-                const videoObserver = new IntersectionObserver((entries) => {
-                  entries.forEach(entry => {
-                    if (entry.isIntersecting) video.play();
-                    else video.pause();
-                  });
-                }, { threshold: 0.5 });
-                videoObserver.observe(video);
-              }
+              const video = document.createElement('video');
+              video.muted = true;
+              video.loop = true;
+              video.playsInline = true;
+              Object.assign(video.style, {
+                position: 'absolute',
+                inset: '0',
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                opacity: '0',
+                transition: 'opacity 0.4s ease',
+              });
+              const source = document.createElement('source');
+              source.src = videoSrc;
+              source.type = 'video/mp4';
+              video.appendChild(source);
+              imageEl.appendChild(video);
+              video.load();
+
+              const fadeIn = () => { video.style.opacity = '1'; };
+              // readyState >= 2 (HAVE_CURRENT_DATA): a frame already
+              // exists (e.g. served from cache) — fade from here rather
+              // than waiting on an event that already fired.
+              if (video.readyState >= 2) fadeIn();
+              else video.addEventListener('loadeddata', fadeIn, { once: true });
+
+              const videoObserver = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                  if (entry.isIntersecting) video.play();
+                  else video.pause();
+                });
+              }, { threshold: 0.5 });
+              videoObserver.observe(video);
               console.log('[grid-card] Set video thumbnail:', videoSrc);
             }
           }
@@ -347,14 +383,58 @@ function initGridCardMetadata() {
           if (en.isIntersecting) { io.unobserve(en.target); loadCardMeta(en.target); }
         });
       }, { rootMargin: '800px 0px' });
-      gridCards.forEach((c) => io.observe(c));
+      // First card excluded here — it's fetched eagerly below instead of
+      // waiting on this same idle+intersection gate, so page-transition.js
+      // can hold the page-level reveal until it's actually ready (see
+      // window.__firstGridCardMetaReady). Deferring it like every other
+      // card was exactly why the reveal used to show an empty/static card
+      // that then abruptly filled in or swapped to a video mid-view.
+      gridCards.forEach((c, i) => { if (i > 0) io.observe(c); });
     } else {
-      gridCards.forEach(loadCardMeta);
+      gridCards.forEach((c, i) => { if (i > 0) loadCardMeta(c); });
     }
   };
-  const whenIdle = () => (window.requestIdleCallback || ((fn) => setTimeout(fn, 800)))(startObserving);
+  // timeout is required — on pages with continuous particle/GSAP activity
+  // (the homepage's about-projects grid), the real requestIdleCallback can
+  // go a very long time without a genuinely idle period to fire in (see
+  // the identical fix + measurement in main.js's deferMetadataFetches).
+  const whenIdle = () => (window.requestIdleCallback || ((fn) => setTimeout(fn, 800)))(startObserving, { timeout: 2000 });
   if (document.readyState === 'complete') whenIdle();
   else window.addEventListener('load', whenIdle, { once: true });
+
+  // EAGER FETCH beyond just card 0: (1) any card already sitting in the
+  // viewport at this exact moment — it's about to be seen instantly, so
+  // waiting on idle+800px like a below-the-fold card just means visible
+  // text/video shows up late for no reason; (2) if this load is a
+  // curtain-return (or any arrival referred from one of these posts), the
+  // specific card the visitor just came back to check, plus its immediate
+  // neighbors — the one thing they're most likely looking at right now.
+  const eagerIndexes = new Set();
+  gridCards.forEach((card, i) => {
+    const r = card.getBoundingClientRect();
+    if (r.bottom > 0 && r.top < window.innerHeight) eagerIndexes.add(i);
+  });
+  if (document.referrer) {
+    try {
+      const referrerPath = new URL(document.referrer).pathname.replace(/\/$/, '');
+      gridCards.forEach((card, i) => {
+        const postUrl = (card.getAttribute('data-post-url') || '').replace(/\/$/, '');
+        if (postUrl && postUrl === referrerPath) {
+          eagerIndexes.add(i);
+          if (i > 0) eagerIndexes.add(i - 1);
+          if (i < gridCards.length - 1) eagerIndexes.add(i + 1);
+        }
+      });
+    } catch (e) { /* not a valid URL (e.g. empty referrer) — skip */ }
+  }
+  eagerIndexes.forEach((i) => loadCardMeta(gridCards[i]));
+
+  // First card: fetch immediately, in parallel with the page transition,
+  // not deferred behind idle+load like the rest — page-transition.js
+  // awaits this (with its own timeout cap) before revealing <main>, so by
+  // the time the page is actually visible this card is already in its
+  // final state instead of visibly changing after the fact.
+  window.__firstGridCardMetaReady = loadCardMeta(gridCards[0]) || Promise.resolve();
 }
 
 if (document.readyState === 'loading') {

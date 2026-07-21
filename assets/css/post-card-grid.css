@@ -175,6 +175,82 @@ body[data-typography-body='medium'] .posts-tab {
   filter: none;
 }
 
+/* card-scroll-reveal.js's own initial-hide (gsap.set(opacity:0,...)) only
+   runs once initCardScrollReveal() is actually called — which happens
+   after `await waitForPreloader()` and, on a non-cached visit, further
+   image/heading waits (main.js) — so these elements sat at their natural
+   CSS opacity (1, no rule here set it otherwise) from first paint until
+   that JS finally ran, then snapped to 0 before the reveal tween faded
+   them back in: a visible flash-then-hide-then-fade "blink". Hiding by
+   default in CSS closes that gap regardless of how long the JS takes.
+
+   Scope: every selector card-scroll-reveal.js's own querySelectorAll
+   targets (.testimonial-card, .about-card, .personal-card,
+   .profile-paragraph, .profile-item, .om3-card, .post-card-content,
+   .post-card-image) — not just the post-card pieces this was first
+   noticed on. The about page (personal.hbs's looped .personal-card,
+   often 2-3 of them) showed the exact same per-element blink, since none
+   of these had a CSS default either.
+
+   Guardrail: card-scroll-reveal.js returns immediately (does nothing at
+   all — no hide, no reveal) under prefers-reduced-motion, and its own
+   animatedCards filter permanently excludes elements inside
+   .post-navigation and [data-posts-layout="stacked"] (plus
+   [data-testimonials-layout="scroll"] for .testimonial-card) — every
+   excluded combination must be forced back to opacity:1 here, or those
+   elements would stay invisible forever with nothing left to un-hide them.
+   .post-card-content/.post-card-image are NOT in this list (see their own
+   rule below) — page-level only, no per-card entrance animation. */
+.testimonial-card,
+.about-card,
+.personal-card,
+.profile-paragraph,
+.profile-item,
+.om3-card {
+  opacity: 0;
+}
+
+.post-navigation .testimonial-card,
+.post-navigation .about-card,
+.post-navigation .personal-card,
+.post-navigation .profile-paragraph,
+.post-navigation .profile-item,
+.post-navigation .om3-card,
+[data-posts-layout="stacked"] .testimonial-card,
+[data-posts-layout="stacked"] .about-card,
+[data-posts-layout="stacked"] .personal-card,
+[data-posts-layout="stacked"] .profile-paragraph,
+[data-posts-layout="stacked"] .profile-item,
+[data-posts-layout="stacked"] .om3-card,
+[data-testimonials-layout="scroll"] .testimonial-card {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .testimonial-card,
+  .about-card,
+  .personal-card,
+  .profile-paragraph,
+  .profile-item,
+  .om3-card {
+    opacity: 1;
+  }
+}
+
+/* .post-card-content/.post-card-image: deliberately NOT part of
+   card-scroll-reveal.js's system (no CSS-default opacity:0, no
+   IntersectionObserver fade) — visibility comes ENTIRELY from <main>'s
+   own opacity (html.main-pending/landing-pending in default.hbs +
+   page-transition.js's reveal tween). Since these have no opacity of
+   their own, they render at their natural opacity while the ancestor
+   <main> fades 0→1, so they simply appear in lockstep with the page —
+   no separate per-card animation, no second fade racing the page reveal,
+   no delay beyond whatever the metadata fetch itself takes (text/video
+   just pop in the instant they're set, whenever that is). This was tried
+   as a scroll-triggered fade like .testimonial-card etc. before, but that
+   is a SEPARATE animation from the page-level reveal — exactly the
+   "second fade in" this avoids. */
+
 /* ─────────────────────────────────────────────────────────── */
 /* POSTS GRID BASE                                             */
 /* ─────────────────────────────────────────────────────────── */
@@ -835,6 +911,7 @@ body[data-typography-body='medium'] .posts-tab {
 
 .post-card-image {
   display: block;
+  position: relative;
   width: 100%;
   aspect-ratio: 1440 / 900;
   /* Was overflow:visible with no clipping/radius of its own at all — each

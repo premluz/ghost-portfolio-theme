@@ -632,10 +632,10 @@
 
   /* COMPONENT TOKENS — Tier 3 */
   /* Navigation */
-  --nav-bg: rgba(24, 24, 24, 0.7);
+  --nav-bg: rgba(245, 244, 241, 0.9);
   --nav-backdrop-blur: 10px;
   --nav-height: 60px;
-  --nav-gradient: linear-gradient(to bottom, rgba(0, 0, 0, 0.05) 0%, rgba(0, 0, 0, 0.02) 55%, rgba(0, 0, 0, 0.01) 80%, rgba(0, 0, 0, 0) 100%);
+  --nav-gradient: linear-gradient(to bottom, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.04) 55%, rgba(255, 255, 255, 0.02) 80%, rgba(255, 255, 255, 0) 100%);
 
   /* Cards */
   --card-bg: var(--surface-2);

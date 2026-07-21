@@ -12,7 +12,7 @@
     <div class="about-projects-grid">
       {{#get "posts" filter="tag:hash-work+tag:featured" limit="100" include="tags,authors"}}
         {{#foreach posts}}
-          {{> post-card-grid}}
+          {{> post-card-grid first=@first}}
         {{/foreach}}
       {{/get}}
     </div>

@@ -7,7 +7,7 @@
 
 <section class="statement-slide" style="min-height: 10vh; margin-top: 20vh; margin-bottom: 0;">
   <div class="statement-container">
-    <h2 class="statement-heading">Pitches, smaller projects, and explorations.</h2>
+    <h2 class="statement-heading">Pitches,<br />smaller projects,<br />explorations</h2>
     <h5 class="statement-description"></h5>
   </div>
 </section>
@@ -22,7 +22,7 @@
     <div class="posts-grid-lab-cards">
       {{#get "posts" filter="featured:true+tag:hash-work+tag:experimental" limit="100" include="tags,authors"}}
         {{#foreach posts}}
-          {{> post-card-grid}}
+          {{> post-card-grid first=@first}}
         {{/foreach}}
       {{/get}}
     </div>

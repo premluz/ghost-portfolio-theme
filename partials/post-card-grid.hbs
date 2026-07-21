@@ -7,8 +7,18 @@
             glitch this caused). Matches .post-card-image's own pattern:
             JS replaces this element's innerHTML with a <video> entirely
             when video metadata exists, no fallback layering needed. --}}
+      {{!-- loading="lazy" unconditionally used to defer even the FIRST
+            card's image — always above the fold, guaranteed immediately
+            visible with no scrolling, so deferring it only means the
+            network fetch starts later than it needs to. On a fresh page
+            navigation (nav-link click, no cached response from a prior
+            visit) that shows up as the surrounding text/testimonial
+            already visible while this card's image area sits blank for a
+            beat, then pops in once the deferred fetch finally finishes —
+            callers now pass `first=@first` through the {{#foreach}} so
+            only cards after the first one lazy-load. --}}
       <div class="grid-card-image">
-        <img src="{{feature_image}}" alt="{{title}}" loading="lazy" data-skip-reveal class="grid-card-image-fallback">
+        <img src="{{feature_image}}" alt="{{title}}" {{#unless first}}loading="lazy" {{/unless}}data-skip-reveal class="grid-card-image-fallback">
       </div>
     {{/if}}
     {{!-- Same card details as .post-card (post-card.hbs): category,

@@ -2468,10 +2468,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   // pages per card (~400KB of HTML measured on the homepage) just to
   // regex out metadata for below-the-fold grids — at DCL they competed
   // with fonts/images/particles on the critical path.
+  // { timeout: 2000 } is required, not optional: the homepage's particle
+  // system + GSAP tickers run continuously post-load, so the browser's
+  // real requestIdleCallback can go a very long time (measured: still not
+  // fired after 9s) without ever seeing a genuinely idle period — with no
+  // timeout this callback, and every card's title/testimonial/description,
+  // silently never ran at all.
   const deferMetadataFetches = () => (window.requestIdleCallback || ((fn) => setTimeout(fn, 800)))(() => {
     window.initPostCardMetadata?.();
     initTestimonialMetadata();
-  });
+  }, { timeout: 2000 });
   if (document.readyState === 'complete') deferMetadataFetches();
   else window.addEventListener('load', deferMetadataFetches, { once: true });
   initTestimonialModal();

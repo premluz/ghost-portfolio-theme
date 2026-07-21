@@ -9,7 +9,7 @@
       <div class="posts-grid-cards">
         {{#get "posts" filter="featured:true+tag:hash-work+tag:featured" limit="100" include="tags,authors"}}
           {{#foreach posts}}
-            {{> post-card-grid}}
+            {{> post-card-grid first=@first}}
           {{/foreach}}
         {{/get}}
       </div>
@@ -20,7 +20,7 @@
       <div class="posts-grid-cards">
         {{#get "posts" filter="featured:true+tag:hash-work+tag:experimental" limit="100" include="tags,authors"}}
           {{#foreach posts}}
-            {{> post-card-grid}}
+            {{> post-card-grid first=@first}}
           {{/foreach}}
         {{/get}}
       </div>

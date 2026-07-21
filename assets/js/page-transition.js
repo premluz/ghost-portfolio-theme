@@ -75,11 +75,11 @@
       },
     });
 
-    // 1. Current page: slide up + fade out
+    // 1. Current page: slide down + fade out
     if (pageContent) {
       tl.to(pageContent, {
-        y:        -150,
-        opacity:  50,
+        y:        20,
+        opacity:  0,
         duration: 0.2,
         ease:     'power1.in',
       }, 0);
@@ -159,15 +159,20 @@
     if (!isCurtainReturn) return false;
     try { sessionStorage.removeItem('curtainReturn'); } catch (err) {}
 
-    // The head pre-hide (html.landing-pending, default.hbs) fires on ANY
-    // same-origin arrival at '/' — including this curtain return, since
-    // the referrer is the post page. But the landing branch (which
-    // normally removes that class) never runs on the curtain path (this
-    // function returning true short-circuits it), so the class used to
-    // sit until its 2.5s failsafe — a blank page that then faded in late.
-    // The curtain entrance has its own scrim/main choreography; drop the
-    // veil the moment this path takes ownership.
+    // The head pre-hide (html.landing-pending for '/', html.main-pending
+    // for work/about/contact/post — both in default.hbs) fires on ANY
+    // same-origin arrival, including this curtain return, since the
+    // referrer is the post page. But the branch that normally removes
+    // whichever class applies (runLandingAnimation()) never runs on the
+    // curtain path (this function returning true short-circuits it), so
+    // the class used to sit until its 2.5s failsafe — main-pending's
+    // opacity:0 !important fully masked this function's own GSAP fade for
+    // that entire window, then popped visible all at once when the
+    // failsafe finally stripped it. The curtain entrance has its own
+    // scrim/main choreography; drop both veils the moment this path takes
+    // ownership (only one is ever actually present, depending on page).
     document.documentElement.classList.remove('landing-pending');
+    document.documentElement.classList.remove('main-pending');
 
     let origin = null;
     try { origin = JSON.parse(sessionStorage.getItem('postOrigin') || 'null'); } catch (err) {}
@@ -181,43 +186,27 @@
     if (origin && typeof origin.scrollY === 'number') {
       const targetY = origin.scrollY;
 
-      // A plain window.scrollTo() jump teleports straight to targetY,
-      // skipping every intermediate scroll position — anything relying on
-      // actually passing through the viewport to reveal itself (card-
-      // scroll-reveal.js's IntersectionObservers, and any other scroll-
-      // driven reveal on the page) never fires for elements above targetY,
-      // since they never entered the observer's view this session. Faking
-      // a real (fast) scroll through those intermediate positions instead
-      // lets whatever reveal system exists — of any kind, not just cards —
-      // fire exactly as it would on an ordinary scroll. Respects
-      // prefers-reduced-motion: jump straight there instead.
-      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      const snapTo = (y) => window.scrollTo(0, y);
-      const scrollThrough = (y, duration = 350) => {
-        if (prefersReducedMotion) { snapTo(y); return; }
-        const startY = window.scrollY;
-        const delta = y - startY;
-        if (delta === 0) return;
-        const startTime = performance.now();
-        (function step(now) {
-          const t = Math.min(1, (now - startTime) / duration);
-          const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
-          window.scrollTo(0, startY + delta * eased);
-          if (t < 1) requestAnimationFrame(step);
-        })(startTime);
-      };
+      // Instant jump, not an animated scroll-through — a curtain return is a
+      // dismissal back to where you were, not a navigation anywhere new; a
+      // visible smooth-scroll here read as an unwanted second animation on
+      // top of the curtain fade. An earlier version animated this jump
+      // specifically to make card-scroll-reveal.js's IntersectionObservers
+      // fire for everything passed over, but that turned out unreliable on
+      // its own (see BACKFILL GUARDRAIL below, which now does that job for
+      // real, independent of how the scroll gets there) — safe to snap.
+      // behavior: 'instant', not 'auto' — html has scroll-behavior: smooth
+      // (main.css) globally, and per spec 'auto' means "defer to the
+      // scrolling box's CSS scroll-behavior", not "force instant"; it still
+      // animated. Only 'instant' actually overrides the CSS and jumps.
+      const snapTo = (y) => window.scrollTo({ top: y, left: 0, behavior: 'instant' });
+      snapTo(targetY);
 
-      scrollThrough(targetY);
-
-      // BACKFILL GUARDRAIL: the sweep above is best-effort — homepage init
-      // blocks painting for ~1s, so its rAF loop degenerates into a few
-      // big scroll jumps and IntersectionObserver-based reveals miss most
-      // elements (they only evaluate at frame boundaries). Force-reveal
-      // everything at/above the restored viewport via the registry that
-      // card-scroll-reveal.js exposes, at several points (idempotent,
-      // cheap): right after the sweep, after init settles, and as a final
-      // sweep-up. Optional-chained: pages without the reveal system, or
-      // loads where it initializes late, are covered by the later calls.
+      // BACKFILL GUARDRAIL: force-reveal everything at/above the restored
+      // viewport via the registry that card-scroll-reveal.js exposes, at
+      // several points (idempotent, cheap) — right after the jump, after
+      // init settles, and as a final sweep-up. Optional-chained: pages
+      // without the reveal system, or loads where it initializes late, are
+      // covered by the later calls.
       const backfill = () => { try { window.__revealBackfill && window.__revealBackfill(); } catch (e) {} };
       setTimeout(backfill, 450);
       setTimeout(backfill, 1200);
@@ -411,6 +400,12 @@
 
     const main = document.querySelector('main');
     if (!main) return;
+
+    // Drop the head pre-hide (html.main-pending, default.hbs) the instant
+    // this takes over — same tick as the gsap.set below (or, for pages that
+    // don't match shouldAnimate, with nothing else hiding <main> at all),
+    // so there's never a gap where neither CSS nor GSAP is holding it.
+    document.documentElement.classList.remove('main-pending');
 
     // Check if current page should have landing animation
     // Look for class on body, section, or in data-page-id

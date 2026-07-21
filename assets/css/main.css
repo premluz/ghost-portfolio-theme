@@ -988,7 +988,7 @@ html {
 }
 
 /* Blur fade layer - behind content, creates soft gradient fade */
-  /*.gh-navigation::before {
+.gh-navigation::before {
   content: '';
   position: absolute;
   top: 0;
@@ -998,8 +998,7 @@ html {
   background-color: var(--nav-bg);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
- Very smooth fade with many stops to avoid visible banding 
-  
+  /* Very smooth fade with many stops to avoid visible banding */
   mask-image: linear-gradient(
     to bottom,
     rgba(33, 36, 35, 0.9) 0%,
@@ -1017,8 +1016,8 @@ html {
     rgba(33, 36, 35, 0) 100%
   );
   pointer-events: none;
-  z-index: -1;
-}*/
+  z-index: 1;
+}
 
 /* Soft color gradient overlay - adds visual softness */
 .gh-navigation::after {
@@ -1028,10 +1027,9 @@ html {
   left: 0;
   right: 0;
   bottom: -30px;
-   background-color: transparent !important; 
-  /*background: var(--nav-gradient);*/
+  background: var(--nav-gradient);
   pointer-events: none;
-  z-index: -1;
+  z-index: 0;
 }
 
 .gh-navigation.nav-hidden {
@@ -1137,6 +1135,8 @@ html {
   background-color: var(--glass-bg);
   backdrop-filter: var(--glass-backdrop);
   -webkit-backdrop-filter: var(--glass-backdrop);
+  position: relative;
+  z-index: 10;
 }
 
 .gh-navigation[data-nav-hide-mode="stagger"] .nav-wrapper {
@@ -2073,6 +2073,26 @@ body.post-template .nav-wrapper {
     padding: var(--space-sm) var(--content-padding);
   }
 
+  /* Gradient shader at top of screen on mobile (nav is at bottom) */
+  .gh-navigation::before,
+  .gh-navigation::after {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: auto;
+    height: 100px;
+  }
+
+  .gh-navigation::before {
+    bottom: auto;
+  }
+
+  .gh-navigation::after {
+    bottom: auto;
+    height: 75px;
+  }
+
 }
 
 @media (max-width: 480px) {
@@ -2544,10 +2564,11 @@ body.post-template .nav-wrapper {
 
 /* Endorser name */
 .post-card-endorser {
-  font-size: var(--text-size-body);
+  font-size: var(--text-small);
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.6));
   margin: 0 0 var(--space-sm) 0;
   transition: color 0.3s ease;
+  font-weight: var(--text-weight-normal);
 }
 
 .post-card-endorser:empty {
@@ -3368,7 +3389,7 @@ body[data-typography-body='medium'] .posts-tab {
      math produces, with no overflow risk. */
   --gap: max(4vmin, 20px);
   --main: min(var(--content-max-width-text), 100% - var(--gap) * 2);
-  --container: 1400px;
+  --container: 1000px;
   --wide: minmax(0, calc((var(--container) - var(--main)) / 2));
   /* Floor dropped to 0 (was var(--gap)) — .kg-width-full/.kg-gallery-card
      already carry their own explicit content-padding (below), so this
@@ -3427,7 +3448,23 @@ body[data-page-width='full'] .gh-canvas {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: inherit;
-  overflow-x: hidden;
+  /* Was overflow-x: hidden with overflow-y left unset (default visible) —
+     hits a CSS Overflow spec rule: if the two axes end up with different
+     "is it visible or not" values, the visible one is forced to compute
+     as auto instead (needed so visible content can't escape a box
+     clipped on the other axis). That silently turned .gh-content into a
+     vertical scroll container. Chromium was forgiving about it; WebKit
+     (Safari, DuckDuckGo's browser) enforced it literally, showing a real
+     inner scrollbar on post content. Explicitly adding overflow-y:visible
+     does NOT fix this — the spec rule triggers on the axes differing at
+     all, regardless of which values you spell out, so that would have
+     still computed to auto (confirmed empirically). overflow-x: clip is
+     the actual fix: `clip` was specifically introduced so one axis can
+     clip without promoting the whole box into an auto-scroll container,
+     unlike hidden/scroll/auto. Keeps the same horizontal clipping (full-
+     bleed content still can't cause page-level horizontal scroll)
+     without ever touching overflow-y's computed value. */
+  overflow-x: clip;
 }
 
 /* Nav/hero/footer/etc. each get BOTH a centering margin (page-width cap)
@@ -4318,7 +4355,7 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-i
 
 /* PAGE WIDTH CONFIGURATION */
 body[data-page-width='contained'] .container {
-  max-width: 1400px;
+  max-width: 1000px;
 }
 
 body[data-page-width='wide'] .container {
@@ -5170,7 +5207,17 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
    applies down to 769px, leaving true mobile widths with none at all. */
 @media (max-width: 768px) {
   .hero-container {
-    padding-top: var(--content-padding) !important;
+    padding-top: var(--space-3xl) !important;
+  }
+
+  /* Image 20% larger on mobile */
+  .hero-image-wrapper {
+    flex: 1 1 58% !important;
+  }
+
+  /* Content larger with more spacing */
+  .hero-content {
+    padding: var(--space-4xl) 0 !important;
   }
 }
 
@@ -7483,7 +7530,6 @@ textarea::placeholder {
 
 .statement-container {
   width: 100%;
-  max-width: 80%;
   padding: 0 var(--content-padding);
   text-align: left;
   margin: 0 auto;
@@ -7499,9 +7545,6 @@ textarea::placeholder {
   word-spacing: normal;
   white-space: normal;
   padding: 0;
-  width: 100%;
-  overflow-wrap: break-word;
-  word-break: break-word;
 }
 
 .statement-description {
@@ -7936,5 +7979,16 @@ html.curtain-restoring #particle-morph-demo {
    same-site arrival; removed by page-transition.js when the entrance tween
    starts). !important so the page-ready reveal rules can't override it. */
 html.landing-pending .home {
+  opacity: 0 !important;
+}
+
+/* Non-home landing pre-hide (work/about/contact/post pages) — same
+   mechanism as html.landing-pending above, set unconditionally in
+   default.hbs head before first paint. Without this, the raw HTML (the
+   first grid-card included) painted fully visible for one frame before
+   page-transition.js's runLandingAnimation() ran its JS-timed
+   gsap.set(main,{opacity:0}) on DOMContentLoaded. Removed by
+   page-transition.js the instant it takes over. */
+html.main-pending main {
   opacity: 0 !important;
 }

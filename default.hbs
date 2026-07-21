@@ -192,8 +192,8 @@
     // over, and the timeout guarantees the page can never stay blank.
     (function () {
       try {
-        if (document.referrer && new URL(document.referrer).origin === location.origin &&
-            (location.pathname === '/' || location.pathname === '')) {
+        var isHome = (location.pathname === '/' || location.pathname === '');
+        if (document.referrer && new URL(document.referrer).origin === location.origin && isHome) {
           document.documentElement.classList.add('landing-pending');
           // The page-level entrance owns the reveal on this load — inner
           // hero choreography (text stagger, image fade) must not stack a
@@ -201,6 +201,22 @@
           // and main.js's hero image entrance).
           window.__pageEntranceOwns = true;
           setTimeout(function () { document.documentElement.classList.remove('landing-pending'); }, 2500);
+        } else if (!isHome) {
+          // NON-HOME PRE-HIDE — same reasoning, for work/about/contact/post
+          // pages: page-transition.js's runLandingAnimation() hides <main>
+          // via gsap.set(main,{y:200,opacity:0}), but that's JS-timed and
+          // runs on DOMContentLoaded — the raw HTML (including the first
+          // grid-card) would otherwise paint fully visible for one frame
+          // before that JS executes. Unlike the homepage branch this isn't
+          // gated on referrer — runLandingAnimation()'s non-home branch
+          // runs on every load of these pages regardless of arrival path,
+          // so this must too, or direct/external loads would still flash.
+          // Removed the instant runLandingAnimation() takes over (same
+          // tick as its own gsap.set, so no gap), with the same failsafe
+          // timeout so a page type this doesn't apply to (tag archives,
+          // etc.) never stays hidden.
+          document.documentElement.classList.add('main-pending');
+          setTimeout(function () { document.documentElement.classList.remove('main-pending'); }, 2500);
         }
       } catch (e) {}
     })();
@@ -645,7 +661,7 @@
   {{#is "post"}}
   <script src="{{asset "js/group-layout.js"}}"></script>
   {{/is}}
-  {{ghost_foot}}
+  {{!-- {{ghost_foot}} --}}
 
   <!-- GPU Particle System Integration (Production Setup) -->
  <!-- {{> gpu-particle-integration}} -->

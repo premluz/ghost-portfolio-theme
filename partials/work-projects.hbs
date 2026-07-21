@@ -27,7 +27,7 @@
     <div class="posts-grid-cards">
       {{#get "posts" filter="tag:hash-work+tag:experimental" limit="100" include="tags,authors"}}
         {{#foreach posts}}
-          {{> post-card-grid}}
+          {{> post-card-grid first=@first}}
         {{/foreach}}
       {{/get}}
     </div>
@@ -35,10 +35,13 @@
   </div>
 </section>
 
-{{!-- Populates .grid-card-category/-description/-logo/-bullets/etc. per
-      card via a per-post metadata fetch — the only script that does this,
-      shared with posts-tabs-grid.hbs. Without it every card renders with
-      empty text content (confirmed the actual cause of a broken-looking
-      layout during verification). --}}
-<script src="{{asset "js/posts-tabs-grid.js"}}"></script>
+{{!-- posts-tabs-grid.js populates .grid-card-category/-title/-testimonial/
+      etc. per card via a per-post metadata fetch. No <script> tag here —
+      work-projects.hbs is only ever rendered from work.hbs, always right
+      after about-projects.hbs, whose own script tag already covers this
+      page. A second copy here executed the whole file twice (repeated
+      <script src> tags aren't deduped by the browser), which broke the
+      first grid-card's eager metadata fetch that page-transition.js's
+      landing-animation gate depends on — see posts-tabs-grid.js's own
+      window.__postsTabsGridInitialized guard for the full explanation. --}}
 

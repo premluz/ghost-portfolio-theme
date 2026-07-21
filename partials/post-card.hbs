@@ -37,7 +37,17 @@
       </div>
             {{#if feature_image}}
         <div class="post-card-image" data-card-reveal="default" data-item-index="0">
-          <img src="{{feature_image}}" alt="{{title}}" loading="lazy">
+          {{!-- loading="lazy" was unconditional, including on the first
+                card — always above the fold, so deferring it just delays
+                the network fetch with no benefit. posts-tabs.hbs now
+                passes first=@first through the {{#foreach}}. --}}
+          {{!-- data-skip-reveal: .post-card-image is no longer part of
+                card-scroll-reveal.js's system at all (page-level entrance
+                only — see post-card-grid.css), but the generic per-<img>
+                reveal (same file) has no exclusion for this container and
+                would otherwise still fade this image in independently,
+                same bug as the container used to have. --}}
+          <img src="{{feature_image}}" alt="{{title}}" {{#unless first}}loading="lazy" {{/unless}}data-skip-reveal>
         </div>
       {{/if}}
     </div>
