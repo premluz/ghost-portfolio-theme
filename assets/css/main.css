@@ -583,14 +583,14 @@ p:last-child {
 
 .flexlayout {
   display: flex;
-  gap: var(--space-lg);
+  gap: var(--space-md);
 }
 
 .flexlayout .col  {
   flex: 1 1 min(420px, 48%);
   margin-top: var(--space-lg);
   padding: var(--space-lg);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--surface-1) 100%, transparent) !important; 
 }
 .flexlayout .col h3 {
@@ -2313,7 +2313,7 @@ body.post-template .nav-wrapper {
   background-repeat: no-repeat;
   background-position: center;
   background-attachment: fixed;
-  min-height: 1200px;
+  min-height: 1280px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3389,7 +3389,7 @@ body[data-typography-body='medium'] .posts-tab {
      math produces, with no overflow risk. */
   --gap: max(4vmin, 20px);
   --main: min(var(--content-max-width-text), 100% - var(--gap) * 2);
-  --container: 1000px;
+  --container: 1280px;
   --wide: minmax(0, calc((var(--container) - var(--main)) / 2));
   /* Floor dropped to 0 (was var(--gap)) — .kg-width-full/.kg-gallery-card
      already carry their own explicit content-padding (below), so this
@@ -3507,6 +3507,7 @@ body[data-page-width='full'] .gh-canvas {
 .kg-width-wide figure {
   grid-column: wide-start / wide-end;
   padding: 0 var(--content-padding);
+  max-width: 1600px;
 }
 
 /* Galleries always fullscreen with padding */
@@ -3673,7 +3674,7 @@ body[data-page-width='full'] .gh-canvas {
 }
 
 body[data-page-width='contained'] .post[data-post-hero='respects_page_width'] .post-header {
-  max-width: 1400px;
+  max-width: 1280px;
 }
 
 body[data-page-width='wide'] .post[data-post-hero='respects_page_width'] .post-header {
@@ -3691,7 +3692,7 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-h
 }
 
 body[data-page-width='contained'] .post[data-post-hero='respects_page_width'] .post-image {
-  max-width: 1400px;
+  max-width: 1280px;
 }
 
 body[data-page-width='wide'] .post[data-post-hero='respects_page_width'] .post-image {
@@ -3714,7 +3715,7 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-i
   padding: 0 var(--content-padding);
 }
 
-.post[data-post-hero='contained'] .post-header { max-width: 1400px; }
+.post[data-post-hero='contained'] .post-header { max-width: 1280px; }
 .post[data-post-hero='wide'] .post-header { max-width: 1600px; }
 
 .post[data-post-hero='contained'] .post-image,
@@ -3724,7 +3725,7 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-i
   width: 100%;
 }
 
-.post[data-post-hero='contained'] .post-image { max-width: 1400px; }
+.post[data-post-hero='contained'] .post-image { max-width: 1280px; }
 .post[data-post-hero='wide'] .post-image { max-width: 1600px; }
 
 .post-footer {
@@ -4355,7 +4356,7 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-i
 
 /* PAGE WIDTH CONFIGURATION */
 body[data-page-width='contained'] .container {
-  max-width: 1000px;
+  max-width: 1280px;
 }
 
 body[data-page-width='wide'] .container {
@@ -4784,7 +4785,7 @@ div[class*="sodo-search-overlay"],
 /* Hero text respects page width (rest position only — .hero-bg stays
    viewport-wide so the scroll-exit slide isn't clipped early). */
 body[data-page-width='contained'] .hero-container {
-  max-width: 1400px;
+  max-width: 1280px;
 }
 
 body[data-page-width='wide'] .hero-container {
@@ -4834,7 +4835,7 @@ body[data-page-width='full'] .hero-container {
 }
 
 body[data-page-width='contained'] .hero[data-home-hero-width='respect_page_width'] .hero-container {
-  max-width: 1400px;
+  max-width: 1280px;
 }
 
 body[data-page-width='wide'] .hero[data-home-hero-width='respect_page_width'] .hero-container {
@@ -4877,7 +4878,7 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
   z-index: 0;
 }
 
-.hero[data-home-hero-width='contained'] .hero-container { max-width: 1400px; }
+.hero[data-home-hero-width='contained'] .hero-container { max-width: 1280px; }
 .hero[data-home-hero-width='wide'] .hero-container { max-width: 1600px; }
 
 /* When animation is disabled, allow content to scroll over hero image */
@@ -4952,7 +4953,7 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
      so it needs to wrap normally instead of overflowing as one line. */
   /* Hide raw text initially — scroll-scrub-anim.js animates it in */
   visibility: hidden;
-  max-width: 860px !important
+  max-width: 820px !important
 }
 
 /* .hero-line / .hero-headline .animate-word: dead now that initHero() no
@@ -4980,7 +4981,7 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
   padding-bottom: 16px;
   /* Prevent hyphenation and word breaks */
   hyphens: none;
-  word-break: keep-all;;
+  word-break: keep-all;
 }
 
 /* Tag pills */
@@ -5021,7 +5022,7 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
      containing block. */
   position: absolute;
   top: 0;
-  right: -200px !important;
+  right: -240px !important;
   height: 100vh;
   width: 100%;
   z-index: 0;
@@ -5872,7 +5873,7 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
 /* Header respects page width even though the section itself is full-bleed
    (the horizontal-scroll track below needs the full viewport). */
 body[data-page-width='contained'] .testimonials-section[data-testimonials-layout="scroll"] .testimonials-header {
-  max-width: 1400px;
+  max-width: 1280px;
 }
 
 body[data-page-width='wide'] .testimonials-section[data-testimonials-layout="scroll"] .testimonials-header {
@@ -6486,7 +6487,7 @@ body[data-page-width='full'] .testimonials-section[data-testimonials-layout="scr
 
 /* Set max-width based on page-width setting */
 body[data-page-width='contained'] [data-home-content-width="respect_page_width"] {
-  max-width: 1400px;
+  max-width: 1280px;
 }
 
 body[data-page-width='wide'] [data-home-content-width="respect_page_width"] {
@@ -6510,7 +6511,7 @@ body[data-page-width='full'] [data-home-content-width="respect_page_width"] {
   margin-left: auto;
   margin-right: auto;
   width: 100%;
-  max-width: 1400px;
+  max-width: 1200;
 }
 
 [data-home-content-width="wide"] {
@@ -6541,7 +6542,7 @@ body[data-page-width='full'] [data-home-content-width="respect_page_width"] {
 }
 
 body[data-page-width='contained'] [data-page-content-width="respect_page_width"] {
-  max-width: 1400px;
+  max-width: 1280px;
 }
 
 body[data-page-width='wide'] [data-page-content-width="respect_page_width"] {
@@ -6568,7 +6569,7 @@ body[data-page-width='full'] [data-page-content-width="respect_page_width"] {
   margin-left: auto;
   margin-right: auto;
   width: 100%;
-  max-width: 1400px;
+  max-width: 1280px;
 }
 
 [data-page-content-width="wide"] {
@@ -6586,7 +6587,7 @@ body[data-page-width='full'] [data-page-content-width="respect_page_width"] {
 }
 
 body[data-page-width='contained'] .gh-footer[data-footer-width="respect_page_width"] {
-  max-width: 1400px;
+  max-width: 1280px;
 }
 
 body[data-page-width='wide'] .gh-footer[data-footer-width="respect_page_width"] {
@@ -6610,7 +6611,7 @@ body[data-page-width='full'] .gh-footer[data-footer-width="respect_page_width"] 
   margin-left: auto;
   margin-right: auto;
   width: 100%;
-  max-width: 1400px;
+  max-width: 1280px;
 }
 
 .gh-footer[data-footer-width="wide"] {
@@ -6792,7 +6793,7 @@ body[data-page-width='full'] .gh-footer[data-footer-width="respect_page_width"] 
 }
 
 .word-animation-text {
-  width: clamp(600px, 90vw, 1200px);
+  width: clamp(600px, 90vw, 1280px);
   text-align: center;
   font-size: clamp(calc(2rem * var(--type-scale-heading, 1)), calc(6vw * var(--type-scale-heading, 1)), calc(3.5rem * var(--type-scale-heading, 1)));
   font-weight: 500;
@@ -7766,7 +7767,7 @@ textarea::placeholder {
 /* Operating model respects page width — nothing in this section slides
    off-screen, so it can simply be capped and centered like .container. */
 body[data-page-width='contained'] .om-columns {
-  max-width: 1400px;
+  max-width: 1280px;
 }
 
 body[data-page-width='wide'] .om-columns {

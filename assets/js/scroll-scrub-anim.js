@@ -337,26 +337,15 @@ class ScrollScrubAnimationSystem {
     // drives that one number. scroll-position-driven, not a time-based CSS
     // transition, so it can't fall behind on a fast scroll. Set at :root
     // (the default) so the fixed nav can read it too.
-    // Zone rule: the profile always flips to the OPPOSITE palette, but
-    // everything from testimonials onward should always end up LIGHT.
-    // Because the dark/dim shift target IS light, that collapses to a
-    // theme-dependent zone end:
-    //   dark/dim → hold the (light) shifted palette to the FOOTER's bottom,
-    //              i.e. the end of the page — it never reverses;
-    //   light    → the zone is the profile alone; the exit ramp at its
-    //              bottom returns to the normal light palette exactly as
-    //              testimonials enters.
-    // endTrigger is a function so this resolves fresh every frame (and on
-    // data-theme mutations — bindShift watches those): a theme toggle
-    // mid-scroll just works. Bonus of this rule: at full shift the
-    // dark-shifted palette and normal light palette are the same colours,
-    // so toggling while inside testimonials/footer is visually seamless.
-    // One binding spanning the whole zone (see bindShift for why this must
-    // NOT be several bindings, one per section). Every section inside the
-    // zone needs the --shift-ink color-mix treatment for its text
-    // (profile.css + the testimonials/footer blocks in main.css).
-    const zoneEnd = document.querySelector('.gh-footer')
-      || document.querySelector('.testimonials-section');
+    // Zone rule: the shift zone is ALWAYS just the profile section itself —
+    // it reverses back to normal palette at the profile's bottom edge on
+    // ALL pages (homepage, about, etc.) and ALL themes (light/dark/dim).
+    // Footer is explicitly excluded from the shift zone. If testimonials
+    // exists (homepage), it appears in normal palette. On pages without
+    // testimonials (about page), the shift still reverses after profile.
+    // endTrigger can extend to testimonials if needed, but NOT to footer.
+    const testimonials = document.querySelector('.testimonials-section');
+    const zoneEnd = testimonials || section; // Extend through testimonials if present, otherwise just profile
 
     // NOTE: liquid-glass (SurfaceEffectLayer) does NOT attach to the
     // portrait — deliberately. The portrait's job is legibility of the
@@ -368,10 +357,9 @@ class ScrollScrubAnimationSystem {
     // ever wanted, it should be a single <200ms shimmer pulse at reveal
     // entry, never a persistent scroll-scrubbed lens.
     window.BackgroundLayer.bindShift(section, '--profile-shift', {
-      endTrigger: () => {
-        const isLightSite = document.documentElement.getAttribute('data-theme') === 'light';
-        return isLightSite ? section : zoneEnd;
-      },
+      endTrigger: zoneEnd, // Static element, not theme-dependent anymore
+      enterOffset: 0.3, // Delay enter ramp - shift starts 0.3vh after profile top enters viewport (prevents hero shading)
+      exitOffset: 0.7, // Delay exit ramp - shift holds 0.7vh longer before reverting (prevents early fade)
       onProgress: invertParticles,
     });
   }

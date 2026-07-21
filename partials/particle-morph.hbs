@@ -781,6 +781,7 @@ async function initParticleMorphModular() {
         debug(`[trigger-setup] work-grid-lab found: ${!!labIntro}`);
         if (labIntro) {
           let labEntered = false;
+          let lastLabScrollY = window.scrollY;
           const doLabMorph = () => {
             const rect = labIntro.getBoundingClientRect();
             debug(`[trigger] work-grid-lab entered → morph to lab (rect.top=${Math.round(rect.top)}, viewportH=${window.innerHeight})`);
@@ -829,10 +830,25 @@ async function initParticleMorphModular() {
           const labObserver = new IntersectionObserver((entries) => {
             entries.forEach((entry) => {
               const topNearViewport = entry.boundingClientRect.top > -window.innerHeight * 0.5;
+              const scrollingUp = window.scrollY < lastLabScrollY;
+              lastLabScrollY = window.scrollY;
               if (entry.isIntersecting && topNearViewport && !labEntered) {
                 labEntered = true;
                 doLabMorph();
               } else if (!entry.isIntersecting || !topNearViewport) {
+                // Leaving lab going BACKWARD (scrolling up, back toward
+                // work-grid/work-cards) has nothing else to re-hide the
+                // particle layer: work-grid/work-cards' own ScrollTriggers
+                // are onEnter-only (forward/down direction), so scrolling
+                // up out of lab left the layer showing whatever 'lab' set
+                // it to instead of going back to hidden. Re-apply
+                // 'work-cards' (also 'hide' in the active scenario) only
+                // when actually reversing — the forward/down leave case is
+                // already covered by testimonials' own onEnter trigger.
+                if (labEntered && scrollingUp) {
+                  debug('[trigger] work-grid-lab left scrolling up → re-hide for work-cards');
+                  window.__particleApply(system, 'work-cards', 'dispersed', 400);
+                }
                 labEntered = false;
               }
             });

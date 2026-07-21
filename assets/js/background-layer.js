@@ -121,8 +121,16 @@
     const compute = () => {
       const vh = window.innerHeight;
       if (!vh) return;
-      const enterT = (vh - triggerEl.getBoundingClientRect().top) / vh;
-      const exitT = resolveEndEl().getBoundingClientRect().bottom / vh;
+      // enterOffset (default 0): delays the enter ramp start by N viewport heights.
+      // enterOffset=0.3 means the section's top must be 0.3vh PAST viewport bottom
+      // before shift begins — prevents premature shift during previous section.
+      const enterOffset = options.enterOffset || 0;
+      const enterT = (vh - triggerEl.getBoundingClientRect().top - (vh * enterOffset)) / vh;
+      // exitOffset (default 0): delays the exit ramp start by N viewport heights.
+      // exitOffset=0.5 means the section must scroll 0.5vh PAST the normal exit
+      // trigger point before reversion begins — keeps the shift held longer.
+      const exitOffset = options.exitOffset || 0;
+      const exitT = (resolveEndEl().getBoundingClientRect().bottom - (vh * exitOffset)) / vh;
       apply(Math.max(0, Math.min(1, enterT, exitT)));
     };
 

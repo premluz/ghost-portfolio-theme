@@ -95,9 +95,16 @@
   <title>{{meta_title}}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  {{!-- CRITICAL: Preload hero images FIRST (above-the-fold, highest priority) --}}
+  {{#if @site.cover_image}}
+  <link rel="preload" href="{{@site.cover_image}}" as="image" fetchpriority="high">
+  {{/if}}
+  <link rel="preload" href="/content/images/prem-front-dark.png" as="image" fetchpriority="high">
+  <link rel="preload" href="/content/images/prem-front-light.png" as="image" fetchpriority="high">
+  
   {{!-- Preconnect to CDNs used by particle system --}}
   <link rel="preconnect" href="https://unpkg.com" crossorigin>
-  {{!-- Preload 3D shape files so they are in cache when JS requests them --}}
+  {{!-- Preload 3D shape files so they are in cache when JS requests them (lower priority than hero) --}}
   <link rel="preload" href="/content/images/mobile.glb"  as="fetch" crossorigin>
   <link rel="preload" href="/content/images/note.glb"    as="fetch" crossorigin>
   {{!-- clapper.glb preload removed: file deleted from Ghost content (404). Re-add if re-uploaded. --}}
@@ -396,8 +403,8 @@
     // ground-plane lattice and the helix never forms in the hero;
     // 'helix' restores the original helix and the lattice doesn't mount.
     // Read by particle-morph.hbs, scroll-scrub-anim.js, volatility-surface.js.
-    window.HERO_PARTICLE_MODE = 'volatility';
-    window.__heroShape = () => window.HERO_PARTICLE_MODE === 'helix' ? 'helix' : 'volatility';
+    window.HERO_PARTICLE_MODE = 'helix';
+    window.__heroShape = () => window.HERO_PARTICLE_MODE === 'helix' ? 'helix' : 'helix';
 
     // PARTICLE SCENARIOS — declarative section→behavior map. Every particle
     // scroll trigger routes through __particleApply(key, builtin, ms), so a
@@ -414,12 +421,12 @@
       full: {},                       // current site behavior, untouched
       'hero-footer': {                // particles ONLY in hero + footer
         'hero-exit': 'hide',
-        'operating-model': 'hide',
+        //'operating-model': 'hide',
         'helix-section': 'hide',
         profile: 'hide', 'profile-exit': 'hide',
         stats: 'hide',
         'work-grid': 'hide', 'work-cards': 'hide',
-        lab: 'hide',
+        //lab: 'hide',
         testimonials: 'hide',
         'footer-exit': 'hide',
         // hero + footer absent → their built-in shapes (volatility/helix, grid)
