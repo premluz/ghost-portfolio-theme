@@ -984,6 +984,8 @@ html {
   overflow: visible;
   opacity: 1;
   animation: none;
+  /* Gradient opacity starts at 0, controlled by JS on scroll */
+  --nav-gradient-opacity: 0;
 }
 
 /* Blur fade layer - behind content, creates soft gradient fade */
@@ -1017,8 +1019,10 @@ html {
   );
   pointer-events: none;
   z-index: 1;
-  /* Smooth transition for profile shift changes */
-  transition: background-color 0.3s ease-out;
+  /* Fade based on scroll position - 0 at top, 1 when scrolled */
+  opacity: var(--nav-gradient-opacity, 0);
+  /* Smooth transitions for profile shift and opacity changes */
+  transition: background-color 0.3s ease-out, opacity 0.3s ease-out;
 }
 
 /* Soft color gradient overlay - adds visual softness */
@@ -1031,10 +1035,12 @@ html {
   bottom: -30px;
   /* Blend gradient overlay with shifted palette */
   background: color-mix(in srgb, var(--nav-gradient), var(--shift-bg, #22262E) calc(var(--profile-shift, 0) * 50%));
+  /* Fade based on scroll position - 0 at top, 1 when scrolled */
+  opacity: var(--nav-gradient-opacity, 0);
   pointer-events: none;
   z-index: 0;
-  /* Smooth transition for profile shift changes */
-  transition: background 0.3s ease-out;
+  /* Smooth transitions for profile shift and opacity changes */
+  transition: background 0.3s ease-out, opacity 0.3s ease-out;
 }
 
 .gh-navigation.nav-hidden {
@@ -3569,6 +3575,7 @@ body[data-page-width='full'] .gh-canvas {
 }
 
 .post {
+  padding-top: var(--content-padding);
   padding-bottom: var(--space-section);
   width: 100%;
   /* overflow-x removed: it forces overflow-y to non-visible per CSS spec,
@@ -3602,6 +3609,16 @@ body[data-page-width='full'] .gh-canvas {
 /* Override page-width constraints for fullscreen post hero */
 .post[data-post-hero='fullscreen'] .container {
   max-width: none;
+}
+
+.post-category {
+  display: none;
+  font-size: var(--text-size-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-on-surface-subtle);
+  margin-bottom: var(--space-sm);
+  font-weight: 500;
 }
 
 .post-title {

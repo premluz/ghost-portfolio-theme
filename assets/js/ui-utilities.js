@@ -1,12 +1,38 @@
 (function() { 'use strict';
 
 function initNavScrollBehavior() {
-  const nav = document.querySelector('nav');
+  const nav = document.querySelector('.gh-navigation');
   if (!nav) return;
 
   const isHomepage = document.body.classList.contains('home') ||
                      window.location.pathname === '/' ||
                      window.location.pathname.endsWith('/index.html');
+
+  // ── Nav gradient fade on scroll ───────────────────────────────────────
+  // Fade the ::after gradient from opacity 0 at top to 1 when scrolled.
+  // Uses CSS custom property --nav-gradient-opacity for smooth control.
+  
+  // Force initial state immediately (before any scroll)
+  const setGradientOpacity = (scrollY) => {
+    const opacity = Math.min(1, scrollY / 100);
+    nav.style.setProperty('--nav-gradient-opacity', opacity);
+  };
+  
+  // Set to 0 immediately on load
+  setGradientOpacity(0);
+  
+  let gradientRafPending = false;
+  const updateNavGradientOpacity = () => {
+    if (gradientRafPending) return;
+    gradientRafPending = true;
+    requestAnimationFrame(() => {
+      gradientRafPending = false;
+      setGradientOpacity(window.scrollY);
+    });
+  };
+  
+  // Update on scroll
+  window.addEventListener('scroll', updateNavGradientOpacity, { passive: true });
 
   // ── Anchor-redirect handler (all pages) ───────────────────────────────
   // #hash nav links on non-homepage pages redirect to / and scroll after load.

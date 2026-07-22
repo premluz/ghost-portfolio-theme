@@ -8,6 +8,8 @@
 <article class="post" data-post-hero="contained" data-post-id="{{id}}" data-post-tags="{{#foreach tags}}{{slug}}{{#unless @last}},{{/unless}}{{/foreach}}">
   <header class="post-header">
     <div class="container">
+      {{!-- Project category from projectMeta --}}
+      <p class="post-category" id="project-category"></p>
       <h1 class="post-title">{{title}}</h1>
       {{!-- Project client name --}}
       <!--<p class="post-client" id="project-client"></p>-->
@@ -75,6 +77,15 @@
     if (!meta || Object.keys(meta).length === 0) {
       console.log('[metadata] No projectMeta/projectMetaArray configured.');
       return;
+    }
+
+    if (meta.projectCategory) {
+      const categoryEl = document.getElementById('project-category');
+      if (categoryEl) {
+        categoryEl.textContent = meta.projectCategory;
+        categoryEl.style.display = 'block';
+        console.log('[metadata] Set projectCategory:', meta.projectCategory);
+      }
     }
 
     if (meta.client) {

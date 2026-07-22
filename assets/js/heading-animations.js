@@ -203,26 +203,24 @@ function initHeadingAnimations() {
 
   const headings = document.querySelectorAll('h1, h2, h3, h4');
 
+  // OPT-IN ONLY: Only animate headings that explicitly have data-animate attribute.
+  // This prevents automatic animation of all headings by default.
   const candidates = Array.from(headings).filter(el => {
+    // REQUIRED: Must have data-animate attribute to be animated
+    if (!el.dataset.animate) return false;
+    
+    // Exclusions for special contexts (even if data-animate is present)
     if (el.closest('.hero')) return false;
     if (el.closest('.post-header')) return false;
     if (el.closest('.page-header')) return false;
     if (el.closest('.preloader')) return false;
-    if (el.closest('.gh-navigation')) return false;  // Skip nav logo — slides in with nav, not separately
-    if (el.closest('[data-skip-reveal]')) return false;  // Skip sections marked data-skip-reveal
+    if (el.closest('.gh-navigation')) return false;
+    if (el.closest('[data-skip-reveal]')) return false;
     if (el.classList.contains('preloader-heading') ||
         el.classList.contains('preloader-greeting') ||
         el.classList.contains('preloader-welcome')) return false;
     if (el.classList.contains('post-card-title')) return false;
     if (el.dataset.skipAnimation === 'true') return false;
-    // Skip elements with data-animate attribute — those are handled by scroll-scrub-anim.js
-    if (el.dataset.animate) return false;
-    // Skip headings inside anything card-scroll-reveal.js already gives a
-    // whole-container slide-up/fade to (.om3-header-slot, .profile-item,
-    // .about-card, .personal-card, .testimonial-card) — letter/word-
-    // splitting on top of that either double-animates the same text or
-    // hides the split reveal's own effect entirely, since it can finish
-    // while the parent container is still faded/slid out of view.
     if (el.closest('.om3-header-slot')) return false;
     if (el.closest('.profile-item')) return false;
     if (el.closest('.about-card')) return false;
