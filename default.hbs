@@ -114,7 +114,7 @@
   <link rel="preload" href="/content/images/email.glb"   as="fetch" crossorigin>
   <link rel="preload" href="/content/images/camera.glb"  as="fetch" crossorigin>
   <link rel="preload" href="/content/images/sim.glb"     as="fetch" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;0,9..40,900;1,9..40,400&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&family=DM+Sans:ital,opsz,wght@0,9..40,100;0,9..40,200;0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;0,9..40,900;1,9..40,100;1,9..40,200;1,9..40,300;1,9..40,400&display=swap">
   {{!-- Bust aggressive caches using site updated timestamp --}}
   <link rel="stylesheet" href="{{asset "css/tokens.css"}}?v={{@site.updated_at}}">
   <link rel="stylesheet" href="{{asset "css/main.css"}}?v={{@site.updated_at}}">
@@ -224,6 +224,23 @@
           // etc.) never stays hidden.
           document.documentElement.classList.add('main-pending');
           setTimeout(function () { document.documentElement.classList.remove('main-pending'); }, 2500);
+        }
+      } catch (e) {}
+    })();
+  </script>
+  <script>
+    // NAV PREV/NEXT HOP — set by page-transition.js's click handler right
+    // before navigating via a post-navigation.hbs prev/next link. Must run
+    // pre-paint (before <body> even exists) since it decides whether the
+    // collapsed post-page nav pill (main.css "POST PAGE NAV") renders
+    // ALREADY collapsed (this hop) or starts expanded and animates into
+    // its collapsed state (navigation.hbs's own script, triggered by the
+    // ABSENCE of this class — see main.css: html.nav-hop is the instant/
+    // no-animation path, body.nav-collapsing is the animated one).
+    (function () {
+      try {
+        if (sessionStorage.getItem('navPrevNextHop') === '1') {
+          document.documentElement.classList.add('nav-hop');
         }
       } catch (e) {}
     })();

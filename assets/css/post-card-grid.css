@@ -433,7 +433,6 @@ body[data-typography-body='medium'] .posts-tab {
   font-size: var(--text-size-caption);
   color: var(--color-on-surface-variant);
   margin: 0 0 var(--space-sm) 0;
-  font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -956,18 +955,29 @@ body[data-typography-body='medium'] .posts-tab {
    while we don't yet know if it has a video — resolves to either the
    video or the image once fetchCardMeta/loadCardMeta settles (see
    post-and-cards.js / posts-tabs-grid.js). Surface tokens are redefined
-   per data-theme, so this adapts automatically across themes. */
+   per data-theme, so this adapts automatically across themes. Two
+   animations layered together (both start at frame 1, no JS delay):
+   a fast sweep for the "flashing through" band, plus a slower opacity
+   breathe so it doesn't read as a single static gradient. Tighter/more
+   contrasty stops than a typical subtle skeleton — reads as more alive. */
 @keyframes card-media-skeleton-shimmer {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
 
+@keyframes card-media-skeleton-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
 .card-media-skeleton {
   position: absolute;
   inset: 0;
-  background: linear-gradient(100deg, var(--surface-2) 30%, var(--surface-4) 50%, var(--surface-2) 70%);
-  background-size: 300% 100%;
-  animation: card-media-skeleton-shimmer 1.8s ease-in-out infinite;
+  background: linear-gradient(100deg, var(--surface-2) 15%, var(--surface-4) 35%, var(--surface-2) 55%, var(--surface-4) 75%, var(--surface-2) 95%);
+  background-size: 250% 100%;
+  animation:
+    card-media-skeleton-shimmer 1s linear infinite,
+    card-media-skeleton-pulse 1.2s ease-in-out infinite;
   transition: opacity 0.4s ease;
 }
 
@@ -1047,7 +1057,6 @@ body[data-typography-body='medium'] .posts-tab {
   display: block;
   width: 100%;
   font-size: var(--text-size-h3);
-  font-weight: 500 !important;
   line-height: 1.5 !important; /* was var(--line-spacing-body-normal); token system removed */
   margin-top: 0;
   margin: var(--space-sm) 0;
@@ -1105,7 +1114,7 @@ body[data-typography-body='medium'] .posts-tab {
   font-size: var(--text-size-caption);
   color: var(--color-on-surface-variant);
   margin: var(--space-sm) 0;
-  font-weight: 500;
+
 }
 
 .post-card-result {
@@ -1142,13 +1151,13 @@ body[data-typography-body='medium'] .posts-tab {
   display: inline-flex;
   align-items: center;
   padding: var(--space-xs) var(--space-sm);
-  background-color: rgba(255, 255, 255, 0.07);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border-radius: var(--radius-full, 9999px);
+  background: var(--glass-bg);
+  border: none;
+  border-radius: var(--glass-radius);
+  backdrop-filter: var(--glass-backdrop);
+  -webkit-backdrop-filter: var(--glass-backdrop);
   letter-spacing: var(--primitive-letter-spacing-normal);
   font-size: var(--text-size-xs);
-  font-weight: 200;
   color: var(--color-on-surface-variant);
   white-space: nowrap;
 }

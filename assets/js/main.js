@@ -2025,7 +2025,7 @@ function initLogomarkAnimation() {
   }
 
   // Calculate landing position based on excerpt position
-  let landingY = 220; // fallback
+  let landingY = 380; // fallback (accounts for CSS top: -420px offset)
 
   function calculateLandingY() {
     const excerptEl = document.querySelector('.post-excerpt');
@@ -2034,8 +2034,13 @@ function initLogomarkAnimation() {
       const excerptRect = excerptEl.getBoundingClientRect();
       const headerRect = postHeader.getBoundingClientRect();
 
-      // Calculate excerpt bottom position relative to header
-      const calculated = excerptRect.bottom - headerRect.top + 20; // 20px padding below excerpt
+      // Calculate excerpt bottom position relative to header.
+      // The logomark starts off-screen via CSS `top: -420px`, and GSAP's
+      // y transform is applied on top of that CSS position, so we must
+      // add the absolute value of the CSS top offset to land at the
+      // correct visual position.
+      const cssTopOffset = Math.abs(parseFloat(getComputedStyle(logomarkEl).top)) || 0;
+      const calculated = excerptRect.bottom - headerRect.top + 20 + cssTopOffset; // 20px padding below excerpt
       // console.log(`[logomark] Calculated landing Y: ${calculated}`);
       return calculated;
     }

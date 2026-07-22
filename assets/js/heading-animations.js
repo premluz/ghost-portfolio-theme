@@ -208,7 +208,17 @@ function initHeadingAnimations() {
   const candidates = Array.from(headings).filter(el => {
     // REQUIRED: Must have data-animate attribute to be animated
     if (!el.dataset.animate) return false;
-    
+
+    // Another system already claimed this heading (e.g. scroll-scrub-anim.js's
+    // initProfile(), which hand-splits .profile-headline into .char letter
+    // spans itself and sets this flag for exactly this reason) — processing
+    // it again here ran SplitType's word-split on top of the already-split
+    // DOM, nesting a single-letter .word span inside every existing .char
+    // span (each now its own isolated text node, so SplitType's word
+    // detection had nothing but single characters to group). That's what
+    // caused "no spaces between words" on the profile headline.
+    if (el.dataset.headingAnimDone === 'true') return false;
+
     // Exclusions for special contexts (even if data-animate is present)
     if (el.closest('.hero')) return false;
     if (el.closest('.post-header')) return false;
@@ -266,7 +276,11 @@ function initHeadingAnimations() {
       });
     } else if (mode === 'word') {
       if (hasSplitType) {
-        const split = new SplitType(heading, { types: 'words' });
+        // tagName: 'span' — SplitType's default is 'div' (block-level),
+        // which wraps each word in its own block and drops the natural
+        // space between words (they render stacked/touching). span keeps
+        // words inline so normal word-spacing is preserved.
+        const split = new SplitType(heading, { types: 'words', tagName: 'span' });
         if (!split || !split.words || split.words.length === 0) {
           splitMap.set(heading, { fallback: true });
           gsap.set(heading, {

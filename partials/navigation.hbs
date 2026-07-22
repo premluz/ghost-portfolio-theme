@@ -38,21 +38,40 @@
 
     <!-- Right Side Controls -->
     <div class="nav-controls">
-      <!-- Post Navigation Arrows (only on post pages) 
-      <div class="nav-post-controls" style="display: none;">
-        <a href="#" class="nav-icon-btn nav-post-prev" aria-label="Previous post" title="Previous post">
+      {{!-- Close button — post pages only, FIRST/leftmost in the collapsed
+            pill (Previous/Next follow it). Collapses the nav down to just
+            these (see main.css "POST PAGE NAV"); returns to wherever the
+            post was opened from, at the same scroll position, via
+            page-transition.js's runCurtainExit(). --}}
+      {{#is "post"}}
+      <button class="nav-icon-btn nav-close-btn" aria-label="Close">
+        <img src="{{asset "icons/close.svg"}}" alt="Close" class="nav-icon-close">
+        <span class="nav-tooltip">Close</span>
+      </button>
+      {{/is}}
+
+      {{!-- Post Navigation Arrows — only on post pages (CSS: body.post-
+            template .nav-post-controls, main.css). href starts as "#" and
+            gets filled in by post-navigation.hbs's own fetch once it
+            resolves the prev/next post URLs, so there's only one Content
+            API call for both the bottom cards and these. rel="prev"/"next"
+            is what makes page-transition.js's click handler skip
+            overwriting sessionStorage's postOrigin for these two — same
+            mechanism the bottom post-nav cards use. --}}
+      <div class="nav-post-controls">
+        <a href="#" data-transition rel="prev" class="nav-icon-btn nav-post-prev" aria-label="Previous post" title="Previous post">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
           </svg>
           <span class="nav-tooltip">Previous</span>
         </a>
-        <a href="#" class="nav-icon-btn nav-post-next" aria-label="Next post" title="Next post">
+        <a href="#" data-transition rel="next" class="nav-icon-btn nav-post-next" aria-label="Next post" title="Next post">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
           </svg>
           <span class="nav-tooltip">Next</span>
         </a>
-      </div>-->
+      </div>
 
       <!-- Search Button
       <button class="nav-icon-btn search-btn" aria-label="Search" data-ghost-search>
@@ -73,18 +92,7 @@
         <img src="{{asset "icons/sun.svg"}}" alt="Light mode" class="theme-icon-sun">
         <img src="{{asset "icons/moon.svg"}}" alt="Dark mode" class="theme-icon-moon">
         <span class="nav-tooltip">Theme</span>
-      </button> 
-
-      {{!-- Close button — post pages only. Collapses the nav down to just
-            this (see main.css "POST PAGE NAV"); returns to wherever the
-            post was opened from, at the same scroll position, via
-            page-transition.js's runCurtainExit(). --}}
-      {{#is "post"}}
-      <button class="nav-icon-btn nav-close-btn" aria-label="Close">
-        <img src="{{asset "icons/close.svg"}}" alt="Close" class="nav-icon-close">
-        <span class="nav-tooltip">Close</span>
       </button>
-      {{/is}}
 
       <!-- Hamburger Menu -->
       <!--<button class="hamburger" aria-label="Toggle menu" aria-expanded="false">
@@ -104,3 +112,31 @@
     <a href="#/portal" class="button mobile-nav-button" data-portal="signup">Subscribe</a>
   </div>
 </nav>
+
+{{!-- Animate the post-page nav collapse — but only on a genuine arrival
+      from a non-post page. html.nav-hop (default.hbs head script) means
+      we hopped here from another post via prev/next, which was already
+      collapsed — nothing to animate, the CSS collapses it instantly pre-
+      paint instead (see main.css "POST PAGE NAV"). Otherwise the nav
+      renders expanded for a couple of frames on purpose (double rAF, so
+      the browser has actually painted that expanded state at least once
+      — a single rAF isn't reliably enough), then this adds the class that
+      triggers the collapse transition, and a matching class afterward
+      that removes .logoandnavwrapper from layout once the animation has
+      actually finished (can't be part of the transition itself — display
+      isn't animatable — doing it early would make the collapse look like
+      it snaps partway through instead of shrinking smoothly). --}}
+<script>
+  (function () {
+    if (document.documentElement.classList.contains('nav-hop')) return;
+    if (!document.body.classList.contains('post-template')) return;
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        document.body.classList.add('nav-collapsing');
+        setTimeout(function () {
+          document.body.classList.add('nav-collapsed-settled');
+        }, 450);
+      });
+    });
+  })();
+</script>

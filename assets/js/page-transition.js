@@ -284,12 +284,30 @@
     // turns out to be a post, its close button can return here at the same
     // scroll position instead of just going to '/'. Harmless to store
     // unconditionally (cheap, and unused if the destination isn't a post).
-    try {
-      sessionStorage.setItem('postOrigin', JSON.stringify({
-        url: window.location.href,
-        scrollY: window.scrollY,
-      }));
-    } catch (err) {}
+    //
+    // EXCEPTION: post-navigation.hbs's prev/next project links (rel="prev"/
+    // "next") are lateral moves BETWEEN posts, not a fresh entry point —
+    // overwriting postOrigin here would make Close return to whichever post
+    // you arrived from instead of the listing page you originally opened a
+    // post from. Skipping the write (not skipping the transition) means
+    // whatever postOrigin already holds — set by the ORIGINAL click from
+    // the listing page — survives any number of prev/next hops untouched.
+    const isProjectNav = link.rel === 'next' || link.rel === 'prev';
+    if (isProjectNav) {
+      // Landing page already has the collapsed post-nav pill (we're going
+      // FROM one post TO another) — default.hbs's head script reads this
+      // to skip the collapse animation, rendering already-collapsed from
+      // the first frame instead of animating into it.
+      try { sessionStorage.setItem('navPrevNextHop', '1'); } catch (err) {}
+    } else {
+      try { sessionStorage.removeItem('navPrevNextHop'); } catch (err) {}
+      try {
+        sessionStorage.setItem('postOrigin', JSON.stringify({
+          url: window.location.href,
+          scrollY: window.scrollY,
+        }));
+      } catch (err) {}
+    }
 
     runTransition(href);
   });

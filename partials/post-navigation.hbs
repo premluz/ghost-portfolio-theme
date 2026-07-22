@@ -1,5 +1,18 @@
-{{!-- POST PAGE: Show next post chronologically (older), cycle to latest if at end --}}
-{{#post}}
+{{!-- POST PAGE: Show prev (newer) + next (older) chronologically, cycling
+      at either end. Both links carry data-transition (curtain effect, same
+      as any other in-site link) AND rel="prev"/"next" — page-transition.js
+      specifically checks that rel to skip overwriting sessionStorage's
+      postOrigin for these two, since they're a lateral move between posts,
+      not a fresh entry point; the close button should still return to
+      whichever listing page you originally opened a post from, no matter
+      how many prev/next hops happened in between. --}}
+{{!-- No {{#post}} wrapper — this partial is only ever {{> post-navigation}}'d
+      from inside post.hbs's own already-active {{#post}} block. Ghost's
+      {{#post}} context helper doesn't re-resolve correctly when nested
+      inside a partial included from within an active post context (it fell
+      through to {{else}} every time, silently rendering the old dead
+      homepage stub below instead) — this file no longer needs to ask "are
+      we in a post," it already knows. --}}
   <section class="post-navigation" data-post-id="{{id}}" data-published-at="{{published_at}}" data-post-tags="{{#foreach tags}}{{slug}}{{#unless @last}},{{/unless}}{{/foreach}}"></section>
   <script>
     (function() {
@@ -14,7 +27,7 @@
 
       console.log('[post-nav] Current:', currentId, 'Date:', currentDate, 'Category:', categoryTag);
 
-      // Fetch featured posts and find older ones
+      // Fetch featured posts and find neighbors in both directions
       const key = window.ghostContentKey || '53c1eef4fff835def4f59619d6';
       const apiUrl = `/ghost/api/content/posts/?key=${key}&filter=tag:${categoryTag}&fields=id,title,url,feature_image,published_at,reading_time,html&order=published_at%20desc&limit=100`;
 
@@ -24,78 +37,63 @@
           const posts = data.posts || [];
           console.log('[post-nav] Found', posts.length, 'posts with tag', categoryTag);
 
-          // Find posts older than current
+          // Posts array is sorted newest-first. Older posts than current sit
+          // AFTER it in the array; newer posts sit BEFORE it.
           const olderPosts = posts.filter(p => new Date(p.published_at) < currentDate && p.id !== currentId);
-          console.log('[post-nav] Older posts:', olderPosts.length);
+          const newerPosts = posts.filter(p => new Date(p.published_at) > currentDate && p.id !== currentId);
+          console.log('[post-nav] Older posts:', olderPosts.length, 'Newer posts:', newerPosts.length);
 
-          let nextPost;
-          if (olderPosts.length > 0) {
-            // Most recent older post
-            nextPost = olderPosts[0];
-          } else {
-            // Cycle to newest (latest) post
-            nextPost = posts[0];
-          }
+          // NEXT = the closest older post (first of olderPosts, since the
+          // array is newest-first — the first "older" match is the nearest
+          // one chronologically), cycling to the overall newest if current
+          // is already the oldest.
+          const nextPost = olderPosts.length > 0 ? olderPosts[0] : posts[0];
+          // PREV = the closest newer post (LAST of newerPosts — newerPosts
+          // is still newest-first, so its last entry is the one nearest to
+          // current going forward in time), cycling to the overall oldest
+          // if current is already the newest.
+          const prevPost = newerPosts.length > 0 ? newerPosts[newerPosts.length - 1] : posts[posts.length - 1];
 
-          if (!nextPost) return;
+          const readingTimeFor = (post) => {
+            let readingTime = post.reading_time;
+            if (!readingTime && post.html) {
+              const text = post.html.replace(/<[^>]*>/g, '');
+              const wordCount = text.split(/\s+/).filter(w => w.length > 0).length;
+              readingTime = Math.max(1, Math.round(wordCount / 200));
+            }
+            return readingTime;
+          };
 
-          // Calculate reading time from full content (~200 words/min)
-          let readingTime = nextPost.reading_time;
-          if (!readingTime && nextPost.html) {
-            // Strip HTML tags and count words
-            const text = nextPost.html.replace(/<[^>]*>/g, '');
-            const wordCount = text.split(/\s+/).filter(w => w.length > 0).length;
-            readingTime = Math.max(1, Math.round(wordCount / 200));
-          }
-          const readingTimeHTML = readingTime ? `<span class="reading-time">${readingTime} min read</span>` : '';
-          const html = `
-                <section class="post-navigation">
-            <div class="post-nav-section">
-              <a href="${nextPost.url}" rel="next" class="post-nav-card">
+          const cardHTML = (post, rel, label) => {
+            if (!post) return '';
+            return `
+              <a href="${post.url}" rel="${rel}" data-transition class="post-nav-card">
                 <div class="post-nav-inner">
-                  ${nextPost.feature_image ? `<div class="post-nav-image-container"><img src="${nextPost.feature_image}" alt="${nextPost.title}" class="post-nav-image"></div>` : ''}
+                  ${post.feature_image ? `<div class="post-nav-image-container"><img src="${post.feature_image}" alt="${post.title}" class="post-nav-image"></div>` : ''}
                   <div class="post-nav-item-content">
-                    <p class="post-nav-eyebrow">NEXT UP</p>
-                    <h3 class="post-nav-title">${nextPost.title}</h3>
-                    
+                    <p class="post-nav-eyebrow">${label}</p>
+                    <h3 class="post-nav-title">${post.title}</h3>
                   </div>
                 </div>
               </a>
+            `;
+          };
+
+          const html = `
+            <div class="post-nav-section">
+              ${cardHTML(prevPost, 'prev', 'PREVIOUS')}
+              ${cardHTML(nextPost, 'next', 'NEXT UP')}
             </div>
           `;
           nav.innerHTML = html;
+
+          // Same data powers the top-nav prev/next arrows (navigation.hbs)
+          // — one Content API call serves both, no separate fetch there.
+          const navPrev = document.querySelector('.nav-post-prev');
+          const navNext = document.querySelector('.nav-post-next');
+          if (navPrev && prevPost) navPrev.href = prevPost.url;
+          if (navNext && nextPost) navNext.href = nextPost.url;
         })
         .catch(e => console.error('[post-nav]', e));
     })();
   </script>
-{{else}}
-  {{!-- HOMEPAGE: Show latest featured work post --}}
-  {{#get "posts" filter="featured:true+tag:hash-work" order="published_at desc" limit="1"}}
-    {{#if posts}}
-      <section class="post-navigation">
-      <!--  <header>
-          <h2>Next up</h2>
-        </header>
-        <div class="post-nav-section">
-          <a href="{{posts.[0].url}}" class="post-nav-card">
-            <div class="post-nav-inner">
-              {{#if posts.[0].feature_image}}
-                <div class="post-nav-image-container">
-                  <img src="{{posts.[0].feature_image}}" alt="{{posts.[0].title}}" class="post-nav-image">
-                </div>
-              {{/if}}
-
-              <div class="post-nav-item-content">
-                <p class="post-nav-eyebrow">NEXT UP</p>
-                <h3 class="post-nav-title">{{posts.[0].title}}</h3>
-               <!-- {{#if posts.[0].reading_time}}
-                  <span class="reading-time">{{posts.[0].reading_time}} min read</span>
-                {{/if}}-->
-              </div>
-            </div>
-          </a>
-        </div>
-      </section>
-    {{/if}}
-  {{/get}}
-{{/post}}
