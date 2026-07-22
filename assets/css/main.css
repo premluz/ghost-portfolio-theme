@@ -497,7 +497,6 @@ html.page-ready main > *:not(#preloader) {
 h1, h2, h3, h4, h5, h6 {
   font-weight: 700;
   line-height: 1.2;
-  margin-top: var(--space-3xl);
   margin-bottom: var(--space-lg);
   color: var(--color-on-surface);
 }
@@ -995,7 +994,8 @@ html {
   left: 0;
   right: 0;
   bottom: -16px;
-  background-color: var(--nav-bg);
+  /* Blend nav background with shifted palette based on --profile-shift */
+  background-color: color-mix(in srgb, var(--nav-bg), var(--shift-bg, #22262E) calc(var(--profile-shift, 0) * 100%));
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   /* Very smooth fade with many stops to avoid visible banding */
@@ -1017,6 +1017,8 @@ html {
   );
   pointer-events: none;
   z-index: 1;
+  /* Smooth transition for profile shift changes */
+  transition: background-color 0.3s ease-out;
 }
 
 /* Soft color gradient overlay - adds visual softness */
@@ -1027,9 +1029,12 @@ html {
   left: 0;
   right: 0;
   bottom: -30px;
-  background: var(--nav-gradient);
+  /* Blend gradient overlay with shifted palette */
+  background: color-mix(in srgb, var(--nav-gradient), var(--shift-bg, #22262E) calc(var(--profile-shift, 0) * 50%));
   pointer-events: none;
   z-index: 0;
+  /* Smooth transition for profile shift changes */
+  transition: background 0.3s ease-out;
 }
 
 .gh-navigation.nav-hidden {
@@ -2643,13 +2648,16 @@ body.post-template .nav-wrapper {
   filter: none;
 }
 
-/* Mobile: force all cards fully visible — JS scroll animation is disabled on mobile */
+/* Mobile: force all cards fully visible — JS scroll animation is disabled
+   on mobile. .post-card-image img/video deliberately excluded — those are
+   managed by the skeleton→image-or-video resolution (post-and-cards.js),
+   not an entrance animation, and this used to force them opacity:1
+   !important even before that resolves, showing the raw image
+   immediately on mobile regardless of whether the post has a video. */
 @media (max-width: 960px) {
   .post-card,
   .post-card .post-card-content,
-  .post-card .post-card-image,
-  .post-card .post-card-image img,
-  .post-card .post-card-image video {
+  .post-card .post-card-image {
     opacity: 1 !important;
     transform: none !important;
     scale: 1 !important;
@@ -4982,6 +4990,7 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
   /* Prevent hyphenation and word breaks */
   hyphens: none;
   word-break: keep-all;
+  max-width: 600px;
 }
 
 /* Tag pills */
@@ -5022,7 +5031,7 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
      containing block. */
   position: absolute;
   top: 0;
-  right: -240px !important;
+  right: -320px !important;
   height: 100vh;
   width: 100%;
   z-index: 0;

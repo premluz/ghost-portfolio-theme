@@ -216,9 +216,23 @@ function initGridCardMetadata() {
   // ScrollTrigger.refresh() below already handles the late height changes
   // this causes, and BackgroundLayer.bindShift reads live geometry so it
   // never cared. No-IntersectionObserver browsers fall back to eager.
+  // Fades the skeleton out and the <img> in — the fallback endpoint for
+  // every path that ends up WITHOUT a video (no video field, malformed
+  // metadata, fetch failure). Idempotent: harmless if called when the
+  // video path already claimed this card (guarded by callers).
+  const showImageFallback = (card) => {
+    const imageEl = card.querySelector('.grid-card-image');
+    if (!imageEl) return;
+    const skeleton = imageEl.querySelector('.card-media-skeleton');
+    if (skeleton) skeleton.classList.add('is-hidden');
+    const img = imageEl.querySelector('img');
+    if (img) img.classList.add('is-visible');
+  };
+
   const loadCardMeta = (card) => {
+    if (card.__metaLoaded) return Promise.resolve();
     const postUrl = card.getAttribute('data-post-url');
-    if (!postUrl || card.__metaLoaded) return Promise.resolve();
+    if (!postUrl) { showImageFallback(card); return Promise.resolve(); }
     card.__metaLoaded = true;
 
     return fetch(postUrl)
@@ -228,7 +242,7 @@ function initGridCardMetadata() {
         if (!metaMatch) {
           metaMatch = html.match(/window\.projectMetaArray\.push\(\s*(\{[\s\S]*?\})\s*\)/);
         }
-        if (!metaMatch) return;
+        if (!metaMatch) { showImageFallback(card); return; }
 
         try {
           const meta = eval(`(${metaMatch[1]})`);
@@ -281,12 +295,12 @@ function initGridCardMetadata() {
             // used to destroy the <img> the instant this ran, leaving a
             // blank gap until the video's own loadeddata fired and its
             // fade-in completed (image gone, then a beat of nothing, then
-            // video). The <img> now just stays put underneath and is never
-            // touched; only the video's opacity ever animates, so there's
-            // no two-layer race (unlike the OLD .grid-card-video/
-            // .grid-card-image-fallback dual-layer that caused a real
-            // glitch here before, now removed from post-card-grid.hbs too)
-            // and never a frame with nothing visible. IntersectionObserver
+            // video). The <img> stays hidden (skeleton → video, image
+            // never shown at all — a post either HAS a video or shows its
+            // image, never both/overlapping) so there's no two-layer race
+            // (unlike the OLD .grid-card-video/.grid-card-image-fallback
+            // dual-layer that caused a real glitch here before, now
+            // removed from post-card-grid.hbs too). IntersectionObserver
             // play/pause matches post-and-cards.js.
             const imageEl = card.querySelector('.grid-card-image');
             if (imageEl) {
@@ -311,7 +325,11 @@ function initGridCardMetadata() {
               imageEl.appendChild(video);
               video.load();
 
-              const fadeIn = () => { video.style.opacity = '1'; };
+              const skeleton = imageEl.querySelector('.card-media-skeleton');
+              const fadeIn = () => {
+                video.style.opacity = '1';
+                if (skeleton) skeleton.classList.add('is-hidden');
+              };
               // readyState >= 2 (HAVE_CURRENT_DATA): a frame already
               // exists (e.g. served from cache) — fade from here rather
               // than waiting on an event that already fired.
@@ -327,15 +345,11 @@ function initGridCardMetadata() {
               videoObserver.observe(video);
               console.log('[grid-card] Set video thumbnail:', videoSrc);
             }
+          } else {
+            // No video for this post — resolve the skeleton to the image
+            // instead (see showImageFallback above).
+            showImageFallback(card);
           }
-
-          // Fallback image no longer gets its own fade-in — it's
-          // unconditionally opacity:1 in CSS now (the "always-visible
-          // poster" the .grid-card-video comment in post-card-grid.css
-          // describes). This used to set opacity:0 here then fade it in on
-          // `load`, racing the video's own independent fade instead of
-          // always being solidly there first — see that CSS comment for
-          // the glitch this caused.
 
           if (meta.projectTestimonial) {
             const testimonialEl = card.querySelector('.grid-card-testimonial');
@@ -362,11 +376,14 @@ function initGridCardMetadata() {
 
           scheduleRefresh();
         } catch (e) {
-          // Ignore malformed metadata
+          // Malformed metadata — still resolve the skeleton to the image
+          // rather than leaving it shimmering forever.
+          showImageFallback(card);
         }
       })
       .catch(() => {
-        // Ignore fetch errors
+        // Fetch failed — same fallback as malformed metadata.
+        showImageFallback(card);
       });
   };
 

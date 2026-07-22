@@ -863,13 +863,16 @@ body[data-typography-body='medium'] .posts-tab {
   z-index: 21;
 }
 
-/* Mobile: force all cards fully visible */
+/* Mobile: force all cards fully visible. .post-card-image img/video
+   deliberately excluded — those are managed by the skeleton→image-or-
+   video resolution (post-and-cards.js), not an entrance animation, and
+   this used to force them opacity:1 !important even before that
+   resolves, showing the raw image immediately on mobile regardless of
+   whether the post has a video. */
 @media (max-width: 960px) {
   .post-card,
   .post-card .post-card-content,
-  .post-card .post-card-image,
-  .post-card .post-card-image img,
-  .post-card .post-card-image video {
+  .post-card .post-card-image {
     opacity: 1 !important;
     transform: none !important;
     scale: 1 !important;
@@ -937,6 +940,47 @@ body[data-typography-body='medium'] .posts-tab {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  /* Hidden until fetchCardMeta (post-and-cards.js) knows whether this
+     post has a video — shown only if it doesn't, so a card either shows
+     its video OR its image, never a raw image visible first that a video
+     then covers/overlaps a beat later. See .card-media-skeleton below. */
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.post-card-image img.is-visible {
+  opacity: 1;
+}
+
+/* Theme-responsive shimmer placeholder shown in a card's media slot
+   while we don't yet know if it has a video — resolves to either the
+   video or the image once fetchCardMeta/loadCardMeta settles (see
+   post-and-cards.js / posts-tabs-grid.js). Surface tokens are redefined
+   per data-theme, so this adapts automatically across themes. */
+@keyframes card-media-skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.card-media-skeleton {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, var(--surface-2) 30%, var(--surface-4) 50%, var(--surface-2) 70%);
+  background-size: 300% 100%;
+  animation: card-media-skeleton-shimmer 1.8s ease-in-out infinite;
+  transition: opacity 0.4s ease;
+}
+
+.card-media-skeleton.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-media-skeleton {
+    animation: none;
+    background: var(--surface-3);
+  }
 }
 
 .post-card-image video,

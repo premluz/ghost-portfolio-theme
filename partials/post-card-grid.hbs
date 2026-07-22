@@ -18,6 +18,13 @@
             callers now pass `first=@first` through the {{#foreach}} so
             only cards after the first one lazy-load. --}}
       <div class="grid-card-image">
+        {{!-- Shimmer placeholder shown until posts-tabs-grid.js's
+              loadCardMeta knows whether this post has a video — the
+              image below stays opacity:0 (see posts-tabs-grid.css) and is
+              only faded in if it turns out there's no video, so a card
+              never shows a raw image that a video then covers a beat
+              later. --}}
+        <div class="card-media-skeleton"></div>
         <img src="{{feature_image}}" alt="{{title}}" {{#unless first}}loading="lazy" {{/unless}}data-skip-reveal class="grid-card-image-fallback">
       </div>
     {{/if}}

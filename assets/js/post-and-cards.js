@@ -6,6 +6,18 @@
 // a card the eager pass already claimed; onSettled always fires exactly
 // once per card regardless of which path handled it, so the caller's
 // "all done" counting stays correct either way.
+// Fades the skeleton out and the <img> in — the fallback endpoint for
+// every path that ends up WITHOUT a video (no video field, malformed
+// metadata, fetch failure).
+function showImageFallback(card) {
+  const imageEl = card.querySelector('.post-card-image');
+  if (!imageEl) return;
+  const skeleton = imageEl.querySelector('.card-media-skeleton');
+  if (skeleton) skeleton.classList.add('is-hidden');
+  const img = imageEl.querySelector('img');
+  if (img) img.classList.add('is-visible');
+}
+
 function fetchCardMeta(card, onSettled) {
   if (card.__metaLoaded) { onSettled(); return; }
   card.__metaLoaded = true;
@@ -18,6 +30,7 @@ function fetchCardMeta(card, onSettled) {
   const postUrl = link?.getAttribute('href');
 
   if (!postUrl) {
+    showImageFallback(card);
     onSettled();
     return;
   }
@@ -32,6 +45,7 @@ function fetchCardMeta(card, onSettled) {
       }
 
       if (!metaMatch) {
+        showImageFallback(card);
         onSettled();
         return;
       }
@@ -162,11 +176,11 @@ function fetchCardMeta(card, onSettled) {
             // used to destroy the <img> the instant this ran, leaving a
             // blank gap until the video's own loadeddata fired and its
             // fade-in completed (image gone, then a beat of nothing,
-            // then video). The <img> now just stays put underneath and
-            // is never touched; only the video's opacity ever animates,
-            // so there's no two-layer race (unlike the OLD dual-layer
-            // .grid-card approach this used to mirror — see
-            // posts-tabs-grid.js) and never a frame with nothing visible.
+            // then video). The <img> stays hidden (skeleton → video,
+            // image never shown at all — a post either HAS a video or
+            // shows its image, never both/overlapping) so there's no
+            // two-layer race (unlike the OLD dual-layer .grid-card
+            // approach this used to mirror — see posts-tabs-grid.js).
             const videoSrc = meta.video.startsWith('http') ? meta.video : `/content/images/videos/${meta.video}`;
             const video = document.createElement('video');
             video.muted = true;
@@ -188,7 +202,11 @@ function fetchCardMeta(card, onSettled) {
             imageEl.appendChild(video);
             video.load();
 
-            const fadeIn = () => { video.style.opacity = '1'; };
+            const skeleton = imageEl.querySelector('.card-media-skeleton');
+            const fadeIn = () => {
+              video.style.opacity = '1';
+              if (skeleton) skeleton.classList.add('is-hidden');
+            };
             if (video.readyState >= 2) fadeIn();
             else video.addEventListener('loadeddata', fadeIn, { once: true });
 
@@ -204,6 +222,10 @@ function fetchCardMeta(card, onSettled) {
 
             videoObserver.observe(video);
           }
+        } else {
+          // No video for this post — resolve the skeleton to the image
+          // instead (see showImageFallback above).
+          showImageFallback(card);
         }
 
         if (meta.cardId) {
@@ -247,10 +269,15 @@ function fetchCardMeta(card, onSettled) {
 
         onSettled();
       } catch (e) {
+        // Malformed metadata — still resolve the skeleton to the image
+        // rather than leaving it shimmering forever.
+        showImageFallback(card);
         onSettled();
       }
     })
     .catch(err => {
+      // Fetch failed — same fallback as malformed metadata.
+      showImageFallback(card);
       onSettled();
     });
 }

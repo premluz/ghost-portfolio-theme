@@ -252,7 +252,17 @@
   height: 100%;
   object-fit: cover;
   display: block;
-  transition: transform 0.5s ease;
+  /* opacity hidden until loadCardMeta (posts-tabs-grid.js) knows whether
+     this post has a video — shown only if it doesn't, so a card either
+     shows its video OR its image, never a raw image visible first that a
+     video then covers/overlaps a beat later. See .card-media-skeleton in
+     post-card-grid.css (shared, loaded on every page). */
+  opacity: 0;
+  transition: transform 0.5s ease, opacity 0.4s ease;
+}
+
+.grid-card-image img.is-visible {
+  opacity: 1;
 }
 
 

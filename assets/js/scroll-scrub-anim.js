@@ -359,7 +359,7 @@ class ScrollScrubAnimationSystem {
     window.BackgroundLayer.bindShift(section, '--profile-shift', {
       endTrigger: zoneEnd, // Static element, not theme-dependent anymore
       enterOffset: 0.3, // Delay enter ramp - shift starts 0.3vh after profile top enters viewport (prevents hero shading)
-      exitOffset: 0.7, // Delay exit ramp - shift holds 0.7vh longer before reverting (prevents early fade)
+      exitOffset: 0.3, // Delay exit ramp - shift holds 1.0vh longer before reverting (prevents early fade)
       onProgress: invertParticles,
     });
   }
