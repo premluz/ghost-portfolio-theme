@@ -2616,22 +2616,7 @@ body.post-template .nav-wrapper {
   display: none;
 }
 
-/* Keyword pills - same styling as hero tags */
-.post-card-keyword {
-  display: inline-flex;
-  align-items: center;
-  padding: var(--space-xs) var(--space-sm);
-  background: var(--glass-bg);
-  border: none;
-  border-radius: var(--glass-radius);
-  backdrop-filter: var(--glass-backdrop);
-  -webkit-backdrop-filter: var(--glass-backdrop);
-  letter-spacing: var(--primitive-letter-spacing-normal);
-  font-size: var(--text-size-xs);
-  font-weight: var(--text-weight-thin);
-  color: var(--color-on-surface-variant);
-  white-space: nowrap;
-}
+
 
 /* Testimonial quote */
 .post-card-testimonial {
@@ -2677,7 +2662,7 @@ body.post-template .nav-wrapper {
 
 /* Endorser name */
 .post-card-endorser {
-  font-size: var(--text-size-small);
+  font-size: var(--text-size-small) !important;
   color: var(--color-text-secondary, rgba(255, 255, 255, 0.6));
   margin: 0 0 var(--space-sm) 0;
   transition: color 0.3s ease;
@@ -3311,7 +3296,7 @@ body[data-typography-body='medium'] .posts-tab {
 .posts-grid[data-posts-layout='list'] .container {
   display: grid;
   grid-template-columns: 1fr;
-  gap: var(--space-2xl);
+  gap: 0;
   max-width: none;
 }
 
@@ -3505,7 +3490,7 @@ body[data-typography-body='medium'] .posts-tab {
   --gap: max(4vmin, 20px);
   --main: min(var(--content-max-width-text), 100% - var(--gap) * 2);
   --container: 1280px;
-  --wide: minmax(0, calc((var(--container) - var(--main)) / 2));
+  --wide: minmax(0, calc((var(--container) + 200 - var(--main)) / 2));
   /* Floor dropped to 0 (was var(--gap)) — .kg-width-full/.kg-gallery-card
      already carry their own explicit content-padding (below), so this
      track no longer needs to reserve a minimum width itself. At/near
@@ -3632,7 +3617,7 @@ body[data-page-width='full'] .gh-canvas {
 .kg-width-wide figure {
   grid-column: wide-start / wide-end;
   padding: 0 var(--content-padding);
-  max-width: 1600px;
+  max-width: 1800px;
 }
 
 /* Galleries always fullscreen with padding */
@@ -5041,6 +5026,27 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
   }
 }
 
+/* Desktop: when no publication cover image, push hero content right by the
+   width of a post-card content column (34%) plus the carousel gap, matching
+   the grid rhythm so the text sits where the image column normally would.
+   Also reduce hero height so it doesn't claim the full viewport. */
+@media (min-width: 1025px) {
+  .hero.no-cover {
+    height: 80dvh;
+    min-height: 80dvh;
+  }
+
+  .hero.no-cover .hero-bg {
+    height: 80dvh !important;
+    min-height: 80dvh;
+  }
+
+  .hero.no-cover .hero-content {
+    margin-left: calc(36% + var(--space-4xl));
+    width: calc(66%);
+  }
+}
+
 /* Mobile: hero text sits ADJACENT to the visible bottom edge — trim the
    container's bottom padding (desktop keeps --space-lg breathing room).
    Pairs with .hero's 100dvh height so "bottom" means the real screen
@@ -5076,12 +5082,12 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
      clipped the headline's right edge on narrower desktop windows the
      moment the copy got longer. If future copy has a longer 2-word line,
      raise the 7.1 divisor to that line's em-width + ~0.2 headroom. */
-  font-size: min(var(--text-size-h1), calc((100vw - 2 * var(--content-padding)) / 7.1));
+  font-size: var(--text-size-h2);
   line-height: var(--text-line-height-h1) !important;
   letter-spacing: var(--text-letter-spacing-h1);
   color: var(--color-primary, #4a9e5c);
   margin-top: 0 !important;
-  margin: 0 0 16px 0 !important;
+  margin: 0 0 0 0 !important;
   padding: 0 0 16px 0 !important;
   width: auto;
   /* white-space: nowrap removed — the headline no longer splits into
@@ -5110,15 +5116,15 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
 .hero-description {
   /* body copy — retiered off --text-size-h5 (heading axis) to the same
      numbers on the BODY axis, so the body-size setting moves it */
-  font-size: clamp(calc(0.9rem * var(--type-scale-body, 1)), calc(1.4vw * var(--type-scale-body, 1)), calc(1.4rem * var(--type-scale-body, 1)));
+  font-size: var(--text-size-h6)
   line-height: var(--text-line-height-body, 1.8);
  /* color: var(--color-on-surface-variant, #d0d0d0); */
-   color: var(--color-on-surface);
+   color: var(--color-on-surface-subtle);
   padding-bottom: 16px;
   /* Prevent hyphenation and word breaks */
   hyphens: none;
   word-break: keep-all;
-  max-width: 600px;
+  max-width: 700px;
 }
 
 /* Tag pills */
@@ -6109,6 +6115,54 @@ body[data-page-width='full'] .testimonials-section[data-testimonials-layout="scr
   width: 100%;
 }
 
+/* List layout — two columns like operating-model-v3:
+   header (left) + testimonials column (right). Not sticky.         */
+.testimonials-section[data-testimonials-layout="list"] {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: var(--space-2xl);
+  padding: var(--space-section) var(--content-padding);
+}
+
+.testimonials-section[data-testimonials-layout="list"] .testimonials-header {
+  flex: 0 0 42%;
+  align-self: flex-start;
+  padding: 0;
+  margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.testimonials-section[data-testimonials-layout="list"] .testimonials-grid {
+  flex: 1;
+  min-width: 0;
+  max-width: none;
+  width: auto;
+  padding: 0;
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  .testimonials-section[data-testimonials-layout="list"] {
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
+  .testimonials-section[data-testimonials-layout="list"] .testimonials-header {
+    position: relative;
+    top: auto;
+    flex: 0 0 auto;
+    width: 100%;
+  }
+
+  .testimonials-section[data-testimonials-layout="list"] .testimonials-grid {
+    flex: 0 0 auto;
+    width: 100%;
+  }
+}
+
 .testimonial-card {
   padding: var(--space-xl) 0 ;
   border-radius: var(--radius-sm);
@@ -6902,6 +6956,19 @@ body[data-page-width='full'] .gh-footer[data-footer-width="respect_page_width"] 
   letter-spacing: 0.15em;
 }
 
+/* Margin utilities */
+.mt-0 {
+  margin-top: 0 !important;
+}
+
+.mb-0 {
+  margin-bottom: 0 !important;
+}
+
+.m-0 {
+  margin: 0 !important;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════ */
 /* WORD ANIMATION SECTION */
 /* ═══════════════════════════════════════════════════════════════════════════ */
@@ -7099,6 +7166,10 @@ textarea::placeholder {
 
     flex-direction: row;
 
+}
+
+.text-color-primary {
+    color: var(--color-on-surface);
 }
 
 .page-title {
@@ -8089,6 +8160,16 @@ html.no-anim *::after {
 }
 html.no-anim { scroll-behavior: auto !important; }
 html.no-anim #particle-morph-demo { display: none !important; }
+
+/* Hero-only particle canvas offset (read by particle-animation-loop.js).
+   Negative values move the rendered particle layer left/up in screen pixels.
+   Applied only on desktop; mobile keeps the centered/default positioning. */
+@media (min-width: 1025px) {
+  body:has(.hero) #particle-morph-demo #particles canvas {
+    --particle-hero-canvas-left: -660px;
+    --particle-hero-canvas-top: 0px;
+  }
+}
 
 
 /* ═══ LOW-END DEGRADATIONS (html.low-end, set by device-capability.js).

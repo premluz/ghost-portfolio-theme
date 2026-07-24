@@ -161,13 +161,100 @@
   font-weight: 500;
 }
 
-/* ── Responsive ─────────────────────────────────────────────────── */
+/* ── List Layout ──────────────────────────────────────────────── */
+/* Mirrors the posts-tabs list layout; only grid and list are supported
+   here, so carousel/stacked values fall back to the default grid.      */
 
-@media (max-width: 1440px) {
-  .posts-grid-lab-cards {
-  
+.posts-tabs-grid-lab-section[data-posts-layout='list'] .posts-grid-lab-cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 5vh;
+}
+
+.posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card {
+  display: flex;
+  flex-direction: row;
+  gap: var(--space-lg);
+  width: 100%;
+  overflow: visible;
+  min-width: 0;
+}
+
+.posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-link {
+  display: flex;
+  flex-direction: row;
+  gap: var(--space-2xl);
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+}
+
+.posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-image {
+  flex: 0.9;
+  aspect-ratio: 1440 / 900;
+  margin-bottom: 0;
+  order: 1;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+}
+
+.posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-image img,
+.posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-image video {
+  object-fit: contain;
+}
+
+.posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-content {
+  flex: 0.7;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  order: 0;
+  overflow-wrap: break-word;
+  padding: 0;
+}
+
+.posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-description {
+  display: none;
+}
+
+/* Tablet — collapse list to column */
+@media (max-width: 1024px) {
+  .posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card {
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
+  .posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-link {
+    flex-direction: column;
+    gap: var(--space-lg);
+  }
+
+  .posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-image {
+    flex: 0 0 auto;
+    width: 100%;
+    aspect-ratio: 1440 / 900;
+    border-radius: var(--radius-sm);
+    order: -1;
+  }
+
+  .posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-content {
+    order: 1;
   }
 }
+
+/* Mobile — match posts-tabs list spacing */
+@media (max-width: 768px) {
+  .posts-tabs-grid-lab-section[data-posts-layout='list'] .posts-grid-lab-cards {
+    gap: 100px;
+  }
+}
+
+/* ── Responsive ─────────────────────────────────────────────────── */
 
 @media (max-width: 1024px) {
   .posts-tabs-grid-lab-section {

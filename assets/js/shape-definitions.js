@@ -63,6 +63,9 @@ const helixGenerator = (particleCount, config) => {
   const spacing = 3; // = 2*tubeRadius: strands are tangent at closest approach, not overlapping
   const segments = Math.floor(particleCount / (2 * 20)); // Adjust segments based on particle count
   const tubeDensity = 20;
+  const offsetX = config.offsetX || 0;
+  const offsetY = config.offsetY || 0;
+  const offsetZ = config.offsetZ || 0;
 
   const hash = (i) => {
     const x = Math.sin(i * 127.1) * 43758.5453;
@@ -87,11 +90,11 @@ const helixGenerator = (particleCount, config) => {
         const v = Math.sin(theta) * tubeRadius;
 
         const angle = t + helixOffset;
-        const x = cx + u * Math.cos(angle) - v * Math.sin(angle);
-        const z = cz + u * Math.sin(angle) + v * Math.cos(angle);
+        const x = cx + u * Math.cos(angle) - v * Math.sin(angle) + offsetX;
+        const z = cz + u * Math.sin(angle) + v * Math.cos(angle) + offsetZ;
 
         positions[particleIdx * 3] = x;
-        positions[particleIdx * 3 + 1] = y + (Math.random() - 0.5) * 0.2;
+        positions[particleIdx * 3 + 1] = y + (Math.random() - 0.5) * 0.2 + offsetY;
         positions[particleIdx * 3 + 2] = z;
         phis[particleIdx] = theta + angle;
         // New particle treatment: tiny dots, rare sparkles (threshold MUST
@@ -104,9 +107,9 @@ const helixGenerator = (particleCount, config) => {
   }
 
   while (particleIdx < particleCount) {
-    positions[particleIdx * 3] = 0;
-    positions[particleIdx * 3 + 1] = 0;
-    positions[particleIdx * 3 + 2] = 0;
+    positions[particleIdx * 3] = offsetX;
+    positions[particleIdx * 3 + 1] = offsetY;
+    positions[particleIdx * 3 + 2] = offsetZ;
     phis[particleIdx] = 0;
     sizes[particleIdx] = 0.4;
     particleIdx++;
@@ -190,7 +193,7 @@ const ribbonGenerator = (particleCount, config) => {
 const HELIX = new ShapeDefinition(
   'helix',
   helixGenerator,
-  { radius: 3.5, height: 12 }
+  { radius: 3.5, height: 12, offsetX: 0, offsetY: 0, offsetZ: 0 }
 );
 
 // The DNA-Capital-style woven sheet — its own state, not wired to any

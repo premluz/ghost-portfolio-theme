@@ -414,8 +414,8 @@ class ScrollScrubAnimationSystem {
         if (window.particleSystem?.morphTo) {
           // hero shape per HERO_PARTICLE_MODE, routed through the scenario map
           const heroShape = window.__heroShape ? window.__heroShape() : 'helix';
-          if (window.__particleApply) window.__particleApply(window.particleSystem, 'hero', heroShape, 3000);
-          else window.particleSystem.morphTo(heroShape, 3000);
+          if (window.__particleApply) window.__particleApply(window.particleSystem, 'hero', heroShape, 2000);
+          else window.particleSystem.morphTo(heroShape, 2000);
         } else if (attempts++ < maxAttempts) {
           setTimeout(waitForParticleSystemThenMorph, 80);
         } else {

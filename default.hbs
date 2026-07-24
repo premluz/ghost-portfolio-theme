@@ -429,16 +429,20 @@
     //   ''       (or key absent) → the trigger's built-in shape
     //   'hide'                   → fade the whole particle layer out
     //   any shape name           → morph to that shape instead
-    // Keys: hero, hero-exit, operating-model, helix-section, profile,
-    //       profile-exit, stats, work-grid, work-cards, lab, testimonials,
-    //       footer, footer-exit
+    // Keys: hero, hero-exit, operating-model, operating-model-exit,
+    //       helix-section, profile, profile-exit, stats, work-grid,
+    //       work-cards, lab, testimonials, footer, footer-exit
     // Switch: edit PARTICLE_SCENARIO below, or at runtime:
     //   setParticleScenario('hero-footer')  (persists in localStorage, reloads)
     window.PARTICLE_SCENARIOS = {
-      full: {},                       // current site behavior, untouched
+      full: {
+        'operating-model-exit': 'hide',
+        testimonials: 'hide',
+      },
       'hero-footer': {                // particles ONLY in hero + footer
         'hero-exit': 'hide',
         //'operating-model': 'hide',
+        'operating-model-exit': 'hide',
         'helix-section': 'hide',
         profile: 'hide', 'profile-exit': 'hide',
         stats: 'hide',

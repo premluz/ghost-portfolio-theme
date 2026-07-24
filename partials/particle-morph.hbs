@@ -113,6 +113,10 @@ async function registerScrollTriggersOnGPU() {
         debug('[particle-morph] [SCROLL] Operating model entered → morphing to sphere');
         window.__particleApply(gpu, 'operating-model', 'sphere', 400);
       },
+      onLeave: () => {
+        debug('[particle-morph] [SCROLL] Operating model left DOWN → hiding particles');
+        window.__particleApply(gpu, 'operating-model-exit', 'dispersed', 400);
+      },
       onLeaveBack: () => {
         debug('[particle-morph] [SCROLL] Operating model left UP → morphing to hero shape');
         window.__particleApply(gpu, 'hero', window.__heroShape(), 400);
@@ -304,7 +308,7 @@ async function initParticleMorphModular() {
 
       system = new window.ParticleMorphSystem(container, {
         particleCount: particleCount,
-        morphDuration: 500
+        morphDuration: 1500
       });
 
       // Wait for async initialization to complete
@@ -384,7 +388,7 @@ async function initParticleMorphModular() {
 
     // Setup trigger system with viewport-based morphing and reverse animation on scroll up
     const setupCardTriggers = () => {
-      const morphDuration = 400; // Card morph: 400ms
+      const morphDuration = 1400; // Card morph: 400ms
       const stateSequence = ['dispersed', 'helix', 'mobile', 'note', 'clapper', 'diamond', 'globe', 'chart', 'game', 'email'];
 
       // Skip initial observer callbacks from IntersectionObserver (for already-visible elements on load)
@@ -547,8 +551,8 @@ async function initParticleMorphModular() {
 
               if (!heroVisible) {
                 // Only morph to dispersed if hero is NOT visible
-                debug('[trigger] Testimonials entered → morph to dispersed');
-                window.__particleApply(system, 'profile-exit', 'dispersed', 400);
+                debug('[trigger] Testimonials entered → hiding particles');
+                window.__particleApply(system, 'testimonials', 'dispersed', 400);
               } else {
                 debug('[trigger] Testimonials visible but hero still visible → keeping helix');
               }
@@ -660,6 +664,10 @@ async function initParticleMorphModular() {
               start: 'top center+=800',
               end: 'bottom center+=800',
               onEnter: function () {
+              },
+              onLeave: function () {
+                debug('[trigger] Operating model left DOWN → hiding particles');
+                window.__particleApply(system, 'operating-model-exit', 'dispersed', 400);
               },
               onLeaveBack: function () {
               }
@@ -793,7 +801,7 @@ async function initParticleMorphModular() {
                 const waitForLabGLB = () => {
                   if (window.particleSystemGLBsReady || labWaitAttempts > 100) {
                     debug('[trigger] GLBs ready (or timeout), now calling system.morphTo("lab", 400)');
-                    window.__particleApply(system, 'lab', 'lab', 200);
+                    window.__particleApply(system, 'lab', 'lab', 800);
                   } else {
                     labWaitAttempts++;
                     setTimeout(waitForLabGLB, 100);
@@ -801,7 +809,7 @@ async function initParticleMorphModular() {
                 };
                 waitForLabGLB();
               } else {
-                window.__particleApply(system, 'lab', 'lab', 200);
+                window.__particleApply(system, 'lab', 'lab', 800);
               }
             } else {
               debug('[trigger] work-grid-lab entered but system.morphTo unavailable');

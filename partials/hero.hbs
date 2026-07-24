@@ -10,7 +10,7 @@
     Light mode: /content/images/prem-back-light.png (switched via JavaScript)
 --}}
 
-<section class="hero" data-section-id="hero" data-home-hero-width="{{@custom.home_hero_width}}" data-hero-background="{{@custom.home_hero_background}}"
+<section class="hero {{#if @site.cover_image}}has-cover{{else}}no-cover{{/if}}" data-section-id="hero" data-home-hero-width="{{@custom.home_hero_width}}" data-hero-background="{{@custom.home_hero_background}}"
   data-gradient-config="hero"
   data-gradient-start-color="#0f172a"
   data-gradient-end-color="#1e3a5f"
@@ -36,7 +36,7 @@
         </h1>
 
         <p class="hero-description" id="hero-description">
-          {{#if @custom.hero_description}}{{@custom.hero_description}}{{else}}Your description here.{{/if}}
+          {{#if @custom.hero_description}}{{{@custom.hero_description}}}{{else}}Your description here.{{/if}}
         </p>
 
      <!--<div class="hero-tags" id="hero-tags">
@@ -45,7 +45,7 @@
           <span class="tag">Execution</span>
         </div>
   -->
-      
+    
 
         {{!-- Tag pills/bullets 
         {{#if @custom.hero_bullet_1}}
@@ -74,7 +74,7 @@
         >
       {{/if}}
 
-      {{!-- Portrait image (theme-responsive) --}}
+      {{!-- Portrait image (theme-responsive) 
       <img
         src=""
         alt="{{@site.title}}"
@@ -84,7 +84,7 @@
         data-light-src="/content/images/prem-front-light.png"
         loading="eager"
         fetchpriority="high"
-      >
+      >--}}
     </div>
   </div>{{!-- /.hero-bg --}}
 </section>{{!-- /.hero --}}

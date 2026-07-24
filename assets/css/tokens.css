@@ -447,7 +447,7 @@
      Both tokens are theme-scoped — override them in the light block below.
      NOT wired to the palette shift: .text-gradient must never be used
      inside the shift zone (see the utility's comment). */
-  --gradient-text-image: linear-gradient(100deg, #7ec8ff 0%, #b9a7ff 28%, #e9f2ff 52%, #8fd8d2 74%, #6aa9ff 100%);
+  --gradient-text-image: linear-gradient(100deg,#b9a7ff 28%,  #8fd8d2 74%, #6aa9ff 100%);
   --gradient-text-fallback: var(--color-on-surface);
 
   /* SHIFT SCOPE — where the palette-flip paints. Both are 0/1 multipliers

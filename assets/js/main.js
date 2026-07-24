@@ -180,12 +180,17 @@ function initTitleReveal(selector, timeline = null) {
 
 function replaceHyphensWithNonBreaking() {
   // Replace regular hyphens with non-breaking hyphens (U+2011) in text elements
-  // This prevents hyphenated words from breaking across lines during animation
-  // Run immediately and again on a delay to catch dynamic content
+  // This prevents hyphenated words from breaking across lines during animation.
+  // We walk only text nodes so any inline HTML in the description is preserved.
   const applyReplacement = () => {
     const heroDesc = document.getElementById('hero-description');
-    if (heroDesc && heroDesc.textContent) {
-      heroDesc.textContent = heroDesc.textContent.replace(/-/g, '‑');
+    if (!heroDesc) return;
+    const walker = document.createTreeWalker(heroDesc, NodeFilter.SHOW_TEXT, null, false);
+    let node;
+    while ((node = walker.nextNode())) {
+      if (node.textContent.indexOf('-') !== -1) {
+        node.textContent = node.textContent.replace(/-/g, '‑');
+      }
     }
   };
 
@@ -681,12 +686,12 @@ function initHero() {
     // animateH1LetterByLetter(headlineEl, tl, 0.1);
   }
 
-  // 3. Description paragraph — letter-by-letter animation (starts at 0.35s)
+  // 3. Description paragraph — fade/slide in (starts at 0.35s)
+  // Letter-by-letter is skipped here because the custom description may contain HTML tags.
   const descEl = heroEl.querySelector('.hero-description');
   if (descEl) {
-    // console.log('[description] Element found, text:', descEl.textContent.substring(0, 30));
-    gsap.set(descEl, { opacity: 0, visibility: 'visible' });
-    animateH1LetterByLetter(descEl, tl, 0.15);
+    gsap.set(descEl, { opacity: 0, y: 16, visibility: 'visible' });
+    tl.to(descEl, { opacity: 1, y: 0, duration: 0.6, ease }, 0.35);
   }
 
   // 4. Tag pills — scale + fade with stagger (moved earlier to 0.2s)
@@ -2025,7 +2030,7 @@ function initLogomarkAnimation() {
   }
 
   // Calculate landing position based on excerpt position
-  let landingY = 380; // fallback (accounts for CSS top: -420px offset)
+  let landingY = 220; // fallback (accounts for CSS top: -420px offset)
 
   function calculateLandingY() {
     const excerptEl = document.querySelector('.post-excerpt');
@@ -2040,7 +2045,7 @@ function initLogomarkAnimation() {
       // add the absolute value of the CSS top offset to land at the
       // correct visual position.
       const cssTopOffset = Math.abs(parseFloat(getComputedStyle(logomarkEl).top)) || 0;
-      const calculated = excerptRect.bottom - headerRect.top + 20 + cssTopOffset; // 20px padding below excerpt
+      const calculated = excerptRect.bottom - headerRect.top - 150 + cssTopOffset; // 20px padding below excerpt
       // console.log(`[logomark] Calculated landing Y: ${calculated}`);
       return calculated;
     }
@@ -2609,6 +2614,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
+      // Hero takes priority on page load: if the hero is still visible, don't
+      // let an in-view post-card steal the particle shape before the hero
+      // helix has had a chance to form (prevents the first card's object
+      // from flashing on landing).
+      const heroEl = document.querySelector('.hero');
+      if (heroEl) {
+        const heroRect = heroEl.getBoundingClientRect();
+        if (heroRect.bottom > 0 && heroRect.top < window.innerHeight) {
+          currentCard = null;
+          return;
+        }
+      }
+
       let bestCard = null;
       let maxRatio = 0;
       cardRatios.forEach((ratio, card) => {
@@ -2647,7 +2665,20 @@ document.addEventListener('DOMContentLoaded', async () => {
           if (sys && sys.stateRegistry && sys.stateRegistry.get(targetShape)) {
             console.log(`%c◇ ${targetShape}`, 'color: #ff69b4; font-weight: bold; font-size: 13px;');
             currentCard = bestCard;
-            sys.morphTo(targetShape, 400);
+
+            // Route through the scenario map defined in default.hbs so
+            // settings like `work-cards: 'hide'` are respected. If the
+            // scenario says hide, use 'dispersed' as the built-in shape so
+            // the particles fade out instead of assembling a card object.
+            const scenarioMap = (window.PARTICLE_SCENARIOS && window.PARTICLE_SCENARIOS[window.PARTICLE_SCENARIO || 'full']) || {};
+            const scenarioAction = scenarioMap['work-cards'];
+            const builtin = scenarioAction === 'hide' ? 'dispersed' : targetShape;
+
+            if (window.__particleApply) {
+              window.__particleApply(sys, 'work-cards', builtin, 400);
+            } else {
+              sys.morphTo(builtin, 400);
+            }
           } else {
             console.log('[card-morph] Shape not available:', targetShape);
           }

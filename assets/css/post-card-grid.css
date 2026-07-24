@@ -465,7 +465,7 @@ body[data-typography-body='medium'] .posts-tab {
 .posts-grid[data-posts-layout='list'] .container {
   display: grid;
   grid-template-columns: 1fr;
-  gap: var(--space-2xl);
+  gap: 0;
   max-width: none;
   /* No padding here, unlike grid mode above — list mode's own .post-card
      rule already sets `padding: 0 var(--content-padding)` on the card
@@ -1150,16 +1150,17 @@ body[data-typography-body='medium'] .posts-tab {
 .post-card-keyword {
   display: inline-flex;
   align-items: center;
-  padding: var(--space-xs) var(--space-sm);
+  padding: 2px 12px;
   background: var(--glass-bg);
   border: none;
   border-radius: var(--glass-radius);
   backdrop-filter: var(--glass-backdrop);
   -webkit-backdrop-filter: var(--glass-backdrop);
   letter-spacing: var(--primitive-letter-spacing-normal);
-  font-size: var(--text-size-xs);
+  font-size: var(--text-size-eyebrow);
   color: var(--color-on-surface-variant);
   white-space: nowrap;
+
 }
 
 /* ─────────────────────────────────────────────────────────── */

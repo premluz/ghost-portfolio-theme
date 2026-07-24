@@ -1,8 +1,9 @@
 {{!--
   POSTS-TABS-GRID-LAB SECTION
-  Grid layout for experimental projects (3-column)
+  Grid/list layout for experimental projects
   Duplicate of posts-tabs-grid but without tabs, only experimental
   Uses post-card-grid component for consistent styling
+  Respects the same @custom.posts_layout selector as posts-tabs.
 --}}
 
 <section class="statement-slide" style="min-height: 10vh; margin-top: 20vh; margin-bottom: 0;">
@@ -13,7 +14,7 @@
 </section>
 
 
-<section class="posts-tabs-grid-lab-section" id="work-grid-lab">
+<section class="posts-tabs-grid-lab-section" id="work-grid-lab" data-posts-layout="{{@custom.posts_layout}}">
 
    
 

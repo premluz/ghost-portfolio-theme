@@ -41,13 +41,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 120px !important;
+  width: 160px !important;
   height: 60px;
 }
 
 .logo-item[data-logo="Kingfisher"] {
-  width: 340px;
-  height: 60px;
+  width: 440px;
+  height: 80px;
 }
 
 .logo-image {
