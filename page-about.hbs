@@ -20,8 +20,9 @@
       {{else if excerpt}}
         <p class="post-excerpt page-excerpt">{{excerpt}}</p>
       {{/if}}
+      
     </div>
-
+ 
     {{!-- Inside <header>, not a sibling after it — matching post.hbs exactly
           (page.hbs puts this figure after </header> instead, which is itself
           a latent version of the same bug this fixes). initPostHeaderAnimation
@@ -38,8 +39,10 @@
     {{/if}}
     
   </header>
-
   {{> logos-scroll}}
+ {{> profile}}
+
+ 
   <div class="gh-canvas" data-page-content-width="contained">
     <div class="gh-content">
       {{content}}

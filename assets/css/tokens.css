@@ -193,6 +193,9 @@
 
   --color-secondary: var(--primitive-accent-500);
 
+  /* PARTICLE SYSTEM COLOR — hero shape particles */
+  --color-particles: #5ad8ff;
+
   /* SURFACE SYSTEM — 5 elevation levels */
   --surface-0: var(--color-background);
   --surface-1: #ffffff08;

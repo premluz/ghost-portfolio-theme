@@ -118,12 +118,48 @@ async function registerScrollTriggersOnGPU() {
         window.__particleApply(gpu, 'operating-model-exit', 'dispersed', 400);
       },
       onLeaveBack: () => {
-        debug('[particle-morph] [SCROLL] Operating model left UP → morphing to hero shape');
-        window.__particleApply(gpu, 'hero', window.__heroShape(), 400);
+        // Reverse scroll (up): sequence through teams → systems → products
+        debug('[particle-morph] [SCROLL] Operating model left UP (reverse) → sequence: teams → systems → products');
+        // Start with teams/porus state
+        window.__particleApply(gpu, 'operating-model-teams', 'dispersed', 300);
+        // Then systems (3 spheres) - staged sequence
+        setTimeout(() => window.__particleApply(gpu, 'operating-model-systems', 'sphere', 300), 350);
       }
     });
   } else {
     debug('[particle-morph] Operating model element not found');
+  }
+
+  // Post tabs: entering from below → hide particles
+  const postTabs = document.querySelector('.posts-tabs, [data-section-id="posts-tabs"]');
+  if (postTabs && typeof ScrollTrigger !== 'undefined') {
+    debug('[particle-morph] Post tabs trigger: registered');
+    ScrollTrigger.create({
+      trigger: postTabs,
+      start: 'top center',
+      onEnter: () => {
+        if (scrollDirection === 'up') {
+          debug('[particle-morph] [SCROLL] Post tabs entered (up/reverse) → hiding sphere');
+          window.__particleApply(gpu, 'post-tabs-entrance', 'hide', 400);
+        }
+      }
+    });
+  }
+
+  // Hero section: when at top → show helix
+  const heroSection = document.querySelector('.hero, [data-section-id="hero"]');
+  if (heroSection && typeof ScrollTrigger !== 'undefined') {
+    debug('[particle-morph] Hero top trigger: registered');
+    ScrollTrigger.create({
+      trigger: heroSection,
+      start: 'top top',
+      onEnter: () => {
+        if (scrollDirection === 'up' && window.scrollY < 100) {
+          debug('[particle-morph] [SCROLL] Top reached → showing helix');
+          window.__particleApply(gpu, 'top-reached', window.__heroShape(), 400);
+        }
+      }
+    });
   }
 
   // Testimonials → dispersed (only if scrolling DOWN, not UP from hero)
@@ -135,6 +171,7 @@ async function registerScrollTriggersOnGPU() {
     lastScrollY = window.scrollY;
   });
 
+  // Testimonials: entering from above → hide particles
   const testimonials = document.querySelector('[data-testimonials], .testimonials-section, #testimonials');
   if (testimonials) {
     debug('[particle-morph] Testimonials trigger: registered');
@@ -145,11 +182,27 @@ async function registerScrollTriggersOnGPU() {
         if (scrollDirection === 'down') {
           debug('[particle-morph] [SCROLL] Testimonials entered (down) → morphing to dispersed');
           window.__particleApply(gpu, 'testimonials', 'dispersed', 400);
-        } else {
-          debug('[particle-morph] [SCROLL] Testimonials entered (up) → keeping helix');
         }
       }
     });
+  }
+
+  // Lab section: entering on reverse scroll → show morphing sphere
+  const labSection = document.querySelector('[data-post-hero="lab"], .posts-tabs-grid-lab, #work-grid-lab');
+  if (labSection && typeof ScrollTrigger !== 'undefined') {
+    debug('[particle-morph] Lab section trigger: registered');
+    ScrollTrigger.create({
+      trigger: labSection,
+      start: 'top center',
+      onEnter: () => {
+        if (scrollDirection === 'up') {
+          debug('[particle-morph] [SCROLL] Lab section entered (up/reverse) → showing morphing sphere');
+          window.__particleApply(gpu, 'lab-entrance', 'sphere', 400);
+        }
+      }
+    });
+  } else {
+    debug('[particle-morph] Lab section element not found');
   }
 
   debug('[particle-morph] ✅ GPU scroll triggers registered');

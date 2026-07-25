@@ -178,12 +178,14 @@
   width: 100%;
   overflow: visible;
   min-width: 0;
+  margin-bottom: var(--space-2xl);
+  margin-top: var(--space-lg) !important;
 }
 
 .posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-link {
   display: flex;
   flex-direction: row;
-  gap: var(--space-2xl);
+  gap: var(--space-4xl);
   width: 100%;
   min-width: 0;
   align-items: center;
@@ -191,7 +193,7 @@
 
 .posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-image {
   flex: 0.9;
-  aspect-ratio: 1440 / 900;
+  aspect-ratio: 16 / 10;
   margin-bottom: 0;
   order: 1;
   overflow: hidden;
@@ -231,13 +233,13 @@
 
   .posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-link {
     flex-direction: column;
-    gap: var(--space-lg);
+    gap: var(--space-md);
   }
 
   .posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-image {
     flex: 0 0 auto;
     width: 100%;
-    aspect-ratio: 1440 / 900;
+    aspect-ratio: 16 / 10;
     border-radius: var(--radius-sm);
     order: -1;
   }

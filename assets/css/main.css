@@ -3949,7 +3949,7 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-i
 .page-image img {
   width: 100%;
   height: auto;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   display: block;
 }
 
@@ -6486,6 +6486,11 @@ body[data-page-width='full'] .testimonials-section[data-testimonials-layout="scr
 
 .page-about {padding-bottom: 0 !important; margin-bottom:0 !important;}
 
+/* Hide duplicate profile-items from gh-content — the real profile section is rendered by {{> profile}} partial */
+.page-about .gh-content .profile-items {
+  display: none !important;
+}
+
 #how-i-work { font-size: var(--text-size-h2);     color: var(--color-primary)}
 
 .personal-header {
@@ -7201,7 +7206,7 @@ textarea::placeholder {
 
 .page-image img {
   width: 100%;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius);
 }
 
 .page-body {
@@ -8159,6 +8164,7 @@ html.no-anim *::after {
   animation-delay: 0s !important;
 }
 html.no-anim { scroll-behavior: auto !important; }
+
 html.no-anim #particle-morph-demo { display: none !important; }
 
 /* Hero-only particle canvas offset (read by particle-animation-loop.js).
