@@ -188,9 +188,15 @@ function fetchCardMeta(card, onSettled) {
             video.playsInline = true;
             Object.assign(video.style, {
               position: 'absolute',
+              // width/height:100% removed — redundant with inset:0 (which
+              // alone fully determines the box on all 4 sides) and the
+              // reported bug (video rendering smaller than its container,
+              // skeleton visible behind it at the bottom/right edges) is
+              // exactly the kind of "two competing sizing paths disagree"
+              // symptom that redundancy causes on a dynamically-inserted
+              // element. .card-media-skeleton (which never shows this bug)
+              // only ever used inset:0 alone — matching that here.
               inset: '0',
-              width: '100%',
-              height: '100%',
               objectFit: 'cover',
               opacity: '0',
               transition: 'opacity 0.4s ease',

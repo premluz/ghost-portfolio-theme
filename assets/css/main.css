@@ -594,7 +594,7 @@ p:last-child {
   flex: 1 1 min(420px, 48%);
   margin-top: var(--space-lg);
   padding: var(--space-lg);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--surface-1) 100%, transparent) !important; 
 }
 .flexlayout .col h3 {
@@ -2830,19 +2830,12 @@ webkit-box-shadow: 10px 10px 100px 0px rgba(0,0,0,0.3);
   height: 100%;
   object-fit: cover;
   /* Card animations handled by card-animations.js */
-  border-radius: var(--radius-sm);
-}
-
-.post-card-image video,
-.post-card-image iframe {
-  display: block;
-  width: 100% !important;
-  height: auto !important;
-  aspect-ratio: 1440 / 900;
-
-  margin: -3px 0 0 -2px;
-  object-fit: contain;
-  max-width: 100%;
+  /* border-radius removed — this was an 8px (--radius-sm) leftover from
+     the old per-child-rounding approach, fighting the container's own
+     12px (--radius-md) clip (post-card-grid.css's .post-card-image:
+     overflow:hidden + border-radius). The container is the sole source of
+     truth for rounding now; a mismatched radius on the child just left a
+     visible seam between the two curves at the corners. */
 }
 
 .post-card-content {
@@ -3289,65 +3282,16 @@ body[data-typography-body='medium'] .posts-tab {
   display: none;
 }
 
-/* ─────────────────────────────────────────────────────────── */
-/* LIST LAYOUT */
-/* ─────────────────────────────────────────────────────────── */
-
-.posts-grid[data-posts-layout='list'] .container {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 0;
-  max-width: none;
-}
-
-.posts-grid[data-posts-layout='list'] .post-card {
-  display: flex;
-  flex-direction: row;
-  gap: var(--space-lg);
-  width: 100%;
-  overflow: visible;
-  padding: 0 var(--content-padding);
-  min-width: 0;
-}
-
-.posts-grid[data-posts-layout='list'] .post-card-image {
-  flex: 0.9;
-  aspect-ratio: 1440 / 900;
-  margin-bottom: 0;
-  order: 1;
-  overflow: visible;
-  border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.posts-grid[data-posts-layout='list'] .post-card-link {
-  flex-direction: row;
-  gap: var(--space-2xl);
-  width: 100%;
-  min-width: 0;
-}
-
-.posts-grid[data-posts-layout='list'] .post-card-content {
-  flex: 0.6 !important;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  min-width: 0;
-  order: 0 !important;
-  overflow-wrap: break-word;
-
-}
-
-.posts-grid[data-posts-layout='list'] .post-card-client,
-.posts-grid[data-posts-layout='list'] .post-card-description {
-  display: none;
-}
-
-.posts-grid[data-posts-layout='list'] .post-card-image img {
-  object-fit: contain;
-}
+/* LIST LAYOUT block removed — was a stale pre-extraction duplicate of
+   post-card-grid.css's own "LIST LAYOUT" section (that file's header:
+   "Extracted from main.css for maintainability" — these copies were never
+   deleted after the extraction). post-card-grid.css loads after this file
+   (default.hbs) so its versions already won on equal specificity; this
+   dead copy's only effect was confusing devtools debugging — disabling
+   post-card-grid.css's rule revealed this one underneath, with DIFFERENT
+   values (border-radius: --radius-sm here vs --radius-md there, overflow:
+   visible here vs hidden there, post-card-content flex:0.6 !important
+   here vs 0.7 there) that were never actually active. */
 
 /* ─────────────────────────────────────────────────────────── */
 /* CAROUSEL LAYOUT */
@@ -3746,7 +3690,7 @@ body[data-page-width='full'] .gh-canvas {
 .post-image {
   margin: var(--space-xl) 0;
   padding: 0;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   overflow: hidden;
   width: 100%;
   aspect-ratio: 16 / 10;
@@ -3757,7 +3701,7 @@ body[data-page-width='full'] .gh-canvas {
   height: 100%;
   display: block;
   object-fit: cover;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   /* Scroll reveal initial state — GSAP overrides during animation */
   opacity: 0;
   transform: scale(0.97);
@@ -4143,32 +4087,9 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-i
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .posts-grid[data-posts-layout='list'] .post-card {
-    flex-direction: column;
-    gap: var(--space-md);
-  }
-
-  .posts-grid[data-posts-layout='list'] .post-card-link {
-    flex-direction: column;
-    gap: var(--space-lg);
-  }
-
-  .posts-grid[data-posts-layout='list'] .post-card-inner {
-    flex-direction: column;
-    gap: var(--space-lg);
-  }
-
-  .posts-grid[data-posts-layout='list'] .post-card-image {
-    flex: 0 0 auto;
-    width: 100%;
-    aspect-ratio: 1440 / 900;
-    border-radius: var(--radius-sm);
-    order: -1;
-  }
-
-  .posts-grid[data-posts-layout='list'] .post-card-content {
-    order: 1;
-  }
+  /* Stale pre-extraction duplicate of post-card-grid.css's own tablet
+     list-mode block removed here — see the "LIST LAYOUT block removed"
+     note further up this file for why. */
 }
 
 /* ═════════════════════════════════════════════════════════════ */
@@ -4432,32 +4353,9 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-i
     padding: var(--space-section) var(--content-padding);
   }
 
-  .posts-grid[data-posts-layout='list'] .post-card {
-    flex-direction: column;
-    gap: var(--space-md);
-  }
-
-  .posts-grid[data-posts-layout='list'] .post-card-link {
-    flex-direction: column;
-    gap: var(--space-lg);
-  }
-
-  .posts-grid[data-posts-layout='list'] .post-card-inner {
-    flex-direction: column;
-    gap: var(--space-lg);
-  }
-
-  .posts-grid[data-posts-layout='list'] .post-card-image {
-    flex: 0 0 auto;
-    width: 100%;
-    aspect-ratio: 1440 / 900;
-    border-radius: var(--radius-sm);
-    order: -1;
-  }
-
-  .posts-grid[data-posts-layout='list'] .post-card-content {
-    order: 1;
-  }
+  /* Stale pre-extraction duplicate of post-card-grid.css's own mobile
+     list-mode block removed here — see the "LIST LAYOUT block removed"
+     note further up this file for why. */
 
   .personal-content {
     gap: var(--space-lg);

@@ -311,9 +311,12 @@ function initGridCardMetadata() {
               video.playsInline = true;
               Object.assign(video.style, {
                 position: 'absolute',
+                // width/height:100% removed — redundant with inset:0 (see
+                // post-and-cards.js's identical fix for the full reasoning:
+                // two competing sizing paths on a dynamically-inserted
+                // element is the likely cause of the video occasionally
+                // rendering smaller than its container).
                 inset: '0',
-                width: '100%',
-                height: '100%',
                 objectFit: 'cover',
                 opacity: '0',
                 transition: 'opacity 0.4s ease',

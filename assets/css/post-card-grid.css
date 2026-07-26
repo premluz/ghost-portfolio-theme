@@ -500,9 +500,16 @@ body[data-typography-body='medium'] .posts-tab {
      match the box) — the actual "rounding not full" symptom reported. */
   overflow: hidden;
   border-radius: var(--radius-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  /* display:flex + align-items/justify-content:center REMOVED — this only
+     ever applied to .post-card-image (this list-mode rule), never to
+     .grid-card-image (about-projects has no list-mode variant at all),
+     which is exactly why the video-sizing bug only showed up on posts-tabs.
+     align-items:center overrides flexbox's default cross-axis "stretch",
+     so the video/img (both sized via their own 100%/100%, not flex-grow)
+     got sized to content instead and centered — a visibly smaller,
+     off-position video inside a larger box. Neither element needs flex
+     alignment: the video already self-positions via position:absolute +
+     inset:0, and the img fills correctly under plain block layout. */
 }
 
 .posts-grid[data-posts-layout='list'] .post-card-link {
@@ -955,46 +962,40 @@ body[data-typography-body='medium'] .posts-tab {
    while we don't yet know if it has a video — resolves to either the
    video or the image once fetchCardMeta/loadCardMeta settles (see
    post-and-cards.js / posts-tabs-grid.js). Surface tokens are redefined
-   per data-theme, so this adapts automatically across themes. Two
-   animations layered together (both start at frame 1, no JS delay): a
-   sweep carrying 3 distinct bright bands (waves) tightly grouped with
-   small gaps between them, separated by a long quiet run before the group
-   repeats — not one continuous band — plus a slower opacity breathe so it
-   doesn't read as a single static gradient. Both durations doubled (50%
-   slower) from the original single-band version. */
+   per data-theme, so this adapts automatically across themes — --surface-2
+   is the base/dim color, --surface-4 is the bright band; edit those two in
+   tokens.css to change the skeleton's colors (they're shared with other
+   elevation/surface uses, so a change there affects more than just this).
+   Two animations layered together (both start at frame 1, no JS delay): a
+   single broad sweep, plus a slower opacity breathe so it doesn't read as
+   a static gradient. */
 @keyframes card-media-skeleton-shimmer {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
 
 @keyframes card-media-skeleton-pulse {
-  0%, 100% { opacity: 0.6; }
+  0%, 100% { opacity: 0.8; }
   50% { opacity: 1; }
 }
 
 .card-media-skeleton {
   position: absolute;
   inset: 0;
-  /* 3 bright peaks (surface-4) at 45/55/65% — a small 5% gap between each
-     — bracketed by long surface-2 runs (0-38% and 72-100%) so, combined
-     with background-size below, most of the sweep is quiet between one
-     group of 3 waves and the next. */
+  /* One broad, soft band (not discrete peaks) — long shoulders (0-30% and
+     70-100%) fading through a single bright plateau in the middle. */
   background: linear-gradient(100deg,
     var(--surface-2) 0%,
-    var(--surface-2) 38%,
-    var(--surface-4) 45%,
-    var(--surface-2) 50%,
-    var(--surface-4) 55%,
-    var(--surface-2) 60%,
-    var(--surface-4) 65%,
-    var(--surface-2) 72%,
+    var(--surface-2) 30%,
+    var(--surface-4) 50%,
+    var(--surface-2) 70%,
     var(--surface-2) 100%
   );
   background-size: 350% 100%;
   animation:
-    card-media-skeleton-shimmer 2s linear infinite,
-    card-media-skeleton-pulse 2.4s ease-in-out infinite;
-  transition: opacity 0.4s ease;
+    card-media-skeleton-shimmer 3s linear infinite,
+    card-media-skeleton-pulse 6s ease-in-out infinite;
+  transition: opacity 0.6s ease;
 }
 
 .card-media-skeleton.is-hidden {
