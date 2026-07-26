@@ -956,10 +956,12 @@ body[data-typography-body='medium'] .posts-tab {
    video or the image once fetchCardMeta/loadCardMeta settles (see
    post-and-cards.js / posts-tabs-grid.js). Surface tokens are redefined
    per data-theme, so this adapts automatically across themes. Two
-   animations layered together (both start at frame 1, no JS delay):
-   a fast sweep for the "flashing through" band, plus a slower opacity
-   breathe so it doesn't read as a single static gradient. Tighter/more
-   contrasty stops than a typical subtle skeleton — reads as more alive. */
+   animations layered together (both start at frame 1, no JS delay): a
+   sweep carrying 3 distinct bright bands (waves) tightly grouped with
+   small gaps between them, separated by a long quiet run before the group
+   repeats — not one continuous band — plus a slower opacity breathe so it
+   doesn't read as a single static gradient. Both durations doubled (50%
+   slower) from the original single-band version. */
 @keyframes card-media-skeleton-shimmer {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
@@ -973,11 +975,25 @@ body[data-typography-body='medium'] .posts-tab {
 .card-media-skeleton {
   position: absolute;
   inset: 0;
-  background: linear-gradient(100deg, var(--surface-2) 15%, var(--surface-4) 35%, var(--surface-2) 55%, var(--surface-4) 75%, var(--surface-2) 95%);
-  background-size: 250% 100%;
+  /* 3 bright peaks (surface-4) at 45/55/65% — a small 5% gap between each
+     — bracketed by long surface-2 runs (0-38% and 72-100%) so, combined
+     with background-size below, most of the sweep is quiet between one
+     group of 3 waves and the next. */
+  background: linear-gradient(100deg,
+    var(--surface-2) 0%,
+    var(--surface-2) 38%,
+    var(--surface-4) 45%,
+    var(--surface-2) 50%,
+    var(--surface-4) 55%,
+    var(--surface-2) 60%,
+    var(--surface-4) 65%,
+    var(--surface-2) 72%,
+    var(--surface-2) 100%
+  );
+  background-size: 350% 100%;
   animation:
-    card-media-skeleton-shimmer 1s linear infinite,
-    card-media-skeleton-pulse 1.2s ease-in-out infinite;
+    card-media-skeleton-shimmer 2s linear infinite,
+    card-media-skeleton-pulse 2.4s ease-in-out infinite;
   transition: opacity 0.4s ease;
 }
 
@@ -1150,17 +1166,16 @@ body[data-typography-body='medium'] .posts-tab {
 .post-card-keyword {
   display: inline-flex;
   align-items: center;
-  padding: 2px 12px;
+  padding: var(--space-xs) var(--space-sm);
   background: var(--glass-bg);
   border: none;
   border-radius: var(--glass-radius);
   backdrop-filter: var(--glass-backdrop);
   -webkit-backdrop-filter: var(--glass-backdrop);
   letter-spacing: var(--primitive-letter-spacing-normal);
-  font-size: var(--text-size-eyebrow);
+  font-size: var(--text-size-xs);
   color: var(--color-on-surface-variant);
   white-space: nowrap;
-
 }
 
 /* ─────────────────────────────────────────────────────────── */

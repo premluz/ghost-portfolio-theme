@@ -1,3 +1,7 @@
+{{!-- Both tabs default to @custom.posts_layout (the theme's site-wide
+      setting) — pass layout="grid" or layout="list" on the {{> ...}} call
+      to override just this inclusion, e.g. {{> posts-tabs layout="grid"}}.
+      Applies uniformly to both the featured and experimental tab. --}}
 <section class="posts-tabs-section" id="work" data-page-width="{{@custom.page_width}}" data-active-tab="featured">
 
   {{!-- Glass switch component (independent, syncs to tab state) 
@@ -24,7 +28,7 @@
     <div class="posts-tabs-container">
       {{!-- Featured tab --}}
       <div class="posts-tabs-content posts-tabs-content-featured active" data-tab="featured">
-        <div class="posts-grid" data-posts-layout="{{@custom.posts_layout}}">
+        <div class="posts-grid" data-posts-layout="{{#if layout}}{{layout}}{{else}}{{@custom.posts_layout}}{{/if}}">
           <div class="container">
             <div id="work-cards"></div>
             <div class="carousel-track">
@@ -52,7 +56,7 @@
 
       {{!-- Experimental tab --}}
       <div class="posts-tabs-content posts-tabs-content-experimental" data-tab="experimental">
-        <div class="posts-grid" data-posts-layout="{{@custom.posts_layout}}">
+        <div class="posts-grid" data-posts-layout="{{#if layout}}{{layout}}{{else}}{{@custom.posts_layout}}{{/if}}">
           <div class="container">
             <div id="work-cards"></div>
             <div class="carousel-track">

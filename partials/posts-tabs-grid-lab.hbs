@@ -3,7 +3,9 @@
   Grid/list layout for experimental projects
   Duplicate of posts-tabs-grid but without tabs, only experimental
   Uses post-card-grid component for consistent styling
-  Respects the same @custom.posts_layout selector as posts-tabs.
+  Defaults to @custom.posts_layout (the theme's site-wide setting), same as
+  posts-tabs — pass layout="grid" or layout="list" on the {{> ...}} call
+  to override just this inclusion, e.g. {{> posts-tabs-grid-lab layout="list"}}.
 --}}
 
 <section class="statement-slide" style="min-height: 10vh; margin-top: 20vh; margin-bottom: 0;">
@@ -14,7 +16,7 @@
 </section>
 
 
-<section class="posts-tabs-grid-lab-section" id="work-grid-lab" data-posts-layout="{{@custom.posts_layout}}">
+<section class="posts-tabs-grid-lab-section" id="work-grid-lab" data-posts-layout="{{#if layout}}{{layout}}{{else}}{{@custom.posts_layout}}{{/if}}">
 
    
 
