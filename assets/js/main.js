@@ -2384,7 +2384,19 @@ function initTooltipSystem() {
     if (e.target instanceof Element) {
       const target = e.target.closest('[data-tooltip]');
       if (target) {
-        hideTooltip();
+        // mouseleave fires (capture-delegated, non-bubbling) on EVERY
+        // descendant the pointer moves out of, not just when it truly
+        // leaves `target`'s own box — e.g. moving from .post-card-title to
+        // a gap between it and .post-card-image (still inside the same
+        // [data-tooltip] link) fires mouseleave on the title with no
+        // corresponding mouseenter to re-show it (the link/inner container
+        // never re-enters — the pointer was already inside it). Only hide
+        // when relatedTarget (where the pointer is actually going) has
+        // left `target`'s subtree entirely.
+        const goingTo = e.relatedTarget;
+        if (!goingTo || !target.contains(goingTo)) {
+          hideTooltip();
+        }
       }
     }
   }, true);

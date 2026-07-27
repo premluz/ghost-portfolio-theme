@@ -1,5 +1,5 @@
 <article class="post-card" data-post-url="{{url}}"{{#if tags}} data-tag-slugs="{{#foreach tags}}{{slug}} {{/foreach}}"{{/if}}{{#if custom.gradientCss}} data-gradient-css="{{custom.gradientCss}}"{{/if}}{{#if custom.cardId}} data-cardid="{{custom.cardId}}"{{else}} data-cardid="{{slug}}"{{/if}}>
-  <a href="{{url}}" class="post-card-link" data-transition>
+  <a href="{{url}}" class="post-card-link" data-transition data-tooltip="View case study">
     {{!-- Inner wrapper that scales on hover, while link stays stable --}}
     <div class="post-card-inner">
 

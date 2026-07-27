@@ -263,8 +263,19 @@ function fetchCardMeta(card, onSettled) {
         if (meta.disableLink === true || meta['disable-link'] === true) {
           const link = card.querySelector('.post-card-link');
           if (link) {
-            link.style.pointerEvents = 'none';
-            link.setAttribute('data-tooltip', 'No case study');
+            // Was pointer-events:none — that also blocks mouseenter/mouseleave,
+            // so the tooltip system (main.js initTooltipSystem, keyed off
+            // [data-tooltip]) never saw the hover at all. preventDefault on
+            // click blocks navigation the same way while leaving hover intact.
+            // A listener on the link itself fires before page-transition.js's
+            // document-level click handler (bubble phase starts at the
+            // target), so stopPropagation here reliably stops it from also
+            // handling this click.
+            link.addEventListener('click', (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            });
+            link.setAttribute('data-tooltip', 'Case study upon request');
             card.classList.add('card-disabled');
           }
         }

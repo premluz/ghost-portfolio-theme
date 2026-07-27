@@ -80,7 +80,7 @@
       tl.to(pageContent, {
         y:        20,
         opacity:  0,
-        duration: 0.2,
+        duration: 0.01,
         ease:     'power1.in',
       }, 0);
     }
@@ -90,7 +90,7 @@
     // speeds up into the panel's arrival.
     tl.to(scrim, {
       opacity:  0.9,
-      duration: 0.2,
+      duration: 0.01,
       ease:     'power2.in',
     }, 0);
 
@@ -101,7 +101,7 @@
         yPercent:     0,
         scale:        2,
         borderRadius: '40px 40px 0 0',
-        duration:     0.2,
+        duration:     0.01,
         ease:         'power1.out',
       },
       0.03
@@ -132,7 +132,7 @@
     });
 
     if (pageContent) {
-      tl.to(pageContent, { y: 200, opacity: 0, duration: 0.25, ease: 'power1.in' }, 0);
+      tl.to(pageContent, { y: 200, opacity: 0, duration: 0.15, ease: 'power1.in' }, 0);
     }
     tl.to(scrim, { opacity: 1, duration: 0.3, ease: 'power2.in' }, 0);
   }
@@ -159,19 +159,17 @@
     if (!isCurtainReturn) return false;
     try { sessionStorage.removeItem('curtainReturn'); } catch (err) {}
 
-    // The head pre-hide (html.landing-pending for '/', html.main-pending
-    // for work/about/contact/post — both in default.hbs) fires on ANY
-    // same-origin arrival, including this curtain return, since the
-    // referrer is the post page. But the branch that normally removes
-    // whichever class applies (runLandingAnimation()) never runs on the
-    // curtain path (this function returning true short-circuits it), so
-    // the class used to sit until its 2.5s failsafe — main-pending's
-    // opacity:0 !important fully masked this function's own GSAP fade for
-    // that entire window, then popped visible all at once when the
-    // failsafe finally stripped it. The curtain entrance has its own
-    // scrim/main choreography; drop both veils the moment this path takes
-    // ownership (only one is ever actually present, depending on page).
-    document.documentElement.classList.remove('landing-pending');
+    // The head pre-hide (html.main-pending for work/about/contact/post,
+    // default.hbs) fires on ANY same-origin arrival, including this curtain
+    // return, since the referrer is the post page. But the branch that
+    // normally removes it (runLandingAnimation()) never runs on the curtain
+    // path (this function returning true short-circuits it), so the class
+    // used to sit until its 2.5s failsafe — main-pending's opacity:0
+    // !important fully masked this function's own GSAP fade for that
+    // entire window, then popped visible all at once when the failsafe
+    // finally stripped it. The curtain entrance has its own scrim/main
+    // choreography; drop this veil the moment this path takes ownership.
+    // (home has no equivalent pre-hide anymore — see default.hbs.)
     document.documentElement.classList.remove('main-pending');
 
     let origin = null;
@@ -360,56 +358,32 @@
         return;
       }
       console.log('[landing-anim/home] RUNNING');
-      // NO transform on .home — a transform there makes .home the
-      // containing block for every position:fixed element inside it (the
-      // hero!) and skews the pinned sections' ScrollTrigger measurements
-      // ("would be because section is pinned?" — yes). The page-level
-      // entrance is opacity-only; the slide-up lives on the hero's own
-      // fixed container (.hero), where a transform affects nothing else.
-      // Initial hidden state comes from html.landing-pending (set in the
-      // head BEFORE first paint — a gsap.set here was measurably one
-      // painted frame too late).
+      // .home has no pre-hide class anymore (default.hbs) — it paints
+      // normally from the first frame, same as everything else on the
+      // page. NO transform on .home either way — a transform there makes
+      // .home the containing block for every position:fixed element inside
+      // it (the hero!) and skews the pinned sections' ScrollTrigger
+      // measurements ("would be because section is pinned?" — yes). The
+      // slide-up used to live on the hero's own fixed container (.hero) —
+      // removed below along with the fade, per request.
       const heroEl = document.querySelector('.hero');
-      gsap.set(homeEl, { opacity: 0, transition: 'none' });
-      if (heroEl) gsap.set(heroEl, { y: 120 });
-      document.documentElement.classList.remove('landing-pending');
-      let started = false;
-      const startTween = () => {
-        if (started) return;
-        started = true;
-        gsap.to(homeEl, {
-          opacity: 1,
-          duration: 0.35,
-          ease: 'power2.out',
-          // opacity NOT cleared: inline 1 equals the stylesheet value;
-          // clearing it would re-arm the CSS opacity transition mid-handoff.
-          clearProps: 'transition',
-        });
-        if (heroEl) gsap.to(heroEl, {
-          y: 0,
-          duration: 0.45,
-          ease: 'power2.out',
-          clearProps: 'transform',
-          onComplete: () => console.log('[landing-anim/home] entrance complete'),
-        });
-      };
-      // Start only once frames are demonstrably flowing (two consecutive
-      // rAF deltas under 100ms) — homepage init blocks painting ~1s after
-      // DOMContentLoaded, and a tween started blind finishes entirely
-      // inside that frozen window (= perceived as an abrupt pop).
-      let prevT = performance.now();
-      let smooth = 0;
-      const probe = (now) => {
-        smooth = (now - prevT < 100) ? smooth + 1 : 0;
-        prevT = now;
-        if (smooth >= 2) startTween();
-        else if (!started) requestAnimationFrame(probe);
-      };
-      requestAnimationFrame(probe);
-      // failsafe: never hold the page hidden longer than ~1.2s — beyond
-      // that a deliberate entrance reads as a hang, and a slightly choppy
-      // start is the lesser evil
-      setTimeout(startTween, 1200);
+      // Instant, no fade/slide — hero content is just text, it must show
+      // immediately on load and on every transition into home, ahead of
+      // particles/anything else, per request. Was a 0.35s opacity fade on
+      // .home plus a 0.45s y:120->0 slide on .hero (previously also gated
+      // behind a frame-smoothness probe + up to 1200ms failsafe before
+      // either even started) — both removed; text is either visible or not,
+      // with no animated in-between state to wait through.
+      gsap.set(homeEl, { opacity: 1, clearProps: 'transition' });
+      if (heroEl) gsap.set(heroEl, { y: 0, clearProps: 'transform' });
+      // Scrim: this path never sets it, so it should already sit at its
+      // default opacity:0 (harmless) — but force-clear it too, in case a
+      // previous exit's tween got interrupted (bfcache-adjacent edge case,
+      // page-transition.js's own pageshow handler is the only other place
+      // that resets this) and left it visibly dimming the page underneath
+      // an otherwise-instant hero reveal.
+      gsap.set(scrim, { opacity: 0 });
+      console.log('[landing-anim/home] entrance complete (instant)');
       return;
     }
 
@@ -440,7 +414,7 @@
 
     if (shouldAnimate) {
       // Set initial state: off-screen bottom + invisible
-      gsap.set(main, { y: 200, opacity: 0 });
+      gsap.set(main, { y: 100, opacity: 0 });
 
       // Animate in from bottom with fade. clearProps: 'transform' matters
       // here — GSAP always writes an inline `transform` for `y`, even at

@@ -850,16 +850,27 @@ body[data-typography-body='medium'] .posts-tab {
 .post-card::before {
   content: '';
   position: absolute;
-  inset: calc(var(--space-lg) * -1);
+  /* inset:0 at rest, not the permanent calc(var(--space-lg) * -1) bleed —
+     opacity:0 doesn't remove this from layout, so the expanded box was
+     ALWAYS contributing its extra --space-lg on every side to this card's
+     (and thus the page's) scrollable area, even completely unhovered. Every
+     card in this single-column list layout sits flush against the viewport
+     edges, so that permanent bleed extended past the right edge on every
+     page load — WebKit (Safari, DuckDuckGo browser) counted it as
+     page-level horizontal scroll where Chromium didn't. Only expand to the
+     bleed size in :hover below, where the ring is actually visible and
+     needs it. */
+  inset: 0;
   border-radius: calc(var(--radius-lg) + var(--space-lg) * 0.25);
   pointer-events: none;
   opacity: 0;
-  transition: opacity var(--duration-standard) var(--ease-standard);
+  transition: opacity var(--duration-standard) var(--ease-standard), inset var(--duration-standard) var(--ease-standard);
   z-index: 20;
   animation: none;
 }
 
 .post-card:hover::before {
+  inset: calc(var(--space-lg) * -1);
   opacity: 1;
   animation: layerStatePulse var(--duration-standard) var(--ease-standard);
 }

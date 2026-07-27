@@ -97,10 +97,15 @@ const helixGenerator = (particleCount, config) => {
         positions[particleIdx * 3 + 1] = y + (Math.random() - 0.5) * 0.2 + offsetY;
         positions[particleIdx * 3 + 2] = z;
         phis[particleIdx] = theta + angle;
-        // New particle treatment: tiny dots, rare sparkles (threshold MUST
-        // match generateColors in particle-morph.hbs).
+        // Sparkle "type" (rare, hot-white) is still a real thing — it's
+        // colored independently in generateColors (particle-morph.hbs),
+        // same hash/threshold. Size is unified across every particle now:
+        // sparkles used to also render 4-6x bigger (a distractingly
+        // oversized glow, since gl_PointSize scales directly off this
+        // value — particle-animation-loop.js), which read as a stray
+        // glitch rather than a deliberate accent.
         const h = hash(particleIdx);
-        sizes[particleIdx] = h > 0.995 ? 1.6 + hash(particleIdx + 7) * 0.9 : 0.38 + h * 0.22;
+        sizes[particleIdx] = 0.38 + h * 0.22;
         particleIdx++;
       }
     }
@@ -172,13 +177,13 @@ const ribbonGenerator = (particleCount, config) => {
       positions[idx * 3 + 1] = cy + dy * v + j;
       positions[idx * 3 + 2] = cz + dz * v + j;
       phis[idx] = tw + t;
-      // Size variance: mostly tiny lattice dots; ~2% bright sparkles
-      // (h > 0.98 — the SAME threshold/hash generateColors uses so the
-      // big dots are also the bright-colored ones, like the reference).
+      // Sparkle "type" (rare, hot-white — h > 0.995) is still colored
+      // independently in generateColors (particle-morph.hbs), same
+      // hash/threshold. Size is unified across every particle now — see
+      // the helix shape above for why (gl_PointSize scaling off this value
+      // made sparkles read as an oversized glitch, not a deliberate accent).
       const h = hash(idx);
-      // Sparkles at 0.5% (was 2%) — rarity is what makes them read as
-      // sparkles; threshold MUST match generateColors in particle-morph.hbs.
-      sizes[idx] = h > 0.995 ? 1.6 + hash(idx + 7) * 0.9 : 0.38 + h * 0.22;
+      sizes[idx] = 0.38 + h * 0.22;
       idx++;
     }
   }
@@ -915,7 +920,10 @@ const volatilityGenerator = (particleCount, config) => {
       positions[idx * 3 + 1] = planeY;
       positions[idx * 3 + 2] = camZ - dist;
       const h = hash01(idx);
-      sizes[idx] = h > 0.995 ? 1.6 + h * 0.9 : 0.38 + h * 0.22;
+      // Size unified across every particle — see the helix shape's sizing
+      // comment above (sparkle "type" stays, colored independently in
+      // generateColors; only the oversized point-size bump was removed).
+      sizes[idx] = 0.38 + h * 0.22;
       idx++;
     }
   }

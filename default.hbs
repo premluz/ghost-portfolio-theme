@@ -190,25 +190,22 @@
   </script>
   {{ghost_head}}
   <script>
-    // HOMEPAGE LANDING PRE-HIDE — must run in the REAL <head>: an earlier
-    // placement deep in <body> ran after the browser had already parsed
-    // and painted the hero markup above it (seen as a one-frame flash
-    // before the entrance). Here, no paint can precede it. Same-site
-    // arrival detection mirrors preloader.js's cameFromSameSite;
-    // page-transition.js's landing branch removes the class when it takes
-    // over, and the timeout guarantees the page can never stay blank.
+    // HOMEPAGE LANDING PRE-HIDE — removed. .home used to be hidden
+    // (html.landing-pending, opacity:0 !important) from before first paint
+    // until page-transition.js's runLandingAnimation() ran on
+    // DOMContentLoaded and un-hid it — but that reveal is now an instant
+    // gsap.set (no animation to protect a flash-of-mid-transition against,
+    // see runLandingAnimation()'s isHome branch and scroll-scrub-anim.js's
+    // initHero()), so the hide-then-JS-reveal round trip was itself the
+    // only remaining gap: nav (not pre-hidden on this same-site path)
+    // would paint immediately while .home sat invisible until
+    // DOMContentLoaded, read as a blink. Letting .home paint normally from
+    // first frame, same as every other element on the page, removes that
+    // gap entirely instead of racing it.
     (function () {
       try {
         var isHome = (location.pathname === '/' || location.pathname === '');
-        if (document.referrer && new URL(document.referrer).origin === location.origin && isHome) {
-          document.documentElement.classList.add('landing-pending');
-          // The page-level entrance owns the reveal on this load — inner
-          // hero choreography (text stagger, image fade) must not stack a
-          // second animation on top (read by scroll-scrub-anim initHero
-          // and main.js's hero image entrance).
-          window.__pageEntranceOwns = true;
-          setTimeout(function () { document.documentElement.classList.remove('landing-pending'); }, 2500);
-        } else if (!isHome) {
+        if (!isHome) {
           // NON-HOME PRE-HIDE — same reasoning, for work/about/contact/post
           // pages: page-transition.js's runLandingAnimation() hides <main>
           // via gsap.set(main,{y:200,opacity:0}), but that's JS-timed and
@@ -300,7 +297,7 @@
         <div class="footer-signup-section">
           <!--<h2 class="footer-title">{{@site.title}}</h2>-->
 
-          <h2 class="footer-title">Building something complex?</h2>
+          <h2 class="footer-title">Building something<br />complex?</h2>
                  <p class="footer-description">I can help ship it faster. <a href="/about" class="text-gradient">How I work.</a></p>
           <a href="/contact" data-transition class="button footer-button" aria-label="Email">
            Let's make it happen

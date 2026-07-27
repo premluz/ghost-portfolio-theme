@@ -2,7 +2,7 @@
   <div class="nav-wrapper">
     <!-- Logo -->
     <div class="logoandnavwrapper">
-    <a href="{{@site.url}}" data-transition class="nav-logo"  style="margin-bottom:0;">
+     <!-- <a href="{{@site.url}}" data-transition class="nav-logo"  style="margin-bottom:0;">
 
        {{!-- Split into individual letters so the minimize/expand animation
              (main.css, keyed off .nav-hidden — see "LOGO MINIMIZE/EXPAND")
@@ -10,18 +10,18 @@
              first letter of each word (.logo-letter-anchor) never hides —
              it's the "p"/"d" that stay visible inside the dot once it
              grows into the minimized badge. --}}
-       <h4 class="nav-logo-text-based">
-        <!--<span class="serif"><span class="logo-letter logo-letter-anchor">p</span><span class="logo-letter">r</span><span class="logo-letter">e</span><span class="logo-letter">m</span><span class="logo-letter logo-s-prems">s</span></span><span class="brand logo-dot">.</span><span class="sans"><span class="logo-letter logo-letter-anchor">d</span><span class="logo-letter">e</span><span class="logo-letter">s</span><span class="logo-letter">i</span><span class="logo-letter">g</span><span class="logo-letter">n</span></span><span class="sans logo-s-design">s</span>-->
+     <h4 class="nav-logo-text-based">
+        <span class="serif"><span class="logo-letter logo-letter-anchor">p</span><span class="logo-letter">r</span><span class="logo-letter">e</span><span class="logo-letter">m</span><span class="logo-letter logo-s-prems">s</span></span><span class="brand logo-dot">.</span><span class="sans"><span class="logo-letter logo-letter-anchor">d</span><span class="logo-letter">e</span><span class="logo-letter">s</span><span class="logo-letter">i</span><span class="logo-letter">g</span><span class="logo-letter">n</span></span><span class="sans logo-s-design">s</span>
         <span class="sans"><span class="logo-letter logo-letter-anchor">P</span><span class="logo-letter">r</span><span class="logo-letter">e</span><span class="logo-letter">m</span> <span class="logo-letter logo-letter-anchor">L</span><span class="logo-letter">u</span><span class="logo-letter">c</span><span class="logo-letter">z</span><span class="logo-letter">a</span><span class="logo-letter">k</span></span>
-       </h4>
+       </h4>--> 
       <!--{{#if @site.logo}}
        <img src="{{@site.logo}}" alt="{{@site.title}}" class="nav-logo-image">
       {{else}}
         <div class="nav-logo-text">
           <span>{{@site.title}}</span>
         </div>
-      {{/if}}-->
-    </a>
+      {{/if}}
+    </a>-->
 
     {{!-- .nav-menu-icon/.nav-menu-label below: desktop shows the text label
           only (icon hidden); mobile (main.css, max-width:768px) flips that
@@ -29,8 +29,8 @@
           of hiding the whole menu as it did before. --}}
     <!-- Desktop Menu -->
     <ul class="nav-menu">
-      <li><a href="{{@site.url}}/work" data-transition><img src="{{asset "icons/work.svg"}}" alt="" class="nav-menu-icon"><span class="nav-menu-label">Work</span></a></li>
-      <li><a href="{{@site.url}}/about" data-transition><img src="{{asset "icons/user.svg"}}" alt="" class="nav-menu-icon"><span class="nav-menu-label">About</span></a></li>
+      <li><a href="{{@site.url}}/" data-transition><img src="{{asset "icons/work.svg"}}" alt="" class="nav-menu-icon"><span class="nav-menu-label">Work</span></a></li>
+      <li><a href="{{@site.url}}/about" data-transition><img src="{{asset "icons/user.svg"}}" alt="" class="nav-menu-icon"><span class="nav-menu-label">Profile</span></a></li>
       <li><a href="{{@site.url}}/contact" data-transition><img src="{{asset "icons/contact.svg"}}" alt="" class="nav-menu-icon"><span class="nav-menu-label">Contact</span></a></li>
      <!-- <li><a href="{{#get 'pages' limit='1' filter='slug:about'}}{{url}}{{else}}{{@site.url}}about/{{/get}}#aboutme">About</a></li>-->
     </ul>
@@ -91,8 +91,16 @@
 
       <!-- Theme Toggle  -->
       <button class="nav-icon-btn theme-toggle" aria-label="Toggle theme">
-        <img src="{{asset "icons/sun.svg"}}" alt="Light mode" class="theme-icon-sun">
-        <img src="{{asset "icons/moon.svg"}}" alt="Dark mode" class="theme-icon-moon">
+        {{!-- Icons wrapped separately from .nav-tooltip: the stagger nav-hide
+              mode's max-width collapse (main.css) needs overflow:hidden on
+              whatever it's shrinking so the icon doesn't spill out mid-
+              transition — scoping that to just the icons (not the whole
+              button) keeps the tooltip, which sits outside the icons' own
+              box via top:100%, from being clipped along with it. --}}
+        <span class="theme-toggle-icons">
+          <img src="{{asset "icons/sun.svg"}}" alt="Light mode" class="theme-icon-sun">
+          <img src="{{asset "icons/moon.svg"}}" alt="Dark mode" class="theme-icon-moon">
+        </span>
         <span class="nav-tooltip">Theme</span>
       </button>
 

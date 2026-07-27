@@ -318,59 +318,12 @@ function initCardScrollReveal() {
     allCards.push(card); // keep the backfill registry complete
   };
 
+  // Mobile-only .posts-tabs-section blur(24px)->blur(0px) entrance removed —
+  // desktop has no section-level entrance effect for posts-tabs-section at
+  // all (only per-card blur:{start:0,end:0}, i.e. no blur), so mobile should
+  // match by having none either. tabsBackfill stays null; the guard at its
+  // one call site below already no-ops safely when unset.
   let tabsBackfill = null;
-  if (window.innerWidth <= 768) {
-    const tabsSection = document.querySelector('.posts-tabs-section');
-    if (tabsSection) {
-      const revealedTabs = new WeakSet();
-
-      gsap.set(tabsSection, {
-        opacity: 0,
-        filter: 'blur(24px)',
-      });
-
-      const tabsObserver = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-          const rect = entry.target.getBoundingClientRect();
-          const elementCenter = rect.top + rect.height / 2;
-          const isInBottomHalf = elementCenter > window.innerHeight / 2;
-          const isRevealed = revealedTabs.has(tabsSection);
-
-          if (entry.isIntersecting) {
-            if (isScrollingDown && isInBottomHalf && !isRevealed) {
-              gsap.to(tabsSection, {
-                opacity: 1,
-                filter: 'blur(0px)',
-                duration: 0.6,
-                ease: 'power2.out',
-              });
-              revealedTabs.add(tabsSection);
-            }
-          } else {
-            if (!isScrollingDown && isRevealed) {
-              gsap.to(tabsSection, {
-                opacity: 0,
-                filter: 'blur(24px)',
-                duration: 0.6,
-                ease: 'power2.in',
-              });
-              revealedTabs.delete(tabsSection);
-            }
-          }
-        });
-      }, { threshold: 0.1, rootMargin: '0px 0px -120px 0px' });
-
-      tabsObserver.observe(tabsSection);
-      tabsBackfill = (limit) => {
-        if (revealedTabs.has(tabsSection)) return;
-        const top = tabsSection.getBoundingClientRect().top + window.scrollY;
-        if (top < limit) {
-          gsap.set(tabsSection, { opacity: 1, filter: 'blur(0px)' });
-          revealedTabs.add(tabsSection);
-        }
-      };
-    }
-  }
 
   // REVEAL BACKFILL — the solid guardrail for scroll restoration.
   // The curtain-return scroll restore cannot rely on observers firing:

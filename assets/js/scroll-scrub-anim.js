@@ -424,48 +424,18 @@ class ScrollScrubAnimationSystem {
       };
       waitForParticleSystemThenMorph();
 
-      // Entrance: stagger eyebrow, then headline (whole element — no
-      // longer split into per-line-group spans, see note above)
+      // Entrance: reveal instantly, unconditionally — hero content is just
+      // text, it should never sit behind an animated stagger/blur/slide
+      // entrance while the particle system is already rendering. Was:
+      // gsap.fromTo per-item stagger (eyebrow, then headline 0.12s later,
+      // then description a further 0.35s after that — ~1.3s total before
+      // the description even finished), only skipped for same-site nav via
+      // window.__pageEntranceOwns. Now unconditional for every load path
+      // (fresh, cached, same-site) — text shows first, before anything else.
       const intro = hero.querySelector('.hero-intro');
-      const allItems = intro ? [intro, heading] : [heading];  // Eyebrow first, then headline
-
-      // Same-site nav: the page-level landing entrance (page-transition.js)
-      // already slides+fades the whole hero in as one piece — stacking this
-      // ~1.3s staggered text choreography on top read as "two animations"
-      // vs the other pages' single short entrance. Reveal instantly instead.
-      if (window.__pageEntranceOwns) {
-        const description0 = hero.querySelector('.hero-description');
-        gsap.set(allItems.concat(description0 ? [description0] : []), { opacity: 1, y: 0, filter: 'blur(0px)' });
-        return;
-      }
-
-      gsap.fromTo(allItems,
-        { opacity: 0, filter: `blur(${this.config.blurStart})`, y: this.config.yStart },
-        {
-          opacity: 1,
-          filter: `blur(${this.config.blurEnd})`,
-          y: 0,
-          duration: this.config.enterDuration,
-          stagger: 0.12,
-          ease: 'power2.out'
-        }
-      );
-
-      // Entrance: animate description in after headline
       const description = hero.querySelector('.hero-description');
-      if (description) {
-        gsap.fromTo(description,
-          { opacity: 0, filter: `blur(${this.config.blurStart})`, y: this.config.yStart },
-          {
-            opacity: 1,
-            filter: `blur(${this.config.blurEnd})`,
-            y: 0,
-            duration: this.config.enterDuration,
-            ease: 'power2.out'
-          },
-          0.35  // Delay after headline animation starts
-        );
-      }
+      const allItems = (intro ? [intro] : []).concat([heading], description ? [description] : []);
+      gsap.set(allItems, { opacity: 1, y: 0, filter: 'blur(0px)' });
     });
 
     // Exit: individual hero elements animate out on scroll

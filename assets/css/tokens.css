@@ -746,7 +746,7 @@
 /* Type size (headings) — separate axis, same multipliers */
 /* Wider steps than the body axis on purpose: at display sizes a ±8%
    change is imperceptible — headings need visibly distinct tiers. */
-:root:has(body[data-type-size-headings='compact'])  { --type-scale-heading: 0.8; }
+:root:has(body[data-type-size-headings='compact'])  { --type-scale-heading: 0.7; }
 :root:has(body[data-type-size-headings='standard']) { --type-scale-heading: 1; }
 :root:has(body[data-type-size-headings='large'])    { --type-scale-heading: 1.15; }
 /* legacy single-axis values (pre-split, meant "everything") */

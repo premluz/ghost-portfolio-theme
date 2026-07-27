@@ -27,12 +27,12 @@
 
         {{!-- Top label — "Hello, I'm Prem." --}}
         <p class="hero-intro text-eyebrow" id="hero-intro">
-          {{#if @custom.hero_name}}{{@custom.hero_name}}{{else}}Name{{/if}}
+          {{#if @custom.hero_name}}{{{@custom.hero_name}}}{{else}}Name{{/if}}
         </p>
 
         {{!-- Main headline --}}
         <h1 class="hero-headline serif" id="hero-headline" data-animate="word">
-          {{#if @custom.hero_title}}{{@custom.hero_title}}{{else}}Your Title Here{{/if}}
+          {{#if @custom.hero_title}}{{{@custom.hero_title}}}{{else}}Your Title Here{{/if}}
         </h1>
 
         <p class="hero-description" id="hero-description">
