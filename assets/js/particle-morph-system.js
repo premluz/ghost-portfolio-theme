@@ -38,6 +38,7 @@ class ParticleMorphSystem {
     this.shapeRegistry.register(window.LAB);
     this.shapeRegistry.register(window.TERRAIN);
     this.shapeRegistry.register(window.GRID);
+    this.shapeRegistry.register(window.DOTS);
     this.shapeRegistry.register(window.DISPERSED);
 
     // Register dispersed variants (alt versions with density + size variation)
@@ -82,7 +83,7 @@ class ParticleMorphSystem {
 
   _createImmediateStates() {
     // Create only states that don’t depend on GLB meshes
-    const immediate = ['dispersed', 'helix', 'ribbon', 'volatility', 'lab', 'terrain', 'grid'];
+    const immediate = ['dispersed', 'helix', 'ribbon', 'volatility', 'lab', 'terrain', 'grid', 'dots'];
     immediate.forEach(key => {
       try {
         const result = this.shapeRegistry.generateState(key, this.config.particleCount);
@@ -114,11 +115,11 @@ class ParticleMorphSystem {
 
   createInitialStates() {
     // Generate states for all shapes (must include every state used by triggers)
-    const shapes = ['dispersed', 'helix', 'sphere', 'triple-sphere', 'torus', 'mobile', 'note', 'clapper', 'diamond', 'globe', 'game', 'chart', 'email', 'genie', 'camera', 'footer', 'lab', 'terrain', 'grid'];
+    const shapes = ['dispersed', 'helix', 'sphere', 'triple-sphere', 'torus', 'mobile', 'note', 'clapper', 'diamond', 'globe', 'game', 'chart', 'email', 'genie', 'camera', 'footer', 'lab', 'terrain', 'grid', 'dots'];
     shapes.forEach(key => {
       try {
         // Skip states already created by _createImmediateStates to avoid overwriting live state
-        if (this.stateRegistry.get(key) && (key === 'dispersed' || key === 'helix' || key === 'lab' || key === 'terrain' || key === 'grid')) return;
+        if (this.stateRegistry.get(key) && (key === 'dispersed' || key === 'helix' || key === 'lab' || key === 'terrain' || key === 'grid' || key === 'dots')) return;
         const result = this.shapeRegistry.generateState(key, this.config.particleCount);
         const positions = result.positions || result; // Handle both old (array) and new (object) formats
         const sizes = result.sizes || null;
@@ -345,7 +346,13 @@ class ParticleMorphSystem {
   morphTo(state, duration = null) {
     const nextState = this.stateRegistry.get(state);
     if (nextState) {
-      this.loop.setState(nextState, duration || this.config.morphDuration);
+      // ?? not || — duration:0 (an explicit instant-snap request; see
+      // particle-animation-loop.js's setState, which treats duration<=0 as
+      // "jump straight there, no interpolation") is falsy, so || silently
+      // replaced it with the default morphDuration, making a genuine
+      // "instant" request impossible to express through this call. ?? only
+      // falls back for null/undefined, i.e. "no duration specified at all".
+      this.loop.setState(nextState, duration ?? this.config.morphDuration);
       console.log(`[particle-morph-system] morphTo('${state}') executed`);
     } else {
       console.warn(`[particle-morph-system] morphTo('${state}') skipped — state not registered yet. GLBs ready: ${!!window.particleSystemGLBsReady}`);

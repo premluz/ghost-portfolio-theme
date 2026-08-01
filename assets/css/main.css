@@ -1181,8 +1181,8 @@ html {
      makes the box shrink-to-fit its content instead of spanning full width. */
   display: inline-flex;
   align-items: center;
-  padding: var(--space-xs) var(--space-sm) var(--space-xs) 34px;
-  gap: var(--space-md);
+  padding: var(--space-xs) var(--space-sm) var(--space-xs) var(--space-sm);
+  gap: var(--space-xs);
   border-radius: var(--glass-radius);
   border: 0.5px solid var(--glass-border-thin);
   background-color: var(--glass-bg);
@@ -2716,10 +2716,13 @@ body.post-template .nav-wrapper {
 }
 
 /* --text-size-h5 bottoms out at 1rem on narrow viewports, reading too
-   small for a pull-quote at that weight/style — bump the floor on mobile. */
+   small for a pull-quote at that weight/style — bump the floor on mobile.
+   1.3rem (was 1.15rem): still reads as a pull-quote, not a heading — see
+   .post-card-title's own mobile floor below, which is sized to stay
+   clearly bigger than this one. */
 @media (max-width: 768px) {
   .post-card-testimonial {
-    font-size: calc(1.15rem * var(--type-scale-body, 1));
+    font-size: calc(1.3rem * var(--type-scale-body, 1));
   }
 }
 
@@ -3744,7 +3747,14 @@ body[data-page-width='full'] .gh-canvas {
 
 .post-title {
   margin-bottom: 0;
-  margin-top:0; 
+  margin-top:0;
+  padding-right: 40px !important;
+}
+
+@media (max-width: 768px) {
+  .post-title {
+    padding-right: 0 !important;
+  }
 }
 
 .post-excerpt {
@@ -4192,6 +4202,19 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-i
      .posts-tabs-section/.image-stripe/.profile for the same reason. */
   position: relative;
   z-index: 2;
+}
+
+/* Contact page has its own form CTA — the global footer's duplicate
+   "get in touch" pitch right below it is redundant on this page. */
+body.page-contact .gh-footer {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  /* About page: footer stays on desktop, hidden on mobile only. */
+  body.page-about .gh-footer {
+    display: none;
+  }
 }
 
 .footer-bg {
@@ -5038,8 +5061,8 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
   }
 
   .hero.no-cover .hero-content {
-    margin-left: calc(43.75% + var(--space-2xl));
-    width: calc(56.25% - var(--space-2xl));
+    margin-left: calc(31% + var(--space-2xl));
+    width: calc(66% - var(--space-2xl));
   }
 }
 
@@ -7102,12 +7125,14 @@ body[data-page-width='full'] .gh-footer[data-footer-width="respect_page_width"] 
   }
 }
 
-/* data-tooltip now also appears on enabled post-card links ("View case
-   study") — not-allowed only makes sense for the disabled/NDA case, so it's
-   scoped to .card-disabled (set alongside the disabled tooltip text in
-   post-and-cards.js) instead of every [data-tooltip] element. */
-.card-disabled [data-tooltip] {
-  cursor: not-allowed;
+/* Plain arrow, not a pointer/hand — no not-allowed/block icon either, per
+   explicit request. Targets the link directly (not [data-tooltip] —
+   post-card.hbs no longer carries that attribute at all, see
+   post-and-cards.js's disableLink branch). .card-disabled is set on the
+   .post-card article itself, so this reaches its link on hover instead of
+   relying on the removed attribute. */
+.card-disabled .post-card-link {
+  cursor: default;
 }
 
 .card-disabled {
@@ -7189,6 +7214,15 @@ textarea::placeholder {
 
     flex-direction: row;
 
+}
+
+@media (max-width: 768px) {
+  /* column-reverse, not column: .page-image (the feature image) is the
+     second DOM child after .container (title/excerpt) — reversing the
+     axis puts it first visually without touching markup order. */
+  .page-about-header {
+    flex-direction: column-reverse;
+  }
 }
 
 .text-color-primary {
@@ -7327,6 +7361,15 @@ textarea::placeholder {
 .contact-form-actions {
   display: flex;
   justify-content: flex-start;
+}
+
+/* .footer-button's own margin:0 auto (shared class with the site footer's
+   button) centers it as a flex item even though this parent is
+   justify-content:flex-start — override just the margin so it left-aligns
+   on desktop; mobile still gets .footer-button's own centered full-width
+   rule (main.css ~line 4394). */
+.contact-form-actions .footer-button {
+  margin: 0;
 }
 
 .contact-form-success {
@@ -8185,10 +8228,31 @@ html.no-anim #particle-morph-demo { display: none !important; }
 
 /* Hero-only particle canvas offset (read by particle-animation-loop.js).
    Negative values move the rendered particle layer left/up in screen pixels.
-   Applied only on desktop; mobile keeps the centered/default positioning. */
+   Magnitude increases from desktop to tablet — the shape slides further
+   left as the viewport narrows down to 769px. Below that (phones),
+   explicitly recentered: the camera frustum at phone aspect ratios is
+   narrow enough that any further left-shift pushes the whole shape off
+   the left edge entirely (verified — it disappeared completely at 768px
+   and 390px before this was capped). particle-animation-loop.js's
+   _getHeroZoomFov() separately narrows the camera FOV (a render parameter,
+   not a canvas transform) continuously down to the narrowest phone widths
+   — that keeps applying even while centered, since a centered shape can't
+   be zoomed off-frame the way an offset one can. */
 @media (min-width: 1025px) {
   body:has(.hero) #particle-morph-demo #particles canvas {
-    --particle-hero-canvas-left: -660px;
+    --particle-hero-canvas-left: -820px;
+    --particle-hero-canvas-top: 0px;
+  }
+}
+@media (min-width: 769px) and (max-width: 1024px) {
+  body:has(.hero) #particle-morph-demo #particles canvas {
+    --particle-hero-canvas-left: -900px;
+    --particle-hero-canvas-top: 0px;
+  }
+}
+@media (max-width: 768px) {
+  body:has(.hero) #particle-morph-demo #particles canvas {
+    --particle-hero-canvas-left: 0px;
     --particle-hero-canvas-top: 0px;
   }
 }
@@ -8220,6 +8284,19 @@ html.curtain-restoring #particle-morph-demo {
   transition: none !important;
 }
 
+/* Same veil, also covering .home — without this, a curtain return whose
+   saved scroll position is mid-page (this class only activates when
+   scrollY > 100, see default.hbs) painted the fresh page at its natural
+   scroll-top position first (hero visible) for the brief window before
+   page-transition.js's runCurtainEntrance() (DOMContentLoaded) could jump
+   to the real position — read as the hero flashing before the actual
+   destination appeared. Cleared by the same trigger that already clears it
+   for the particle layer (__particleApply in default.hbs), so both veils
+   drop together once the restore has actually settled. */
+html.curtain-restoring .home {
+  opacity: 0 !important;
+}
+
 
 /* html.landing-pending .home pre-hide removed (default.hbs) — .home now
    paints normally from the first frame; there's no more animated entrance
@@ -8230,7 +8307,7 @@ html.curtain-restoring #particle-morph-demo {
    unconditionally in default.hbs head before first paint. Without this, the
    raw HTML (the first grid-card included) painted fully visible for one
    frame before page-transition.js's runLandingAnimation() ran its JS-timed
-   gsap.set(main,{opacity:0}) on DOMContentLoaded. Removed by
+.button   gsap.set(main,{opacity:0}) on DOMContentLoaded. Removed by
    page-transition.js the instant it takes over. */
 html.main-pending main {
   opacity: 0 !important;

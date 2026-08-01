@@ -64,10 +64,16 @@
     // by main.js; operating-model-stacked has its own internal timeline.
     const sys = window.gpuParticleSystem;
 
-    // 1) Page load: 200ms after init, wind the cloud into the helix (1.5s)
+    // 1) Page load: 200ms after init, wind the cloud into the helix (1.5s).
+    // Same-site arrival at home (About -> logo/Work click, etc. — see
+    // default.hbs's head script) skips the wind-in and snaps straight to
+    // the resting helix instead — mirrors the identical fix in
+    // scroll-scrub-anim.js's initHero() for the legacy (non-GPU) path.
+    // UNVERIFIED on this machine (window.gpuParticleSystem never becomes
+    // active here — legacy path only) — confirm in a GPU-capable browser.
     setTimeout(() => {
       console.log('[GPU-Integration] Page-load helix morph');
-      sys.morphTo('helix', 1500);
+      sys.morphTo('helix', window.__pageEntranceOwns ? 0 : 1500);
     }, 200);
 
     // 2) Statement section 50% visible → helix (repeatable)

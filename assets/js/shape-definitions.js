@@ -758,6 +758,53 @@ const GRID = new ShapeDefinition(
   { size: 16 }
 );
 
+// DOTS - Plain flat rectangular lattice, no organic boundary mask (unlike
+// GRID/TERRAIN above) and no rotation (see particle-animation-loop.js's
+// dotsAmountForSpin, which reuses GRID's own rotation-freeze pattern) —
+// a still, edge-to-edge field of evenly-spaced dots. Adapted from
+// gridGenerator_square (the plain-rectangle version GRID itself used to be
+// before the organic edge mask was added, see that comment above), but in
+// the XY plane at a fixed Z instead of XZ at y=0: the camera sits on +Z
+// looking toward the origin (particle-animation-loop.js, camera.position.z
+// = 8 desktop), so an XZ ground-plane shape is necessarily seen at an
+// angle/in perspective (a receding floor) — confirmed visually, that's
+// what GRID/TERRAIN look like. XY-at-fixed-Z faces the camera directly,
+// which is what makes this read as a flat, non-3D surface instead.
+const dotsGenerator = (particleCount, config) => {
+  console.log('[dots-gen] generating', particleCount, 'particles');
+  const positions = new Float32Array(particleCount * 3);
+  const size = config.size;
+  const half = size / 2;
+  const cols = Math.max(1, Math.round(Math.sqrt(particleCount)));
+  const rows = Math.max(1, Math.ceil(particleCount / cols));
+  const cellSize = size / cols;
+  let idx = 0;
+  for (let r = 0; r < rows && idx < particleCount; r++) {
+    for (let c = 0; c < cols && idx < particleCount; c++) {
+      const x = -half + (c + 0.5) * cellSize;
+      const y = -half + (r + 0.5) * cellSize;
+      positions[idx * 3] = x;
+      positions[idx * 3 + 1] = y;
+      positions[idx * 3 + 2] = 0;
+      idx++;
+    }
+  }
+  console.log('[dots-gen] generated', idx, 'particles');
+  return positions;
+};
+
+const DOTS = new ShapeDefinition(
+  'dots',
+  dotsGenerator,
+  // size controls spacing, not the visible extent — all 16000 particles
+  // (shared count across every shape, for morph-buffer compatibility) get
+  // spread over this many world units regardless, so a bigger size just
+  // means bigger gaps between dots (excess grid beyond the camera's fixed
+  // viewing frustum simply isn't seen). 45, not 16, per explicit "way much
+  // less dense" request.
+  { size: 45 }
+);
+
 // TRIPLE SPHERES - Three spheres arranged in space, rotating together
 const tripleSphereGenerator = (particleCount, config) => {
   console.log('[triple-sphere-gen] generating', particleCount, 'particles');
@@ -956,6 +1003,7 @@ if (typeof window !== 'undefined') {
   window.LAB = LAB;
   window.TERRAIN = TERRAIN;
   window.GRID = GRID;
+  window.DOTS = DOTS;
   window.DISPERSED = DISPERSED;
   window.RIBBON = RIBBON;
   window.VOLATILITY = VOLATILITY;

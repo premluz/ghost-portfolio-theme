@@ -205,6 +205,17 @@
     (function () {
       try {
         var isHome = (location.pathname === '/' || location.pathname === '');
+        if (isHome && document.referrer && new URL(document.referrer).origin === location.origin) {
+          // Same-site arrival at home (e.g. About -> Work/logo click) — no
+          // CSS pre-hide needed anymore (see comment above), but
+          // scroll-scrub-anim.js's initHero() still needs to know this ISN'T
+          // a fresh landing, so it can snap the hero particle shape (helix
+          // etc.) straight to its resting state instead of replaying the
+          // multi-second form-in morph a first visit gets. Read there, never
+          // written back — page-transition.js has no reason to touch this
+          // one (unlike landing-pending, there's no veil to remove).
+          window.__pageEntranceOwns = true;
+        }
         if (!isHome) {
           // NON-HOME PRE-HIDE — same reasoning, for work/about/contact/post
           // pages: page-transition.js's runLandingAnimation() hides <main>
@@ -238,6 +249,36 @@
       try {
         if (sessionStorage.getItem('navPrevNextHop') === '1') {
           document.documentElement.classList.add('nav-hop');
+        }
+      } catch (e) {}
+    })();
+  </script>
+  <script>
+    // CURTAIN-RETURN GUARD (moved here from a <body> script further down,
+    // which ran well after the page's own main content — the hero/.home
+    // markup — had already been parsed and painted. Adding
+    // html.curtain-restoring that late didn't stop the browser from
+    // showing the hero first; this must run before <body> exists, same as
+    // main-pending/nav-hop above, to actually prevent that first paint
+    // rather than race it.
+    //
+    // When page-transition.js is about to restore a mid-page scroll
+    // position (post → close → back to source), the page boots fresh and
+    // both the hero and the particle entrance would otherwise flash/appear
+    // before (or after) the scrollThrough() sweep settles the real state.
+    // Pre-hide both from the very first frame; the sweep's own triggers
+    // (hero-exit / footer / …, __particleApply further down in <body>)
+    // then take ownership on their first call and drop the veil. Keys are
+    // only READ here — consuming them is page-transition.js's job.
+    (function () {
+      try {
+        var __crOrigin = JSON.parse(sessionStorage.getItem('postOrigin') || 'null');
+        if (sessionStorage.getItem('curtainReturn') === '1' &&
+            __crOrigin && typeof __crOrigin.scrollY === 'number' && __crOrigin.scrollY > 100) {
+          window.__particleLayerHidden = true;
+          document.documentElement.classList.add('curtain-restoring');
+          // failsafe: never let the veil outlive the restore window
+          setTimeout(function () { document.documentElement.classList.remove('curtain-restoring'); }, 8000);
         }
       } catch (e) {}
     })();
@@ -298,7 +339,7 @@
           <!--<h2 class="footer-title">{{@site.title}}</h2>-->
 
           <h2 class="footer-title">Building something<br />complex?</h2>
-                 <p class="footer-description">I can help ship it faster. <a href="/about" class="text-gradient">How I work.</a></p>
+                 <p class="footer-description">I help you get it right and ship it faster. <a href="/about" class="text-gradient">How I work.</a></p>
           <a href="/contact" data-transition class="button footer-button" aria-label="Email">
            Let's make it happen
           </a>
@@ -452,6 +493,19 @@
     };
     window.PARTICLE_SCENARIO = localStorage.getItem('particle_scenario') || 'hero-footer';
 
+    // 'dots' SHAPE — flat, non-rotating, sparse dot field (shape-definitions.js
+    // DOTS/dotsGenerator). Fully built and registered (shape-definitions.js,
+    // particle-morph-system.js, particle-animation-loop.js's rotation-freeze)
+    // but not currently used by any trigger below or in particle-morph.hbs —
+    // hero-exit/testimonials went back to their original targets ('terrain'/
+    // 'dispersed', hidden via 'hide' above) after a round of trying 'dots' as
+    // a visible/invisible resting shape didn't land right. To bring it back:
+    // (1) test manually first — window.particleSystem.morphTo('dots', 0) in
+    // the console; (2) change a trigger's builtinShape argument (in
+    // particle-morph.hbs, both the gpu and legacy blocks) to 'dots'; (3) if
+    // it should stay hidden rather than visible, also add that trigger's key
+    // to PARTICLE_SCENARIOS above with 'hide'.
+
     // SCRUB KILL-SWITCH — diagnostic + low-end escape hatch. Scrub-driven
     // ScrollTriggers update on the main-thread rAF ticker; on weak GPUs the
     // compositor keeps scrolling smooth while JS rAF starves, so scrubbed
@@ -542,24 +596,11 @@
       });
     }
 
-    // CURTAIN-RETURN GUARD: when page-transition.js is about to restore a
-    // mid-page scroll position (post → close → back to source), the page
-    // boots fresh and the particle entrance would otherwise flash/appear
-    // before (or after) the scrollThrough() sweep settles the real state.
-    // Pre-hide the layer and its render loop from the very first frame;
-    // the sweep's own triggers (hero-exit / footer / …) then take
-    // ownership on their first call. Keys are only read here — consuming
-    // them is page-transition.js's job.
-    try {
-      var __crOrigin = JSON.parse(sessionStorage.getItem('postOrigin') || 'null');
-      if (sessionStorage.getItem('curtainReturn') === '1' &&
-          __crOrigin && typeof __crOrigin.scrollY === 'number' && __crOrigin.scrollY > 100) {
-        window.__particleLayerHidden = true;
-        document.documentElement.classList.add('curtain-restoring');
-        // failsafe: never let the veil outlive the restore window
-        setTimeout(function () { document.documentElement.classList.remove('curtain-restoring'); }, 8000);
-      }
-    } catch (e) {}
+    // CURTAIN-RETURN GUARD moved to a <head> script (before <body>/<main>
+    // exist at all) — this ran too late to actually prevent the hero/
+    // particle-layer first paint it was meant to guard against. window.
+    // __particleLayerHidden and html.curtain-restoring are both already
+    // set by the time this script runs, if this load is a curtain return.
 
     window.__particleApply = function (system, key, builtinShape, duration) {
       // Global animation kill-switch is authoritative: no morphs, and never

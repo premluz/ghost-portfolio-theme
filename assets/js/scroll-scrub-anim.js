@@ -410,12 +410,22 @@ class ScrollScrubAnimationSystem {
       // "wait for the particle system to actually exist" problem.
       let attempts = 0;
       const maxAttempts = 100; // 100 * 80ms = 8s, matching preloader.js's own timeout for this
+      // Same-site arrival at home (About -> logo/Work click, etc. — see
+      // default.hbs's head script) means the visitor has already seen the
+      // helix form once this session; replaying that multi-second morph
+      // again reads as the shape "still loading" when it's really just
+      // replaying an intro it doesn't need to. Snap straight to the resting
+      // shape instead (duration 0 — see particle-morph-system.js's morphTo,
+      // fixed to actually honor an explicit 0 rather than silently falling
+      // back to the default). A genuine fresh landing still gets the full
+      // form-in morph.
+      const morphDuration = window.__pageEntranceOwns ? 0 : 2000;
       const waitForParticleSystemThenMorph = () => {
         if (window.particleSystem?.morphTo) {
           // hero shape per HERO_PARTICLE_MODE, routed through the scenario map
           const heroShape = window.__heroShape ? window.__heroShape() : 'helix';
-          if (window.__particleApply) window.__particleApply(window.particleSystem, 'hero', heroShape, 2000);
-          else window.particleSystem.morphTo(heroShape, 2000);
+          if (window.__particleApply) window.__particleApply(window.particleSystem, 'hero', heroShape, morphDuration);
+          else window.particleSystem.morphTo(heroShape, morphDuration);
         } else if (attempts++ < maxAttempts) {
           setTimeout(waitForParticleSystemThenMorph, 80);
         } else {

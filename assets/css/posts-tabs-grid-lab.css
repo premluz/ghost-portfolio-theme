@@ -32,7 +32,10 @@
   padding: 0;
   position: relative;
   overflow: hidden;
-  cursor: pointer;
+  /* Lab cards are informational only — no case-study page behind them,
+     so unlike the regular work grid this isn't conditional on disableLink
+     meta: always non-interactive. */
+  cursor: default;
 }
 
 .posts-grid-lab-cards .grid-card.grid-card-disabled {
@@ -43,6 +46,12 @@
   display: block;
   text-decoration: none;
   color: inherit;
+  /* Blocks the click entirely (no data-transition page navigation, no
+     :active/pressed feedback) — not just the cursor. cursor: default is
+     set explicitly too since pointer-events: none alone leaves the <a>'s
+     own computed cursor at the browser's link default. */
+  pointer-events: none;
+  cursor: default;
 }
 
 .posts-grid-lab-cards .grid-card-image {

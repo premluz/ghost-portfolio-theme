@@ -35,6 +35,9 @@ class ParticleAnimationLoop {
     // Three.js setup
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    // Base FOV, restored whenever helix isn't the active/incoming shape —
+    // see _getHeroZoomFov()/heroOffsetActive below.
+    this._baseFov = this.camera.fov;
     // antialias tied to BLOOM_ENABLED: when bloom runs, its own blur passes
     // wash out MSAA's contribution anyway — pure waste. With bloom off,
     // AA is cheap and worth keeping for crisp point edges.
@@ -907,6 +910,18 @@ class ParticleAnimationLoop {
     };
   }
 
+  // Hero-only zoom: narrows the FOV (not the canvas/CSS) as the viewport
+  // narrows, so the helix reads as zooming in on small screens instead of
+  // just shrinking with everything else. Linear ramp between two reference
+  // widths, clamped at both ends.
+  _getHeroZoomFov(width) {
+    const WIDE_WIDTH = 1440;
+    const NARROW_WIDTH = 375;
+    const NARROW_FOV = 45;
+    const t = Math.min(1, Math.max(0, (WIDE_WIDTH - width) / (WIDE_WIDTH - NARROW_WIDTH)));
+    return this._baseFov + (NARROW_FOV - this._baseFov) * t;
+  }
+
   setState(state, duration = 0) {
     if (!this.currentState) {
       this.currentState = state;
@@ -971,7 +986,7 @@ class ParticleAnimationLoop {
   }
 
   setupResize() {
-    const onResize = () => {
+    const applyResize = () => {
       const w = window.innerWidth;
       const h = window.innerHeight;
 
@@ -992,6 +1007,30 @@ class ParticleAnimationLoop {
         if (this._bloomPass) this._bloomPass.resolution.set(w, h);
       }
     };
+
+    // Changing camera.aspect reframes every particle on screen instantly —
+    // harmless once the layer has scrolled past the hero, but while Helix
+    // is still visible it reads as the whole shape snapping to a new
+    // position. Defer the actual resize until the hero has left the
+    // viewport (same bounding-rect check as the testimonials hide trigger
+    // in particle-morph.hbs), then apply it on the next scroll.
+    const heroNotVisible = () => {
+      const heroElement = document.querySelector('.hero');
+      return !heroElement || heroElement.getBoundingClientRect().bottom <= 0;
+    };
+    let resizePending = false;
+    const onResize = () => {
+      if (heroNotVisible()) applyResize();
+      else resizePending = true;
+    };
+    const flushPendingResize = () => {
+      if (resizePending && heroNotVisible()) {
+        resizePending = false;
+        applyResize();
+      }
+    };
+    window.addEventListener('scroll', flushPendingResize, { passive: true });
+
     // Stashed so dispose() can actually unsubscribe instead of leaking a
     // listener against a renderer/camera that no longer exist.
     if (window.resizeManager) this._unsubscribeResize = window.resizeManager.subscribe('particle-camera-resize', onResize);
@@ -999,6 +1038,7 @@ class ParticleAnimationLoop {
       window.addEventListener('resize', onResize, { passive: true });
       this._unsubscribeResize = () => window.removeEventListener('resize', onResize);
     }
+    this._unsubscribeResizeScrollFlush = () => window.removeEventListener('scroll', flushPendingResize);
   }
 
   animate = () => {
@@ -1121,6 +1161,24 @@ class ParticleAnimationLoop {
         : fromGrid;
       this.particles.material.uniforms.uGridProgress.value = gridAmount;
 
+      // Dots amount — same shape-driven pattern, for the 'dots' state.
+      // Deliberately NOT fed into uGridProgress/the shader: that uniform
+      // also gates grid's mouse-wave/click-ripple displacement (below),
+      // which dots shouldn't inherit (it's a flat, undisplaced, static
+      // field per its own reference image — no shader-side effect wanted).
+      // This blend is only consumed further down for the rotation-freeze,
+      // which is plain JS (this.particles.rotation.*), not a shader path.
+      const fromDots = this.currentState && this.currentState.id === 'dots' ? 1 : 0;
+      const toDots = this.nextState && this.nextState.id === 'dots' ? 1 : 0;
+      // Stored on the instance, not a local — this block and the Rotation
+      // section below are separate `if (this.particles)` blocks further
+      // down in the same animate() call, so a plain const wouldn't survive
+      // between them (gridAmountForSpin re-reads a uniform for the same
+      // reason; this just uses an instance property instead of a uniform).
+      this._dotsAmount = this.morphStartTime
+        ? fromDots + (toDots - fromDots) * this.morphProgress
+        : fromDots;
+
       // Project the eased mouse NDC (this.mouseX/Y, updated below) onto the
       // grid's local X/Z plane — see this._gridMouseWorldScale's comment.
       this.particles.material.uniforms.uMouseWorld.value.set(
@@ -1192,27 +1250,34 @@ class ParticleAnimationLoop {
 
     // Rotation
     const gridAmountForSpin = this.particles?.material?.uniforms?.uGridProgress?.value || 0;
-    // Grid: fully stopped rotation, not just a pinned mouse-slant. The
+    // Dots: same "fully stopped, not just pinned" treatment as Grid, via
+    // this._dotsAmount (an instance property, not a uniform — see where
+    // it's set above for why). Combined with gridAmountForSpin so either
+    // shape being active freezes rotation the same way.
+    const dotsAmountForSpin = this._dotsAmount || 0;
+    const noRotateAmount = Math.max(gridAmountForSpin, dotsAmountForSpin);
+    // Grid/Dots: fully stopped rotation, not just a pinned mouse-slant. The
     // ambient auto-spin below normally advances every frame regardless of
-    // shape; while grid is the active/blending shape its advance is ramped
-    // down to 0 (via the same gridAmount blend used everywhere else in
-    // this file), so the lattice actually holds still instead of just
-    // losing its mouse-driven wobble while still slowly spinning. Pausing
-    // the accumulator itself (rather than freezing the derived rotation
-    // value) means leaving the shape resumes the spin from exactly where
-    // it left off, no snap/jump.
-    this.autoRotation += 0.0005 * (1 - gridAmountForSpin);
+    // shape; while grid or dots is the active/blending shape its advance is
+    // ramped down to 0 (via the same blend used everywhere else in this
+    // file), so the lattice actually holds still instead of just losing its
+    // mouse-driven wobble while still slowly spinning. Pausing the
+    // accumulator itself (rather than freezing the derived rotation value)
+    // means leaving the shape resumes the spin from exactly where it left
+    // off, no snap/jump.
+    this.autoRotation += 0.0005 * (1 - noRotateAmount);
     if (this.particles) {
-      // Grid: fixed camera framing, not live mouse-driven. Live mouse tilt
-      // fights visually with the mouse-follow wave (uMouseWorld, left
-      // untouched below — that's a separate, wanted interaction); the
-      // lattice needs to hold one designed angle instead of slanting as
+      // Grid/Dots: fixed camera framing, not live mouse-driven. Live mouse
+      // tilt fights visually with the mouse-follow wave (uMouseWorld, left
+      // untouched below — that's a separate, wanted interaction, and dots
+      // doesn't wire into it at all — see where dotsAmount is computed);
+      // the lattice needs to hold one designed angle instead of slanting as
       // the cursor moves. Pinned to whatever a virtual mouse parked at a
       // fixed screen position would produce, reusing the exact same
       // rotation formula as every other shape — only the mouse input is
-      // swapped for a constant. Blends smoothly in/out via uGridProgress,
-      // the same shape-driven blend pattern as uLabProgress/uTerrainProgress.
-      const gridAmount = gridAmountForSpin;
+      // swapped for a constant. Blends smoothly in/out via the same
+      // shape-driven pattern as uLabProgress/uTerrainProgress.
+      const gridAmount = noRotateAmount;
       let rotMouseX = this.mouseX;
       let rotMouseY = this.mouseY;
       if (gridAmount > 0.0001) {
@@ -1229,6 +1294,17 @@ class ParticleAnimationLoop {
       this.particles.rotation.y = this.autoRotation + (rotMouseX * rotStrength);
       this.particles.rotation.x = rotMouseY * rotStrength;
       this.particles.rotation.z = 0;
+      // Dots: flatten to exactly zero tilt, not Grid's pinned angle — a
+      // truly flat, camera-facing field per its own reference image, rather
+      // than just frozen at whatever angle happened to be active when it
+      // took over. Blends via dotsAmountForSpin like everything else here,
+      // so entering/leaving dots eases the tilt out smoothly instead of
+      // snapping (0 amount = no effect, so this leaves Grid's own tilt
+      // alone).
+      if (dotsAmountForSpin > 0.0001) {
+        this.particles.rotation.y *= (1 - dotsAmountForSpin);
+        this.particles.rotation.x *= (1 - dotsAmountForSpin);
+      }
 
       // Position pan (camera dolly/pan left-right-up-down with the cursor)
       // — added earlier this thread, then explicitly turned back off:
@@ -1252,9 +1328,18 @@ class ParticleAnimationLoop {
         const heroOffset = this._getHeroCanvasOffset();
         this.particles.position.x = heroOffset.x;
         this.particles.position.y = heroOffset.y;
+        const targetFov = this._getHeroZoomFov(window.innerWidth);
+        if (Math.abs(this.camera.fov - targetFov) > 0.01) {
+          this.camera.fov = targetFov;
+          this.camera.updateProjectionMatrix();
+        }
       } else {
         this.particles.position.x = 0;
         this.particles.position.y = 0;
+        if (Math.abs(this.camera.fov - this._baseFov) > 0.01) {
+          this.camera.fov = this._baseFov;
+          this.camera.updateProjectionMatrix();
+        }
       }
     }
 
@@ -1406,6 +1491,7 @@ class ParticleAnimationLoop {
     }
 
     this._unsubscribeResize?.();
+    this._unsubscribeResizeScrollFlush?.();
     this._unsubscribeMobileScaleResize?.();
   }
 

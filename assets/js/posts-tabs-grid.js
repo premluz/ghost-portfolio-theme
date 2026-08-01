@@ -372,7 +372,6 @@ function initGridCardMetadata() {
             const link = card.querySelector('.grid-card-link');
             if (link) {
               link.style.pointerEvents = 'none';
-              link.setAttribute('data-tooltip', 'No case study');
               card.classList.add('grid-card-disabled');
             }
           }

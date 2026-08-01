@@ -313,7 +313,7 @@ body[data-typography-body='medium'] .posts-tab {
 .posts-grid[data-posts-layout='grid'] .carousel-track {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: var(--space-4xl);
+  gap: var(--space-3xl);
   width: 100%;
 }
 
@@ -916,6 +916,16 @@ body[data-typography-body='medium'] .posts-tab {
   transform: scale(0.97);
 }
 
+/* Disabled cards (post-and-cards.js's disableLink branch) use preventDefault
+   + stopPropagation instead of pointer-events: none, specifically to keep
+   hover feedback alive — but :active fires on mousedown regardless of a
+   click handler cancelling navigation, so the press-scale still showed on
+   a card that goes nowhere. Overridden back to none here, same disabled
+   scope as .card-disabled .post-card-link's not-allowed cursor above. */
+.card-disabled .post-card-link:active .post-card-inner {
+  transform: none;
+}
+
 .post-card-inner {
   display: flex;
   gap: var(--space-4xl);
@@ -1010,6 +1020,15 @@ body[data-typography-body='medium'] .posts-tab {
 }
 
 .card-media-skeleton.is-hidden {
+  /* animation:none is required, not optional — the base rule's shimmer +
+     pulse keyframes both run infinitely, and a running CSS animation
+     overrides a plain opacity value from another rule for as long as it
+     keeps running, regardless of that rule's specificity. Without this,
+     is-hidden's opacity:0 was applied but instantly overridden every
+     frame by the pulse keyframe's own 0.8-1 range, so the skeleton stayed
+     visibly shimmering on any card resolved to image-only (no video) —
+     opacity computed to ~0.8-1, never actually 0. */
+  animation: none;
   opacity: 0;
   pointer-events: none;
 }
@@ -1095,6 +1114,20 @@ body[data-typography-body='medium'] .posts-tab {
   letter-spacing: 0 !important;
   font-feature-settings: "zero" 0;
   font-kerning: auto;
+}
+
+/* --text-size-h3's clamp bottoms out too low on narrow viewports relative
+   to .post-card-testimonial's own mobile floor (main.css) — the title
+   sits on the heading-scale axis while the testimonial deliberately sits
+   on the body-scale axis (so the body-size setting moves it), and with
+   compact headings + large body those axes can cross, leaving the H3
+   title reading smaller than the H4 testimonial below it. Fixed floor
+   keeps the title clearly the bigger of the two regardless of how far
+   those two scales diverge. */
+@media (max-width: 768px) {
+  .post-card-title {
+    font-size: calc(2.2rem * var(--type-scale-heading, 1));
+  }
 }
 
 .post-card-bullets {

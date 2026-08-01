@@ -598,9 +598,14 @@ async function initParticleMorphModular() {
         const testimonialsObserver = new IntersectionObserver((entries) => {
           entries.forEach((entry) => {
             if (entry.isIntersecting && entry.intersectionRatio > 0.2) {
-              // Check if hero is still visible — if so, don't override helix morph
+              // Check if hero is still visible — if so, don't override helix morph.
+              // Was display !== 'none', which is never actually true — .hero
+              // is scrolled out of view, not display:none'd, so this always
+              // evaluated heroVisible=true and permanently blocked the
+              // testimonials hide transition below. bottom > 0 is the real
+              // "still at least partially in the viewport" check.
               const heroElement = document.querySelector('.hero');
-              const heroVisible = heroElement && window.getComputedStyle(heroElement).display !== 'none';
+              const heroVisible = heroElement && heroElement.getBoundingClientRect().bottom > 0;
 
               if (!heroVisible) {
                 // Only morph to dispersed if hero is NOT visible
