@@ -617,11 +617,25 @@ p:last-child {
 }
 
 /* Role/contributions summary (post.hbs, populated from projectMeta's
-   role/contributions fields) — reuses .flexlayout/.col/.text-eyebrow above
-   rather than a parallel layout. Hidden by default; displayProjectMetadata()
-   in post.hbs reveals it only once there's real content to show. */
+   role/contributions fields) — dedicated .role-overview classes below, a
+   left-hand sidebar column alongside .post-header-content on desktop (see
+   .post-header .container's row layout further down). Hidden by default;
+   displayProjectMetadata() in post.hbs reveals it only once there's real
+   content to show. */
 .post-project-summary {
   display: none;
+}
+
+.role-overview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.role-overview-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
 }
 
 .post-project-role p,
@@ -634,19 +648,12 @@ p:last-child {
   margin-bottom: 0;
 }
 
-/* "3 items in a row" per the reference layout — wraps to additional rows
-   if there are more than 3 contributions rather than forcing them into
-   exactly one row. */
+/* Single column — a narrow sidebar has no room for the old 3/4-across
+   grid this used before the layout became a left-hand column. */
 .post-project-contributions {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-sm) var(--space-md);
-}
-
-@media (max-width: 768px) {
-  .post-project-contributions {
-    grid-template-columns: repeat(2, 1fr);
-  }
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
 }
 
 .text-eyebrow {
@@ -1165,7 +1172,16 @@ html {
   pointer-events: none;
   z-index: 1;
   opacity: var(--nav-gradient-opacity, 0);
-  transition: background-color 0.3s ease-out, opacity 0.3s ease-out;
+  /* opacity ONLY. background-color deliberately not transitioned: it is
+     driven by --profile-shift, which is scrubbed exactly per frame by
+     BackgroundLayer.bindShift. A time-based transition on top of a
+     per-frame scrub never converges while scrolling — it restarts every
+     frame and lags 1.5-4s behind (measured), which read as "the glass
+     doesn't invert at all" mid-scroll and as a sluggish revert on the way
+     out. Same reasoning as bindShift's own `scrub: true` choice; see
+     BACKGROUND-LAYER-SYSTEM.md. --nav-gradient-opacity IS a boolean
+     toggle, so it still wants its transition. */
+  transition: opacity 0.3s ease-out;
 }
 
 /* Soft color gradient overlay - adds visual softness. Same position:fixed/
@@ -1189,7 +1205,8 @@ html {
   opacity: var(--nav-gradient-opacity, 0);
   pointer-events: none;
   z-index: 0;
-  transition: background 0.3s ease-out, opacity 0.3s ease-out;
+  /* opacity only — same reason as ::before above. */
+  transition: opacity 0.3s ease-out;
 }
 
 .gh-navigation.nav-hidden {
@@ -1729,7 +1746,8 @@ body.post-template .nav-post-controls {
      the icon blends back toward its original dark art: invert(1)→invert(0)
      as --profile-shift goes 0→1. Identity when the property is unset.
      (Light mode gets the opposite ramp below.) */
-  filter: invert(calc(1 - var(--profile-shift, 0))) brightness(calc(1.2 - 0.2 * var(--profile-shift, 0)));
+  filter: invert(calc(var(--icon-invert-base, 1) + (var(--icon-invert-shift, 0) - var(--icon-invert-base, 1)) * var(--profile-shift, 0)))
+          brightness(calc(var(--icon-brightness-base, 1.2) + (var(--icon-brightness-shift, 1) - var(--icon-brightness-base, 1.2)) * var(--profile-shift, 0)));
   /* Smooth filter transition on theme switch; never animated by GSAP */
   transition: filter var(--duration-fast) var(--ease-standard), opacity var(--duration-fast) var(--ease-standard);
   /* Isolation: prevent GSAP scroll-reveal from touching these images */
@@ -1769,11 +1787,6 @@ body.post-template .nav-post-controls {
    the logo text while scrolled through the profile section. (Dark/dim modes
    run the opposite ramp in the base rule above — their shift target is a
    light panel, so the icon blends white→dark.) */
-[data-theme='light'] .theme-icon-sun,
-[data-theme='light'] .theme-icon-moon {
-  filter: invert(var(--profile-shift, 0)) brightness(calc(1 + 0.2 * var(--profile-shift, 0)));
-}
-
 [data-theme='light'] .theme-icon-sun {
   display: none;
 }
@@ -1895,12 +1908,9 @@ body.post-template .nav-wrapper {
 .nav-icon-close {
   width: 20px;
   height: 20px;
-  filter: invert(calc(1 - var(--profile-shift, 0))) brightness(calc(1.2 - 0.2 * var(--profile-shift, 0)));
+  filter: invert(calc(var(--icon-invert-base, 1) + (var(--icon-invert-shift, 0) - var(--icon-invert-base, 1)) * var(--profile-shift, 0)))
+          brightness(calc(var(--icon-brightness-base, 1.2) + (var(--icon-brightness-shift, 1) - var(--icon-brightness-base, 1.2)) * var(--profile-shift, 0)));
   transition: filter var(--duration-fast) var(--ease-standard);
-}
-
-[data-theme='light'] .nav-icon-close {
-  filter: invert(var(--profile-shift, 0)) brightness(calc(1 + 0.2 * var(--profile-shift, 0)));
 }
 
 .nav-text-btn {
@@ -2333,7 +2343,8 @@ body.post-template .nav-wrapper {
     display: block;
     width: 20px;
     height: 20px;
-    filter: invert(calc(1 - var(--profile-shift, 0))) brightness(calc(1.2 - 0.2 * var(--profile-shift, 0)));
+    filter: invert(calc(var(--icon-invert-base, 1) + (var(--icon-invert-shift, 0) - var(--icon-invert-base, 1)) * var(--profile-shift, 0)))
+          brightness(calc(var(--icon-brightness-base, 1.2) + (var(--icon-brightness-shift, 1) - var(--icon-brightness-base, 1.2)) * var(--profile-shift, 0)));
     transition: filter var(--duration-fast) var(--ease-standard);
   }
 
@@ -3848,6 +3859,40 @@ body[data-page-width='full'] .gh-canvas {
   flex-direction: column;
   gap: var(--space-md);
   max-width: none;
+}
+
+/* Wraps category/title/excerpt/meta — the same vertical stack
+   .post-header .container used to provide directly, now that .container
+   also holds .post-project-summary as a sibling (see the row layout
+   below). Unchanged across breakpoints; only .container's own direction
+   (row vs column) and .post-project-summary's position change on desktop. */
+.post-header-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+/* Desktop: .role-overview becomes a left-hand column beside
+   .post-header-content, with a generous gap between them. order:-1 moves
+   it first visually without reordering the DOM (the H1 stays the first
+   heading in reading/source order). Mobile keeps the column stack above,
+   in natural DOM order (role-overview after the headline content). */
+@media (min-width: 769px) {
+  .post-header .container {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: var(--space-4xl);
+  }
+
+  .post-project-summary {
+    flex: 0 0 260px;
+    order: -1;
+  }
+
+  .post-header-content {
+    flex: 1;
+    min-width: 0;
+  }
 }
 
 /* Override page-width constraints for fullscreen post hero */

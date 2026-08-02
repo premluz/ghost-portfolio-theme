@@ -166,12 +166,12 @@ function initCardContentReveal(card) {
         }
       }
     });
-  // Top margin (-100px): fires the scroll-up exit/reverse a bit before the
+  // Top margin (-360px): fires the scroll-up exit/reverse well before the
   // card is fully gone, rather than waiting until it completely clears the
-  // viewport — matches the "should trigger out slightly earlier" request.
-  // Only affects the exit edge in practice; entry always happens from the
-  // bottom, governed by the existing bottom margin below.
-  }, { threshold: 0.25, rootMargin: '-100px 0px -120px 0px' });
+  // viewport (started at -100px, then +20% / +50% / +100% across follow-up
+  // requests). Only affects the exit edge in practice; entry always
+  // happens from the bottom, governed by the bottom margin below.
+  }, { threshold: 0.25, rootMargin: '-360px 0px -120px 0px' });
 
   observer.observe(card);
 
@@ -251,9 +251,9 @@ function initCardMediaReveal(card, media) {
         }
       }
     });
-  // Top margin (-100px): same "trigger the scroll-up reverse slightly
-  // earlier" tuning as initCardContentReveal's observer above.
-  }, { threshold: 0.1, rootMargin: '-100px 0px -120px 0px' });
+  // Top margin (-360px): same "trigger the scroll-up reverse earlier"
+  // tuning as initCardContentReveal's observer above.
+  }, { threshold: 0.1, rootMargin: '-360px 0px -120px 0px' });
 
   observer.observe(card);
 }

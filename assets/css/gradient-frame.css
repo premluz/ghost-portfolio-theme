@@ -1,0 +1,95 @@
+/**
+ * GRADIENT FRAME — reusable animated-gradient bookends around ANY content.
+ *
+ * Wrap a block of content and it gets an animated GradFlow band above and
+ * below it. Both bands are IN NORMAL FLOW (their own divs, injected by
+ * gradient-frame.js) — they never overlay or clip the content, and each
+ * band's outer edge is the page background color while its inner edge is
+ * the frame's own background, so neither end shows a cut.
+ *
+ * Markup (see gradient-frame.js for the data-* options):
+ *   <div class="gradient-frame" data-gradient-frame>...content...</div>
+ *
+ * Custom properties (both set from JS per instance, except the height):
+ *   --gradient-frame-inner        frame background, i.e. the band's inner edge
+ *   --gradient-frame-edge-height  band height; override in a stylesheet
+ *   --gradient-frame-edge-from/to static pre-WebGL + reduced-motion fallback
+ */
+
+.gradient-frame {
+  /* No position/z-index on purpose: a stacking context here would trap the
+     descendants that deliberately sit above the page-level particle canvas
+     (e.g. .posts-tabs-grid-lab-section's z-index:2). */
+  background: var(--gradient-frame-inner, transparent);
+}
+
+/* INVERT MODE — the frame paints its own inverted background (JS sets
+   --gradient-frame-inner from --shift-bg) and its bands blend that into the
+   page, so the page-wide backdrop must NOT shift as well: #page-backdrop's
+   blend (main.css) is full-viewport and would push the inverted color past
+   the bands into the neighbouring sections — precisely the seam the bands
+   exist to avoid. Same for .profile's section-scoped ::before panel.
+   Written as :root:has(...) rather than on the frame because both flags are
+   consumed where they are DECLARED (:root) — setting them on the frame
+   itself would be inert. --profile-shift still scrubs, so the nav, body
+   text and icons keep inverting; only the two background painters opt out. */
+:root:has(.gradient-frame[data-gradient-mode='invert']) {
+  --shift-scope-page: 0;
+  --shift-scope-panel: 0;
+}
+
+/* Snapshot of the live theme ink tokens under different names, so the
+   subtree override below can blend FROM them without self-reference
+   (a custom property cannot appear in its own definition). Still exactly
+   one writer of the real tokens — theme.js at :root — so this cannot go
+   stale the way the shared-state version warned about in
+   BACKGROUND-LAYER-SYSTEM.md did; color-mix re-reads on every repaint. */
+:root {
+  --gradient-frame-ink-base: var(--color-on-surface);
+  --gradient-frame-ink-variant-base: var(--color-on-surface-variant);
+  --gradient-frame-ink-primary-base: var(--color-primary);
+}
+
+/* Anything wrapped in an invert frame sits on the OPPOSITE background, so
+   the ink tokens it reads must travel with it. Overriding the tokens for
+   this subtree (rather than listing every text element) is what makes the
+   component work with arbitrary content: descendants keep using plain
+   var(--color-on-surface) and get the shifted value for free, at whatever
+   --profile-shift the scroll is currently at. */
+.gradient-frame[data-gradient-mode='invert'] {
+  --color-on-surface: color-mix(
+    in srgb,
+    var(--gradient-frame-ink-base),
+    var(--shift-ink, white) calc(var(--profile-shift, 0) * 100%)
+  );
+  --color-on-surface-variant: color-mix(
+    in srgb,
+    var(--gradient-frame-ink-variant-base),
+    var(--shift-ink, white) calc(var(--profile-shift, 0) * 100%)
+  );
+  --color-primary: color-mix(
+    in srgb,
+    var(--gradient-frame-ink-primary-base),
+    var(--shift-ink, white) calc(var(--profile-shift, 0) * 100%)
+  );
+}
+
+.gradient-frame-edge {
+  width: 100%;
+  height: var(--gradient-frame-edge-height, 480px);
+  /* Painted under the WebGL canvas: covers the moment before ogl finishes
+     loading, and is the entire effect under reduced motion (no canvas is
+     mounted then). Direction matches the shader's own color1-at-bottom /
+     color4-at-top mapping. */
+  background: linear-gradient(
+    to top,
+    var(--gradient-frame-edge-from, transparent),
+    var(--gradient-frame-edge-to, transparent)
+  );
+}
+
+.gradient-frame-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}

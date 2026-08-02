@@ -205,7 +205,8 @@
 
   /* color-surface-N aliases — used by components */
   --color-surface-0: var(--surface-0);
-  --color-surface-1: var(--surface-1);
+  --color-surface-1: color-mix(in srgb, var(--surface-1),
+    var(--surface-1-shift) calc(var(--profile-shift, 0) * 100%));
   --color-surface-2: var(--surface-2);
   --color-surface-3: var(--surface-3);
   --color-surface-4: var(--surface-4);
@@ -215,8 +216,7 @@
   --surface-4-translucent: hsl(0 0% 30% / 0.7);
 
   /* GLASS MORPHISM — reusable translucent surface tokens */
-  --glass-bg: rgba(255, 255, 255, 0.08);
-  --glass-bg-shift: rgba(0, 0, 0, 0.08);
+  --glass-bg-base: rgba(255, 255, 255, 0.08);
   --glass-bg-subtle: rgba(255, 255, 255, 0.06);
   --glass-border: rgba(255, 255, 255, 0.16);
   --glass-border-shift: rgba(0, 0, 0, 0.16);
@@ -442,6 +442,34 @@
   --shift-bg: var(--theme-light-bg);
   --shift-ink: var(--theme-light-ink);
 
+  /* SHIFT SURFACES — translucent fills (nav pill, keyword/badge glass) for
+     the shifted state. Derived from --shift-ink rather than hardcoded per
+     theme, so they automatically follow a gradient-frame in "fixed" mode,
+     which overrides --shift-ink at :root to an authored value that is NOT
+     the theme's mirror. Without these, a light-theme page scrolling into a
+     dark island kept its black-translucent surfaces and the nav pill and
+     badges simply vanished. */
+  --surface-1-shift: color-mix(in srgb, transparent, var(--shift-ink) 5%);
+  --glass-bg-shift: color-mix(in srgb, transparent, var(--shift-ink) 8%);
+  --glass-bg: color-mix(in srgb, var(--glass-bg-base),
+    var(--glass-bg-shift) calc(var(--profile-shift, 0) * 100%));
+
+  /* SHIFT ICON POLARITY — the nav icons are black-fill SVGs flipped with
+     filter:invert(). Their ramp used to be hardcoded per theme on the
+     assumption that the shift always lands on the theme's OPPOSITE, which
+     "fixed" mode breaks: in whichever theme already matches the authored
+     island, the icon inverted to the island's own colour and disappeared.
+     These say where the ramp ENDS, so JS can correct them for a fixed
+     palette (gradient-frame.js) while the defaults keep the profile
+     section's behaviour identical.
+       base  = value at --profile-shift 0 (the plain theme)
+       shift = value at --profile-shift 1 (the shifted panel)
+     invert 1 = white icon, 0 = black icon. */
+  --icon-invert-base: 1;   /* dark theme: white icon */
+  --icon-invert-shift: 0;  /* shifts to a light panel: black icon */
+  --icon-brightness-base: 1.2;
+  --icon-brightness-shift: 1;
+
   /* GRADIENT TEXT (DNA-Capital-style headline fill) — consumed by the
      .text-gradient utility in main.css (background-clip: text). Defaults to
      a layered CSS gradient (zero network cost); to switch to an authored
@@ -575,6 +603,14 @@
   --shift-bg: var(--theme-dark-bg);
   --shift-ink: var(--theme-dark-ink);
 
+  /* Mirror of the base :root ramp — light theme starts on a black icon and
+     shifts to a white one. (--surface-1-shift/--glass-bg-shift need no
+     override: they are derived from --shift-ink, which flips just above.) */
+  --icon-invert-base: 0;
+  --icon-invert-shift: 1;
+  --icon-brightness-base: 1;
+  --icon-brightness-shift: 1.2;
+
   /* BACKGROUND & SURFACES — Warm lights, not pure white */
   --color-background: var(--theme-light-bg);
   --color-surface: #F5F4F1;
@@ -613,7 +649,8 @@
 
   /* color-surface-N aliases */
   --color-surface-0: var(--surface-0);
-  --color-surface-1: var(--surface-1);
+  --color-surface-1: color-mix(in srgb, var(--surface-1),
+    var(--surface-1-shift) calc(var(--profile-shift, 0) * 100%));
   --color-surface-2: var(--surface-2);
   --color-surface-3: var(--surface-3);
   --color-surface-4: var(--surface-4);
@@ -623,8 +660,7 @@
   --surface-4-translucent: rgba(203, 207, 214, 0.7);
 
   /* GLASS MORPHISM — light theme overrides */
-  --glass-bg: rgba(0, 0, 0, 0.08);
-  --glass-bg-shift: rgba(255, 255, 255, 0.08);
+  --glass-bg-base: rgba(0, 0, 0, 0.08);
   --glass-bg-subtle: rgba(0, 0, 0, 0.06);
   --glass-border: rgba(0, 0, 0, 0.16);
   --glass-border-shift: rgba(255, 255, 255, 0.16);
@@ -717,7 +753,8 @@
 
   /* color-surface-N aliases */
   --color-surface-0: var(--surface-0);
-  --color-surface-1: var(--surface-1);
+  --color-surface-1: color-mix(in srgb, var(--surface-1),
+    var(--surface-1-shift) calc(var(--profile-shift, 0) * 100%));
   --color-surface-2: var(--surface-2);
   --color-surface-3: var(--surface-3);
   --color-surface-4: var(--surface-4);

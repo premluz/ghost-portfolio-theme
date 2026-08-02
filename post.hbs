@@ -8,47 +8,49 @@
 <article class="post" data-post-hero="contained" data-post-id="{{id}}" data-post-tags="{{#foreach tags}}{{slug}}{{#unless @last}},{{/unless}}{{/foreach}}">
   <header class="post-header">
     <div class="container">
-      {{!-- Project category from projectMeta --}}
-      <p class="post-category text-eyebrow" id="project-category"></p>
-      <h1 class="post-title">{{title}}</h1>
-      {{!-- Project client name --}}
-      <!--<p class="post-client" id="project-client"></p>-->
-      {{!-- Project result --}}
-    <!--  <div class="post-result" id="project-result"></div>-->
-      {{#if custom_excerpt}}
-        <p class="post-excerpt">{{custom_excerpt}}</p>
-      {{/if}}
-
       {{!-- Role/contributions summary from projectMeta (post code injection)
-            — reuses the existing .flexlayout/.col/.text-eyebrow card pattern
-            (main.css) already used elsewhere for arbitrary two-column HTML
-            cards, instead of introducing a parallel layout. Hidden by
-            default (main.css); displayProjectMetadata() below reveals it
-            only once meta.role/meta.contributions actually exist. --}}
+            — dedicated .role-overview classes (not the shared .flexlayout
+            card pattern, and not the old .flexlayout2/.col markup, which
+            had no matching CSS at all). Stacked vertically, positioned as
+            a left-hand column on desktop via .post-header .container's
+            row layout below (order:-1 moves it before .post-header-content
+            visually without reordering the DOM — H1 stays the first
+            reading-order heading for accessibility/SEO). Hidden by default
+            (main.css); displayProjectMetadata() below reveals it only once
+            meta.role/meta.contributions actually exist. --}}
       <div class="post-project-summary mt-0 mb-0 mr-0 ml-0 kg-width-wide" style="padding:0;" id="post-project-summary">
-        <div class="flexlayout2">
-          <div class="col mt-0 mb-0">
-            <div style="display:flex; gap: 64px">
-            <div>
+        <div class="role-overview">
+          <div class="role-overview-block">
             <span class="text-eyebrow">My Role</span>
             <div class="post-project-role" id="post-project-role"></div>
-            </div>
-            <div>
-            <span class="text-eyebrow">My Contributions</span>
+          </div>
+          <div class="role-overview-block">
+            <span class="text-eyebrow">What I owned</span>
             <div class="post-project-contributions" id="post-project-contributions"></div>
-            </div>
-            </div>
           </div>
         </div>
       </div>
 
-      <div class="post-meta">
-        <!--<time datetime="{{date format="YYYY-MM-DD"}}">{{date format="MMM DD, YYYY"}}</time>-->
-        {{!-- Keywords pills from projectMeta --}}
-        <div class="post-keywords" id="post-keywords"></div>
-       <!-- {{#if reading_time}}
-          <span class="reading-time">{{reading_time}}</span>
-        {{/if}}-->
+      <div class="post-header-content">
+        {{!-- Project category from projectMeta --}}
+        <p class="post-category text-eyebrow" id="project-category"></p>
+        <h1 class="post-title">{{title}}</h1>
+        {{!-- Project client name --}}
+        <!--<p class="post-client" id="project-client"></p>-->
+        {{!-- Project result --}}
+      <!--  <div class="post-result" id="project-result"></div>-->
+        {{#if custom_excerpt}}
+          <p class="post-excerpt">{{custom_excerpt}}</p>
+        {{/if}}
+
+        <div class="post-meta">
+          <!--<time datetime="{{date format="YYYY-MM-DD"}}">{{date format="MMM DD, YYYY"}}</time>-->
+          {{!-- Keywords pills from projectMeta --}}
+          <div class="post-keywords" id="post-keywords"></div>
+         <!-- {{#if reading_time}}
+            <span class="reading-time">{{reading_time}}</span>
+          {{/if}}-->
+        </div>
       </div>
     </div>
 

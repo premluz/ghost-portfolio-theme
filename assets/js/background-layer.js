@@ -109,8 +109,17 @@
       ? () => options.endTrigger() || triggerEl
       : () => options.endTrigger || triggerEl;
 
+    // quantize (default 0 = off/exact): snap the value to steps of this size.
+    // Every consumer of the shift is a colour blend, where ~20 steps is
+    // indistinguishable from continuous — but the nav's glass layer carries
+    // backdrop-filter: blur(32px), so each distinct value costs a full-width
+    // blur re-rasterisation. Snapping cuts those repaints several-fold while
+    // staying position-derived, so unlike a time-based transition it still
+    // cannot go stale on a fast flick.
+    const quantize = options.quantize || 0;
     let lastApplied = null;
-    const apply = (t) => {
+    const apply = (raw) => {
+      const t = quantize ? Math.round(raw / quantize) * quantize : raw;
       const fixed = t.toFixed(4);
       if (fixed === lastApplied) return; // skip no-op writes (+ onProgress work)
       lastApplied = fixed;
@@ -124,13 +133,30 @@
       // enterOffset (default 0): delays the enter ramp start by N viewport heights.
       // enterOffset=0.3 means the section's top must be 0.3vh PAST viewport bottom
       // before shift begins — prevents premature shift during previous section.
+      // enterSpan/exitSpan (default 1): ramp length in viewport heights.
+      // 1 is the geometric default documented above — the distance for the
+      // element's edge to cross the viewport. A smaller value shortens the
+      // ramp so the shift completes/reverts sooner, for callers that want a
+      // snappier transition than the full crossing (gradient-frame's revert).
+      const enterSpan = options.enterSpan || 1;
+      const exitSpan = options.exitSpan || 1;
       const enterOffset = options.enterOffset || 0;
-      const enterT = (vh - triggerEl.getBoundingClientRect().top - (vh * enterOffset)) / vh;
+      const enterT = (vh - triggerEl.getBoundingClientRect().top - (vh * enterOffset)) / (vh * enterSpan);
       // exitOffset (default 0): delays the exit ramp start by N viewport heights.
       // exitOffset=0.5 means the section must scroll 0.5vh PAST the normal exit
       // trigger point before reversion begins — keeps the shift held longer.
       const exitOffset = options.exitOffset || 0;
-      const exitT = (resolveEndEl().getBoundingClientRect().bottom - (vh * exitOffset)) / vh;
+      // endInset (default 0, px, number OR function re-evaluated every
+      // compute): treat the end element as ending this many pixels ABOVE its
+      // real bottom edge. For a trailing region whose lower part has already
+      // faded back to the page's own look — gradient-frame's bottom band —
+      // the box bottom is far later than the point the effect stops being
+      // visible, so the revert felt late. Function form for the same
+      // fresh-lookup reason as endTrigger: the inset can be layout-derived.
+      const endInset = typeof options.endInset === 'function'
+        ? (options.endInset() || 0)
+        : (options.endInset || 0);
+      const exitT = (resolveEndEl().getBoundingClientRect().bottom - endInset - (vh * exitOffset)) / (vh * exitSpan);
       apply(Math.max(0, Math.min(1, enterT, exitT)));
     };
 

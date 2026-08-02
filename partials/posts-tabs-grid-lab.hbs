@@ -8,30 +8,80 @@
   to override just this inclusion, e.g. {{> posts-tabs-grid-lab layout="list"}}.
 --}}
 
-<section class="statement-slide" style="min-height: 100vh; margin-top: 20vh; margin-bottom: 0;">
-  <div class="statement-container">
-    <h2 class="statement-heading text-gradient" data-animate="letter">Explorations, <br />AI experiments</h2>
-    <h5 class="statement-description">Currently exploring how trust is designed into AI-native products.</h5>
-  </div>
-</section>
+{{!-- Animated gradient bands above and below the whole Lab section, via
+      the reusable gradient-frame component (gradient-frame.js/.css,
+      loaded site-wide in default.hbs) — it injects the two in-flow bands
+      itself, so this only needs the wrapper.
 
+      Every knob is spelled out below rather than left to the component's
+      defaults, so this element is the single place to tune the look.
+      Changing one here affects only this section; delete an attribute to
+      fall back to the component default (see GRADIENT-FRAME-SYSTEM.md for
+      the full list and what each does).
 
-<section class="posts-tabs-grid-lab-section" id="work-grid-lab" data-posts-layout="{{#if layout}}{{layout}}{{else}}{{@custom.posts_layout}}{{/if}}">
+      The island's own palette (identical in both themes) is NOT here: it is
+      authored in posts-tabs-grid-lab.css as a :root override of the shift
+      tokens — see the "FIXED PALETTE" block there. Colours that must reach
+      the fixed nav have to live at :root; only the band's own wave colours
+      belong on this element. --}}
+<div class="gradient-frame"
+     data-gradient-frame
+     data-gradient-mode="invert"
 
-   
+     {{!-- BASE WAVE — the 4-colour ramp's animated core. --}}
+     data-gradient-wave-a="#61177c"
+     data-gradient-wave-b="#000000"
+     data-gradient-scale="0.5"
+     data-gradient-speed="0.7"
 
-  <div class="posts-tabs-grid-lab-wrapper">
-    {{!-- Experimental grid (no tabs, just the grid) --}}
-    <div class="posts-grid-lab-cards">
-      {{#get "posts" filter="featured:true+tag:hash-work+tag:experimental" limit="100" include="tags,authors"}}
-        {{#foreach posts}}
-          {{> post-card-grid first=@first}}
-        {{/foreach}}
-      {{/get}}
+     {{!-- SECOND WAVE — composited in the same shader (no extra canvas).
+           A DIFFERENT scale is what makes the two cross instead of stack.
+           Omit wave2-a/-b to reuse the base pair at partial opacity. --}}
+     data-gradient-wave2-a="#61177c"
+     data-gradient-wave2-b="#2e073e"
+     data-gradient-wave2-opacity="0.55"
+     data-gradient-wave2-scale="1.4"
+     data-gradient-wave2-speed="0.45"
+     data-gradient-wave2-center="0.52"
+     data-gradient-wave2-width="0.34"
+
+     {{!-- PARALLAX — viewport-heights of scroll. Opposite signs make the
+           two layers slide past each other; both 0 skips the scroll read. --}}
+     data-gradient-parallax="0.05"
+     data-gradient-wave2-parallax="-0.09"
+
+     {{!-- PALETTE-SHIFT TIMING — ramp length in viewport heights, and the
+           band render resolution (see gradflow-background.js). --}}
+     data-gradient-enter-span="0.5"
+     data-gradient-exit-span="0.5"
+     data-gradient-resolution-scale="0.35">
+
+  <section class="statement-slide" style="min-height: 100vh; margin-top: 20vh; margin-bottom: 0; ">
+    <div class="statement-container">
+      <h2 class="statement-heading text-gradient" data-animate="letter">Explorations, <br />AI experiments</h2>
+      <h5 class="statement-description">Currently exploring how trust is designed into AI-native products.</h5>
     </div>
-  </div>
+  </section>
 
-</section>
+
+  <section class="posts-tabs-grid-lab-section" id="work-grid-lab" data-posts-layout="{{#if layout}}{{layout}}{{else}}{{@custom.posts_layout}}{{/if}}">
+
+
+
+    <div class="posts-tabs-grid-lab-wrapper" >
+      {{!-- Experimental grid (no tabs, just the grid) --}}
+      <div class="posts-grid-lab-cards">
+        {{#get "posts" filter="featured:true+tag:hash-work+tag:experimental" limit="100" include="tags,authors"}}
+          {{#foreach posts}}
+            {{> post-card-grid first=@first}}
+          {{/foreach}}
+        {{/get}}
+      </div>
+    </div>
+
+  </section>
+
+</div>
 
 {{!-- Shared with posts-tabs-grid.hbs: the only script that populates
       .grid-card-title/.grid-card-description/etc. via per-card fetch() +

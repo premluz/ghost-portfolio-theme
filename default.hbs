@@ -4,6 +4,22 @@
   <meta name="color-scheme" content="dark light">
   <meta name="theme-color" content="#1d1e1f">
   <meta name="robots" content="noindex, nofollow">
+  {{!-- Must be the first script in <head>: an import map only applies to
+        module resolution requests (including dynamic import()) made AFTER
+        it's parsed. This used to sit much later in <body> (~line 447) and
+        broke any body-content script whose dynamic import() fired at parse
+        time, before the browser reached that point — e.g.
+        gradflow-background.js's import('ogl'), called synchronously from
+        posts-tabs-grid-lab.hbs, well above where this tag used to live. --}}
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/": "https://unpkg.com/three@0.160.0/",
+        "ogl": "https://unpkg.com/ogl@1.0.11/src/index.js"
+      }
+    }
+  </script>
   <script>
     // Apply saved theme and set root background immediately to prevent white flash
     // Runs before any CSS or external resource can trigger a paint.
@@ -124,6 +140,7 @@
   <link rel="stylesheet" href="{{asset "css/image-stripe.css"}}?v={{@site.updated_at}}">
   <link rel="stylesheet" href="{{asset "css/posts-tabs-grid.css"}}?v={{@site.updated_at}}">
   <link rel="stylesheet" href="{{asset "css/posts-tabs-grid-lab.css"}}?v={{@site.updated_at}}">
+  <link rel="stylesheet" href="{{asset "css/gradient-frame.css"}}?v={{@site.updated_at}}">
   <link rel="stylesheet" href="{{asset "css/post-card-grid.css"}}?v={{@site.updated_at}}">
   <link rel="stylesheet" href="{{asset "css/post-cards-lab.css"}}?v={{@site.updated_at}}">
   <link rel="stylesheet" href="{{asset "css/profile.css"}}?v={{@site.updated_at}}">
@@ -444,14 +461,6 @@
        execution (most subscribe from inside a constructor/init function
        called later, but this guarantees correctness regardless). -->
   <script src="{{asset "js/managers/ResizeManager.js"}}"></script>
-  <script type="importmap">
-    {
-      "imports": {
-        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-        "three/": "https://unpkg.com/three@0.160.0/"
-      }
-    }
-  </script>
   <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
   <script>
     // HERO PARTICLE OBJECT — the single switch. 'volatility' shows the
@@ -459,7 +468,7 @@
     // 'helix' restores the original helix and the lattice doesn't mount.
     // Read by particle-morph.hbs, scroll-scrub-anim.js, volatility-surface.js.
     window.HERO_PARTICLE_MODE = 'helix';
-    window.__heroShape = () => window.HERO_PARTICLE_MODE === 'volatility' ? 'volatility' : 'volatility';
+    window.__heroShape = () => window.HERO_PARTICLE_MODE === 'helix' ? 'helix' : 'helix';
 
     // PARTICLE SCENARIOS — declarative section→behavior map. Every particle
     // scroll trigger routes through __particleApply(key, builtin, ms), so a
@@ -685,6 +694,14 @@
   <script src="{{asset "js/table-of-contents.js"}}"></script>
   <script src="{{asset "js/feature-modules.js"}}"></script>
   <script src="{{asset "js/post-and-cards.js"}}"></script>
+
+  <!-- Reusable gradient-frame component (animated GradFlow bands wrapping
+       any content) — loaded site-wide so any partial can opt in with
+       markup alone. Order matters: gradient-frame.js calls
+       window.initGradFlowBackground, defined by gradflow-background.js. -->
+  <script src="{{asset "js/gradflow-shaders.js"}}"></script>
+  <script src="{{asset "js/gradflow-background.js"}}"></script>
+  <script src="{{asset "js/gradient-frame.js"}}"></script>
 
   <!-- Modular Animated Gradient Background System -->
   <script src="{{asset "js/gradient-distortion.js"}}"></script>

@@ -127,6 +127,30 @@ classic bug from a *time-based* CSS transition triggered by a boolean
 IntersectionObserver threshold, which is what the very first version of this
 effect used and which this whole system now avoids by construction.
 
+### Tuning the ramps
+
+Added for the gradient-frame component (`GRADIENT-FRAME-SYSTEM.md`). **All
+default to the behaviour described above**, so `.profile` is unaffected.
+
+| Option | Default | Purpose |
+|---|---|---|
+| `enterSpan` / `exitSpan` | `1` | Ramp length in viewport heights. `1` is the geometric default; a smaller value completes the shift sooner, for callers that want it to land before the section has fully filled the screen. |
+| `endInset` | `0` | Pixels, number **or** function (re-evaluated every compute, same fresh-lookup rule as `endTrigger`). Treats the end element as ending this far *above* its real bottom edge — for a trailing region whose lower part has already faded back to the page's own look, where the box bottom is much later than the point the effect stops being visible. |
+| `quantize` | `0` (exact) | Snap the value to steps of this size. |
+
+`quantize` is a **performance** knob, not a visual one. Every consumer is a
+colour blend where ~20 steps is indistinguishable from continuous — but the
+nav's glass carries `backdrop-filter: blur(32px)`, so each distinct value
+costs a full-width blur re-rasterisation. Snapping cuts those repaints
+several-fold while staying position-derived, so unlike a time-based
+transition it still can't go stale on a flick.
+
+> **Corollary, learned the hard way:** never put a CSS `transition` on a
+> property this drives. `.gh-navigation::before` had
+> `transition: background-color 0.3s` and took a measured **1.5–4s** to
+> settle, which read as the glass not inverting at all. See the Traps section
+> of `GRADIENT-FRAME-SYSTEM.md`.
+
 ---
 
 ## Where this sits among the site's other background mechanisms
@@ -138,7 +162,7 @@ you're touching:
 |---|---|---|---|
 | Token-driven flat colors | Whole page (`body`, most sections) | `tokens.css`, swapped via `data-theme` | Active |
 | `#page-gradient` canvas wash | Hardcoded to `.posts-tabs-section`/`.post-card` | `gradient-layer.js` + `gradient-distortion.js` + `gradient-animation-loop.js` | Active |
-| **Background Layer (this doc)** | Per-section, opt-in | `background-layer.js` | Active — currently used by `.profile` |
+| **Background Layer (this doc)** | Per-section, opt-in | `background-layer.js` | Active — used by `.profile` and by the gradient-frame component (`GRADIENT-FRAME-SYSTEM.md`) |
 
 Two more exist in the codebase but are **dormant** (script tags commented out
 in `default.hbs`) — don't assume they're live without checking:

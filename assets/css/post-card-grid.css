@@ -1321,7 +1321,8 @@ body[data-card-style='filled'] .grid-card-image video {
 /* Profile panes invert their glass background with the section palette flip
    so filled panes stay visible and match the operating-model cards. */
 body[data-card-style='filled'] .profile-item {
-  background: color-mix(in srgb, var(--glass-bg), var(--glass-bg-shift) calc(var(--profile-shift, 0) * 100%));
+  /* --glass-bg is shift-aware at the token level now (tokens.css) */
+  background: var(--glass-bg);
 }
 
 body[data-card-style='blank'] .post-card,

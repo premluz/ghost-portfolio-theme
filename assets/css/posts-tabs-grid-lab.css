@@ -3,6 +3,31 @@
  * Uses post-card-grid component with metadata population via posts-tabs-grid.js
  */
 
+/* The gradient bands wrapping this section come from the reusable
+   .gradient-frame component (gradient-frame.css/.js) — the bespoke
+   absolutely-positioned canvas slots that used to live here are gone;
+   they overlaid the content and clipped at the section edge. */
+
+/* ── FIXED PALETTE for the Lab island ───────────────────────────────
+   The frame runs in "invert" mode, which reads the shift tokens; pinning
+   them here makes the island ONE authored look in both themes instead of
+   the theme's mirror. :root:has() outranks both theme blocks in tokens.css
+   (an id selector inside :has() beats [data-theme]), so a theme toggle
+   cannot move it — which is exactly what the old JS "fixed" mode did, minus
+   the page-global write from a component and the luminance heuristic that
+   guessed the icon polarity.
+   Only these four are needed: --surface-1-shift and --glass-bg-shift are
+   derived from --shift-ink (tokens.css), so the nav pill and badge fills
+   follow automatically. */
+:root:has(#work-grid-lab) {
+  --shift-bg: #1B092C;
+  --shift-ink: #ffffff;
+  /* White icons on the island, in both themes — the ramp endpoint the nav
+     icons' invert() filter interpolates toward (see tokens.css). */
+  --icon-invert-shift: 1;
+  --icon-brightness-shift: 1.2;
+}
+
 .posts-tabs-grid-lab-section {
   width: 100%;
   padding: 200px 0;
