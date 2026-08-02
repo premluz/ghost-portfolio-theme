@@ -434,18 +434,32 @@ class ScrollScrubAnimationSystem {
       };
       waitForParticleSystemThenMorph();
 
-      // Entrance: reveal instantly, unconditionally — hero content is just
-      // text, it should never sit behind an animated stagger/blur/slide
-      // entrance while the particle system is already rendering. Was:
-      // gsap.fromTo per-item stagger (eyebrow, then headline 0.12s later,
-      // then description a further 0.35s after that — ~1.3s total before
-      // the description even finished), only skipped for same-site nav via
-      // window.__pageEntranceOwns. Now unconditional for every load path
-      // (fresh, cached, same-site) — text shows first, before anything else.
+      // Entrance: h1 gets a letter-by-letter reveal — same treatment
+      // .page-title gets on About/Contact (animateH1LetterByLetter, main.js
+      // — per-character opacity stagger, no position/blur movement).
+      // Unconditional for every load path (fresh, cached, same-site nav),
+      // matching About: that page's own title reveal isn't gated behind
+      // window.__pageEntranceOwns either, it just always plays. intro/
+      // description get a plain fade alongside it — this used to be a
+      // bigger per-item slide+blur stagger, simplified to instant reveal
+      // at one point, now this.
       const intro = hero.querySelector('.hero-intro');
       const description = hero.querySelector('.hero-description');
-      const allItems = (intro ? [intro] : []).concat([heading], description ? [description] : []);
-      gsap.set(allItems, { opacity: 1, y: 0, filter: 'blur(0px)' });
+      gsap.set(heading, { y: 0, filter: 'blur(0px)' }); // opacity handled per-letter below
+      const entranceTl = gsap.timeline();
+      if (window.animateH1LetterByLetter) {
+        window.animateH1LetterByLetter(heading, entranceTl, 0);
+      } else {
+        gsap.set(heading, { opacity: 1, visibility: 'visible' });
+      }
+      if (intro) {
+        gsap.set(intro, { y: 0, filter: 'blur(0px)' });
+        entranceTl.fromTo(intro, { opacity: 0 }, { opacity: 1, duration: 0.4, ease: 'power2.out' }, 0);
+      }
+      if (description) {
+        gsap.set(description, { y: 0, filter: 'blur(0px)' });
+        entranceTl.fromTo(description, { opacity: 0 }, { opacity: 1, duration: 0.4, ease: 'power2.out' }, 0.1);
+      }
     });
 
     // Exit: individual hero elements animate out on scroll
@@ -529,16 +543,25 @@ class ScrollScrubAnimationSystem {
         }
       });
 
-      // Text exit: movement + a SHORTER alpha fade per tween (design rule:
-      // alpha duration < movement duration — content dims out quickly while
-      // the slide is still carrying it away; scrub makes both bidirectional).
+      // Text exit: fade out + slide DOWN, staggered intro -> headline ->
+      // description (was slide left+up — per request, replaced with a
+      // pure vertical exit; no matching "slide down" preset existed
+      // anywhere in the shared animation configs (card-scroll-reveal.js's
+      // yOffset values are all entrance-direction, elements sliding UP
+      // INTO view, not an exit sliding down out of it), so this is
+      // authored directly here, same structure/timing as before — just
+      // y instead of x+y, no horizontal drift. Distances carried over
+      // unchanged (headline moves furthest, matching its larger size).
+      // Alpha duration < movement duration is unchanged too (content dims
+      // out quickly while the slide is still carrying it away; scrub
+      // makes both bidirectional).
 
-      // Intro line slides up + left
+      // Intro line slides down
       const intro = hero.querySelector('.hero-intro');
       if (intro) {
         exitTl.fromTo(intro,
-          { x: 0, y: 0 },
-          { x: '-80vw', y: -160, duration: 0.5, ease: 'power2.in' },
+          { y: 0 },
+          { y: 160, duration: 0.5, ease: 'power2.in' },
           0
         ).fromTo(intro,
           { opacity: 1 },
@@ -547,10 +570,10 @@ class ScrollScrubAnimationSystem {
         );
       }
 
-      // Headline slides up + left off screen
+      // Headline slides down off screen
       exitTl.fromTo(heading,
-        { x: 0, y: 0 },
-        { x: '-100vw', y: -220, duration: 0.5, ease: 'power2.in' },
+        { y: 0 },
+        { y: 220, duration: 0.5, ease: 'power2.in' },
         0.05
       ).fromTo(heading,
         { opacity: 1 },
@@ -558,12 +581,12 @@ class ScrollScrubAnimationSystem {
         0.05
       );
 
-      // Description slides up + left
+      // Description slides down
       const description = hero.querySelector('.hero-description');
       if (description) {
         exitTl.fromTo(description,
-          { x: 0, y: 0 },
-          { x: '-70vw', y: -160, duration: 0.5, ease: 'power2.in' },
+          { y: 0 },
+          { y: 160, duration: 0.5, ease: 'power2.in' },
           0.1
         ).fromTo(description,
           { opacity: 1 },

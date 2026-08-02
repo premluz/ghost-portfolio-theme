@@ -94,7 +94,7 @@ async function registerScrollTriggersOnGPU() {
       end: 9,
       onEnter: () => {
         debug('[particle-morph] [SCROLL] scroll initiated → hero shape to terrain');
-        window.__particleApply(gpu, 'hero-exit', 'terrain', 400);
+        window.__particleApply(gpu, 'hero-exit', 'collapse', 400);
       },
       onLeaveBack: () => {
         debug('[particle-morph] [SCROLL] Hero left UP → morphing to hero shape');
@@ -425,6 +425,49 @@ async function initParticleMorphModular() {
         // initLabWave already guards internally.
         debug('[particle-morph] Calling system.initLabWave()');
         system.initLabWave();
+
+      // LAB CHOREOGRAPHY — the sphere scrolls WITH its section.
+      //
+      // Every other particle behaviour on this page is positionally fixed:
+      // the shape sits at the centre of a fixed, full-viewport canvas and
+      // only its FORM changes as you scroll past. Here the object should
+      // instead travel like a piece of the page — entering from below as
+      // the Lab section does, riding up with it, leaving at the top.
+      //
+      // Bound to the .gradient-frame WRAPPER around the whole Lab island
+      // (posts-tabs-grid-lab.hbs — it wraps the "Explorations, AI
+      // experiments" statement heading AND #work-grid-lab together), not to
+      // #work-grid-lab itself, so the sphere starts arriving as soon as
+      // that heading's gradient band comes into view rather than waiting
+      // for the card grid below it — asked for explicitly: "should come in
+      // view much earlier, as soon as our gradient wrapper starts". Found
+      // via closest() from #work-grid-lab rather than a bare
+      // '.gradient-frame' selector since that class is reused elsewhere
+      // (profile.hbs) and querying it directly could grab the wrong one.
+      //
+      // Position only — NOT the `shape` channel. The Lab section's existing
+      // IntersectionObserver still owns the morph to 'lab'; the two would
+      // fight over shape (see the director's header). This adds movement to
+      // a morph that already happens.
+      if (window.particleScrollDirector) {
+        const labSection = document.querySelector('#work-grid-lab');
+        const labWrapper = labSection && labSection.closest('.gradient-frame');
+        if (labWrapper) {
+          // World units: at camera z=8 / fov 75 the viewport is ~12.3 units
+          // tall, so half that (~6.1) is the bottom edge. The start
+          // keyframe sits just inside it (-6.0, not -7.0/off-screen) so the
+          // sphere is already visibly emerging at the bottom the moment the
+          // zone begins, per "should actually start at the bottom of the
+          // screen, not off screen". Y increases upward, and content moves
+          // up as you scroll down — hence negative (below) to positive
+          // (above).
+          window.particleScrollDirector.setTimeline([
+            { at: 0.00, position: [0, -6.0, 0] },
+            { at: 0.50, position: [0,  0.0, 0] },
+            { at: 1.00, position: [0,  7.0, 0] },
+          ], { element: labWrapper });
+        }
+      }
       }
 
       // Refresh ScrollTrigger positions after DOM layout changes from particle system init
@@ -614,7 +657,7 @@ async function initParticleMorphModular() {
               if (!heroVisible) {
                 // Only morph to dispersed if hero is NOT visible
                 debug('[trigger] Testimonials entered → hiding particles');
-                window.__particleApply(system, 'testimonials', 'dispersed', 400);
+                window.__particleApply(system, 'testimonials', /* collapse, not dispersed: the field stays folded in through this whole stretch — see hero-exit */ 'collapse', 400);
               } else {
                 debug('[trigger] Testimonials visible but hero still visible → keeping helix');
               }
@@ -634,7 +677,7 @@ async function initParticleMorphModular() {
           entries.forEach((entry) => {
             if (entry.isIntersecting) {
               debug('[trigger] Stats parallax entered → morph to dispersed');
-              window.__particleApply(system, 'stats', 'dispersed', 1200);
+              window.__particleApply(system, 'stats', /* collapse, not dispersed: the field stays folded in through this whole stretch — see hero-exit */ 'collapse', 1200);
             }
           });
         }, { threshold: 0.1 });
@@ -687,7 +730,6 @@ async function initParticleMorphModular() {
       // which may not be populated if registerPlugin was called before the plugin loaded.
       if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined' && typeof ScrollTrigger.getAll === 'function') {
         const helix = document.getElementById('helix') || document.querySelector('.statement-slide-main');
-        const hero = document.querySelector('.hero');
 
         // Only morph to helix after user has actually scrolled (not on page load)
         let hasScrolled = false;
@@ -729,7 +771,7 @@ async function initParticleMorphModular() {
               },
               onLeave: function () {
                 debug('[trigger] Operating model left DOWN → hiding particles');
-                window.__particleApply(system, 'operating-model-exit', 'dispersed', 400);
+                window.__particleApply(system, 'operating-model-exit', /* collapse, not dispersed: the field stays folded in through this whole stretch — see hero-exit */ 'collapse', 400);
               },
               onLeaveBack: function () {
               }
@@ -795,34 +837,17 @@ async function initParticleMorphModular() {
           }
         }
 
-        if (hero) {
-          // Morph back to the hero shape when scrolling back up into the hero
-          // (helix or volatility per HERO_PARTICLE_MODE in default.hbs —
-          // this is the LEGACY-path twin of the gpu block's hero trigger)
-          gsap.to({}, {
-            scrollTrigger: {
-              trigger: hero,
-              // Absolute scroll positions, not element-relative: the hero
-              // shape should disperse (and, in hiding scenarios, fade) the
-              // MOMENT scrolling starts — 'bottom center' didn't fire until
-              // half a viewport down, which read as a lagging response.
-              // 8px of slack avoids rubber-band jitter at the very top.
-              start: 8,
-              end: 9,
-              // twin of the gpu block's hero trigger: exit downward fires
-              // 'hero-exit' (scenarios can hide the layer the moment the
-              // hero is left), return upward re-forms the hero shape
-              onEnter: function () {
-                // terrain, not dispersed: the volatility lattice flowing into
-                // the terrain relief reads as one continuous surface deforming
-                window.__particleApply(system, 'hero-exit', 'terrain', 400);
-              },
-              onLeaveBack: function () {
-                window.__particleApply(system, 'hero', window.__heroShape(), 500);
-              }
-            }
-          });
-        }
+        // Hero-exit morph (collapse on the way down, re-form on the way back
+        // up) used to be a ScrollTrigger firing at scrollY 8-9px — a discrete
+        // cut that raced the loop's own hero position/FOV reset and read as
+        // an abrupt "scale down and snap to centre". Both are now driven by
+        // one continuous scroll fraction computed every frame in
+        // particle-animation-loop.js's _updateHeroExit() (heroT, 0 at the
+        // top of the page to 1 a full hero-height down) — it calls this
+        // exact same __particleApply('hero-exit'/'hero', ...) pair itself,
+        // just at heroT 0.9 instead of at a fixed pixel offset, so the shape
+        // flip now lands after the position/zoom/rotation buildup instead of
+        // before it. See COLLAPSE in shape-definitions.js for the shape.
 
         // work-grid section → dispersed on enter
         const workGrid = document.getElementById('work-grid');
@@ -830,7 +855,7 @@ async function initParticleMorphModular() {
           ScrollTrigger.create({
             trigger: workGrid,
             start: 'top 70%',
-            onEnter: () => window.__particleApply(system, 'work-grid', 'dispersed', 400),
+            onEnter: () => window.__particleApply(system, 'work-grid', /* collapse, not dispersed: the field stays folded in through this whole stretch — see hero-exit */ 'collapse', 400),
           });
         }
 

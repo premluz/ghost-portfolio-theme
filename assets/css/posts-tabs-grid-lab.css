@@ -20,7 +20,7 @@
    derived from --shift-ink (tokens.css), so the nav pill and badge fills
    follow automatically. */
 :root:has(#work-grid-lab) {
-  --shift-bg: #1E1825;
+    --shift-bg: #1E1825;
   --shift-ink: #ffffff;
   /* White icons on the island, in both themes — the ramp endpoint the nav
      icons' invert() filter interpolates toward (see tokens.css). */
@@ -219,19 +219,29 @@
 .posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-link {
   display: flex;
   flex-direction: row;
-  /* Was --space-4xl (160px) — .post-card-link (post-card-grid.css), the
-     same row-split element in posts-tabs' own list mode, uses --space-2xl
-     (96px). The oversized gap here was eating width that should have gone
-     to the image — same flex: 0.9/0.7 split in both, so this was the
-     actual cause of the image rendering visibly smaller than posts-tabs'. */
-  gap: var(--space-2xl);
+  /* 4rem — matches posts-tabs' own list mode (post-card-grid.css), which
+     in turn matches the grid layout's large single-row card exactly. With
+     flex:1 1 66%/34% on image/content (below), the gap's size — not just
+     the 66/34 ratio — determines how much flex-shrink eats off the image's
+     nominal basis; matching the gap is what makes the final pixel sizes
+     match, not the ratio alone. (Was --space-2xl/96px, chosen in an
+     earlier pass to match posts-tabs' OWN list mode before that mode's
+     gap was, in turn, updated to this same 4rem to match the grid
+     reference — keeping both in step.) */
+  gap: 4rem;
   width: 100%;
   min-width: 0;
   align-items: center;
 }
 
 .posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-image {
-  flex: 0.9;
+  /* 66/34 split — matches posts-tabs' own list mode (post-card-grid.css),
+     which in turn matches its grid layout's large single-row card. Was
+     flex:0.9 (paired with content's 0.7, summing 1.6 not 1 — image
+     actually got 0.9/1.6 = 56.25% of the row, visibly smaller than the
+     large grid-mode image this is meant to match). */
+  flex: 1 1 66%;
+  width: 66%;
   aspect-ratio: 16 / 10;
   margin-bottom: 0;
   order: 1;
@@ -240,7 +250,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: auto;
 }
 
 .posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-image img,
@@ -249,7 +258,9 @@
 }
 
 .posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-content {
-  flex: 0.7;
+  /* Paired with .grid-card-image's 66% above — was flex:0.7 */
+  flex: 1 1 34%;
+  width: 34%;
   display: flex;
   flex-direction: column;
   justify-content: center;

@@ -2027,37 +2027,61 @@ function initLogomarkAnimation() {
 
   // console.log('[logomark] Logomark container found, initializing animation');
 
-  // Respect prefers-reduced-motion
+  // Respect prefers-reduced-motion — still lands in the correct final
+  // spot (right edge flush with .post-header-content, base aligned to its
+  // bottom), just without the gravity-fall/bounce motion. Function
+  // declaration below is hoisted, so it's callable here despite appearing
+  // later in source.
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (prefersReducedMotion) {
     // console.log('[logomark] Prefers reduced motion — showing immediately');
-    logomarkEl.style.visibility = 'visible';
-    logomarkEl.style.opacity = '1';
+    const pos = calculateLandingPosition();
+    if (pos.right !== null) logomarkEl.style.right = `${pos.right}px`;
+    gsap.set(logomarkEl, { y: pos.y, visibility: 'visible', opacity: 1 });
     return;
   }
 
-  // Calculate landing position based on excerpt position
+  // Landing position is anchored to .post-header-content's own box (the
+  // category/title/excerpt/meta column) — its BOTTOM edge for Y (lands
+  // just past whatever that block ends with, not tied to one specific
+  // child like .post-excerpt) and its RIGHT edge for X (flush against it).
+  // Live getBoundingClientRect() measurement, not the old data-post-hero-
+  // tiered `right: calc(...)` CSS (removed) — that broke silently whenever
+  // the attribute's actual value didn't match one of the three hardcoded
+  // strings ('contained'/'wide'/'fullscreen') the CSS knew about — e.g.
+  // 'full', a real value in use, matched none of them, left `right` fully
+  // unset, and the logomark landed near the left edge instead of the
+  // right. This is correct for any width tier without a matching CSS
+  // variant to keep in sync.
   let landingY = 220; // fallback (accounts for CSS top: -420px offset)
 
-  function calculateLandingY() {
-    const excerptEl = document.querySelector('.post-excerpt');
-    if (excerptEl && logomarkEl.parentElement) {
-      const postHeader = logomarkEl.parentElement;
-      const excerptRect = excerptEl.getBoundingClientRect();
-      const headerRect = postHeader.getBoundingClientRect();
+  function calculateLandingPosition() {
+    const contentEl = document.querySelector('.post-header-content');
+    if (!contentEl || !logomarkEl.parentElement) return { y: landingY, right: null };
+    const positioningParent = logomarkEl.parentElement;
+    const contentRect = contentEl.getBoundingClientRect();
+    const parentRect = positioningParent.getBoundingClientRect();
 
-      // Calculate excerpt bottom position relative to header.
-      // The logomark starts off-screen via CSS `top: -420px`, and GSAP's
-      // y transform is applied on top of that CSS position, so we must
-      // add the absolute value of the CSS top offset to land at the
-      // correct visual position.
-      const cssTopOffset = Math.abs(parseFloat(getComputedStyle(logomarkEl).top)) || 0;
-      const calculated = excerptRect.bottom - headerRect.top - 150 + cssTopOffset; // 20px padding below excerpt
-      // console.log(`[logomark] Calculated landing Y: ${calculated}`);
-      return calculated;
-    }
-    return landingY;
+    // The logomark starts off-screen via CSS `top: -420px`, and GSAP's y
+    // transform is applied on top of that CSS position, so we must add
+    // the absolute value of the CSS top offset to land at the correct
+    // visual position.
+    const cssTopOffset = Math.abs(parseFloat(getComputedStyle(logomarkEl).top)) || 0;
+    // -140 = the container's own fixed height (main.css), so its BOTTOM
+    // edge — not its top — lands flush with .post-header-content's base.
+    const y = contentRect.bottom - parentRect.top - 140 + cssTopOffset;
+    // Distance from the positioning parent's right edge to
+    // .post-header-content's right edge — what CSS `right` needs to sit
+    // flush against it.
+    const right = parentRect.right - contentRect.right;
+    return { y, right };
   }
+
+  const applyLandingPosition = () => {
+    const pos = calculateLandingPosition();
+    landingY = pos.y;
+    if (pos.right !== null) logomarkEl.style.right = `${pos.right}px`;
+  };
 
   const heroEl = document.querySelector('.hero[data-section-id="hero"]');
 
@@ -2065,7 +2089,7 @@ function initLogomarkAnimation() {
     // No hero — run the full bounce drop with a short delay so the page has rendered
     // console.log('[logomark] No hero element found — running drop animation directly');
     setTimeout(() => {
-      landingY = calculateLandingY();
+      applyLandingPosition();
       animateLogomarkDrop();
     }, 500);
     return;
@@ -2080,7 +2104,7 @@ function initLogomarkAnimation() {
     // console.log('[logomark] heroEntranceDone event fired — starting animation');
     eventFired = true;
     setTimeout(() => {
-      landingY = calculateLandingY();
+      applyLandingPosition();
       animateLogomarkDrop();
     }, 500);
     heroEl.removeEventListener('heroEntranceDone', handleLogomarkTrigger);
@@ -2093,7 +2117,7 @@ function initLogomarkAnimation() {
     if (!eventFired) {
       // console.log('[logomark] heroEntranceDone event did not fire — using fallback animation');
       setTimeout(() => {
-        landingY = calculateLandingY();
+        applyLandingPosition();
         animateLogomarkDrop();
       }, 500);
     }
@@ -2694,11 +2718,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // Route through the scenario map defined in default.hbs so
             // settings like `work-cards: 'hide'` are respected. If the
-            // scenario says hide, use 'dispersed' as the built-in shape so
-            // the particles fade out instead of assembling a card object.
+            // scenario says hide, morph to 'collapse' rather than a card
+            // object so the field stays folded in while invisible.
+            //
+            // 'collapse', not 'dispersed': this trigger fires continuously
+            // across the whole post-tabs stretch and was the last writer, so
+            // a 'dispersed' builtin here silently undid the hero's collapse
+            // a frame later — the shape held through post-tabs is whatever
+            // THIS line says, not what hero-exit asked for.
             const scenarioMap = (window.PARTICLE_SCENARIOS && window.PARTICLE_SCENARIOS[window.PARTICLE_SCENARIO || 'full']) || {};
             const scenarioAction = scenarioMap['work-cards'];
-            const builtin = scenarioAction === 'hide' ? 'dispersed' : targetShape;
+            const builtin = scenarioAction === 'hide' ? 'collapse' : targetShape;
 
             if (window.__particleApply) {
               window.__particleApply(sys, 'work-cards', builtin, 400);

@@ -8,7 +8,7 @@ class ParticleMorphSystem {
   // _createImmediateStates() (what to build now) and createInitialStates()
   // (what not to rebuild later); they used to be separate hand-kept lists
   // that had drifted apart.
-  static IMMEDIATE_SHAPES = ['dispersed', 'helix', 'ribbon', 'volatility', 'lab', 'terrain', 'grid', 'dots'];
+  static IMMEDIATE_SHAPES = ['dispersed', 'collapse', 'helix', 'hero-helix', 'ribbon', 'volatility', 'lab', 'terrain', 'grid', 'dots'];
 
   constructor(container, config = {}) {
     this.container = typeof container === 'string' ? document.querySelector(container) : container;
@@ -31,6 +31,8 @@ class ParticleMorphSystem {
     this.shapeRegistry.register(window.HELIX);
     this.shapeRegistry.register(window.RIBBON);
     this.shapeRegistry.register(window.VOLATILITY);
+    this.shapeRegistry.register(window.HERO_HELIX);
+    this.shapeRegistry.register(window.COLLAPSE);
     this.shapeRegistry.register(window.TRIPLE_SPHERE);
     this.shapeRegistry.register(window.TORUS);
     this.shapeRegistry.register(window.MOBILE);
@@ -136,7 +138,7 @@ class ParticleMorphSystem {
     //    _createImmediateStates()'s `immediate` array and had fallen behind
     //    it (missing 'ribbon'/'volatility'), so those two got regenerated
     //    here and clobbered the live state. Both now derive from one array.
-    const shapes = ['dispersed', 'helix', 'ribbon', 'volatility', 'sphere', 'triple-sphere', 'torus', 'mobile', 'note', 'diamond', 'globe', 'game', 'chart', 'email', 'camera', 'footer', 'lab', 'terrain', 'grid', 'dots'];
+    const shapes = ['dispersed', 'collapse', 'helix', 'hero-helix', 'ribbon', 'volatility', 'sphere', 'triple-sphere', 'torus', 'mobile', 'note', 'diamond', 'globe', 'game', 'chart', 'email', 'camera', 'footer', 'lab', 'terrain', 'grid', 'dots'];
     shapes.forEach(key => {
       try {
         // Skip states already created by _createImmediateStates to avoid overwriting live state

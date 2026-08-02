@@ -386,32 +386,48 @@
         return;
       }
       console.log('[landing-anim/home] RUNNING');
-      // .home has no pre-hide class anymore (default.hbs) — it paints
-      // normally from the first frame, same as everything else on the
-      // page. NO transform on .home either way — a transform there makes
-      // .home the containing block for every position:fixed element inside
-      // it (the hero!) and skews the pinned sections' ScrollTrigger
-      // measurements ("would be because section is pinned?" — yes). The
-      // slide-up used to live on the hero's own fixed container (.hero) —
-      // removed below along with the fade, per request.
+      // Drop the head pre-hide (html.landing-pending, default.hbs) the
+      // instant this takes over — same tick as the gsap.set below, so
+      // there's never a gap where neither CSS nor GSAP is holding it. Same
+      // pattern as the non-home branch's html.main-pending removal further
+      // down this function.
+      document.documentElement.classList.remove('landing-pending');
+      // Slide+fade entrance, same values as About's <main> entrance
+      // (shouldAnimate branch below: y:100->0, opacity:0->1, duration 0.2,
+      // ease power1.out) — per request, "same as entrance of page about".
+      // Split across two elements rather than animating .home directly:
+      // .home must never get a transform (it would become the containing
+      // block for every position:fixed element inside it, the hero
+      // included, and skew the pinned sections' ScrollTrigger
+      // measurements — confirmed earlier: "would be because section is
+      // pinned?" — yes). So .home only ever gets the opacity fade, and the
+      // y-slide goes on .hero instead — itself position:fixed, so its own
+      // transform doesn't create that containing-block problem.
       const heroEl = document.querySelector('.hero');
-      // Instant, no fade/slide — hero content is just text, it must show
-      // immediately on load and on every transition into home, ahead of
-      // particles/anything else, per request. Was a 0.35s opacity fade on
-      // .home plus a 0.45s y:120->0 slide on .hero (previously also gated
-      // behind a frame-smoothness probe + up to 1200ms failsafe before
-      // either even started) — both removed; text is either visible or not,
-      // with no animated in-between state to wait through.
-      gsap.set(homeEl, { opacity: 1, clearProps: 'transition' });
-      if (heroEl) gsap.set(heroEl, { y: 0, clearProps: 'transform' });
+      gsap.set(homeEl, { opacity: 0 });
+      if (heroEl) gsap.set(heroEl, { y: 100 });
+      gsap.to(homeEl, {
+        opacity: 1,
+        duration: 0.2,
+        ease: 'power1.out',
+        clearProps: 'transition',
+      });
+      if (heroEl) {
+        gsap.to(heroEl, {
+          y: 0,
+          duration: 0.2,
+          ease: 'power1.out',
+          clearProps: 'transform',
+        });
+      }
       // Scrim: this path never sets it, so it should already sit at its
       // default opacity:0 (harmless) — but force-clear it too, in case a
       // previous exit's tween got interrupted (bfcache-adjacent edge case,
       // page-transition.js's own pageshow handler is the only other place
       // that resets this) and left it visibly dimming the page underneath
-      // an otherwise-instant hero reveal.
+      // the entrance.
       gsap.set(scrim, { opacity: 0 });
-      console.log('[landing-anim/home] entrance complete (instant)');
+      console.log('[landing-anim/home] entrance animating');
       return;
     }
 

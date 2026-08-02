@@ -84,6 +84,16 @@ function initCardScrollReveal() {
     // stuck at opacity 0.
     if (img.closest('.post-header')) return false;
     if (img.closest('.page-header')) return false;
+    // .logomark-image: same reasoning, but it's no longer a descendant of
+    // .post-header — post.hbs's two-column restructuring (.post-header-layout
+    // wraps .post-project-summary + .post-header as siblings) moved
+    // .logomark-container OUT of .post-header so its absolute `right:
+    // calc(...)` positioning stays correct against the full-width row. Its
+    // reveal is owned by animateLogomarkDrop() (main.js), same as before —
+    // needs its own explicit exclusion now that the ancestor check above
+    // can't catch it. Confirmed this exact failure mode by measurement:
+    // naturalWidth/complete both fine, opacity stuck at 0 forever.
+    if (img.closest('.logomark-container')) return false;
     if (img.closest('.post-navigation')) return false;
     if (img.closest('.logos-scroll-container')) return false;
     if (img.closest('.logos-ribbon-item')) return false;
@@ -279,6 +289,19 @@ function initCardScrollReveal() {
             });
           }
           revealedCards.add(card);
+
+          // Work-grid cards reveal once and stay — unlike testimonial/
+          // about/personal/om3/profile cards (decorative, meant to fade
+          // back out if you scroll past them going up), a post card
+          // disappearing on the way back to the top read as broken, not
+          // intentional. Unobserving is what actually prevents it: the
+          // hide branch below is gated on `isRevealed`, but merely
+          // skipping it would still leave the element under
+          // observation forever for no reason once its one-time reveal
+          // is done.
+          if (card.classList.contains('post-card-content') || card.classList.contains('post-card-image')) {
+            cardObserver.unobserve(card);
+          }
         }
       } else {
         if (!isScrollingDown && isRevealed) {

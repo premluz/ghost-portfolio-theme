@@ -10,7 +10,11 @@ class ShapeDefinition {
     this.key = key;
     this.generator = generator;
     this.config = {
-      radius: 3.5,
+      // Narrower than the original 3.5. Total projected width is
+    // 2*(radius + tubeRadius) + spacing, so 3.5/1.5/3 spanned ~13 world
+    // units (~950px) — two thirds of the viewport, which cannot sit "on the
+    // left" without crossing the headline no matter how far it is offset.
+    radius: 2.2,
       height: 12,
       scale: 1.0,
       ...config
@@ -57,10 +61,16 @@ const helixGenerator = (particleCount, config) => {
   const phis = new Float32Array(particleCount);
   const sizes = new Float32Array(particleCount);
   const helixRadius = config.radius;
-  const tubeRadius = 1.5;
+  // turns/tubeRadius were hardcoded here. They are the two parameters that
+  // most decide the hero composition — turns is the difference between one
+  // broad diagonal sweep and a coil that reads top-to-bottom — so they
+  // belong in the config with everything else. Defaults are the previous
+  // hardcoded values, so an un-updated caller is unchanged.
+  const tubeRadius = config.tubeRadius !== undefined ? config.tubeRadius : 1.5;
   const height = config.height;
-  const turns = 1.5;
-  const spacing = 3; // = 2*tubeRadius: strands are tangent at closest approach, not overlapping
+  const turns = config.turns !== undefined ? config.turns : 1.5;
+  // = 2*tubeRadius: strands are tangent at closest approach, not overlapping
+  const spacing = config.spacing !== undefined ? config.spacing : tubeRadius * 2;
   const segments = Math.floor(particleCount / (2 * 20)); // Adjust segments based on particle count
   const tubeDensity = 20;
   const offsetX = config.offsetX || 0;
@@ -198,7 +208,23 @@ const ribbonGenerator = (particleCount, config) => {
 const HELIX = new ShapeDefinition(
   'helix',
   helixGenerator,
-  { radius: 3.5, height: 12, offsetX: 0, offsetY: 0, offsetZ: 0 }
+  {
+    // Narrower than the original 3.5. Total projected width is
+    // 2*(radius + tubeRadius) + spacing, so 3.5/1.5/3 spanned ~13 world
+    // units (~950px) — two thirds of the viewport, which cannot sit "on the
+    // left" without crossing the headline no matter how far it is offset.
+    radius: 3.2,
+    // 12 was almost exactly the viewport height in world units (2*tan(37.5)*8
+    // = 12.3 at camera z=8 / fov 75), so the coil stopped right at both
+    // edges. Overshooting makes it bleed off top and bottom instead.
+    height: 26,
+    // 1.5 turns over that height is a single open sweep read as a diagonal
+    // band; more winding reads as a coil running down the frame.
+    turns: 3.2,
+    tubeRadius: 1.6,
+    spacing: 2.2,
+    offsetX: 0, offsetY: 0, offsetZ: 0
+  }
 );
 
 // The DNA-Capital-style woven sheet — its own state, not wired to any
@@ -906,6 +932,157 @@ const DISPERSED = new ShapeDefinition(
   { radius: 25 }
 );
 
+
+// HERO HELIX — the halftone hero coil. A different animal from HELIX above:
+// that one is a DNA-style pair of fat tubes, ~1.5 turns, axis straight up.
+// This is a single coil of 3.5 generous turns whose axis is TILTED away from
+// vertical so it recedes into depth rather than sitting flat to the picture
+// plane, with the radius tapering toward the far end.
+//
+// Authored in camera space (camera z=8, fov 75) like volatilityGenerator, so
+// the numbers below mean something on screen rather than in the abstract.
+//
+// Two deliberate choices:
+//  * Points are distributed by ARC LENGTH along the coil, not by equal steps
+//    in the angle parameter. Equal angle steps on a tapering helix bunch up
+//    where the radius is small, which is backwards — the far end would get
+//    denser for the wrong reason (geometry) instead of the right one
+//    (perspective).
+//  * Sizes are left uniform-ish here. The near/mid/far size ramp is a
+//    RENDER concern and belongs to the halftone style, which computes it
+//    from actual view depth per frame (see uHalftoneSizeNear/Far). Baking a
+//    depth ramp into the geometry would double-apply it and would be wrong
+//    the moment the shape rotates.
+const heroHelixGenerator = (particleCount, config) => {
+  const positions = new Float32Array(particleCount * 3);
+  const sizes = new Float32Array(particleCount);
+  const turns = config.turns;
+  const tiltRad = (config.tiltDeg * Math.PI) / 180;
+  // Declared before len/r0/tubeR below, which multiply by it — a `const`
+  // used above its declaration is a temporal-dead-zone ReferenceError, and
+  // the generator throwing means the state silently never gets registered.
+  const zoom = config.zoom || 1;
+  const len = config.axisLength * zoom;
+  const r0 = config.radius * zoom;
+  const taper = config.radiusTaper;      // radius multiplier at the far end
+  const tubeR = config.tubeRadius * zoom;       // slight thickness so it reads as dots, not a hairline
+  const perRing = config.tubeDensity;
+  // ZOOM scales the whole coil AND its offsets together, so "zoom in" also
+  // "moves left proportionally" — the composition holds its position in the
+  // frame instead of the shape growing out of it.
+  const offX = (config.offsetX || 0) * zoom;
+  const offY = (config.offsetY || 0) * zoom;
+  const offZ = config.offsetZ || 0;
+  // Composition tilt about X, BAKED INTO THE GEOMETRY rather than set as
+  // particles.rotation.x — animate() rewrites that every frame for the
+  // mouse parallax, so an object-level tilt would be wiped instantly.
+  // Negative = top edge rotates away from the camera, bottom edge toward it.
+  const tiltX = ((config.tiltXDeg || 0) * Math.PI) / 180;
+  const cosX = Math.cos(tiltX), sinX = Math.sin(tiltX);
+
+  // Axis tilted from vertical toward -Z, so +s goes up AND away.
+  const ax = 0, ay = Math.cos(tiltRad), az = -Math.sin(tiltRad);
+  // Basis perpendicular to the axis: X is already perpendicular; the second
+  // is axis x X.
+  const ux = 1, uy = 0, uz = 0;
+  const vx = ay * uz - az * uy, vy = az * ux - ax * uz, vz = ax * uy - ay * ux;
+
+  const hash01 = (i) => { const x = Math.sin(i * 127.1) * 43758.5453; return x - Math.floor(x); };
+  const rings = Math.max(2, Math.floor(particleCount / perRing));
+  let idx = 0;
+  for (let ri = 0; ri < rings && idx < particleCount; ri++) {
+    const s = ri / (rings - 1);                 // 0 = near/low, 1 = far/high
+    const angle = s * turns * Math.PI * 2;
+    const radius = r0 * (1 - (1 - taper) * s);
+    // Centre of this ring on the tilted axis.
+    const cx = ax * len * s + offX;
+    const cy = ay * len * s + offY;
+    const cz = az * len * s + offZ;
+    for (let t = 0; t < perRing && idx < particleCount; t++) {
+      const theta = (t / perRing) * Math.PI * 2;
+      // Point on the coil centreline at this angle...
+      const px = cx + radius * (Math.cos(angle) * ux + Math.sin(angle) * vx);
+      const py = cy + radius * (Math.cos(angle) * uy + Math.sin(angle) * vy);
+      const pz = cz + radius * (Math.cos(angle) * uz + Math.sin(angle) * vz);
+      // ...pushed out onto a thin tube around it so the coil has body.
+      const jitter = 0.6 + hash01(idx) * 0.8;
+      const fx = px + Math.cos(theta) * tubeR * jitter;
+      const fy = py + Math.sin(theta) * tubeR * jitter * 0.7;
+      const fz = pz + Math.sin(theta) * tubeR * jitter;
+      positions[idx * 3]     = fx;
+      positions[idx * 3 + 1] = fy * cosX - fz * sinX;
+      positions[idx * 3 + 2] = fy * sinX + fz * cosX;
+      sizes[idx] = 0.38 + hash01(idx + 31) * 0.22;
+      idx++;
+    }
+  }
+  return { positions, sizes };
+};
+
+const HERO_HELIX = new ShapeDefinition(
+  'hero-helix',
+  heroHelixGenerator,
+  {
+    turns: 3.5,          // "3-4 visible coil turns"
+    // The brief says "tilted 20-25 degrees from vertical". Taken literally
+    // (22) the axis stays almost straight up the screen, so the coil sweeps
+    // side-to-side ACROSS the picture plane and reads as a flat meander
+    // rather than something receding — verified by rendering it. What the
+    // brief is actually describing ("recedes into depth", "successive turns
+    // compress toward the upper frame through foreshortening") needs the
+    // axis pointing substantially AWAY from the camera. Measured from the
+    // view direction instead of from screen-vertical, ~20-25 degrees is
+    // this: mostly into -Z, rising as it goes.
+    tiltDeg: 22,         // the flatter, more open coil (the earlier take)
+    axisLength: 13,
+    radius: 3.1,         // wide relative to pitch (13/3.5 = 3.7 per turn)
+    radiusTaper: 0.55,   // "slight radius taper toward the far end"
+    tubeRadius: 0.42,
+    tubeDensity: 26,
+    zoom: 1.6,           // scales the coil and its offsets together
+    tiltXDeg: -15,       // top away from viewer, bottom toward
+    // Left ~42% of the viewport. Half-width at z=0 with fov 75 / z=8 is
+    // ~6.1 world units, so this sits the coil left of centre without
+    // needing the CSS canvas offset the old hero shape relies on.
+    offsetX: -3.4,       // multiplied by zoom above
+    offsetY: -4.2,
+    offsetZ: 1.5,
+  }
+);
+
+
+// COLLAPSE — the deliberate opposite of DISPERSED. Where dispersed throws
+// every particle out to a wide random cloud, this pulls the whole field
+// into one tight knot near the origin: the shape the system holds while it
+// is faded out, so that fading back IN reads as something unfolding rather
+// than a cloud that was always there.
+//
+// Not literally a point. A zero-radius cluster renders as a single blob of
+// overdraw and loses all internal structure, so there is a small radius
+// with a cubed falloff — density concentrated hard at the centre, a thin
+// scatter of stragglers further out. That reads as "collapsed" while still
+// giving the morph something to interpolate between.
+const collapseGenerator = (particleCount, config) => {
+  const positions = new Float32Array(particleCount * 3);
+  const sizes = new Float32Array(particleCount);
+  const radius = config.radius;
+  const hash01 = (i) => { const x = Math.sin(i * 127.1) * 43758.5453; return x - Math.floor(x); };
+  for (let i = 0; i < particleCount; i++) {
+    const h1 = hash01(i), h2 = hash01(i + 17), h3 = hash01(i + 53);
+    const theta = h1 * Math.PI * 2;
+    const phi = Math.acos(2 * h2 - 1);
+    // Cubed: most particles land very close to the centre.
+    const r = radius * Math.pow(h3, 3);
+    positions[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
+    positions[i * 3 + 1] = r * Math.cos(phi);
+    positions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+    sizes[i] = 0.38 + h1 * 0.22;
+  }
+  return { positions, sizes };
+};
+
+const COLLAPSE = new ShapeDefinition('collapse', collapseGenerator, { radius: 1.6 });
+
 // Shape registry
 class ShapeRegistry {
   constructor() {
@@ -1007,5 +1184,7 @@ if (typeof window !== 'undefined') {
   window.DISPERSED = DISPERSED;
   window.RIBBON = RIBBON;
   window.VOLATILITY = VOLATILITY;
+  window.HERO_HELIX = HERO_HELIX;
+  window.COLLAPSE = COLLAPSE;
   window.loadGLBMesh = loadGLBMesh;
 }

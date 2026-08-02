@@ -5,7 +5,7 @@
 --}}
 {{#post}}
 
-<article class="post" data-post-hero="contained" data-post-id="{{id}}" data-post-tags="{{#foreach tags}}{{slug}}{{#unless @last}},{{/unless}}{{/foreach}}">
+<article class="post" data-post-hero="full" data-post-id="{{id}}" data-post-tags="{{#foreach tags}}{{slug}}{{#unless @last}},{{/unless}}{{/foreach}}">
   {{!-- .post-header-layout is the two-column row: .post-project-summary
         (col 1) beside .post-header (col 2 — EVERYTHING else: title/
         category/excerpt/meta, the feature image, and the logomark all

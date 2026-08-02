@@ -78,12 +78,18 @@ function initCardContentReveal(card) {
 
   if (!titleSplit && !titleEl && bulletItems.length === 0 && keywordItems.length === 0 && testimonialItems.length === 0) return; // nothing left to reveal
 
-  // Repeatable, not one-time: plays every time the card is scrolled down
-  // into view, reverses every time it's scrolled back up out of view — same
-  // isInBottomHalf + isScrollingDown convention card-scroll-reveal.js's own
-  // image/card observers use, not just a bare intersection threshold.
-  // state.revealed (not a plain local var) so window.__cardContentRevealBackfill
-  // below can read/flip it from outside this closure.
+  // One-time, not repeatable: plays once when the card first scrolls down
+  // into view, then unobserves — it used to also reverse every time the
+  // card scrolled back up out of view (same isInBottomHalf +
+  // isScrollingDown convention card-scroll-reveal.js's own image/card
+  // observers use), which read as the whole card "fading out" while
+  // scrolling back toward the top of the page. Fine for decorative
+  // scroll-linked elements (testimonials, about-cards); wrong for work-
+  // grid cards, which should just stay revealed once shown — same call
+  // already made for the outer .post-card-content/.post-card-image wrapper
+  // in card-scroll-reveal.js. state.revealed (not a plain local var) so
+  // window.__cardContentRevealBackfill below can read/flip it from outside
+  // this closure.
   const state = { revealed: false };
   const observer = new IntersectionObserver((entries) => {
     entries.forEach((entry) => {
@@ -137,33 +143,12 @@ function initCardContentReveal(card) {
             delay: 0.2, // trails keywords slightly, same lead-in convention
           });
         }
-      } else {
-        if (__cardRevealScrollingDown || !state.revealed) return;
-        state.revealed = false;
 
-        if (titleSplit) {
-          gsap.to(titleSplit.words, {
-            opacity: 0,
-            y: headingCfg.yOffset,
-            duration: headingCfg.duration,
-            stagger: headingCfg.stagger,
-            ease: 'power2.in',
-          });
-        } else if (titleEl) {
-          gsap.to(titleEl, { opacity: 0, duration: 0.4, ease: 'power2.in' });
-        }
-
-        if (bulletItems.length > 0) {
-          gsap.to(bulletItems, { opacity: 0, y: 12, duration: 0.3, ease: 'power2.in' });
-        }
-
-        if (keywordItems.length > 0) {
-          gsap.to(keywordItems, { opacity: 0, duration: 0.25, ease: 'power2.in' });
-        }
-
-        if (testimonialItems.length > 0) {
-          gsap.to(testimonialItems, { opacity: 0, duration: 0.25, ease: 'power2.in' });
-        }
+        // Reveal once, done — no reverse-on-scroll-up branch anymore (was
+        // here, mirroring the entry animation with opacity:0 tweens; see
+        // the comment above this observer). Unobserving is what actually
+        // guarantees it can't fire again, not just skipping it here.
+        observer.unobserve(card);
       }
     });
   // Top margin (-360px): fires the scroll-up exit/reverse well before the
@@ -217,46 +202,19 @@ window.__cardContentRevealBackfill = (maxDocY) => {
   return count;
 };
 
-// Wires the same "reverse on scroll up, re-reveal on scroll back down"
-// convention initCardContentReveal above uses for title/bullets/keywords/
-// testimonial onto a card's image/video — called once the media has
-// actually completed (or skipped, if cached) its initial load-gated reveal
-// (see showImageFallback / applyCardMeta's video fadeIn below), never
-// before, so there's no risk of this fighting a reveal tween that hasn't
-// started yet. Unlike that content observer, the exit condition here has
-// no isInBottomHalf check — matches card-scroll-reveal.js's own generic
-// imageObserver convention (enter checks bottom-half, exit doesn't).
-function initCardMediaReveal(card, media) {
-  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (!window.gsap || prefersReducedMotion) return;
-  const cfg = window.SCROLL_REVEAL_CONFIG && window.SCROLL_REVEAL_CONFIG.image;
-  if (!cfg) return;
-
-  let hidden = false;
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach((entry) => {
-      const rect = entry.boundingClientRect;
-      const elementCenter = rect.top + rect.height / 2;
-      const isInBottomHalf = elementCenter > window.innerHeight / 2;
-
-      if (entry.isIntersecting) {
-        if (__cardRevealScrollingDown && isInBottomHalf && hidden) {
-          hidden = false;
-          gsap.to(media, { opacity: 1, scale: cfg.scale.end, filter: `blur(${cfg.blur.end}px)`, duration: cfg.duration, ease: cfg.ease });
-        }
-      } else {
-        if (!__cardRevealScrollingDown && !hidden) {
-          hidden = true;
-          gsap.to(media, { opacity: 0, scale: cfg.scale.start, filter: `blur(${cfg.blur.start}px)`, duration: cfg.duration, ease: 'power2.in' });
-        }
-      }
-    });
-  // Top margin (-360px): same "trigger the scroll-up reverse earlier"
-  // tuning as initCardContentReveal's observer above.
-  }, { threshold: 0.1, rootMargin: '-360px 0px -120px 0px' });
-
-  observer.observe(card);
-}
+// Used to wire a "reverse on scroll up, re-reveal on scroll back down"
+// toggle for a card's already-visible image/video (called once the media
+// has completed its initial load-gated reveal — see showImageFallback /
+// applyCardMeta's video fadeIn below — so there was never a "first reveal"
+// here, only a repeatable hide/re-show). Now a no-op: that hide-on-scroll-
+// up behavior read as the whole card fading out on the way back to the
+// top of the page — fine for decorative elements, wrong for work-grid
+// media, which should just stay visible once shown. Same call already
+// made for initCardContentReveal's title/bullets/keywords/testimonial
+// above and for the outer .post-card-content/.post-card-image wrapper in
+// card-scroll-reveal.js. Kept as a no-op (not deleted) so its four call
+// sites don't need touching.
+function initCardMediaReveal() {}
 
 // Hides the skeleton and shows the <img> — the fallback endpoint for
 // every path that ends up WITHOUT a video (no video field, malformed

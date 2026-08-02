@@ -462,6 +462,81 @@ const STYLE_FREE_FLOAT = new ParticleStyleDefinition('free-float', {
 });
 
 
+// BOKEH — the default particle treatment and the one the site ships: a
+// 6-sided bokeh polygon with an HDR-hot core wrapped in a soft additive
+// glow halo. Halftone is its opposite number.
+//
+// This was hardcoded in the fragment shader while halftone was a style,
+// which was backwards — the DEFAULT look is a render treatment like any
+// other. The body below is the original shader text moved verbatim, not
+// rewritten: it DECLARES finalColor/finalAlpha (rather than mixing into a
+// scaffold-provided pair) precisely so the generated shader is character
+// for character what it was. A first attempt that "tidied" it into a
+// mix-over-scaffold form changed the output by ~2.2x brightness for reasons
+// that were not visible by inspection — the fingerprint oracle caught it.
+// Being the BASE layer, it is not itself cross-fadeable; fade halftone in
+// over it instead.
+const STYLE_BOKEH = new ParticleStyleDefinition('bokeh', {
+  progressUniform: null,
+  fragmentBody: `        // Sprite coords: the vertex shader enlarged gl_PointSize by 1.5x to
+        // make room for the glow halo — scale coords back up so the hex
+        // body keeps its original visual size in the sprite's inner region.
+        vec2 p = (gl_PointCoord - vec2(0.5)) * uSpriteScale;
+        float r = length(p);
+        // Halo extends to uGlowRadius in sprite space; the 0.75 floor keeps
+        // the hex body's corners (r ~0.58) safe when the radius is small
+        // (low-end runs radius 0.75 with glow strength 0).
+        if (r > max(uGlowRadius, 0.75)) discard;
+
+        float angle = atan(p.y, p.x);
+        float slice = PI / 3.0;                          // 60 degrees per sector
+        float polyDist = r * cos(mod(angle, slice) - slice * 0.5);
+
+        // polyDist == 0.5 at the hex boundary → mask goes 0→1 inward
+        float bokeh = smoothstep(0.5, 0.3, polyDist);
+        float coreMask = pow(bokeh, 4.0);
+
+        // IN-SPRITE GLOW — the replacement for UnrealBloomPass. A soft
+        // radial halo outside the hex body; additive blending (SrcAlpha,
+        // One) accumulates overlapping halos into the same haze bloom used
+        // to produce, for ~zero cost. This is the DNA-Capital recipe:
+        // additive blending + soft-edged sprites + HDR-hot cores, no post-
+        // processing. Faded to zero before the sprite edge (smoothstep) so
+        // nothing ever clips against the square sprite bounds.
+        // Halo redesign (v2): the first version confined the glow to the
+        // outer ~0.2 of a 1.5x sprite with exp(-4r) falloff — on a typical
+        // 4px particle that is sub-pixel and peaked at ~0.09 alpha:
+        // structurally invisible no matter the strength knob. Now: 2.75x
+        // sprite room, gentle exp(-1.6r) falloff reaching the sprite edge,
+        // and the glow also adds OVER the hex body (halation, like real
+        // bloom) — only 60% suppressed there so the core doesn't blow out.
+        // g normalises distance by the glow radius: the same falloff SHAPE
+        // stretches across whatever extent uGlowRadius sets. (Constants
+        // 2.1 / 0.38 reproduce the previous look exactly at radius 1.3.)
+        float g = r / uGlowRadius;
+        float halo = exp(-g * 2.1)
+                   * (1.0 - bokeh * 0.6)
+                   * smoothstep(1.0, 0.38, g)
+                   * uGlowStrength;
+
+        vec3 coreColor = vColor * 1.8;   // HDR-hot centre; ACES rolls it off
+
+        float alphaBody = pow(bokeh, 2.0) * 0.9;
+        float finalAlpha = min(alphaBody + halo, 1.0);
+        // The early-out that used to live here moved below the style
+        // fragment blocks: a style (halftone) can raise alpha where the
+        // default sprite's is near zero, and discarding first would drop
+        // those fragments before its code ever ran.
+
+        // Weighted colour of the two regions (blending multiplies by
+        // srcAlpha, so each keeps its intended intensity).
+        // max(): the early discard that used to guarantee finalAlpha > 0
+        // moved below (see its comment), so this divide has to defend itself.
+        vec3 finalColor = (mix(vColor, coreColor, coreMask * 0.35) * alphaBody
+                          + vColor * 1.5 * halo) / max(finalAlpha, 0.0001);`,
+});
+
+
 // HALFTONE — printed-dot rendering rather than light sources. The opposite
 // of the default treatment in every respect: hard-edged circles instead of a
 // soft hex bokeh, no glow halo, monochrome instead of per-particle accents,
@@ -562,6 +637,7 @@ const STYLE_HALFTONE = new ParticleStyleDefinition('halftone', {
 if (typeof window !== 'undefined') {
   window.ParticleStyleDefinition = ParticleStyleDefinition;
   window.STYLE_HALFTONE = STYLE_HALFTONE;
+  window.STYLE_BOKEH = STYLE_BOKEH;
   window.STYLE_FREE_FLOAT = STYLE_FREE_FLOAT;
   window.ParticleStyleRegistry = ParticleStyleRegistry;
   window.STYLE_ORB = STYLE_ORB;
@@ -584,6 +660,8 @@ if (typeof window !== 'undefined') {
       // LAST on purpose: free particles ignore whatever the shape styles
       // above did to `pos`, so this must have the final say.
       .register(STYLE_FREE_FLOAT)
-      // Render treatment, so it comes after every displacement style.
+      // Render treatments last. BOKEH before HALFTONE: bokeh establishes
+      // finalColor/finalAlpha and halftone mixes over them.
+      .register(STYLE_BOKEH)
       .register(STYLE_HALFTONE);
 }

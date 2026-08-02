@@ -8,10 +8,41 @@
     @custom.profile_bullet_1/2/3 — tag pills
     @custom.profile_image       — portrait / right-side image (falls back to site cover)
 --}}
+<div class="gradient-frame"
+     data-gradient-frame
+     data-gradient-mode="invert"
+
+     {{!-- BASE WAVE — the 4-colour ramp's animated core. --}}
+     data-gradient-wave-a="#562967"
+     data-gradient-wave-b="#19141E"
+     data-gradient-scale="0.9"
+     data-gradient-speed="0.7"
+
+     {{!-- SECOND WAVE — composited in the same shader (no extra canvas).
+           A DIFFERENT scale is what makes the two cross instead of stack.
+           Omit wave2-a/-b to reuse the base pair at partial opacity. --}}
+     data-gradient-wave2-a="#562967"
+     data-gradient-wave2-b="#19141E"
+     data-gradient-wave2-opacity="0.75"
+     data-gradient-wave2-scale="1.4"
+     data-gradient-wave2-speed="0.45"
+     data-gradient-wave2-center="0.52"
+     data-gradient-wave2-width="0.64"
+
+     {{!-- PARALLAX — viewport-heights of scroll. Opposite signs make the
+           two layers slide past each other; both 0 skips the scroll read. --}}
+     data-gradient-parallax="0.05"
+     data-gradient-wave2-parallax="-0.09"
+
+     {{!-- PALETTE-SHIFT TIMING — ramp length in viewport heights, and the
+           band render resolution (see gradflow-background.js). --}}
+     data-gradient-enter-span="0.5"
+     data-gradient-exit-span="0.5"
+     data-gradient-resolution-scale="0.35">
 
 <section class="profile" id="about" data-section-id="profile" data-home-profile-width="{{@custom.home_profile_width}}" "  data-profile-background="{{@custom.home_profile_background}}">
       <div class="profile-bg">
-    <div class="profile-container"  data-page-content-width="contained">
+    <div class="profile-container"  data-page-content-width="full">
 
       {{!-- LEFT: text content --}}
       <div class="profile-content">
@@ -71,6 +102,6 @@
     </div>{{!-- /.profile-container --}}
 
 </section>{{!-- /.profile --}}
-
+</div>
 
 {{!-- Animation handled by unified scroll-scrub-anim.js via initProfile() --}}

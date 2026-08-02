@@ -16,6 +16,8 @@ doc is entirely about the WebGL system. Don't confuse the two:
 
 | File | Role |
 |---|---|
+| `assets/js/particle-style-definitions.js` | **Motion + render treatment.** `ParticleStyleDefinition` + `ParticleStyleRegistry`, and the built-in styles (orb, terrain, volatility, helix, grid, free-float, halftone). The animation loop COMPOSES its vertex/fragment shaders from this registry at construction — the per-shape GLSL blocks that used to be inlined in the loop now live here. Adding a style is one object in this file and no edits anywhere else. |
+| `assets/js/particle-scroll-director.js` | Continuous scroll-driven choreography (rotation/position/camera/style amounts/shape zones keyed to page progress). Inert until `setTimeline()` is called. Read its header before using the `shape` channel — it collides with the existing triggers. |
 | `assets/js/shape-definitions.js` | Generates the raw `Float32Array` of point positions for each shape ("what does this shape look like at rest"). One generator function + one `ShapeDefinition` per shape. |
 | `assets/js/particle-morph-system.js` | Orchestrator. Owns the shape registry, the state registry (pre-generated position buffers), and `morphTo(shapeKey, durationMs)` — the one public entry point everything else calls to change shape. |
 | `assets/js/particle-animation-loop.js` | The actual Three.js scene: camera, renderer, the vertex/fragment shaders, the `animate()` RAF loop (rotation, pan, mouse easing, per-shape shader uniforms), mouse/click listeners. **Almost everything you'll want to tune lives here.** |
@@ -64,6 +66,13 @@ Modeled on how `grid` was added this thread. Three files, three steps:
    `ScrollTrigger.create(...)` block if you need finer scroll-position
    control (see the Profile→terrain trigger, ~line 463, for the
    "wait for a previous shape to release first" pattern).
+
+> **Note (superseded):** the "add a `u<Shape>Progress` uniform + a shader
+> block + a blend in `animate()`" recipe below describes how this worked
+> before the style registry existed. That is now ONE object in
+> `particle-style-definitions.js` — the registry composes the shader,
+> auto-gates the block, and `styleAmount()` drives the progress uniform.
+> Kept because it explains the shape of the generated code you'll read.
 
 If your shape needs its own continuous shader effect (not just a static
 rest shape), also add: a `u<Shape>Progress` uniform + its shape-driven

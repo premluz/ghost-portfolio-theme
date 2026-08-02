@@ -207,30 +207,28 @@
   </script>
   {{ghost_head}}
   <script>
-    // HOMEPAGE LANDING PRE-HIDE — removed. .home used to be hidden
-    // (html.landing-pending, opacity:0 !important) from before first paint
-    // until page-transition.js's runLandingAnimation() ran on
-    // DOMContentLoaded and un-hid it — but that reveal is now an instant
-    // gsap.set (no animation to protect a flash-of-mid-transition against,
-    // see runLandingAnimation()'s isHome branch and scroll-scrub-anim.js's
-    // initHero()), so the hide-then-JS-reveal round trip was itself the
-    // only remaining gap: nav (not pre-hidden on this same-site path)
-    // would paint immediately while .home sat invisible until
-    // DOMContentLoaded, read as a blink. Letting .home paint normally from
-    // first frame, same as every other element on the page, removes that
-    // gap entirely instead of racing it.
+    // HOMEPAGE LANDING PRE-HIDE — restored: .home has an animated entrance
+    // again (page-transition.js's runLandingAnimation, isHome branch —
+    // fade .home + slide .hero, same values as About's <main> entrance),
+    // so the hide-then-JS-reveal round trip matters again: without a CSS
+    // pre-hide, the raw .home markup paints fully visible for one frame
+    // before DOMContentLoaded-timed JS ever runs — read as a blink. Scoped
+    // to same-site arrival only, same as window.__pageEntranceOwns below —
+    // a fresh landing gets the full preloader choreography instead.
     (function () {
       try {
         var isHome = (location.pathname === '/' || location.pathname === '');
         if (isHome && document.referrer && new URL(document.referrer).origin === location.origin) {
-          // Same-site arrival at home (e.g. About -> Work/logo click) — no
-          // CSS pre-hide needed anymore (see comment above), but
-          // scroll-scrub-anim.js's initHero() still needs to know this ISN'T
+          document.documentElement.classList.add('landing-pending');
+          // Failsafe — same 2.5s pattern as html.main-pending below, so a
+          // stalled/never-firing runLandingAnimation() can't leave the
+          // homepage permanently blank.
+          setTimeout(function () { document.documentElement.classList.remove('landing-pending'); }, 2500);
+          // scroll-scrub-anim.js's initHero() also needs to know this ISN'T
           // a fresh landing, so it can snap the hero particle shape (helix
           // etc.) straight to its resting state instead of replaying the
           // multi-second form-in morph a first visit gets. Read there, never
-          // written back — page-transition.js has no reason to touch this
-          // one (unlike landing-pending, there's no veil to remove).
+          // written back.
           window.__pageEntranceOwns = true;
         }
         if (!isHome) {
@@ -312,8 +310,8 @@
        showed without it). -->
   <div id="page-backdrop" class="page-backdrop"></div>
 
-  <!-- Fixed background gradient layer (fades between colors as you scroll) -->
- <div id="page-gradient" class="page-gradient-bg"></div>
+  <!-- Fixed background gradient layer (fades between colors as you scroll) 
+ <div id="page-gradient" class="page-gradient-bg"></div>-->
 
   <!-- Initialize canvas dimensions on load - DISABLED -->
   <!-- <script>
@@ -467,12 +465,23 @@
     // ground-plane lattice and the helix never forms in the hero;
     // 'helix' restores the original helix and the lattice doesn't mount.
     // Read by particle-morph.hbs, scroll-scrub-anim.js, volatility-surface.js.
+    // 'helix' = the original DNA-style double-tube coil with the default
+    // bokeh/glow particle treatment — the hero as shipped.
+    // 'hero-helix' = the tilted halftone coil (built and registered, but not
+    // in use). Switching this one value is the whole change: the halftone
+    // choreography in particle-morph.hbs is gated on it, so nothing else
+    // needs touching.
     window.HERO_PARTICLE_MODE = 'helix';
     // Both arms used to return 'helix', so the switch above was inert and
     // 'volatility' could never be selected despite being fully built and
     // registered. No behaviour change at the current setting — this just
     // makes the documented switch actually work.
-    window.__heroShape = () => window.HERO_PARTICLE_MODE === 'volatility' ? 'volatility' : 'helix';
+    window.__heroShape = () => {
+      // 'hero-helix' = the tilted, tapering halftone coil (shape-definitions.js).
+      // 'helix' = the original DNA-style double tube. 'volatility' = ground plane.
+      const m = window.HERO_PARTICLE_MODE;
+      return (m === 'volatility' || m === 'hero-helix') ? m : 'helix';
+    };
 
     // PARTICLE SCENARIOS — declarative section→behavior map. Every particle
     // scroll trigger routes through __particleApply(key, builtin, ms), so a
@@ -626,10 +635,19 @@
       // would show the layer only for the sweep to hide it again mid-fade
       // (the reported flash). Only sweep-driven triggers (hero-exit,
       // footer, …) may take ownership and drop the veil. (2) Independent
-      // of the veil: a 'hero' apply landing when the page is well past the
-      // top is stale (its trigger fires at <=8px) — never re-show mid-page.
+      // of the veil: a 'hero' apply landing well past the hero itself is
+      // stale — never re-show mid-page. Threshold scales with the hero's
+      // own height rather than a fixed px value: particle-animation-loop.js's
+      // _updateHeroExit() now calls 'hero' continuously as you scroll back
+      // up through the whole hero (up to ~90% of its height), not just in
+      // the first few px like the ScrollTrigger it replaced, so a fixed
+      // ~150px cutoff would silently drop most of those legitimate calls.
       const veiled = document.documentElement.classList.contains('curtain-restoring');
-      if (key === 'hero' && (veiled || window.scrollY > 150)) return;
+      if (key === 'hero') {
+        const heroEl = document.querySelector('.hero');
+        const heroHeight = heroEl ? heroEl.getBoundingClientRect().height : 800;
+        if (veiled || window.scrollY > heroHeight) return;
+      }
       document.documentElement.classList.remove('curtain-restoring');
       const scen = window.PARTICLE_SCENARIOS[window.PARTICLE_SCENARIO] || {};
       const target = (scen[key] === undefined || scen[key] === '') ? builtinShape : scen[key];

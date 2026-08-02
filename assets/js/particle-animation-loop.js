@@ -97,6 +97,25 @@ class ParticleAnimationLoop {
 
     // Scale camera position for mobile (bring particles closer on small screens)
     this.camera.position.z = this.isMobile ? 14 : 8;  // further back on mobile = smaller shapes, full viewport
+    this._heroBaseCameraZ = this.camera.position.z;
+
+    // HERO-EXIT CHOREOGRAPHY — see _updateHeroCollapseState()/_applyHeroExitVisuals() below for the full
+    // explanation. Element cached once; .hero doesn't move or get replaced.
+    this._heroEl = document.querySelector('.hero');
+    this._heroCollapsed = false;
+    this._heroExitTravelY = 2.5;      // world units scrolled upward over the exit
+    this._heroExitZoomFactor = 0.72;  // camera distance at t=1, as a fraction of base
+    this._heroExitExtraRotation = 1.2; // radians of extra spin added over the exit, on top of ambient auto/mouse rotation
+    // Fraction of the hero's own height the whole exit choreography (and the
+    // collapse trigger) completes within, NOT 1.0 — a separate, pre-existing
+    // trigger (particle-morph.hbs's 'profile' IntersectionObserver) hides
+    // this same layer once .hero's CSS display flips to 'none', which in
+    // practice (confirmed via screenshots at several scroll depths) happens
+    // well before a full hero-height of scroll. Running the buildup across
+    // the full 0-1 range meant most of it played out already hidden behind
+    // that separate trigger. 0.45 was long enough in those screenshots for
+    // the zoom/rotation/travel to read clearly before anything covers it.
+    this._heroExitSpan = 0.45;
 
     // Lighting
     const light = new THREE.AmbientLight(0x00f0ff, 1);
@@ -450,62 +469,10 @@ ${styles.postProjectBlocks()}
       ${styles.fragmentUniformDeclarations()}
 
       void main() {
-        // Sprite coords: the vertex shader enlarged gl_PointSize by 1.5x to
-        // make room for the glow halo — scale coords back up so the hex
-        // body keeps its original visual size in the sprite's inner region.
-        vec2 p = (gl_PointCoord - vec2(0.5)) * uSpriteScale;
-        float r = length(p);
-        // Halo extends to uGlowRadius in sprite space; the 0.75 floor keeps
-        // the hex body's corners (r ~0.58) safe when the radius is small
-        // (low-end runs radius 0.75 with glow strength 0).
-        if (r > max(uGlowRadius, 0.75)) discard;
-
-        float angle = atan(p.y, p.x);
-        float slice = PI / 3.0;                          // 60 degrees per sector
-        float polyDist = r * cos(mod(angle, slice) - slice * 0.5);
-
-        // polyDist == 0.5 at the hex boundary → mask goes 0→1 inward
-        float bokeh = smoothstep(0.5, 0.3, polyDist);
-        float coreMask = pow(bokeh, 4.0);
-
-        // IN-SPRITE GLOW — the replacement for UnrealBloomPass. A soft
-        // radial halo outside the hex body; additive blending (SrcAlpha,
-        // One) accumulates overlapping halos into the same haze bloom used
-        // to produce, for ~zero cost. This is the DNA-Capital recipe:
-        // additive blending + soft-edged sprites + HDR-hot cores, no post-
-        // processing. Faded to zero before the sprite edge (smoothstep) so
-        // nothing ever clips against the square sprite bounds.
-        // Halo redesign (v2): the first version confined the glow to the
-        // outer ~0.2 of a 1.5x sprite with exp(-4r) falloff — on a typical
-        // 4px particle that is sub-pixel and peaked at ~0.09 alpha:
-        // structurally invisible no matter the strength knob. Now: 2.75x
-        // sprite room, gentle exp(-1.6r) falloff reaching the sprite edge,
-        // and the glow also adds OVER the hex body (halation, like real
-        // bloom) — only 60% suppressed there so the core doesn't blow out.
-        // g normalises distance by the glow radius: the same falloff SHAPE
-        // stretches across whatever extent uGlowRadius sets. (Constants
-        // 2.1 / 0.38 reproduce the previous look exactly at radius 1.3.)
-        float g = r / uGlowRadius;
-        float halo = exp(-g * 2.1)
-                   * (1.0 - bokeh * 0.6)
-                   * smoothstep(1.0, 0.38, g)
-                   * uGlowStrength;
-
-        vec3 coreColor = vColor * 1.8;   // HDR-hot centre; ACES rolls it off
-
-        float alphaBody = pow(bokeh, 2.0) * 0.9;
-        float finalAlpha = min(alphaBody + halo, 1.0);
-        // The early-out that used to live here moved below the style
-        // fragment blocks: a style (halftone) can raise alpha where the
-        // default sprite's is near zero, and discarding first would drop
-        // those fragments before its code ever ran.
-
-        // Weighted colour of the two regions (blending multiplies by
-        // srcAlpha, so each keeps its intended intensity).
-        // max(): the early discard that used to guarantee finalAlpha > 0
-        // moved below (see its comment), so this divide has to defend itself.
-        vec3 finalColor = (mix(vColor, coreColor, coreMask * 0.35) * alphaBody
-                          + vColor * 1.5 * halo) / max(finalAlpha, 0.0001);
+        // SCAFFOLD ONLY. Every render treatment — the default bokeh/glow
+        // included — is a style in particle-style-definitions.js. The first
+        // one to run DECLARES finalColor/finalAlpha; later ones mix over
+        // them. Nothing about how a particle looks is hardcoded here.
 ${styles.fragmentBodyBlocks()}
 
         if (finalAlpha <= 0.004) discard;
@@ -781,6 +748,93 @@ ${styles.fragmentBodyBlocks()}
     };
   }
 
+  // HERO-EXIT CHOREOGRAPHY — continuous, scroll-bound. Replaces a discrete
+  // ScrollTrigger (start:8,end:9 — fired ~immediately on any scroll) that
+  // used to flip particles.position/camera.fov straight from their hero
+  // values to their neutral ones the instant the morph away from 'helix'
+  // began, well before the 400ms morph/600ms fade had visually finished —
+  // that abrupt cut was reported as "helix scales down and moves to
+  // centre". heroT below is a plain 0-1 read of how far scroll has gone
+  // through the hero's OWN height (0 at the top of the page, 1 once
+  // scrolled a full hero-height past it) — NOT the "entering from below"
+  // formula ParticleScrollDirector uses for Lab, which assumes the element
+  // starts below the fold; the hero starts already on screen at load.
+  // Position/zoom/rotation now ease continuously with heroT, so by the
+  // time the shape actually flips to 'collapse' (at heroT 0.9, alongside
+  // the existing fade-to-hidden), it's arriving at that cut already
+  // zoomed in, rotated, and mid-fade — not snapping into it.
+  //
+  // heroT<1 also doubles as the gate ParticleScrollDirector's Lab timeline
+  // checks (loop._heroOffsetActive) before writing particles.position —
+  // the two would otherwise fight over the same property, since Lab's
+  // timeline is live for the whole page lifetime, clamped to its t=0
+  // keyframe while still off-screen below.
+  //
+  // Split into two halves, called from two different points in animate():
+  // _updateHeroCollapseState() just measures heroT and fires the shape
+  // flip — cheap (one rect read), and must run even while the layer is
+  // hidden (window.__particleLayerHidden skips the rest of animate() for
+  // cost reasons), otherwise scrolling back up could never be noticed and
+  // the layer would stay hidden forever. _applyHeroExitVisuals() writes
+  // position/camera/rotation from the heroT it measured, and has to run
+  // AFTER the ambient auto-rotation code sets particles.rotation.y (that
+  // code does an absolute `=`, not `+=`, so running this first would have
+  // its rotation addition immediately overwritten) — it's a no-op to run
+  // this while hidden anyway, since nothing is visible to see it.
+  _updateHeroCollapseState() {
+    let heroT = 0;
+    if (this._heroEl) {
+      const r = this._heroEl.getBoundingClientRect();
+      heroT = r.height > 0 ? Math.min(1, Math.max(0, -r.top / r.height)) : 0;
+    }
+    // Rescaled so the buildup reaches its full intended amount by the point
+    // collapse triggers, instead of only ever reaching heroExitSpan's worth
+    // of it — see _heroExitSpan above for why collapse fires that early.
+    this._heroT = Math.min(1, heroT / this._heroExitSpan);
+
+    const shouldCollapse = heroT >= this._heroExitSpan;
+    if (shouldCollapse !== this._heroCollapsed) {
+      this._heroCollapsed = shouldCollapse;
+      if (window.__particleApply && window.particleSystem) {
+        if (shouldCollapse) {
+          window.__particleApply(window.particleSystem, 'hero-exit', 'collapse', 400);
+        } else {
+          const shape = window.__heroShape ? window.__heroShape() : 'helix';
+          window.__particleApply(window.particleSystem, 'hero', shape, 500);
+        }
+      }
+    }
+  }
+
+  _applyHeroExitVisuals() {
+    const heroT = this._heroT || 0;
+    this._heroOffsetActive = heroT < 1;
+    if (this._heroOffsetActive) {
+      const heroOffset = this._getHeroCanvasOffset();
+      const easeInQuad = heroT * heroT; // zoom/rotation build up more sharply near the exit
+      this.particles.position.x = heroOffset.x;
+      this.particles.position.y = heroOffset.y + heroT * this._heroExitTravelY;
+      const zoomedZ = this._heroBaseCameraZ * this._heroExitZoomFactor;
+      this.camera.position.z = this._heroBaseCameraZ + (zoomedZ - this._heroBaseCameraZ) * easeInQuad;
+      this.particles.rotation.y += easeInQuad * this._heroExitExtraRotation;
+      const targetFov = this._getHeroZoomFov(window.innerWidth);
+      if (Math.abs(this.camera.fov - targetFov) > 0.01) {
+        this.camera.fov = targetFov;
+        this.camera.updateProjectionMatrix();
+      }
+    } else {
+      this.particles.position.x = 0;
+      this.particles.position.y = 0;
+      if (Math.abs(this.camera.position.z - this._heroBaseCameraZ) > 0.001) {
+        this.camera.position.z = this._heroBaseCameraZ;
+      }
+      if (Math.abs(this.camera.fov - this._baseFov) > 0.01) {
+        this.camera.fov = this._baseFov;
+        this.camera.updateProjectionMatrix();
+      }
+    }
+  }
+
   // Hero-only zoom: narrows the FOV (not the canvas/CSS) as the viewport
   // narrows, so the helix reads as zooming in on small screens instead of
   // just shrinking with everything else. Linear ramp between two reference
@@ -921,6 +975,12 @@ ${styles.fragmentBodyBlocks()}
 
   animate = () => {
     this._animateRAF = requestAnimationFrame(this.animate);
+    // Runs even while the layer is hidden — it's just a rect read + a few
+    // property writes, nowhere near the cost the hidden-gate below exists
+    // to avoid, and it's the only thing that notices "scrolled back up
+    // through the hero" and un-hides/un-collapses. Skipping it while hidden
+    // would mean scrolling back to the top could never reverse a collapse.
+    if (this.particles) this._updateHeroCollapseState();
     // PARTICLE_SCENARIO 'hide' support: while the layer is faded out
     // (window.__particleLayerHidden, set by __particleApply in default.hbs),
     // skip simulation + render entirely — measured cost of NOT doing this
@@ -1166,30 +1226,7 @@ ${styles.fragmentBodyBlocks()}
       // this.particles.position.x = rotMouseX * panStrength;
       // this.particles.position.y = rotMouseY * panStrength;
 
-      // Hero-only canvas offset: applied at full strength while helix is the
-      // active or incoming shape, and reset to normal as soon as the system
-      // morphs away from helix (e.g., the scroll-initiated hero-exit/hide).
-      // The geometry itself stays centered, so the rotation axis remains inside
-      // the shape.
-      const heroOffsetActive = (this.nextState && this.nextState.id === 'helix') ||
-                               (!this.nextState && this.currentState && this.currentState.id === 'helix');
-      if (heroOffsetActive) {
-        const heroOffset = this._getHeroCanvasOffset();
-        this.particles.position.x = heroOffset.x;
-        this.particles.position.y = heroOffset.y;
-        const targetFov = this._getHeroZoomFov(window.innerWidth);
-        if (Math.abs(this.camera.fov - targetFov) > 0.01) {
-          this.camera.fov = targetFov;
-          this.camera.updateProjectionMatrix();
-        }
-      } else {
-        this.particles.position.x = 0;
-        this.particles.position.y = 0;
-        if (Math.abs(this.camera.fov - this._baseFov) > 0.01) {
-          this.camera.fov = this._baseFov;
-          this.camera.updateProjectionMatrix();
-        }
-      }
+      this._applyHeroExitVisuals();
     }
 
     // SCROLL DIRECTOR — last writer before the draw, on purpose. Everything

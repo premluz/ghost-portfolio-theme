@@ -516,7 +516,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 
-h1 {
+h1, .h1 {
   font-size: var(--text-size-h1);
   line-height: var(--text-line-height-h1);
   letter-spacing: var(--text-letter-spacing-h1);
@@ -606,7 +606,7 @@ p:last-child {
 
 .flexlayout .col  {
   flex: 1 1 min(420px, 48%);
-  margin-top: var(--space-lg);
+  margin-top: var(--space-md);
   padding: var(--space-lg);
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--surface-1) 100%, transparent) !important; 
@@ -2734,7 +2734,15 @@ body.post-template .nav-wrapper {
   line-height: 1.4;
 }
 
-/* Logomark container - desktop only, aligned with content width */
+/* Logomark container - desktop only, aligned with content width.
+   `right` is set live by initLogomarkAnimation() (main.js), measured
+   against .post-header-content's actual right edge — NOT a
+   data-post-hero-tiered `right: calc(...)` rule anymore (removed): that
+   only handled three hardcoded attribute values ('contained'/'wide'/
+   'fullscreen'), and silently left `right` unset — landing the logomark
+   near the LEFT edge instead — for any other value in real use (e.g.
+   'full'). No flash risk from the JS dependency: visibility stays hidden
+   until the same code that sets `right` also reveals it. */
 .logomark-container {
   position: absolute;
   top: -420px;
@@ -2748,19 +2756,6 @@ body.post-template .nav-wrapper {
   visibility: hidden;
   opacity: 0;
   will-change: transform, opacity;
-}
-
-/* Position logomark aligned with post-header content width for each variant */
-.post[data-post-hero='contained'] .logomark-container {
-  right: calc((100% - 1280px) / 2 + var(--content-padding));
-}
-
-.post[data-post-hero='wide'] .logomark-container {
-  right: calc((100% - 1600px) / 2 + var(--content-padding));
-}
-
-.post[data-post-hero='fullscreen'] .logomark-container {
-  right: var(--content-padding);
 }
 
 .logomark-image {
@@ -3876,7 +3871,7 @@ body[data-page-width='full'] .gh-canvas {
 .post-header-layout {
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
+  gap: var(--space-sm);
 }
 
 .post-header-layout > .post-header {
@@ -3922,7 +3917,7 @@ body[data-page-width='full'] .gh-canvas {
   .post-header-layout {
     flex-direction: row;
     align-items: flex-start;
-    gap: var(--space-4xl);
+    gap: var(--space-xl);
   }
 
   .post-project-summary {
@@ -5242,11 +5237,12 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
   margin: 0;
   height: 100%;
   justify-content: flex-end;
-  align-items: flex-start;
+  align-items: flex-end;
   text-align: left;
   /* Container visible — individual line spans animate via scroll-scrub-anim.js */
   opacity: 1;
   filter: blur(0px);
+  text-align: right;
 }
 
 @media (max-width: 1024px) {
@@ -5339,7 +5335,7 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
      visibility:hidden alone kept it fully invisible regardless. Now shows
      immediately like its siblings; initHero()'s gsap.set calls are still
      there but redundant for visibility specifically. */
-  max-width: 820px !important
+  max-width: 880px !important
 }
 
 /* .hero-line / .hero-headline .animate-word: dead now that initHero() no
@@ -8458,13 +8454,13 @@ html.no-anim #particle-morph-demo { display: none !important; }
    be zoomed off-frame the way an offset one can. */
 @media (min-width: 1025px) {
   body:has(.hero) #particle-morph-demo #particles canvas {
-    --particle-hero-canvas-left: -820px;
+    --particle-hero-canvas-left: -420px;
     --particle-hero-canvas-top: 0px;
   }
 }
 @media (min-width: 769px) and (max-width: 1024px) {
   body:has(.hero) #particle-morph-demo #particles canvas {
-    --particle-hero-canvas-left: -900px;
+    --particle-hero-canvas-left: -460px;
     --particle-hero-canvas-top: 0px;
   }
 }
@@ -8516,9 +8512,18 @@ html.curtain-restoring .home {
 }
 
 
-/* html.landing-pending .home pre-hide removed (default.hbs) — .home now
-   paints normally from the first frame; there's no more animated entrance
-   for it to hide-then-reveal around. */
+/* Homepage landing pre-hide, restored — .home has an animated entrance
+   again (page-transition.js's runLandingAnimation, isHome branch: fade
+   .home + slide .hero, same values as About's <main> entrance), so the
+   hide-then-JS-reveal round trip matters again: without this, the raw
+   .home markup would paint fully visible for one frame before
+   DOMContentLoaded-timed JS ever runs. Set in default.hbs's head, scoped
+   to same-site arrival only (a fresh landing gets the full preloader
+   choreography instead); removed by runLandingAnimation() the instant it
+   takes over, same pattern as html.main-pending below. */
+html.landing-pending .home {
+  opacity: 0 !important;
+}
 
 /* Non-home landing pre-hide (work/about/contact/post pages) — same
    mechanism the (now-removed) html.landing-pending rule above used, set
