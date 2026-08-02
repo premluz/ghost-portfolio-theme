@@ -322,6 +322,7 @@ class ParticleAnimationLoop {
       ${styles.vertexUniformDeclarations()}
       ${styles.vertexAttributes().map(a => `attribute float ${a};`).join('\n      ')}
       varying vec3 vColor;
+      ${styles.varyingDeclarations()}
       ${styles.extraDeclarations()}
 
       // ── Ashima simplex noise (3D), public domain ──
@@ -428,6 +429,7 @@ ${styles.colorizeBlocks()}
         // minimum for haze to read on 3-6px particles). 1.0 on low-end
         // devices — no halo, no extra fill.
         gl_PointSize = (0.09 * baseSize * sizeScale * styleSizeMul) * (300.0 / -mvPosition.z) * uDprNorm * uSpriteScale;
+${styles.postProjectBlocks()}
         gl_Position = projectionMatrix * mvPosition;
       }
     `;
@@ -436,9 +438,12 @@ ${styles.colorizeBlocks()}
       #define PI 3.14159265359
 
       varying vec3 vColor;
+      ${styles.varyingDeclarations()}
       uniform float uGlowStrength;
       uniform float uSpriteScale;
       uniform float uGlowRadius;
+      uniform float uDprNorm;
+      ${styles.fragmentUniformDeclarations()}
 
       void main() {
         // Sprite coords: the vertex shader enlarged gl_PointSize by 1.5x to
@@ -486,13 +491,20 @@ ${styles.colorizeBlocks()}
 
         float alphaBody = pow(bokeh, 2.0) * 0.9;
         float finalAlpha = min(alphaBody + halo, 1.0);
-        if (finalAlpha <= 0.004) discard;
+        // The early-out that used to live here moved below the style
+        // fragment blocks: a style (halftone) can raise alpha where the
+        // default sprite's is near zero, and discarding first would drop
+        // those fragments before its code ever ran.
 
         // Weighted colour of the two regions (blending multiplies by
         // srcAlpha, so each keeps its intended intensity).
+        // max(): the early discard that used to guarantee finalAlpha > 0
+        // moved below (see its comment), so this divide has to defend itself.
         vec3 finalColor = (mix(vColor, coreColor, coreMask * 0.35) * alphaBody
-                          + vColor * 1.5 * halo) / finalAlpha;
+                          + vColor * 1.5 * halo) / max(finalAlpha, 0.0001);
+${styles.fragmentBodyBlocks()}
 
+        if (finalAlpha <= 0.004) discard;
         gl_FragColor = vec4(finalColor, finalAlpha);
       }
     `;
@@ -582,6 +594,36 @@ ${styles.colorizeBlocks()}
    * silently produces the wrong bounds if that's not what the caller wants.
    * With no argument, falls back to the live buffer (previous behavior).
    */
+  /**
+   * Explicitly set a style's activity, for styles that are NOT shape-driven
+   * (render modes like halftone, budget knobs like free-float). Shape-driven
+   * styles are handled automatically in animate() via styleAmount().
+   *
+   * Also applies the style's materialState — blending mode and friends are
+   * material state, not uniforms, so they cannot cross-fade; they switch
+   * when the style becomes dominant.
+   */
+  setStyleAmount(key, value) {
+    const style = this.styleRegistry.get && this.styleRegistry.get(key);
+    if (!style || !this.particles) return;
+    const uniformName = style.progressUniform
+      || `u${key.replace(/(^|[-_])(\w)/g, (_, __, c) => c.toUpperCase())}Progress`;
+    const u = this.particles.material.uniforms[uniformName];
+    if (!u) return;
+    u.value = value;
+
+    if (style.materialState) {
+      const dominant = value > 0.5;
+      const mat = this.particles.material;
+      if (style.materialState.blending) {
+        const want = dominant
+          ? (style.materialState.blending === 'normal' ? THREE.NormalBlending : THREE.AdditiveBlending)
+          : THREE.AdditiveBlending;
+        if (mat.blending !== want) mat.blending = want;
+      }
+    }
+  }
+
   /**
    * How active a style is this frame, 0-1. A style is "on" when its key is
    * the current state id; during a morph it blends between the outgoing and

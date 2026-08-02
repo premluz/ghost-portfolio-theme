@@ -3842,46 +3842,63 @@ body[data-page-width='full'] .gh-canvas {
 /* Post header entrance animation */
 /* postHeaderEnter animation moved to GSAP initPostHeaderAnimation() */
 
-/* .post-header-layout is the outer two-column row: .post-project-summary
-   (col 1) beside .post-header (col 2 — title/excerpt/meta, the feature
-   image, AND the logomark, all stacked normally inside it). Chosen over
-   an earlier attempt (.post-header-row, now removed) that put the summary
-   INSIDE .post-header alongside just the title block, with the feature
-   image forced below spanning full width — that read as the summary
-   sitting next to the title only, not next to the whole header.
-   .post-header-layout takes over the jobs .post-header used to do on its
-   own: the content-padding/max-width tiers (see the
-   .post[data-post-hero=...] rules further down, now targeting this class
-   instead) and the position:relative anchor .logomark-container's
-   `right: calc(...)` math needs — that math assumes 100% = the full
-   page-width column, true here, but would be wrong (narrower) if it were
-   still anchored to .post-header once THAT became a flex:1 child sharing
-   the row with a 260px sidebar. Also owns the entrance-animation initial
-   state (blur/fade), moved from .post-header so the whole row — summary
-   included — appears as one unit instead of the sidebar popping in
-   un-animated while only the title column fades. */
+/* .post-header class is reused by THREE templates in two different roles:
+   - page.hbs / page-about.hbs: .post-header is a DIRECT CHILD of the
+     .post-hero article/section — the outer padded/max-width/entrance
+     element itself. No sidebar, no wrapper.
+   - post.hbs: .post-header-layout (new) is the outer two-column row —
+     .post-project-summary (col 1) beside .post-header (col 2 — title/
+     excerpt/meta, the feature image, AND the logomark, all stacked
+     normally inside it, exactly like the standalone case). .post-header
+     here is nested INSIDE .post-header-layout, never a direct child of
+     .post — that's what the `>` combinator below is for: it cleanly
+     separates the two roles with zero override/reset chains, since each
+     selector can only ever match its own template's DOM shape.
+   (Earlier attempt, removed: .post-header-row, which put the summary
+   INSIDE .post-header alongside just the title block, image forced below
+   full-width — read as the summary sitting next to the title only, not
+   next to the whole header.) */
+.post > .post-header,
 .post-header-layout {
   width: 100%;
   padding: 0 var(--content-padding);
   position: relative;
+  /* Initial state for entrance animation — blur/fade (no scale to prevent
+     movement); initPostHeaderAnimation() in main.js targets whichever of
+     these two actually exists on the page. */
   opacity: 0;
   filter: blur(4px);
+}
+
+/* Two-column row — .post-header-layout only (post.hbs). The standalone
+   .post-header (page.hbs/page-about.hbs) keeps plain block stacking for
+   its own .container/.post-image children, exactly as it always has. */
+.post-header-layout {
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
 }
 
-.post-header {
-  /* Flex child (col 2) on desktop — sizing comes from .post-header-layout's
-     row below; no independent width/padding/max-width of its own. */
+.post-header-layout > .post-header {
+  /* Flex child (col 2) — reset the outer-role properties from the shared
+     rule above: .post-header-layout already provides width/padding/
+     position/entrance-state for the whole row, summary included, so
+     applying them AGAIN here would double the inset and leave this
+     element permanently invisible (parent opacity 0 × child's own
+     opacity 0 — GSAP only ever animates the parent). */
+  width: auto;
+  padding: 0;
+  position: static;
+  opacity: 1;
+  filter: none;
   min-width: 0;
 }
 
 .post-header .container {
-  /* No padding here — all padding on .post-header-layout. max-width:none —
-     .container's own global rule (max-width: var(--max-width); margin:0
-     auto) would otherwise re-shrink and re-center it a second time inside
-     .post-header's already-constrained flex-basis. */
+  /* No padding here — all padding on the outer element (.post-header or
+     .post-header-layout, whichever applies). max-width:none — .container's
+     own global rule (max-width: var(--max-width); margin:0 auto) would
+     otherwise re-shrink and re-center it a second time. */
   width: 100%;
   padding: 0;
   max-width: none;
@@ -3913,7 +3930,7 @@ body[data-page-width='full'] .gh-canvas {
     order: -1;
   }
 
-  .post-header {
+  .post-header-layout > .post-header {
     flex: 1;
   }
 }
@@ -4008,11 +4025,13 @@ body[data-page-width='full'] .gh-canvas {
 }
 
 /* Post hero respecting page width — constrain header and image to page width.
-   Targets .post-header-layout (not .post-header, now a flex:1 child inside
-   it): .post-image is a sibling of .container inside .post-header, and
-   .post-header-layout's own content-padding is what insets both the header
-   AND .post-project-summary at once; padding:0 here was stripping that
-   gutter from both. */
+   Two targets, same reasoning as the .post-header-layout block above: the
+   direct-child `.post > .post-header` for the standalone case (page.hbs/
+   page-about.hbs) and `.post-header-layout` for the two-column case
+   (post.hbs) — the `>` combinator keeps them from ever cross-matching.
+   .post-image is a sibling of .container inside .post-header either way,
+   so whichever outer element's content-padding applies insets it too. */
+.post[data-post-hero='respects_page_width'] > .post-header,
 .post[data-post-hero='respects_page_width'] .post-header-layout {
   margin-left: auto;
   margin-right: auto;
@@ -4020,14 +4039,17 @@ body[data-page-width='full'] .gh-canvas {
   padding: 0 var(--content-padding);
 }
 
+body[data-page-width='contained'] .post[data-post-hero='respects_page_width'] > .post-header,
 body[data-page-width='contained'] .post[data-post-hero='respects_page_width'] .post-header-layout {
   max-width: 1280px;
 }
 
+body[data-page-width='wide'] .post[data-post-hero='respects_page_width'] > .post-header,
 body[data-page-width='wide'] .post[data-post-hero='respects_page_width'] .post-header-layout {
   max-width: 1600px;
 }
 
+body[data-page-width='full'] .post[data-post-hero='respects_page_width'] > .post-header,
 body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-header-layout {
   max-width: 1800px;
 }
@@ -4052,8 +4074,12 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-i
 
 /* Post hero pinned to an absolute width tier, independent of the site-wide
    page_width setting — same "contained"/"wide" values as data-page-content-width
-   above, just scoped to .post-header-layout/.post-image instead. See
-   PAGE-WIDTH-SYSTEM.md "Overriding one section's width manually". */
+   above, just scoped to .post-header-layout/.post-image instead (plus the
+   direct-child .post-header target for page.hbs/page-about.hbs's
+   standalone case). See PAGE-WIDTH-SYSTEM.md "Overriding one section's
+   width manually". */
+.post[data-post-hero='contained'] > .post-header,
+.post[data-post-hero='wide'] > .post-header,
 .post[data-post-hero='contained'] .post-header-layout,
 .post[data-post-hero='wide'] .post-header-layout {
   margin-left: auto;
@@ -4062,7 +4088,9 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-i
   padding: 0 var(--content-padding);
 }
 
+.post[data-post-hero='contained'] > .post-header,
 .post[data-post-hero='contained'] .post-header-layout { max-width: 1280px; }
+.post[data-post-hero='wide'] > .post-header,
 .post[data-post-hero='wide'] .post-header-layout { max-width: 1600px; }
 
 .post[data-post-hero='contained'] .post-image,

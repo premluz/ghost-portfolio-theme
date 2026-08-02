@@ -748,9 +748,16 @@ function initHero() {
 function initPostHeaderAnimation() {
   if (typeof gsap === 'undefined') return;
 
+  // .post-header-layout (post.hbs only) is preferred: it's the outer
+  // two-column row (.post-project-summary + .post-header), and animating
+  // it instead of the inner .post-header makes the WHOLE row — sidebar
+  // included — fade/blur in as one unit. page.hbs/page-about.hbs have no
+  // such wrapper, so they fall through to their own .post-header (which
+  // also carries .page-header on those two templates) unchanged.
+  const postHeaderLayout = document.querySelector('.post-header-layout');
   const postHeader = document.querySelector('.post-header');
   const pageHeader = document.querySelector('.page-header');
-  const headerEl = postHeader || pageHeader;
+  const headerEl = postHeaderLayout || postHeader || pageHeader;
   if (!headerEl) return;
 
   // Skip animation on homepage hero (page-header reused there via partials)

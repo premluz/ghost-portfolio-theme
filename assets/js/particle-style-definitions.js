@@ -59,6 +59,17 @@ class ParticleStyleDefinition {
    *   sizeMul       GLSL mutating `styleSizeMul` (starts at 1.0), folded
    *                 into gl_PointSize in the output stage. NOT gated, for
    *                 the same reason as colorize.
+   *   varyings      {vName: 'float'} declared in BOTH shaders, so a style
+   *                 can hand a per-vertex value to its fragment code.
+   *   postProject   GLSL running AFTER mvPosition/gl_PointSize exist. The
+   *                 only place depth-dependent work can happen (mvPosition.z
+   *                 is not available in `sizeMul`). May write gl_PointSize
+   *                 and its own varyings.
+   *   fragmentBody  GLSL in the fragment shader, after the default sprite
+   *                 has produced `finalColor`/`finalAlpha`. Mutates those.
+   *   materialState {blending, depthWrite, ...} applied to the material when
+   *                 this style becomes dominant (progress > 0.5). For state
+   *                 that is not expressible as a uniform.
    *   progressUniform  which uniform animate() drives (default
    *                 `u<Key>Progress`); set null for styles with no
    *                 shape-driven progress.
@@ -72,6 +83,10 @@ class ParticleStyleDefinition {
     this.displace = config.displace || '';
     this.colorize = config.colorize || '';
     this.sizeMul = config.sizeMul || '';
+    this.varyings = config.varyings || {};
+    this.postProject = config.postProject || '';
+    this.fragmentBody = config.fragmentBody || '';
+    this.materialState = config.materialState || null;
     this.amount = config.amount || null;
     this.progressUniform =
       config.progressUniform !== undefined ? config.progressUniform : null;
@@ -190,6 +205,32 @@ ${s.colorize}`)
         // ── style sizeMul: ${s.key} ──
 ${s.sizeMul}`)
       .join('\n');
+  }
+
+  varyingDeclarations() {
+    const lines = [];
+    this.all().forEach((st) => Object.entries(st.varyings)
+      .forEach(([n, t]) => lines.push(`varying ${t} ${n};`)));
+    return lines.join('\n      ');
+  }
+
+  postProjectBlocks() {
+    return this.all().filter((st) => st.postProject)
+      .map((st) => `
+        // ── style postProject: ${st.key} ──
+${st.postProject}`).join('\n');
+  }
+
+  /** Fragment uniforms: same set as the vertex side, THREE shares them. */
+  fragmentUniformDeclarations() {
+    return this.vertexUniformDeclarations();
+  }
+
+  fragmentBodyBlocks() {
+    return this.all().filter((st) => st.fragmentBody)
+      .map((st) => `
+        // ── style fragment: ${st.key} ──
+${st.fragmentBody}`).join('\n');
   }
 
   /** Styles whose progress uniform animate() drives from the current state. */
@@ -420,8 +461,107 @@ const STYLE_FREE_FLOAT = new ParticleStyleDefinition('free-float', {
   sizeMul: `        if (aRoleHash < uFreeFloatRatio) styleSizeMul *= uFreeFloatSizeMul;`,
 });
 
+
+// HALFTONE — printed-dot rendering rather than light sources. The opposite
+// of the default treatment in every respect: hard-edged circles instead of a
+// soft hex bokeh, no glow halo, monochrome instead of per-particle accents,
+// and size/opacity BOTH ramping with depth so the near field reads as
+// discrete resolvable dots and the far field as continuous fine texture.
+// That depth gradient is what produces the monumental quality — it is not a
+// dimming effect, it is a density effect.
+//
+// uHalftoneProgress 0 (default) is exactly the old look: every contribution
+// below multiplies through it, and the fragment path cross-fades, so the two
+// styles can coexist and blend rather than being a hard switch.
+const STYLE_HALFTONE = new ParticleStyleDefinition('halftone', {
+  uniforms: {
+    uHalftoneProgress: { value: 0 },
+    // Depth window the ramps are measured across, in world units from the
+    // camera. Anything nearer than uHalftoneNear gets the near treatment,
+    // anything beyond uHalftoneFar the far one.
+    uHalftoneNear: { value: 6.0 },
+    uHalftoneFar: { value: 26.0 },
+    uHalftoneSizeNear: { value: 3.6 },
+    uHalftoneSizeFar: { value: 0.7 },
+    uHalftoneAlphaNear: { value: 0.65 },
+    uHalftoneAlphaFar: { value: 0.12 },
+    // Screen-space column guard: normalised X beyond which particles fade
+    // out, so the field can never compete with the headline/body copy.
+    // 1.0 disables it.
+    uHalftoneMaskFrom: { value: 1.0 },
+    uHalftoneMaskTo: { value: 1.0 },
+    uHalftoneMaskAlpha: { value: 0.1 },
+    // The dot ink. Explicit, not derived: collapsing the particle colour to
+    // its own luminance produced near-black dots on this palette, because
+    // the base particle colour is already dark. The spec calls for
+    // "background lightness +12-18%", which is a value ABOUT the page, not
+    // about the particle — so it has to be supplied.
+    uHalftoneInk: { value: new THREE.Color(0.62, 0.63, 0.65) },
+  },
+  varyings: { vHalftoneAlpha: 'float' },
+  // NOT shape-driven: there is no state whose id is 'halftone', so the
+  // usual "am I the current shape" blend would pin this at 0 forever. It is
+  // a render mode you switch on — drive it with
+  // loop.setStyleAmount('halftone', 0..1), which tweens the same uniform.
+  progressUniform: null,
+  // Depth-driven size + alpha. Must run postProject: mvPosition.z does not
+  // exist during the sizeMul stage.
+  postProject: `        if (uHalftoneProgress > 0.0001) {
+          float depth = clamp((-mvPosition.z - uHalftoneNear)
+            / max(uHalftoneFar - uHalftoneNear, 0.001), 0.0, 1.0);
+          // gl_PointSize is in DEVICE pixels, and these sizes are authored
+          // in CSS px, so the conversion is devicePixelRatio. uDprNorm is
+          // dpr/2 (the default path wants it pre-halved), hence the *2.0 —
+          // using uDprNorm directly made every dot half the intended size,
+          // which at dpr 1 pushed the far field below one pixel and it
+          // effectively vanished.
+          float htSize = mix(uHalftoneSizeNear, uHalftoneSizeFar, depth) * (uDprNorm * 2.0);
+          gl_PointSize = mix(gl_PointSize, htSize, uHalftoneProgress);
+          vHalftoneAlpha = mix(uHalftoneAlphaNear, uHalftoneAlphaFar, depth);
+
+          // Screen-column guard, in clip space (before the perspective
+          // divide gl_Position implies, so compute NDC x explicitly).
+          vec4 clip = projectionMatrix * mvPosition;
+          float ndcX = clip.x / max(abs(clip.w), 0.0001);
+          float colMix = smoothstep(uHalftoneMaskFrom, uHalftoneMaskTo, ndcX * 0.5 + 0.5);
+          vHalftoneAlpha = mix(vHalftoneAlpha, min(vHalftoneAlpha, uHalftoneMaskAlpha), colMix);
+        }`,
+  // Monochrome: collapse the per-particle accents toward the field's own
+  // base luminance. The accents (violet/pink/sparkle from generateColors)
+  // are exactly what halftone must not have.
+  colorize: `        if (uHalftoneProgress > 0.0001) {
+          // Monochrome by REPLACEMENT, not by desaturation — the violet/pink
+          // accents from generateColors are exactly what halftone must not
+          // have, and desaturating them just yields dark grey.
+          baseColor = mix(baseColor, uHalftoneInk, uHalftoneProgress);
+        }`,
+  // Hard circle, no halo, no HDR core — cross-faded against the default
+  // bokeh sprite so the two styles blend instead of popping.
+  fragmentBody: `        if (uHalftoneProgress > 0.0001) {
+          // NO uSpriteScale here. That factor exists because the DEFAULT
+          // path inflates gl_PointSize to make room for its glow halo, so
+          // its fragment coords have to be scaled back. Halftone REPLACES
+          // gl_PointSize with the exact dot size it wants, so the sprite is
+          // not inflated and applying the factor anyway shrank the visible
+          // disc to ~1/uSpriteScale of the dot — which is why the field
+          // rendered almost invisible.
+          float rHt = length(gl_PointCoord - vec2(0.5));
+          // One-pixel-ish feather only: enough to avoid aliasing, not
+          // enough to read as glow.
+          float disc = 1.0 - smoothstep(0.42, 0.5, rHt);
+          float htAlpha = disc * vHalftoneAlpha;
+          finalColor = mix(finalColor, vColor, uHalftoneProgress);
+          finalAlpha = mix(finalAlpha, htAlpha, uHalftoneProgress);
+        }`,
+  // Printed dots do not accumulate like light. Applied when halftone is the
+  // dominant style — blending is material state, not a uniform, so it
+  // cannot cross-fade; 0.5 is the switch point.
+  materialState: { blending: 'normal' },
+});
+
 if (typeof window !== 'undefined') {
   window.ParticleStyleDefinition = ParticleStyleDefinition;
+  window.STYLE_HALFTONE = STYLE_HALFTONE;
   window.STYLE_FREE_FLOAT = STYLE_FREE_FLOAT;
   window.ParticleStyleRegistry = ParticleStyleRegistry;
   window.STYLE_ORB = STYLE_ORB;
@@ -443,5 +583,7 @@ if (typeof window !== 'undefined') {
       .register(STYLE_GRID)
       // LAST on purpose: free particles ignore whatever the shape styles
       // above did to `pos`, so this must have the final say.
-      .register(STYLE_FREE_FLOAT);
+      .register(STYLE_FREE_FLOAT)
+      // Render treatment, so it comes after every displacement style.
+      .register(STYLE_HALFTONE);
 }
