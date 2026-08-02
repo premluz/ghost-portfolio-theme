@@ -12,6 +12,9 @@
       the loop composes its vertex shader from this registry at construction.
       Shapes say where particles rest; styles say how they move. --}}
 <script src="{{asset 'js/particle-style-definitions.js'}}"></script>
+{{!-- Continuous scroll-driven choreography. Inert until a timeline is set;
+      existing morphTo triggers are untouched. --}}
+<script src="{{asset 'js/particle-scroll-director.js'}}"></script>
 <script src="{{asset 'js/particle-animation-loop.js'}}"></script>
 <script src="{{asset 'js/particle-morph-system.js'}}"></script>
 

@@ -143,6 +143,10 @@ class ParticleAnimationLoop {
     // in the same RAF tick as blendStates() — avoids RAF desync.
     this._rafCallbacks = [];
 
+    // Inert until someone calls setTimeline() — see the apply() call site
+    // just before the draw in animate().
+    this.scrollDirector = window.particleScrollDirector || null;
+
     this.setupMouse();
     this.setupClick();
     this.setupResize();
@@ -1187,6 +1191,16 @@ ${styles.fragmentBodyBlocks()}
         }
       }
     }
+
+    // SCROLL DIRECTOR — last writer before the draw, on purpose. Everything
+    // above (auto-rotation, mouse tilt, the hero offset) writes
+    // particles.rotation/position every frame, so a director hooked into
+    // _rafCallbacks (which run AFTER the draw) would have its values
+    // overwritten before they were ever rendered. Applying here is the only
+    // point where "scroll decides the scene" actually wins.
+    // No-op unless a timeline has been configured — see
+    // particle-scroll-director.js.
+    if (this.scrollDirector) this.scrollDirector.apply(this);
 
     // Half-rate low-end rendering removed (2026-07-17): it existed for the
     // bloom/CPU-morph era. With the fine-particle profile + dpr 1, low-end
