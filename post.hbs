@@ -6,39 +6,44 @@
 {{#post}}
 
 <article class="post" data-post-hero="contained" data-post-id="{{id}}" data-post-tags="{{#foreach tags}}{{slug}}{{#unless @last}},{{/unless}}{{/foreach}}">
-  <header class="post-header">
-    {{!-- .post-header-row wraps ONLY the two-column pair (summary +
-          container) — .post-header itself stays a plain block so
-          .post-image/.logomark-container below still stack full-width in
-          normal flow instead of being pulled into a row as a third flex
-          item (that's exactly what happened when .post-header itself was
-          made the flex container: .container collapsed to 0 width). --}}
-    <div class="post-header-row">
-      {{!-- Role/contributions summary from projectMeta (post code injection)
-            — dedicated .role-overview classes (not the shared .flexlayout
-            card pattern, and not the old .flexlayout2/.col markup, which had
-            no matching CSS at all). A sibling of .container, not nested
-            inside it alongside .post-header-content — the two-column split
-            is .post-header-row's own row layout (see main.css), so
-            .container stays a plain max-width wrapper like everywhere else
-            it's used. order:-1 moves this column before .container visually
-            without reordering the DOM — H1 stays the first reading-order
-            heading for accessibility/SEO. Hidden by default (main.css);
-            displayProjectMetadata() below reveals it only once
-            meta.role/meta.contributions actually exist. --}}
-      <div class="post-project-summary mt-0 mb-0 mr-0 ml-0 kg-width-wide" style="padding:0;" id="post-project-summary">
-        <div class="role-overview">
-          <div class="role-overview-block">
-            <span class="text-eyebrow">My Role</span>
-            <div class="post-project-role" id="post-project-role"></div>
-          </div>
-          <div class="role-overview-block">
-            <span class="text-eyebrow">What I owned</span>
-            <div class="post-project-contributions" id="post-project-contributions"></div>
-          </div>
+  {{!-- .post-header-layout is the two-column row: .post-project-summary
+        (col 1) beside .post-header (col 2 — EVERYTHING else: title/
+        category/excerpt/meta, the feature image, and the logomark all
+        stack normally inside it). This replaces an earlier attempt
+        (.post-header-row) that put the summary INSIDE .post-header
+        alongside just the title block, with the image forced below
+        spanning full width — that read as the summary sitting next to
+        the title only, not next to the whole header. .logomark-container
+        lives here too (not inside .post-header): its CSS positions it
+        with `right: calc((100% - 1280px) / 2 + ...)`, which assumes 100%
+        = the full page-width column: correct when its containing block
+        is .post-header-layout (this element), wrong (narrower) if it
+        were .post-header, now a flex:1 child sharing the row with the
+        260px sidebar. --}}
+  <div class="post-header-layout">
+    {{!-- Role/contributions summary from projectMeta (post code injection)
+          — dedicated .role-overview classes (not the shared .flexlayout
+          card pattern, and not the old .flexlayout2/.col markup, which had
+          no matching CSS at all). order:-1 (main.css) moves this column
+          before .post-header visually without reordering the DOM — H1
+          stays the first reading-order heading for accessibility/SEO.
+          Hidden by default (main.css); displayProjectMetadata() below
+          reveals it only once meta.role/meta.contributions actually
+          exist. --}}
+    <div class="post-project-summary mt-0 mb-0 mr-0 ml-0 kg-width-wide" style="padding:0;" id="post-project-summary">
+      <div class="role-overview">
+        <div class="role-overview-block">
+          <span class="text-eyebrow">My Role</span>
+          <div class="post-project-role" id="post-project-role"></div>
+        </div>
+        <div class="role-overview-block">
+          <span class="text-eyebrow">What I owned</span>
+          <div class="post-project-contributions" id="post-project-contributions"></div>
         </div>
       </div>
+    </div>
 
+    <header class="post-header">
       <div class="container">
         <div class="post-header-content">
           {{!-- Project category from projectMeta --}}
@@ -62,13 +67,13 @@
           </div>
         </div>
       </div>
-    </div>
 
-    {{#if feature_image}}
-      <figure class="post-image">
-        <img src="{{feature_image}}" alt="{{title}}" loading="lazy" data-skip-reveal>
-      </figure>
-    {{/if}}
+      {{#if feature_image}}
+        <figure class="post-image">
+          <img src="{{feature_image}}" alt="{{title}}" loading="lazy" data-skip-reveal>
+        </figure>
+      {{/if}}
+    </header>
 
     {{!-- Project logomark container --}}
     <div class="logomark-container" id="logomark-container">
@@ -79,7 +84,7 @@
             below, not a fixed delay guess. --}}
       <p class="logomark-date" id="logomark-date"></p>
     </div>
-  </header>
+  </div>
 
   {{!-- Table of Contents --}}
   <aside class="post-toc" aria-label="Table of contents">

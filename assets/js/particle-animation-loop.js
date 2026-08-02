@@ -261,11 +261,38 @@ class ParticleAnimationLoop {
     );
     geo.setAttribute('helixPhi', helixPhiAttr);
 
+    // PARTICLE ROLE — a stable per-particle random in [0,1). A particle is
+    // "free floating" (ignores the shape, drifts on its own) when its hash
+    // falls below uFreeFloatRatio; everything else forms the shape. Encoding
+    // the role as a THRESHOLD against a fixed hash rather than a boolean
+    // means the structure/free split is retunable at runtime from one
+    // uniform, with no buffer rebuild — and because the hash is derived from
+    // the particle INDEX it is identical across every shape, so a particle
+    // keeps its role through a morph instead of flickering between them.
+    // Same sin-based hash as shape-definitions.js/generateColors so roles,
+    // sizes and colour accents stay correlated per index.
+    const roleAttr = new THREE.BufferAttribute(new Float32Array(positions.length / 3), 1);
+    for (let i = 0; i < roleAttr.array.length; i++) {
+      const x = Math.sin(i * 127.1) * 43758.5453;
+      roleAttr.array[i] = x - Math.floor(x);
+    }
+    geo.setAttribute('aRoleHash', roleAttr);
+
     // GPU morph buffers: destination shape + per-frame progress live on the
     // GPU (aTargetPos/aTargetSize + uMorphProgress). Initialised to a copy
     // of the rest state so uMorphProgress = 0 is exactly "no morph".
     geo.setAttribute('aTargetPos', new THREE.BufferAttribute(new Float32Array(posAttr.array), 3));
     geo.setAttribute('aTargetSize', new THREE.BufferAttribute(new Float32Array(geo.attributes.size.array), 1));
+
+    // Styles (motion + per-style uniforms) come from the registry in
+    // particle-style-definitions.js — the five blocks that used to be
+    // hand-inlined below. See that file for the stage contract.
+    this.styleRegistry = (window.createDefaultParticleStyleRegistry
+      ? window.createDefaultParticleStyleRegistry()
+      : { uniforms: () => ({}), vertexAttributes: () => [], vertexUniformDeclarations: () => '',
+          channelDeclarations: () => '', extraDeclarations: () => '', displaceBlocks: () => '',
+          colorizeBlocks: () => '', progressDrivenStyles: () => [] });
+    const styles = this.styleRegistry;
 
     // ShaderMaterial gives us full control — no string-replacement fragility.
     // Vertex shader replicates PointsMaterial's sizeAttenuation in clip space.
@@ -275,7 +302,9 @@ class ParticleAnimationLoop {
     const vertexShader = `
       attribute vec3 color;
       attribute float size;
-      attribute float helixPhi;
+      // helixPhi is NOT declared here — it belongs to the helix STYLE and is
+      // emitted by styles.vertexAttributes() below. Declaring it in both
+      // places is a GLSL redefinition error.
       // GPU morph: destination shape lives on the GPU; uMorphProgress
       // (eased, 0 = resting) mixes toward it per-vertex. One uniform write
       // per frame replaces the old CPU lerp + full-buffer re-upload.
@@ -290,36 +319,10 @@ class ParticleAnimationLoop {
       uniform vec3 uWaveColor;
       uniform bool uPrefersReducedMotion;
       uniform float uTime;
-      uniform float uOrbAmp;
-      uniform float uOrbFreq;
-      uniform float uOrbSpeed;
-      uniform float uLabProgress;
-      uniform float uTerrainAmp;
-      uniform float uTerrainFreq;
-      uniform float uTerrainSpeed;
-      uniform float uTerrainProgress;
-      uniform float uVolatilityAmp;
-      uniform float uVolatilityFreq;
-      uniform float uVolatilitySpeed;
-      uniform float uVolatilityProgress;
-      uniform float uGridProgress;
-      uniform vec2 uMouseWorld;
-      uniform vec2 uClickPos;
-      uniform float uClickTime;
-      uniform float uGridWaveAmp;
-      uniform float uGridWaveFreq;
-      uniform float uGridWaveSpeed;
-      uniform float uGridWaveFalloff;
-      uniform float uGridRippleAmp;
-      uniform float uGridRippleSpeed;
-      uniform float uGridRippleWidth;
-      uniform float uGridRippleLife;
-      uniform float uHelixProgress;
-      uniform float uHelixTubeRadius;
-      uniform float uHelixWaveAmp;
-      uniform float uHelixWaveFreq;
-      uniform float uHelixWaveSpeed;
+      ${styles.vertexUniformDeclarations()}
+      ${styles.vertexAttributes().map(a => `attribute float ${a};`).join('\n      ')}
       varying vec3 vColor;
+      ${styles.extraDeclarations()}
 
       // ── Ashima simplex noise (3D), public domain ──
       // Reached for the Lab/orb state (uOrbAmp * uLabProgress > 0) and the
@@ -381,148 +384,18 @@ class ParticleAnimationLoop {
         vec3 basePos = mix(position, aTargetPos, uMorphProgress);
         float baseSize = mix(size, aTargetSize, uMorphProgress);
 
-        // Lab orb: permanent, non-resolving deformation. Rest positions are
-        // the sphere distribution (see shape-definitions.js's LAB state);
-        // displaced radially by 2-octave simplex noise so folds read as a
-        // handful of large, slow-moving lobes, not high-frequency shimmer.
-        // Gated by uOrbAmp * uLabProgress — zero for every other shape (amp
-        // only ever nonzero while the Lab state is current) and zero while
-        // scrolled away from the Lab section (labProgress), so scrubbing
-        // back re-freezes the orb toward the plain rest sphere. The branch
-        // below also means the 2 extra snoise() calls are skipped entirely
-        // — not just visually zeroed — whenever the orb isn't the active,
-        // in-view shape.
+        // Per-style displacement, composed from the style registry. Each
+        // block reads basePos (never another style's output) and mutates
+        // pos; each is gated on its own activity so an inactive style costs
+        // one uniform-coherent branch. Shared cross-stage values (orbNoise)
+        // are declared as channels.
         vec3 pos = basePos;
-        float orbNoise = 0.0;
-        float orbAmount = uOrbAmp * uLabProgress;
-        if (orbAmount > 0.0001) {
-          float n1 = snoise(basePos * uOrbFreq + uTime * uOrbSpeed) * 0.65;
-          float n2 = snoise(basePos * uOrbFreq * 2.03 + uTime * uOrbSpeed * 1.3 + 11.0) * 0.35;
-          orbNoise = n1 + n2;
-          vec3 dir = normalize(basePos);
-          pos = basePos + dir * orbNoise * orbAmount;
-        }
-
-        // Terrain: the Profile section's counterpart to the Lab orb — also
-        // permanent/non-resolving, but the ground itself moving rather than
-        // an object deforming. Rest positions are the flat X/Z plane (see
-        // shape-definitions.js's TERRAIN state); displaced along Y ONLY,
-        // sampling 2D simplex noise across X/Z with time folded into the
-        // 3rd input (a standard animated-heightfield technique) so the
-        // whole field rolls smoothly rather than each particle jittering
-        // independently. See uTerrainAmp/Freq/Speed's uniform declaration
-        // for the amplitude/pace tuning history — distinctly slower/
-        // broader than the Lab orb, but with proportionally more amplitude
-        // to stay clearly visible against the shared object rotation.
-        float terrainAmount = uTerrainAmp * uTerrainProgress;
-        if (terrainAmount > 0.0001) {
-          float tn1 = snoise(vec3(basePos.x, basePos.z, uTime * uTerrainSpeed) * uTerrainFreq) * 0.7;
-          float tn2 = snoise(vec3(basePos.x, basePos.z, uTime * uTerrainSpeed * 0.6 + 31.0) * uTerrainFreq * 2.1) * 0.3;
-          pos.y += (tn1 + tn2) * terrainAmount;
-        }
-
-        // Volatility: the hero's receding term-structure surface — same
-        // "flat rest position + shader-driven heightfield" split as Terrain
-        // above (see its comment), just for the 'volatility' state instead.
-        // Used to be a single frozen relief snapshot baked into the rest
-        // positions at generation time (shape-definitions.js); now the
-        // ground itself continuously rolls, the same technique, just its
-        // own amp/freq/speed tuning (a much larger, shallower field than
-        // Terrain's compact 13x11 plane, so lower frequency reads right).
-        float volatilityAmount = uVolatilityAmp * uVolatilityProgress;
-        if (volatilityAmount > 0.0001) {
-          float vn1 = snoise(vec3(basePos.x, basePos.z, uTime * uVolatilitySpeed) * uVolatilityFreq) * 0.7;
-          float vn2 = snoise(vec3(basePos.x, basePos.z, uTime * uVolatilitySpeed * 0.6 + 31.0) * uVolatilityFreq * 2.1) * 0.3;
-          pos.y += (vn1 + vn2) * volatilityAmount;
-        }
-
-        // Helix: wavy motion confined EXACTLY to the tube's own surface —
-        // never inside, never outside. helixPhi (per-vertex attribute, see
-        // shape-definitions.js's helixGenerator) is the single combined
-        // angle such that the rest position satisfies
-        // position.xz = ringCenter + tubeRadius*(cos(helixPhi), sin(helixPhi)).
-        // We recover ringCenter algebraically from the rest position itself
-        // (no need to store it), then re-evaluate that SAME circle equation
-        // at a time-animated phi. This is an algebraic identity, not an
-        // approximation: for any phi offset, the result is still exactly
-        // tubeRadius from ringCenter — the surface cannot bulge or cave in,
-        // by construction. Y is left completely untouched (phi has no
-        // effect on it), so it can't distort that axis either.
-        float helixAmount = uHelixProgress;
-        if (helixAmount > 0.0001) {
-          float ringCenterX = basePos.x - uHelixTubeRadius * cos(helixPhi);
-          float ringCenterZ = basePos.z - uHelixTubeRadius * sin(helixPhi);
-          float wave = sin(helixPhi * uHelixWaveFreq + uTime * uHelixWaveSpeed) * uHelixWaveAmp;
-          float animatedPhi = helixPhi + wave * helixAmount;
-          pos.x = ringCenterX + uHelixTubeRadius * cos(animatedPhi);
-          pos.z = ringCenterZ + uHelixTubeRadius * sin(animatedPhi);
-        }
-
-        // Grid: the flat, regular lattice ("technical drawing paper") is
-        // otherwise completely inert — no ambient noise like Lab/Terrain —
-        // so the two effects below are the entire life of this shape.
-        // Gated by uGridProgress the same way orb/terrain are gated by
-        // their own shape-driven progress uniforms (see animate()); zero
-        // cost on every other shape.
-        //
-        // Both effects are deliberately organic/irregular — angle- and
-        // position-dependent simplex noise (the same snoise() Lab/Terrain
-        // already use above) breaks what would otherwise be a
-        // mathematically perfect concentric-circle wavefront/ring, to
-        // match Profile/TERRAIN's organic, non-diagrammatic feel instead
-        // of reading as a clean technical simulation.
-        //
-        // Previous plain-circular version kept below, unused, in case we
-        // want to revert:
-        // float mouseDist = length(position.xz - uMouseWorld);
-        // float mouseWave = sin(mouseDist * uGridWaveFreq - uTime * uGridWaveSpeed)
-        //   * exp(-mouseDist * uGridWaveFalloff);
-        // pos.y += mouseWave * uGridWaveAmp * uGridProgress;
-        // float tSinceClick = uTime - uClickTime;
-        // if (tSinceClick >= 0.0 && tSinceClick < uGridRippleLife) {
-        //   float clickDist = length(position.xz - uClickPos);
-        //   float rippleRadius = tSinceClick * uGridRippleSpeed;
-        //   float ring = exp(-pow((clickDist - rippleRadius) / uGridRippleWidth, 2.0));
-        //   float decay = 1.0 - (tSinceClick / uGridRippleLife);
-        //   pos.y += ring * decay * uGridRippleAmp * uGridProgress;
-        // }
-        if (uGridProgress > 0.0001) {
-          // 1) Mouse-follow wave: radial ripple centered on the cursor's
-          // position projected onto the grid's X/Z plane (uMouseWorld, fed
-          // from the existing eased this.mouseX/this.mouseY in animate() —
-          // see its own comment for the NDC-to-world scale). The distance
-          // carrier is the same sine-with-falloff as before, but its phase
-          // is perturbed by spatial simplex noise so the wavefront wobbles
-          // instead of forming perfect concentric circles.
-          vec2 toMouse = basePos.xz - uMouseWorld;
-          float mouseDist = length(toMouse);
-          float mouseWaveNoise = snoise(vec3(basePos.xz * 0.35, uTime * 0.12)) * 2.5;
-          float mouseWave = sin(mouseDist * uGridWaveFreq - uTime * uGridWaveSpeed + mouseWaveNoise)
-            * exp(-mouseDist * uGridWaveFalloff);
-          pos.y += mouseWave * uGridWaveAmp * uGridProgress;
-
-          // 2) Click ripple: a single expanding, decaying ring seeded at
-          // uClickTime/uClickPos by the click listener in animate()'s
-          // setup. uClickTime starts far in the past (see uniform default)
-          // so the ring is simply never visible before the first click —
-          // no separate "has clicked yet" flag needed. The ring's radius
-          // is perturbed with angle-dependent simplex noise (same
-          // technique as the organic boundary mask in shape-definitions.js)
-          // so the expanding front reads as a wobbly blob, not a
-          // mathematically perfect circle.
-          float tSinceClick = uTime - uClickTime;
-          if (tSinceClick >= 0.0 && tSinceClick < uGridRippleLife) {
-            vec2 toClick = basePos.xz - uClickPos;
-            float clickDist = length(toClick);
-            float clickAngle = atan(toClick.y, toClick.x);
-            float radiusNoise = snoise(vec3(cos(clickAngle) * 2.0, sin(clickAngle) * 2.0, uTime * 0.2))
-              * uGridRippleWidth * 0.8;
-            float rippleRadius = tSinceClick * uGridRippleSpeed + radiusNoise;
-            float ring = exp(-pow((clickDist - rippleRadius) / uGridRippleWidth, 2.0));
-            float decay = 1.0 - (tSinceClick / uGridRippleLife);
-            pos.y += ring * decay * uGridRippleAmp * uGridProgress;
-          }
-        }
+        // Styles multiply into this rather than touching gl_PointSize
+        // directly, so several can compose (see sizeMul slot).
+        float styleSizeMul = 1.0;
+        ${styles.channelDeclarations()}
+${styles.displaceBlocks()}
+${styles.sizeMulBlocks()}
 
         // Lab wave: scroll-driven color shift propagates from top (section entry) downward
         // Distance from wavefront (negative = above wave, positive = below)
@@ -545,10 +418,7 @@ class ParticleAnimationLoop {
           baseColor = mix(color, uWaveColor, waveMix * 0.95);
         }
 
-        // Deformation-weighted bloom: the orb's folds (largest |orbNoise|)
-        // pull further toward the wave hue; calm surface stays at the plain
-        // wave-blended base color. No-op (orbAmount already 0) off-orb.
-        baseColor = mix(baseColor, uWaveColor, abs(orbNoise) * uLabProgress * 0.6);
+${styles.colorizeBlocks()}
 
         vColor = baseColor;
         vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
@@ -557,7 +427,7 @@ class ParticleAnimationLoop {
         // visual size; 2.75x gives the halo ~2.75x the dot's diameter, the
         // minimum for haze to read on 3-6px particles). 1.0 on low-end
         // devices — no halo, no extra fill.
-        gl_PointSize = (0.09 * baseSize * sizeScale) * (300.0 / -mvPosition.z) * uDprNorm * uSpriteScale;
+        gl_PointSize = (0.09 * baseSize * sizeScale * styleSizeMul) * (300.0 / -mvPosition.z) * uDprNorm * uSpriteScale;
         gl_Position = projectionMatrix * mvPosition;
       }
     `;
@@ -691,94 +561,11 @@ class ParticleAnimationLoop {
         // request — folding speed only, uOrbAmp/uOrbFreq (fold size/scale)
         // untouched.
         uTime: { value: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 3.0 : 0 },
-        uOrbAmp: { value: 1.1 },
-        uOrbFreq: { value: 0.4 },
-        uOrbSpeed: { value: 0.225 },
-        uLabProgress: { value: 0 },
-        // Terrain (perpetually-rolling ground plane) — see vertex shader.
-        // uTerrainProgress (0-1) is shape-driven the same way uLabProgress
-        // is (see animate()). History: first tuned slower/broader than Lab
-        // (0.14/0.13, amp 2.4) — read as barely-morphing, indistinguishable
-        // from just the shared object rotation. Matched exactly to Lab's
-        // own values next (0.4/0.45/1.1) to confirm the motion itself
-        // wasn't broken — it wasn't; the earlier version's problem was
-        // amplitude, not pace. Now differentiated again with that lesson
-        // applied: still distinctly slower/broader than Lab (roughly half
-        // the frequency and speed — broad, rolling waves vs Lab's tighter,
-        // faster wobble), but with proportionally MORE amplitude than
-        // Lab's own 1.1, since terrain's field (13×11) is much larger than
-        // Lab's 3-unit-radius sphere — 1.1 units of displacement reads as
-        // strong on that small a sphere, but faint smoothed over a field
-        // 4x wider. ~30% of the field's own width, roughly matching Lab's
-        // ~37%-of-radius proportion, at half the pace.
-        uTerrainAmp: { value: 3.6 },
-        uTerrainFreq: { value: 0.2 },
-        uTerrainSpeed: { value: 0.22 },
-        uTerrainProgress: { value: 0 },
-        // Volatility (receding term-structure surface, hero shape) — see
-        // vertex shader. uVolatilityProgress (0-1) is shape-driven the same
-        // way uTerrainProgress is (see animate()). First tuned gentle/slow
-        // (0.7/0.06/0.12, matching the "never waves" spirit of the frozen
-        // relief this replaces) but confirmed genuinely invisible at that
-        // scale — the grazing camera angle foreshortens Y-displacement into
-        // near-nothing on screen, and it's a sparse point cloud, not a
-        // connected mesh, so subtle motion doesn't read at all. Amp=6 (a
-        // deliberate overshoot test) proved the mechanism itself was
-        // working — dots clearly moved — but looked like undifferentiated
-        // jitter, not a surface. These values are the middle ground: a
-        // clearly visible, coherent moving ridge, confirmed by comparing
-        // screenshots a few seconds apart.
-        uVolatilityAmp: { value: 2.2 },
-        uVolatilityFreq: { value: 0.07 },
-        uVolatilitySpeed: { value: 0.3 },
-        uVolatilityProgress: { value: 0 },
-        // Grid (interactive lattice, "technical drawing paper") — see
-        // vertex shader. uGridProgress (0-1) is shape-driven the same way
-        // uLabProgress/uTerrainProgress are (see animate()). uMouseWorld
-        // and uClickPos/uClickTime are updated every frame in animate(),
-        // not tuning constants — see setupGridInteraction().
-        // uGridWaveAmp/Freq/Speed/Falloff are taste constants for the
-        // continuous mouse-follow ripple; uGridRippleAmp/Speed/Width/Life
-        // are taste constants for the one-shot click pulse.
-        uGridProgress: { value: 0 },
-        uMouseWorld: { value: new THREE.Vector2(0, 0) },
-        uClickPos: { value: new THREE.Vector2(0, 0) },
-        // Starts far in the past so tSinceClick > uGridRippleLife before
-        // any click ever happens — the shader's own life-window check
-        // (tSinceClick < uGridRippleLife) then keeps the ring invisible
-        // with no separate "has clicked yet" flag needed.
-        uClickTime: { value: -1000 },
-        uGridWaveAmp: { value: 0.6 },
-        uGridWaveFreq: { value: 1.2 },
-        uGridWaveSpeed: { value: 2.0 },
-        uGridWaveFalloff: { value: 0.15 },
-        uGridRippleAmp: { value: 1.6 },
-        uGridRippleSpeed: { value: 6.0 },
-        uGridRippleWidth: { value: 1.2 },
-        uGridRippleLife: { value: 2.5 },
-        // Helix (surface-confined wavy motion) — see vertex shader.
-        // uHelixProgress (0-1) is shape-driven the same way uLabProgress/
-        // uTerrainProgress/uGridProgress are (see animate()). uHelixTubeRadius
-        // MUST match helixGenerator's own hardcoded tubeRadius (1.5) — it's
-        // what lets the shader recover each particle's ring center from its
-        // rest position; if the generator's tube radius ever changes, update
-        // this to match or the surface constraint breaks. uHelixWaveFreq is
-        // in "per radian of phi" terms (how many wave crests appear going
-        // once around a tube ring); uHelixWaveAmp is in radians of angular
-        // offset (small, since it's an angle, not a distance — 0.35 rad is
-        // already a very visible wobble at this tube radius); uHelixWaveSpeed
-        // is the animation pace.
-        uHelixProgress: { value: 0 },
-        uHelixTubeRadius: { value: 1.5 },
-        // Wave turned off per explicit "turn off particle movement morphing
-        // on helix" request — amplitude 0 means the shader block still runs
-        // (uHelixProgress still gated/blended each frame, helixPhi still
-        // synced) but produces zero displacement, so helix renders as a
-        // plain static tube again. All the plumbing is left connected —
-        // set this back to a nonzero value (was 0.35) to re-enable.
-        uHelixWaveAmp: { value: 0 },
-        uHelixWaveFreq: { value: 3.0 },
-        uHelixWaveSpeed: { value: 1.4 },
+        // Per-style uniforms (orb/terrain/volatility/helix/grid and their
+        // tuning constants) now live with their style in
+        // particle-style-definitions.js, so a style owns its GLSL and its
+        // defaults in one place instead of two files.
+        ...styles.uniforms(),
       }
     });
 
@@ -795,6 +582,19 @@ class ParticleAnimationLoop {
    * silently produces the wrong bounds if that's not what the caller wants.
    * With no argument, falls back to the live buffer (previous behavior).
    */
+  /**
+   * How active a style is this frame, 0-1. A style is "on" when its key is
+   * the current state id; during a morph it blends between the outgoing and
+   * incoming values using the same eased morphProgress the positions use.
+   * Extracted from five hand-duplicated copies — see the style registry in
+   * particle-style-definitions.js.
+   */
+  styleAmount(key) {
+    const from = this.currentState && this.currentState.id === key ? 1 : 0;
+    const to = this.nextState && this.nextState.id === key ? 1 : 0;
+    return this.morphStartTime ? from + (to - from) * this.morphProgress : from;
+  }
+
   getParticleBounds(positions) {
     if (!positions) {
       if (!this.particles || !this.particles.geometry.attributes.position) {
@@ -1146,52 +946,23 @@ class ParticleAnimationLoop {
     // blends position, so switching into/out of 'lab' ramps amplitude
     // in/out over the same morphDuration instead of snapping.
     if (this.particles) {
-      const fromLab = this.currentState && this.currentState.id === 'lab' ? 1 : 0;
-      const toLab = this.nextState && this.nextState.id === 'lab' ? 1 : 0;
-      const labAmount = this.morphStartTime
-        ? fromLab + (toLab - fromLab) * this.morphProgress
-        : fromLab;
-      this.particles.material.uniforms.uLabProgress.value = labAmount;
-
-      // Terrain undulation amount — same shape-driven pattern as uLabProgress
-      // above (see its comment), just for the 'terrain' state instead.
-      const fromTerrain = this.currentState && this.currentState.id === 'terrain' ? 1 : 0;
-      const toTerrain = this.nextState && this.nextState.id === 'terrain' ? 1 : 0;
-      const terrainAmount = this.morphStartTime
-        ? fromTerrain + (toTerrain - fromTerrain) * this.morphProgress
-        : fromTerrain;
-      this.particles.material.uniforms.uTerrainProgress.value = terrainAmount;
+      // Per-style progress: one helper replaces five near-identical copies
+      // of this from/to blend (lab, terrain, volatility, grid, helix). Each
+      // ramps 0<->1 across a morph the same way blendStates() blends
+      // position, so entering/leaving a style eases instead of snapping.
+      // Driven purely by WHICH SHAPE is current — not by scroll position.
+      this.styleRegistry.progressDrivenStyles().forEach(({ key, uniform }) => {
+        const u = this.particles.material.uniforms[uniform];
+        if (u) u.value = this.styleAmount(key);
+      });
 
       // Terrain-only: push the shape further from the camera so it reads
       // smaller on screen (camera sits at positive Z looking toward the
-      // origin, so a more-negative Z here means further away). Blends via
-      // terrainAmount the same way every other shape-driven value on this
-      // page does, so it eases in/out smoothly across a morph instead of
-      // snapping when entering/leaving the Profile section.
+      // origin, so a more-negative Z here means further away). Blends via the
+      // same amount as every other shape-driven value on this page, so it
+      // eases in/out across a morph instead of snapping.
       const terrainZOffset = -5;
-      this.particles.position.z = terrainZOffset * terrainAmount;
-
-      // Volatility undulation amount — same shape-driven pattern as
-      // uLabProgress/uTerrainProgress above, just for the 'volatility'
-      // state instead. No position offset like Terrain's terrainZOffset:
-      // Volatility's geometry is already authored directly in camera
-      // space (see shape-definitions.js's volatilityGenerator comment),
-      // so it needs no further repositioning when it becomes current.
-      const fromVolatility = this.currentState && this.currentState.id === 'volatility' ? 1 : 0;
-      const toVolatility = this.nextState && this.nextState.id === 'volatility' ? 1 : 0;
-      const volatilityAmount = this.morphStartTime
-        ? fromVolatility + (toVolatility - fromVolatility) * this.morphProgress
-        : fromVolatility;
-      this.particles.material.uniforms.uVolatilityProgress.value = volatilityAmount;
-
-      // Grid interaction amount — same shape-driven pattern as uLabProgress
-      // above (see its comment), just for the 'grid' state instead.
-      const fromGrid = this.currentState && this.currentState.id === 'grid' ? 1 : 0;
-      const toGrid = this.nextState && this.nextState.id === 'grid' ? 1 : 0;
-      const gridAmount = this.morphStartTime
-        ? fromGrid + (toGrid - fromGrid) * this.morphProgress
-        : fromGrid;
-      this.particles.material.uniforms.uGridProgress.value = gridAmount;
+      this.particles.position.z = terrainZOffset * this.styleAmount('terrain');
 
       // Dots amount — same shape-driven pattern, for the 'dots' state.
       // Deliberately NOT fed into uGridProgress/the shader: that uniform

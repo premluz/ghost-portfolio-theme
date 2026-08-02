@@ -20,7 +20,7 @@
    derived from --shift-ink (tokens.css), so the nav pill and badge fills
    follow automatically. */
 :root:has(#work-grid-lab) {
-  --shift-bg: #1B092C;
+  --shift-bg: #1E1825;
   --shift-ink: #ffffff;
   /* White icons on the island, in both themes — the ramp endpoint the nav
      icons' invert() filter interpolates toward (see tokens.css). */

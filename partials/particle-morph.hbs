@@ -8,6 +8,10 @@
 <script src="{{asset 'js/dispersed-variants.js'}}"></script>
 <script src="{{asset 'js/trigger-system.js'}}"></script>
 <script src="{{asset 'js/fade-controller.js'}}"></script>
+{{!-- Styles (motion + render treatment) must load BEFORE the animation loop:
+      the loop composes its vertex shader from this registry at construction.
+      Shapes say where particles rest; styles say how they move. --}}
+<script src="{{asset 'js/particle-style-definitions.js'}}"></script>
 <script src="{{asset 'js/particle-animation-loop.js'}}"></script>
 <script src="{{asset 'js/particle-morph-system.js'}}"></script>
 
