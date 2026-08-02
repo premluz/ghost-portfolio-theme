@@ -1,4 +1,22 @@
 <nav class="gh-navigation" data-nav-layout="{{@custom.nav_layout}}" data-nav-hide-mode="stagger">
+  {{!-- Progressive (variable) blur for the mobile bottom-docked nav — see
+        main.css's .nav-progressive-blur rules. A single CSS layer can only
+        fade a CONSTANT blur radius's opacity (::before/::after above do
+        that, for the color tint) — it can't make the blur radius itself
+        increase continuously. These 5 stacked layers fake that: each one
+        blurs a different, increasing amount and is masked to a different
+        band, so painted together they read as one smooth, continuously
+        strengthening blur toward the bar instead of a flat blurred sheet
+        fading in and out. Desktop-inert (display:none until the same
+        max-width:768px breakpoint everything else here is scoped to).
+        aria-hidden + no pointer-events: purely decorative. --}}
+  <div class="nav-progressive-blur" aria-hidden="true">
+    <div class="nav-blur-layer nav-blur-layer-1"></div>
+    <div class="nav-blur-layer nav-blur-layer-2"></div>
+    <div class="nav-blur-layer nav-blur-layer-3"></div>
+    <div class="nav-blur-layer nav-blur-layer-4"></div>
+    <div class="nav-blur-layer nav-blur-layer-5"></div>
+  </div>
   <div class="nav-wrapper">
     <!-- Logo -->
     <div class="logoandnavwrapper">

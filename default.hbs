@@ -295,8 +295,8 @@
        showed without it). -->
   <div id="page-backdrop" class="page-backdrop"></div>
 
-  <!-- Fixed background gradient layer (fades between colors as you scroll) 
- <div id="page-gradient" class="page-gradient-bg"></div>-->
+  <!-- Fixed background gradient layer (fades between colors as you scroll) -->
+ <div id="page-gradient" class="page-gradient-bg"></div>
 
   <!-- Initialize canvas dimensions on load - DISABLED -->
   <!-- <script>
@@ -459,7 +459,7 @@
     // 'helix' restores the original helix and the lattice doesn't mount.
     // Read by particle-morph.hbs, scroll-scrub-anim.js, volatility-surface.js.
     window.HERO_PARTICLE_MODE = 'helix';
-    window.__heroShape = () => window.HERO_PARTICLE_MODE === 'helix' ? 'helix' : 'helix';
+    window.__heroShape = () => window.HERO_PARTICLE_MODE === 'volatility' ? 'volatility' : 'volatility';
 
     // PARTICLE SCENARIOS — declarative section→behavior map. Every particle
     // scroll trigger routes through __particleApply(key, builtin, ms), so a

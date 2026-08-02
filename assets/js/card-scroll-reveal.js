@@ -62,6 +62,12 @@ const SCROLL_REVEAL_CONFIG = {
   }
 };
 
+// Exposed so other scripts can reuse the same reveal treatment (opacity +
+// scale + blur) without duplicating these tuned values — post-and-cards.js's
+// lazy-loaded card images/videos in particular. Read-only in spirit: nothing
+// outside this file should mutate it.
+window.SCROLL_REVEAL_CONFIG = SCROLL_REVEAL_CONFIG;
+
 function initCardScrollReveal() {
   if (typeof gsap === 'undefined' || typeof ScrollTrigger === 'undefined') return;
 

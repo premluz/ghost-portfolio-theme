@@ -519,8 +519,22 @@
   --nav-bg: rgba(24, 24, 24, 0.7);
   --nav-backdrop-blur: 10px;
   --nav-height: 60px;
-  --nav-gradient: linear-gradient(
-    to bottom,
+  /* Used by the nav's ::before frost-fade layers (both the desktop top bar
+     and the mobile bottom-docked one, main.css) — NOT --nav-bg's other
+     consumer (.sticky-nav::before, an unrelated post-page component). Was
+     a fixed gray (rgba(120,122,128,...)) — same value regardless of theme,
+     so it read as a visible mismatched "band" once the tint stopped being
+     scroll-gated and became always-visible against the hero. Tied to
+     --color-background instead: it's already theme-responsive (dark/light
+     both redefine it), so this reads as a soft veil of the page's own
+     background rather than a foreign-colored stripe, in both themes,
+     without needing its own separate per-theme override below. */
+  --nav-fade-tint: color-mix(in srgb, var(--color-background) 55%, transparent);
+  /* --nav-gradient (a non-mirrored "to bottom" version of this) was removed
+     — the glass effect is bottom-anchored on every viewport width now (not
+     just mobile), so nothing uses the un-mirrored direction anymore. */
+  --nav-gradient-reversed: linear-gradient(
+    to top,
     rgba(33, 36, 35, 0.85) 0%,
     rgba(33, 36, 35, 0.5) 45%,
     rgba(33, 36, 35, 0.28) 70%,
@@ -647,7 +661,13 @@
   --nav-bg: rgba(245, 244, 241, 0.9);
   --nav-backdrop-blur: 10px;
   --nav-height: 60px;
-  --nav-gradient: linear-gradient(to bottom, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.04) 55%, rgba(255, 255, 255, 0.02) 80%, rgba(255, 255, 255, 0) 100%);
+  /* --nav-fade-tint no longer needs a light-theme override — the base
+     :root definition (tokens.css) is tied to --color-background, which
+     this block already redefines below, so it resolves correctly here
+     automatically. */
+  /* --nav-gradient removed — see the dark-theme comment (base :root,
+     tokens.css) for why; the glass effect is bottom-anchored everywhere now. */
+  --nav-gradient-reversed: linear-gradient(to top, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.04) 55%, rgba(255, 255, 255, 0.02) 80%, rgba(255, 255, 255, 0) 100%);
 
   /* Cards */
   --card-bg: var(--surface-2);

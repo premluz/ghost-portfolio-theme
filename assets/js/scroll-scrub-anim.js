@@ -980,11 +980,17 @@ class ScrollScrubAnimationSystem {
       const units = text.split('');
       const elements = [];
       units.forEach((unit) => {
-        if (!unit.trim()) return;
+        // Was `if (!unit.trim()) return;` — silently dropped space
+        // characters entirely (no span created at all, not even a hidden
+        // one), so consecutive words ran together with nothing between
+        // them ("Explorations,AIexperiments"). A space still needs its own
+        // span to occupy that layout space; it just starts fully visible
+        // since there's no glyph to fade in.
+        const isWhitespace = !unit.trim();
         const span = document.createElement('span');
         span.className = 'animate-letter';
         span.style.display = 'inline-block';
-        span.style.opacity = '0';  // Only opacity, parent's visibility controls
+        span.style.opacity = isWhitespace ? '1' : '0';  // Only opacity, parent's visibility controls
         span.textContent = unit;
         el.appendChild(span);
         elements.push(span);

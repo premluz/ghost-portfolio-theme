@@ -108,6 +108,23 @@
     );
   }
 
+  // Hints the browser to start fetching the destination HTML now, in the
+  // background, while the exit animation below is still playing — the real
+  // navigation (window.location.href, at the animation's onComplete) still
+  // has to wait for the animation, but the network+parse work it kicks off
+  // doesn't have to wait for THAT too. Same-tab, same-origin, so a plain
+  // <link rel="prefetch"> is enough; failures (unsupported browser, etc.)
+  // just mean no head start, never a broken transition.
+  function prefetchHref(href) {
+    try {
+      if (document.querySelector(`link[rel="prefetch"][href="${href}"]`)) return;
+      const link = document.createElement('link');
+      link.rel = 'prefetch';
+      link.href = href;
+      document.head.appendChild(link);
+    } catch (err) {}
+  }
+
   // ── Curtain transition (post close button) ─────────────────────────────────
   // No sliding #pt-overlay panel — the close button isn't going "forward"
   // anywhere, it's dismissing back to wherever the post was opened from, at
@@ -119,22 +136,28 @@
     if (animating) return;
     animating = true;
 
+    // Destination is already known synchronously (origin.url, from
+    // closePost()) — no reason to wait for the animation to finish before
+    // starting to warm it up.
+    prefetchHref(href);
+    try { sessionStorage.setItem('curtainReturn', '1'); } catch (err) {}
+
     const pageContent = document.querySelector('main');
 
     const tl = gsap.timeline({
       onComplete: () => {
-        // Read by runCurtainEntrance() on the landing page's DOMContentLoaded —
-        // tells it to fade in from the scrim instead of running the normal
-        // slide-up-from-bottom runLandingAnimation().
-        try { sessionStorage.setItem('curtainReturn', '1'); } catch (err) {}
         window.location.href = href;
       },
     });
 
+    // Durations halved (0.15/0.3 → 0.08/0.18) per explicit "speed it up"
+    // request — scrim stays the longer of the two so it's still fully
+    // opaque (covering the page) by the time main's slide/fade finishes,
+    // same relationship as before, just compressed.
     if (pageContent) {
-      tl.to(pageContent, { y: 200, opacity: 0, duration: 0.15, ease: 'power1.in' }, 0);
+      tl.to(pageContent, { y: 200, opacity: 0, duration: 0.08, ease: 'power1.in' }, 0);
     }
-    tl.to(scrim, { opacity: 1, duration: 0.3, ease: 'power2.in' }, 0);
+    tl.to(scrim, { opacity: 1, duration: 0.18, ease: 'power2.in' }, 0);
   }
 
   // Shared by the close button click and the Escape key (below) — resolves
@@ -205,7 +228,10 @@
       // init settles, and as a final sweep-up. Optional-chained: pages
       // without the reveal system, or loads where it initializes late, are
       // covered by the later calls.
-      const backfill = () => { try { window.__revealBackfill && window.__revealBackfill(); } catch (e) {} };
+      const backfill = () => {
+        try { window.__revealBackfill && window.__revealBackfill(); } catch (e) {}
+        try { window.__cardContentRevealBackfill && window.__cardContentRevealBackfill(); } catch (e) {}
+      };
       setTimeout(backfill, 450);
       setTimeout(backfill, 1200);
       setTimeout(backfill, 2500);
@@ -244,9 +270,11 @@
       setTimeout(stop, 3000); // hard cap regardless
     }
 
+    // Matches runCurtainExit's shortened durations (0.3 → 0.18) — same
+    // "speed it up" request, applied symmetrically to the return reveal.
     const tl = gsap.timeline();
-    if (main) tl.to(main, { opacity: 1, duration: 0.3, ease: 'power1.out', clearProps: 'transform' }, 0);
-    tl.to(scrim, { opacity: 0, duration: 0.3, ease: 'power1.out' }, 0);
+    if (main) tl.to(main, { opacity: 1, duration: 0.18, ease: 'power1.out', clearProps: 'transform' }, 0);
+    tl.to(scrim, { opacity: 0, duration: 0.18, ease: 'power1.out' }, 0);
 
     return true;
   }

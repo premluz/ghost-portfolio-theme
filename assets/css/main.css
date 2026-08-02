@@ -616,6 +616,39 @@ p:last-child {
   padding-top: 0 !important;
 }
 
+/* Role/contributions summary (post.hbs, populated from projectMeta's
+   role/contributions fields) — reuses .flexlayout/.col/.text-eyebrow above
+   rather than a parallel layout. Hidden by default; displayProjectMetadata()
+   in post.hbs reveals it only once there's real content to show. */
+.post-project-summary {
+  display: none;
+}
+
+.post-project-role p,
+.post-project-contributions p {
+  margin: 0 0 var(--space-xs) 0;
+}
+
+.post-project-role p:last-child,
+.post-project-contributions p:last-child {
+  margin-bottom: 0;
+}
+
+/* "3 items in a row" per the reference layout — wraps to additional rows
+   if there are more than 3 contributions rather than forcing them into
+   exactly one row. */
+.post-project-contributions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-sm) var(--space-md);
+}
+
+@media (max-width: 768px) {
+  .post-project-contributions {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 .text-eyebrow {
   color: var(--color-on-surface-variant) !important;
   font-size: var(--text-size-eyebrow) !important;
@@ -1012,62 +1045,150 @@ html {
   overflow: visible;
   opacity: 1;
   animation: none;
-  /* Gradient opacity starts at 0, controlled by JS on scroll */
-  --nav-gradient-opacity: 0;
+  /* Was 0, fading in via JS on scroll (ui-utilities.js's
+     initNavScrollBehavior) — that scroll-gating is commented out for now,
+     so this is a static 1: always on, matching the progressive-blur
+     layers below, which were never scroll-gated in the first place. */
+  --nav-gradient-opacity: 1;
 }
 
-/* Blur fade layer - behind content, creates soft gradient fade */
-.gh-navigation::before {
-  content: '';
-  position: absolute;
-  top: 0;
+/* Multi-layer progressive blur (navigation.hbs) — real stacked elements,
+   not another pseudo-element, because a single CSS layer can only fade a
+   CONSTANT blur radius's opacity in/out (::before/::after below do that,
+   for the color tint); it can't make the blur radius itself increase
+   continuously, which is what reads as "content gradually blurring toward
+   the bar" rather than "a blurred sheet fading in". These 5 elements fake
+   continuous variable blur the way sites like Linear/Vercel do it: each
+   blurs a different, increasing amount and is masked to a different band;
+   painted together (weakest/farthest first, strongest/closest-to-the-bar
+   last, so overlaps compound toward the bar) they read as one smooth ramp.
+   No background-color of their own — purely blur, layered underneath
+   ::before/::after's tint (z-index below, see .nav-progressive-blur below).
+   Bottom-anchored on EVERY viewport width now, including desktop — the
+   actual .gh-navigation shell (Work/Profile/Contact) stays top-docked on
+   desktop; only this glass/blur effect moved to the bottom of the
+   viewport, decoupled from where the nav bar itself sits (per explicit
+   request). Previously desktop was top-anchored and only the
+   max-width:768px block flipped it to the bottom for the mobile bar —
+   that override is gone now that both breakpoints share this same rule. */
+.nav-progressive-blur {
+  display: block;
+  position: fixed;
+  bottom: 0;
   left: 0;
   right: 0;
-  bottom: -16px;
-  /* Blend nav background with shifted palette based on --profile-shift */
-  background-color: color-mix(in srgb, var(--nav-bg), var(--shift-bg, #22262E) calc(var(--profile-shift, 0) * 100%));
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  /* Very smooth fade with many stops to avoid visible banding */
+  height: 196px; /* was 280px — 30% less per explicit request */
+  z-index: -1;
+  pointer-events: none;
+}
+
+.nav-blur-layer {
+  position: absolute;
+  inset: 0;
+}
+
+.nav-blur-layer-1 {
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  mask-image: linear-gradient(to top, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 65%, rgba(0, 0, 0, 0.5) 78%, rgba(0, 0, 0, 0.5) 100%);
+  -webkit-mask-image: linear-gradient(to top, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 65%, rgba(0, 0, 0, 0.5) 78%, rgba(0, 0, 0, 0.5) 100%);
+}
+
+.nav-blur-layer-2 {
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  mask-image: linear-gradient(to top, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 48%, rgba(0, 0, 0, 0.75) 60%, rgba(0, 0, 0, 0.75) 75%, rgba(0, 0, 0, 0) 88%, rgba(0, 0, 0, 0) 100%);
+  -webkit-mask-image: linear-gradient(to top, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 48%, rgba(0, 0, 0, 0.75) 60%, rgba(0, 0, 0, 0.75) 75%, rgba(0, 0, 0, 0) 88%, rgba(0, 0, 0, 0) 100%);
+}
+
+.nav-blur-layer-3 {
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  mask-image: linear-gradient(to top, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 28%, rgba(0, 0, 0, 0.85) 40%, rgba(0, 0, 0, 0.85) 55%, rgba(0, 0, 0, 0) 68%, rgba(0, 0, 0, 0) 100%);
+  -webkit-mask-image: linear-gradient(to top, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 28%, rgba(0, 0, 0, 0.85) 40%, rgba(0, 0, 0, 0.85) 55%, rgba(0, 0, 0, 0) 68%, rgba(0, 0, 0, 0) 100%);
+}
+
+.nav-blur-layer-4 {
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  mask-image: linear-gradient(to top, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.9) 15%, rgba(0, 0, 0, 0.9) 30%, rgba(0, 0, 0, 0) 48%, rgba(0, 0, 0, 0) 100%);
+  -webkit-mask-image: linear-gradient(to top, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.9) 15%, rgba(0, 0, 0, 0.9) 30%, rgba(0, 0, 0, 0) 48%, rgba(0, 0, 0, 0) 100%);
+}
+
+.nav-blur-layer-5 {
+  backdrop-filter: blur(36px);
+  -webkit-backdrop-filter: blur(36px);
+  mask-image: linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 1) 12%, rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, 0) 100%);
+  -webkit-mask-image: linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 1) 12%, rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, 0) 100%);
+}
+
+/* Blur fade layer — tint half of the glass effect. position:fixed (not
+   absolute-relative-to-.gh-navigation like before) since it's now anchored
+   to the viewport's bottom edge regardless of where the actual nav shell
+   sits (top, on desktop) — see .nav-progressive-blur's comment above. */
+.gh-navigation::before {
+  content: '';
+  position: fixed;
+  top: auto;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 196px; /* was 280px — 30% less per explicit request */
+  /* --nav-fade-tint (not --nav-bg): a dark tint over already-dark page
+     content measured as barely perceptible regardless of blur radius
+     (verified via screenshot) — --nav-fade-tint is a lighter wash tied to
+     --color-background instead (tokens.css), so it reads as an actual
+     frosted-glass haze instead of a shadow, in both themes. */
+  background-color: color-mix(in srgb, var(--nav-fade-tint), var(--shift-bg, #22262E) calc(var(--profile-shift, 0) * 100%));
+  backdrop-filter: blur(32px) saturate(160%);
+  -webkit-backdrop-filter: blur(32px) saturate(160%);
+  /* Eases out quickly (was a 0.8-0.9 plateau until 50-60% of the box) —
+     "pull in" the solid-reading portion per explicit request, so this
+     tint hands off to the progressive-blur layers' own gradient quickly
+     instead of staying flat for half the box. */
   mask-image: linear-gradient(
-    to bottom,
+    to top,
     rgba(33, 36, 35, 0.9) 0%,
-    rgba(33, 36, 35, 0.8) 60%,
-    rgba(33, 36, 35, 0.55) 70%,
-    rgba(33, 36, 35, 0.25) 90%,
-    rgba(33, 36, 35, 0) 100%
+    rgba(33, 36, 35, 0.6) 20%,
+    rgba(33, 36, 35, 0.3) 40%,
+    rgba(33, 36, 35, 0.1) 60%,
+    rgba(33, 36, 35, 0) 80%
   );
   -webkit-mask-image: linear-gradient(
-    to bottom,
+    to top,
     rgba(33, 36, 35, 0.9) 0%,
-    rgba(33, 36, 35, 0.8) 50%,
-    rgba(33, 36, 35, 0.55) 70%,
-    rgba(33, 36, 35, 0.25) 85%,
-    rgba(33, 36, 35, 0) 100%
+    rgba(33, 36, 35, 0.6) 20%,
+    rgba(33, 36, 35, 0.3) 40%,
+    rgba(33, 36, 35, 0.1) 60%,
+    rgba(33, 36, 35, 0) 80%
   );
   pointer-events: none;
   z-index: 1;
-  /* Fade based on scroll position - 0 at top, 1 when scrolled */
   opacity: var(--nav-gradient-opacity, 0);
-  /* Smooth transitions for profile shift and opacity changes */
   transition: background-color 0.3s ease-out, opacity 0.3s ease-out;
 }
 
-/* Soft color gradient overlay - adds visual softness */
+/* Soft color gradient overlay - adds visual softness. Same position:fixed/
+   bottom-anchoring rationale as ::before above. */
 .gh-navigation::after {
   content: '';
-  position: absolute;
-  top: 0;
+  position: fixed;
+  top: auto;
   left: 0;
   right: 0;
-  bottom: -30px;
-  /* Blend gradient overlay with shifted palette */
-  background: color-mix(in srgb, var(--nav-gradient), var(--shift-bg, #22262E) calc(var(--profile-shift, 0) * 50%));
-  /* Fade based on scroll position - 0 at top, 1 when scrolled */
+  bottom: 0;
+  height: 147px; /* was 210px — 30% less per explicit request, same ratio to ::before */
+  /* Was color-mix(in srgb, var(--nav-gradient), var(--shift-bg)...) — invalid:
+     color-mix() takes two COLORS, not a gradient image, so the whole
+     declaration was silently dropped and this overlay never actually
+     rendered (confirmed: computed background-image was "none"). Fixed to
+     just use the token directly — --nav-gradient-reversed (not
+     --nav-gradient) since this now fades toward the bottom edge, same
+     mirrored-stops token already used by the mobile bar. */
+  background: var(--nav-gradient-reversed);
   opacity: var(--nav-gradient-opacity, 0);
   pointer-events: none;
   z-index: 0;
-  /* Smooth transitions for profile shift and opacity changes */
   transition: background 0.3s ease-out, opacity 0.3s ease-out;
 }
 
@@ -2243,26 +2364,6 @@ body.post-template .nav-wrapper {
     padding: var(--space-sm) var(--space-md);
   }
 
-  /* Gradient shader at top of screen on mobile (nav is at bottom) */
-  .gh-navigation::before,
-  .gh-navigation::after {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: auto;
-    height: 100px;
-  }
-
-  .gh-navigation::before {
-    bottom: auto;
-  }
-
-  .gh-navigation::after {
-    bottom: auto;
-    height: 75px;
-  }
-
 }
 
 @media (max-width: 480px) {
@@ -2654,6 +2755,25 @@ body.post-template .nav-wrapper {
   width: 60%;
   height: 60%;
   object-fit: contain;
+}
+
+/* Positioned relative to .logomark-container (already position:absolute) —
+   the container itself is a fixed 140x140px box (flex-centered on the
+   image alone), so this sits just below its bottom edge rather than
+   competing with the image for space inside it. Text is set (post.hbs)
+   but kept invisible (each .char span starts at opacity:0) until
+   animateLogomarkDrop() finishes — see logomarkDropComplete. */
+.logomark-date {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin: var(--space-sm) 0 0 0;
+  text-align: center;
+  font-size: var(--text-size-caption);
+  letter-spacing: var(--text-letter-spacing-eyebrow);
+  text-transform: uppercase;
+  color: var(--color-on-surface-variant);
 }
 
 /* Post card metadata */
@@ -3779,7 +3899,7 @@ body[data-page-width='full'] .gh-canvas {
 }
 
 .post-image {
-  margin: var(--space-xl) 0;
+  margin: var(--space-lg) 0;
   padding: 0;
   border-radius: var(--radius-md);
   overflow: hidden;
@@ -3877,7 +3997,7 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-i
 
 .post[data-post-hero='contained'] .post-image,
 .post[data-post-hero='wide'] .post-image {
-  margin: var(--space-xl) auto;
+  margin: var(--space-lg) auto;
   padding: 0;
   width: 100%;
 }

@@ -226,7 +226,28 @@ function initGridCardMetadata() {
     const skeleton = imageEl.querySelector('.card-media-skeleton');
     if (skeleton) skeleton.classList.add('is-hidden');
     const img = imageEl.querySelector('img');
-    if (img) img.classList.add('is-visible');
+    if (!img) return;
+    img.classList.add('is-visible');
+
+    // Same load-gated fade+scale+blur as post-and-cards.js's showImageFallback
+    // (and the SAME window.initCardMediaReveal hookup once it's actually
+    // visible) — .grid-card previously had no reveal animation at all here.
+    const cfg = window.SCROLL_REVEAL_CONFIG && window.SCROLL_REVEAL_CONFIG.image;
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if ((img.complete && img.naturalWidth > 0) || !window.gsap || !cfg || prefersReducedMotion) {
+      if (window.gsap) gsap.set(img, { opacity: 1, scale: 1, filter: 'none' });
+      if (window.initCardMediaReveal) window.initCardMediaReveal(card, img);
+      return;
+    }
+    gsap.set(img, { opacity: 0, scale: cfg.scale.start, filter: `blur(${cfg.blur.start}px)` });
+    gsap.to(img, {
+      opacity: 1,
+      scale: cfg.scale.end,
+      filter: `blur(${cfg.blur.end}px)`,
+      duration: cfg.duration,
+      ease: cfg.ease,
+      onComplete: () => { if (window.initCardMediaReveal) window.initCardMediaReveal(card, img); },
+    });
   };
 
   const loadCardMeta = (card) => {
@@ -319,7 +340,11 @@ function initGridCardMetadata() {
                 inset: '0',
                 objectFit: 'cover',
                 opacity: '0',
-                transition: 'opacity 0.4s ease',
+                // No inline `transition` here (an earlier version had one) —
+                // it fought window.initCardMediaReveal's gsap tweens below,
+                // retriggering a fresh CSS transition on every one of gsap's
+                // per-frame opacity updates. Same fix as post-and-cards.js's
+                // own video element, which never had this transition either.
               });
               const source = document.createElement('source');
               source.src = videoSrc;
@@ -329,15 +354,35 @@ function initGridCardMetadata() {
               video.load();
 
               const skeleton = imageEl.querySelector('.card-media-skeleton');
-              const fadeIn = () => {
-                video.style.opacity = '1';
+              const cfg = window.SCROLL_REVEAL_CONFIG && window.SCROLL_REVEAL_CONFIG.image;
+              const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+              // Same load-gated fade+scale+blur as post-and-cards.js's video
+              // fadeIn, plus the same window.initCardMediaReveal hookup once
+              // actually visible — .grid-card previously just snapped
+              // opacity to 1 with no reveal animation at all.
+              const fadeIn = (instant) => {
                 if (skeleton) skeleton.classList.add('is-hidden');
+                if (instant || !window.gsap || !cfg || prefersReducedMotion) {
+                  if (window.gsap) gsap.set(video, { opacity: 1, scale: 1, filter: 'none' });
+                  else video.style.opacity = '1';
+                  if (window.initCardMediaReveal) window.initCardMediaReveal(card, video);
+                  return;
+                }
+                gsap.set(video, { opacity: 0, scale: cfg.scale.start, filter: `blur(${cfg.blur.start}px)` });
+                gsap.to(video, {
+                  opacity: 1,
+                  scale: cfg.scale.end,
+                  filter: `blur(${cfg.blur.end}px)`,
+                  duration: cfg.duration,
+                  ease: cfg.ease,
+                  onComplete: () => { if (window.initCardMediaReveal) window.initCardMediaReveal(card, video); },
+                });
               };
               // readyState >= 2 (HAVE_CURRENT_DATA): a frame already
               // exists (e.g. served from cache) — fade from here rather
               // than waiting on an event that already fired.
-              if (video.readyState >= 2) fadeIn();
-              else video.addEventListener('loadeddata', fadeIn, { once: true });
+              if (video.readyState >= 2) fadeIn(true);
+              else video.addEventListener('loadeddata', () => fadeIn(false), { once: true });
 
               const videoObserver = new IntersectionObserver((entries) => {
                 entries.forEach(entry => {
@@ -375,6 +420,13 @@ function initGridCardMetadata() {
               card.classList.add('grid-card-disabled');
             }
           }
+
+          // Title/keywords/testimonial+author scroll reveal with reverse —
+          // .grid-card-title/-keywords/-testimonial/-endorser are already
+          // dual-classed with .post-card-* for exactly this reuse (see
+          // post-card-grid.hbs), so the exact same function post-and-cards.js
+          // uses for .post-card works unchanged here.
+          if (window.initCardContentReveal) window.initCardContentReveal(card);
 
           scheduleRefresh();
         } catch (e) {

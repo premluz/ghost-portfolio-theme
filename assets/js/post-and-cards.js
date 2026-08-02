@@ -1,5 +1,263 @@
 (function() { 'use strict';
 
+// Shared scroll-direction tracking for initCardContentReveal below — same
+// isScrollingDown pattern card-scroll-reveal.js uses for its own image/card
+// observers, one listener for every card instead of one per card.
+let __cardRevealScrollingDown = true;
+let __cardRevealLastScrollY = window.scrollY;
+window.addEventListener('scroll', () => {
+  __cardRevealScrollingDown = window.scrollY > __cardRevealLastScrollY;
+  __cardRevealLastScrollY = window.scrollY;
+}, { passive: true });
+
+// Registry of every card processed by initCardContentReveal below, used by
+// window.__cardContentRevealBackfill (see bottom of this function) to
+// force-reveal title/bullets/keywords that a curtain-return's instant
+// scroll jump carried past before their IntersectionObserver ever fired —
+// the same problem card-scroll-reveal.js's own window.__revealBackfill
+// solves for images/cards, but this file's title/bullets/keywords reveal is
+// a separate system with its own state, so it needs its own registry.
+const __cardContentRegistry = [];
+
+// On-scroll reveal for a card's text content (title/bullets/keywords/
+// testimonial), called once from applyCardMeta after the real text is in
+// place — title and bullets can't be pre-split/pre-hidden at page load like
+// a normal heading, since post-and-cards.js's own textContent assignments
+// above would wipe out any word-split spans made before the real text
+// arrived (same class of bug as the video/image and quote-mark races
+// elsewhere in this file). Testimonial + endorser are plain opacity fades,
+// same as the keyword pills — no slide/scale, no dependency on the shared
+// card-scroll-reveal.js system (that one added a race: window.observeCardReveal
+// only exists once main.js's initCardScrollReveal() runs, behind an await
+// chain, so on a curtain-return — where <main> fades back in within ~0.18s,
+// far sooner than that — the text used to flash fully visible first).
+// Everything here is one self-contained observer instead.
+function initCardContentReveal(card) {
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const titleEl = card.querySelector('.post-card-title');
+  const bulletsEl = card.querySelector('.post-card-bullets');
+  const bulletItems = bulletsEl ? Array.from(bulletsEl.children) : [];
+  const keywordsEl = card.querySelector('.post-card-keywords');
+  const keywordItems = keywordsEl ? Array.from(keywordsEl.children) : [];
+  const testimonialEl = card.querySelector('.post-card-testimonial');
+  const endorserEl = card.querySelector('.post-card-endorser');
+  const testimonialItems = [testimonialEl, endorserEl].filter(el => el && el.textContent.trim());
+
+  if (!window.gsap || prefersReducedMotion) return; // title/bullets/keywords/testimonial stay at their normal CSS state — nothing to reveal
+
+  const headingCfg = window.HEADING_ANIM_CONFIG && window.HEADING_ANIM_CONFIG.word;
+  const hasSplitType = typeof SplitType !== 'undefined';
+  let titleSplit = null;
+
+  if (titleEl && titleEl.textContent.trim() && headingCfg) {
+    if (hasSplitType) {
+      // tagName: 'span' (not SplitType's block-level default) — keeps
+      // words inline so normal word-spacing survives, same reasoning as
+      // heading-animations.js's own word-split.
+      titleSplit = new SplitType(titleEl, { types: 'words', tagName: 'span' });
+    }
+    if (titleSplit && titleSplit.words && titleSplit.words.length > 0) {
+      gsap.set(titleSplit.words, { opacity: 0, y: headingCfg.yOffset });
+    } else {
+      titleSplit = null;
+      gsap.set(titleEl, { opacity: 0 });
+    }
+  }
+
+  if (bulletItems.length > 0) {
+    gsap.set(bulletItems, { opacity: 0, y: 12 });
+  }
+
+  if (keywordItems.length > 0) {
+    gsap.set(keywordItems, { opacity: 0 });
+  }
+
+  if (testimonialItems.length > 0) {
+    gsap.set(testimonialItems, { opacity: 0 });
+  }
+
+  if (!titleSplit && !titleEl && bulletItems.length === 0 && keywordItems.length === 0 && testimonialItems.length === 0) return; // nothing left to reveal
+
+  // Repeatable, not one-time: plays every time the card is scrolled down
+  // into view, reverses every time it's scrolled back up out of view — same
+  // isInBottomHalf + isScrollingDown convention card-scroll-reveal.js's own
+  // image/card observers use, not just a bare intersection threshold.
+  // state.revealed (not a plain local var) so window.__cardContentRevealBackfill
+  // below can read/flip it from outside this closure.
+  const state = { revealed: false };
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      const rect = entry.boundingClientRect;
+      const elementCenter = rect.top + rect.height / 2;
+      const isInBottomHalf = elementCenter > window.innerHeight / 2;
+
+      if (entry.isIntersecting) {
+        if (!__cardRevealScrollingDown || !isInBottomHalf || state.revealed) return;
+        state.revealed = true;
+
+        if (titleSplit) {
+          gsap.to(titleSplit.words, {
+            opacity: 1,
+            y: 0,
+            duration: headingCfg.duration,
+            stagger: headingCfg.stagger,
+            ease: headingCfg.ease,
+          });
+        } else if (titleEl) {
+          gsap.to(titleEl, { opacity: 1, duration: 0.6, ease: 'power2.out' });
+        }
+
+        if (bulletItems.length > 0) {
+          gsap.to(bulletItems, {
+            opacity: 1,
+            y: 0,
+            duration: 0.4,
+            stagger: 0.08,
+            ease: 'power2.out',
+            delay: 0.1, // lets the title lead in slightly before bullets follow
+          });
+        }
+
+        if (keywordItems.length > 0) {
+          gsap.to(keywordItems, {
+            opacity: 1,
+            duration: 0.35,
+            stagger: 0.06,
+            ease: 'power2.out',
+            delay: 0.15, // trails bullets slightly, same lead-in convention
+          });
+        }
+
+        if (testimonialItems.length > 0) {
+          gsap.to(testimonialItems, {
+            opacity: 1,
+            duration: 0.35,
+            stagger: 0.08,
+            ease: 'power2.out',
+            delay: 0.2, // trails keywords slightly, same lead-in convention
+          });
+        }
+      } else {
+        if (__cardRevealScrollingDown || !state.revealed) return;
+        state.revealed = false;
+
+        if (titleSplit) {
+          gsap.to(titleSplit.words, {
+            opacity: 0,
+            y: headingCfg.yOffset,
+            duration: headingCfg.duration,
+            stagger: headingCfg.stagger,
+            ease: 'power2.in',
+          });
+        } else if (titleEl) {
+          gsap.to(titleEl, { opacity: 0, duration: 0.4, ease: 'power2.in' });
+        }
+
+        if (bulletItems.length > 0) {
+          gsap.to(bulletItems, { opacity: 0, y: 12, duration: 0.3, ease: 'power2.in' });
+        }
+
+        if (keywordItems.length > 0) {
+          gsap.to(keywordItems, { opacity: 0, duration: 0.25, ease: 'power2.in' });
+        }
+
+        if (testimonialItems.length > 0) {
+          gsap.to(testimonialItems, { opacity: 0, duration: 0.25, ease: 'power2.in' });
+        }
+      }
+    });
+  // Top margin (-100px): fires the scroll-up exit/reverse a bit before the
+  // card is fully gone, rather than waiting until it completely clears the
+  // viewport — matches the "should trigger out slightly earlier" request.
+  // Only affects the exit edge in practice; entry always happens from the
+  // bottom, governed by the existing bottom margin below.
+  }, { threshold: 0.25, rootMargin: '-100px 0px -120px 0px' });
+
+  observer.observe(card);
+
+  __cardContentRegistry.push({ card, titleSplit, titleEl, bulletItems, keywordItems, testimonialItems, headingCfg, state });
+}
+
+// Force-reveal counterpart to card-scroll-reveal.js's window.__revealBackfill,
+// for THIS file's separate title/bullets/keywords reveal system (that
+// registry only tracks images/cards registered via observeCardReveal, not
+// these). Called from page-transition.js's runCurtainEntrance alongside the
+// existing window.__revealBackfill(), same "instant if above the restored
+// viewport, animated if currently on-screen" logic and limit/viewportTop math.
+window.__cardContentRevealBackfill = (maxDocY) => {
+  const limit = (typeof maxDocY === 'number' ? maxDocY : window.scrollY + window.innerHeight) - 40;
+  const viewportTop = window.scrollY;
+  const docTop = (el) => el.getBoundingClientRect().top + window.scrollY;
+  let count = 0;
+  __cardContentRegistry.forEach((entry) => {
+    if (entry.state.revealed || docTop(entry.card) >= limit) return;
+    entry.state.revealed = true;
+    const method = docTop(entry.card) >= viewportTop ? 'to' : 'set';
+
+    if (entry.titleSplit) {
+      gsap[method](entry.titleSplit.words, { opacity: 1, y: 0, ...(method === 'to' ? { duration: entry.headingCfg.duration, stagger: entry.headingCfg.stagger, ease: entry.headingCfg.ease } : {}) });
+    } else if (entry.titleEl) {
+      gsap[method](entry.titleEl, { opacity: 1, ...(method === 'to' ? { duration: 0.6, ease: 'power2.out' } : {}) });
+    }
+
+    if (entry.bulletItems.length > 0) {
+      gsap[method](entry.bulletItems, { opacity: 1, y: 0, ...(method === 'to' ? { duration: 0.4, stagger: 0.08, ease: 'power2.out' } : {}) });
+    }
+
+    if (entry.keywordItems.length > 0) {
+      gsap[method](entry.keywordItems, { opacity: 1, ...(method === 'to' ? { duration: 0.35, stagger: 0.06, ease: 'power2.out' } : {}) });
+    }
+
+    if (entry.testimonialItems.length > 0) {
+      gsap[method](entry.testimonialItems, { opacity: 1, ...(method === 'to' ? { duration: 0.35, stagger: 0.08, ease: 'power2.out' } : {}) });
+    }
+
+    count++;
+  });
+  return count;
+};
+
+// Wires the same "reverse on scroll up, re-reveal on scroll back down"
+// convention initCardContentReveal above uses for title/bullets/keywords/
+// testimonial onto a card's image/video — called once the media has
+// actually completed (or skipped, if cached) its initial load-gated reveal
+// (see showImageFallback / applyCardMeta's video fadeIn below), never
+// before, so there's no risk of this fighting a reveal tween that hasn't
+// started yet. Unlike that content observer, the exit condition here has
+// no isInBottomHalf check — matches card-scroll-reveal.js's own generic
+// imageObserver convention (enter checks bottom-half, exit doesn't).
+function initCardMediaReveal(card, media) {
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!window.gsap || prefersReducedMotion) return;
+  const cfg = window.SCROLL_REVEAL_CONFIG && window.SCROLL_REVEAL_CONFIG.image;
+  if (!cfg) return;
+
+  let hidden = false;
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      const rect = entry.boundingClientRect;
+      const elementCenter = rect.top + rect.height / 2;
+      const isInBottomHalf = elementCenter > window.innerHeight / 2;
+
+      if (entry.isIntersecting) {
+        if (__cardRevealScrollingDown && isInBottomHalf && hidden) {
+          hidden = false;
+          gsap.to(media, { opacity: 1, scale: cfg.scale.end, filter: `blur(${cfg.blur.end}px)`, duration: cfg.duration, ease: cfg.ease });
+        }
+      } else {
+        if (!__cardRevealScrollingDown && !hidden) {
+          hidden = true;
+          gsap.to(media, { opacity: 0, scale: cfg.scale.start, filter: `blur(${cfg.blur.start}px)`, duration: cfg.duration, ease: 'power2.in' });
+        }
+      }
+    });
+  // Top margin (-100px): same "trigger the scroll-up reverse slightly
+  // earlier" tuning as initCardContentReveal's observer above.
+  }, { threshold: 0.1, rootMargin: '-100px 0px -120px 0px' });
+
+  observer.observe(card);
+}
+
 // Hides the skeleton and shows the <img> — the fallback endpoint for
 // every path that ends up WITHOUT a video (no video field, malformed
 // metadata, fetch failure).
@@ -11,20 +269,47 @@ function showImageFallback(card) {
   const img = imageEl.querySelector('img');
   if (!img) return;
 
-  // If the image is already loaded and decoded by the time we know there's
-  // no video for this card, there's nothing left to wait for — skip the
-  // normal 0.4s opacity fade (post-card-grid.css's .post-card-image img
-  // transition) and show it instantly instead of fading in something
-  // that's already fully ready. Still falls back to the normal fade for
-  // images that genuinely haven't finished loading yet.
-  if (img.complete && img.naturalWidth > 0) {
+  const cfg = window.SCROLL_REVEAL_CONFIG && window.SCROLL_REVEAL_CONFIG.image;
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // If the image is already loaded and decoded (cached, or a repeat visit),
+  // there's nothing to reveal — show it instantly, no fade, no matter what.
+  // Also the instant path when gsap/config isn't available or the visitor
+  // prefers reduced motion — never leave the image invisible over that.
+  if ((img.complete && img.naturalWidth > 0) || !window.gsap || !cfg || prefersReducedMotion) {
     img.style.transition = 'none';
     img.classList.add('is-visible');
+    if (window.gsap) gsap.set(img, { scale: 1, filter: 'none' });
     void img.offsetHeight; // flush the style before restoring the transition
     img.style.transition = '';
-  } else {
-    img.classList.add('is-visible');
+    initCardMediaReveal(card, img);
+    return;
   }
+
+  // Genuine first load (below-the-fold, lazy-loaded card that just finished
+  // fetching): matches card-scroll-reveal.js's SCROLL_REVEAL_CONFIG.image
+  // exactly — opacity + scale + blur/duration/ease — the same reveal used
+  // for regular in-content images on a post detail page, instead of
+  // post-card-grid.css's flatter opacity-only transition. (Scale was
+  // dropped in an earlier pass per a "just fade, no scale" request — that
+  // was a misread of the actual goal, which was always to match the post
+  // detail page's image reveal 1:1; restored here.)
+  img.classList.add('is-visible'); // CSS fallback opacity, harmless once gsap drives the inline style
+  // post-card-grid.css's own `transition: opacity 0.4s ease` would otherwise
+  // fight this tween — it retriggers on every one of GSAP's per-frame inline
+  // opacity updates, dragging/lagging GSAP's own easing instead of a single
+  // clean curve. GSAP owns this exclusively for the duration of the tween;
+  // restored after so any later, unrelated opacity change still transitions.
+  img.style.transition = 'none';
+  gsap.set(img, { opacity: 0, scale: cfg.scale.start, filter: `blur(${cfg.blur.start}px)` });
+  gsap.to(img, {
+    opacity: 1,
+    scale: cfg.scale.end,
+    filter: `blur(${cfg.blur.end}px)`,
+    duration: cfg.duration,
+    ease: cfg.ease,
+    onComplete: () => { img.style.transition = ''; initCardMediaReveal(card, img); },
+  });
 }
 
 // Extracted from the old fetchCardMeta so both the batched Content API
@@ -195,7 +480,6 @@ function applyCardMeta(card, rawText, onSettled) {
           inset: '0',
           objectFit: 'cover',
           opacity: '0',
-          transition: 'opacity 0.4s ease',
         });
         const source = document.createElement('source');
         source.src = videoSrc;
@@ -205,12 +489,35 @@ function applyCardMeta(card, rawText, onSettled) {
         video.load();
 
         const skeleton = imageEl.querySelector('.card-media-skeleton');
-        const fadeIn = () => {
-          video.style.opacity = '1';
+        const cfg = window.SCROLL_REVEAL_CONFIG && window.SCROLL_REVEAL_CONFIG.image;
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        // instant: already buffered (readyState>=2 the moment we check,
+        // right after .load() — a cache hit) vs. genuinely still loading,
+        // same distinction as showImageFallback's img.complete check above.
+        const fadeIn = (instant) => {
           if (skeleton) skeleton.classList.add('is-hidden');
+          if (instant || !window.gsap || !cfg || prefersReducedMotion) {
+            if (window.gsap) gsap.set(video, { opacity: 1, scale: 1, filter: 'none' });
+            else video.style.opacity = '1';
+            initCardMediaReveal(card, video);
+            return;
+          }
+          // Matches showImageFallback/card-scroll-reveal.js's generic image
+          // reveal exactly — opacity + scale + blur/duration/ease, same as
+          // a post detail page's in-content images (see showImageFallback's
+          // comment for why scale is back in after an earlier misread).
+          gsap.set(video, { opacity: 0, scale: cfg.scale.start, filter: `blur(${cfg.blur.start}px)` });
+          gsap.to(video, {
+            opacity: 1,
+            scale: cfg.scale.end,
+            filter: `blur(${cfg.blur.end}px)`,
+            duration: cfg.duration,
+            ease: cfg.ease,
+            onComplete: () => initCardMediaReveal(card, video),
+          });
         };
-        if (video.readyState >= 2) fadeIn();
-        else video.addEventListener('loadeddata', fadeIn, { once: true });
+        if (video.readyState >= 2) fadeIn(true);
+        else video.addEventListener('loadeddata', () => fadeIn(false), { once: true });
 
         const videoObserver = new IntersectionObserver((entries) => {
           entries.forEach(entry => {
@@ -278,6 +585,8 @@ function applyCardMeta(card, rawText, onSettled) {
     if (window.projectMetaArray && Array.isArray(window.projectMetaArray)) {
       window.projectMetaArray.push(meta);
     }
+
+    initCardContentReveal(card);
 
     onSettled();
   } catch (e) {
@@ -517,6 +826,13 @@ if (document.readyState === 'loading') {
 
 if (typeof window !== 'undefined') {
   window.initPostCardMetadata = initPostCardMetadata;
+  // Exposed so posts-tabs-grid.js can reuse the exact same title/keywords/
+  // testimonial and image/video reveal-with-reverse system on .grid-card
+  // (Lab grid) — its content elements are already dual-classed with
+  // .post-card-title/.post-card-keywords/.post-card-testimonial/
+  // .post-card-endorser for exactly this purpose, it just never called in.
+  window.initCardContentReveal = initCardContentReveal;
+  window.initCardMediaReveal = initCardMediaReveal;
 }
 
 })();

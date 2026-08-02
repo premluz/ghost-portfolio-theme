@@ -2141,7 +2141,14 @@ function initLogomarkAnimation() {
     // Phase 6: Hold at rest (67.5ms)
     tl.to(logomarkEl, {
       y: landingY,
-      duration: 0.0675
+      duration: 0.0675,
+      onComplete: () => {
+        // Lets post.hbs's own script (which owns #logomark-date, set from
+        // meta.date via post code injection) reveal it letter-by-letter
+        // exactly when the drop+bounce finishes, not a fixed delay guess —
+        // same cross-script event convention as heroEntranceDone.
+        document.dispatchEvent(new CustomEvent('logomarkDropComplete'));
+      },
     });
   }
 }

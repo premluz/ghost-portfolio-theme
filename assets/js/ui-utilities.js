@@ -8,31 +8,31 @@ function initNavScrollBehavior() {
                      window.location.pathname === '/' ||
                      window.location.pathname.endsWith('/index.html');
 
-  // ── Nav gradient fade on scroll ───────────────────────────────────────
-  // Fade the ::after gradient from opacity 0 at top to 1 when scrolled.
-  // Uses CSS custom property --nav-gradient-opacity for smooth control.
-  
-  // Force initial state immediately (before any scroll)
-  const setGradientOpacity = (scrollY) => {
-    const opacity = Math.min(1, scrollY / 100);
-    nav.style.setProperty('--nav-gradient-opacity', opacity);
-  };
-  
-  // Set to 0 immediately on load
-  setGradientOpacity(0);
-  
-  let gradientRafPending = false;
-  const updateNavGradientOpacity = () => {
-    if (gradientRafPending) return;
-    gradientRafPending = true;
-    requestAnimationFrame(() => {
-      gradientRafPending = false;
-      setGradientOpacity(window.scrollY);
-    });
-  };
-  
-  // Update on scroll
-  window.addEventListener('scroll', updateNavGradientOpacity, { passive: true });
+  // ── Nav gradient fade on scroll — commented out for now ────────────────
+  // Faded the ::before/::after tint from opacity 0 at top to 1 when
+  // scrolled past ~100px. Disabled per explicit request now that the
+  // progressive-blur layers (.nav-progressive-blur, main.css) are always
+  // on regardless of scroll — leaving this active meant the tint stayed
+  // invisible at the top of the page while the blur layers were already
+  // visible, an inconsistent mismatched combo. --nav-gradient-opacity's
+  // static value is now 1 (main.css's .gh-navigation rule) instead of the
+  // 0 this used to force on load.
+  //
+  // const setGradientOpacity = (scrollY) => {
+  //   const opacity = Math.min(1, scrollY / 100);
+  //   nav.style.setProperty('--nav-gradient-opacity', opacity);
+  // };
+  // setGradientOpacity(0);
+  // let gradientRafPending = false;
+  // const updateNavGradientOpacity = () => {
+  //   if (gradientRafPending) return;
+  //   gradientRafPending = true;
+  //   requestAnimationFrame(() => {
+  //     gradientRafPending = false;
+  //     setGradientOpacity(window.scrollY);
+  //   });
+  // };
+  // window.addEventListener('scroll', updateNavGradientOpacity, { passive: true });
 
   // ── Anchor-redirect handler (all pages) ───────────────────────────────
   // #hash nav links on non-homepage pages redirect to / and scroll after load.

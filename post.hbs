@@ -18,6 +18,30 @@
       {{#if custom_excerpt}}
         <p class="post-excerpt">{{custom_excerpt}}</p>
       {{/if}}
+
+      {{!-- Role/contributions summary from projectMeta (post code injection)
+            — reuses the existing .flexlayout/.col/.text-eyebrow card pattern
+            (main.css) already used elsewhere for arbitrary two-column HTML
+            cards, instead of introducing a parallel layout. Hidden by
+            default (main.css); displayProjectMetadata() below reveals it
+            only once meta.role/meta.contributions actually exist. --}}
+      <div class="post-project-summary mt-0 mb-0 mr-0 ml-0 kg-width-wide" style="padding:0;" id="post-project-summary">
+        <div class="flexlayout2">
+          <div class="col mt-0 mb-0">
+            <div style="display:flex; gap: 64px">
+            <div>
+            <span class="text-eyebrow">My Role</span>
+            <div class="post-project-role" id="post-project-role"></div>
+            </div>
+            <div>
+            <span class="text-eyebrow">My Contributions</span>
+            <div class="post-project-contributions" id="post-project-contributions"></div>
+            </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="post-meta">
         <!--<time datetime="{{date format="YYYY-MM-DD"}}">{{date format="MMM DD, YYYY"}}</time>-->
         {{!-- Keywords pills from projectMeta --}}
@@ -37,6 +61,11 @@
     {{!-- Project logomark container --}}
     <div class="logomark-container" id="logomark-container">
       <img class="logomark-image" id="logomark-image" alt="Project logo" />
+      {{!-- Populated from meta.date, revealed letter-by-letter only once
+            the logomark's drop/bounce (main.js animateLogomarkDrop) has
+            actually finished — see the logomarkDropComplete listener
+            below, not a fixed delay guess. --}}
+      <p class="logomark-date" id="logomark-date"></p>
     </div>
   </header>
 
@@ -106,6 +135,35 @@
       }
     }
 
+    // Comma-separated values each render as their own <p> — same convention
+    // as meta.cardKeywords elsewhere (main.js), just paragraphs instead of
+    // pill spans since these read as short statements, not tags.
+    const renderCommaListAsParagraphs = (container, value) => {
+      const parts = value.split(',').map(v => v.trim()).filter(v => v.length > 0);
+      container.innerHTML = parts.map(part => `<p>${part}</p>`).join('');
+      return parts.length > 0;
+    };
+
+    const summaryEl = document.getElementById('post-project-summary');
+    const roleEl = document.getElementById('post-project-role');
+    const contributionsEl = document.getElementById('post-project-contributions');
+    let hasSummaryContent = false;
+
+    if (meta.role && roleEl) {
+      hasSummaryContent = renderCommaListAsParagraphs(roleEl, meta.role) || hasSummaryContent;
+      console.log('[metadata] Set role:', meta.role);
+    }
+
+    if (meta.contributions && contributionsEl) {
+      hasSummaryContent = renderCommaListAsParagraphs(contributionsEl, meta.contributions) || hasSummaryContent;
+      console.log('[metadata] Set contributions:', meta.contributions);
+    }
+
+    if (summaryEl && hasSummaryContent) {
+      summaryEl.style.display = 'block';
+      console.log('[metadata] Made post-project-summary visible');
+    }
+
     const containerEl = document.getElementById('logomark-container');
     const logomarkEl = document.getElementById('logomark-image');
 
@@ -133,12 +191,65 @@
       console.log('[metadata] Made logomark container visible');
     }
 
+    // Date: text is set now, but NOT revealed yet — kept invisible until
+    // the logomarkDropComplete event (dispatched by main.js's
+    // animateLogomarkDrop() when its bounce timeline actually finishes),
+    // not a fixed delay guess that could fire before/after the real drop.
+    if (meta.date) {
+      const dateEl = document.getElementById('logomark-date');
+      if (dateEl) {
+        dateEl.dataset.pendingText = meta.date;
+        console.log('[metadata] Queued date for reveal after logomark drop:', meta.date);
+        tryRevealLogomarkDate(); // in case the drop already finished before metadata arrived
+      }
+    }
+
     // Handle disable-link (both camelCase and kebab-case)
     const disableLink = meta.disableLink || meta['disable-link'];
     if (disableLink === true) {
       // On post detail pages, we can't disable the entire post
       // Instead, this would be used on post cards/homepage
       console.log('[metadata] disable-link flag set (applies to post cards, not detail page)');
+    }
+  }
+
+  // Letter-by-letter reveal for the date under the logomark — gated on
+  // BOTH conditions being true (meta.date having arrived AND the drop
+  // animation having actually finished), whichever order they happen to
+  // resolve in; either side calls this and it only fires once both are met.
+  // Declared here, BEFORE waitForMeta()'s invocation below: if
+  // window.projectMeta is already set by the time this script runs,
+  // waitForMeta() calls displayProjectMetadata() synchronously, which calls
+  // tryRevealLogomarkDate() — referencing logomarkDropDone before it was
+  // declared threw "Cannot access before initialization" and silently
+  // aborted the rest of this script's execution, including the
+  // logomarkDropComplete listener below ever getting registered at all.
+  let logomarkDropDone = false;
+  function tryRevealLogomarkDate() {
+    const dateEl = document.getElementById('logomark-date');
+    if (!dateEl || !logomarkDropDone) return;
+    if (!dateEl.dataset.pendingText || dateEl.dataset.revealed === 'true') return;
+    dateEl.dataset.revealed = 'true';
+
+    const text = dateEl.dataset.pendingText;
+    dateEl.innerHTML = '';
+    const chars = Array.from(text).map((ch) => {
+      const span = document.createElement('span');
+      span.className = 'char';
+      // Spaces get their own span too (so layout/spacing is correct) but
+      // start fully visible — there's no glyph to fade in, and skipping
+      // the span entirely was the exact bug that ran words together
+      // elsewhere on this site (scroll-scrub-anim.js's splitText()).
+      span.style.opacity = ch.trim() ? '0' : '1';
+      span.textContent = ch;
+      dateEl.appendChild(span);
+      return span;
+    });
+
+    if (window.gsap) {
+      gsap.to(chars, { opacity: 1, duration: 0.05, stagger: 0.03, ease: 'power1.out' });
+    } else {
+      chars.forEach((c) => { c.style.opacity = '1'; });
     }
   }
 
@@ -164,6 +275,15 @@
     }
   };
   waitForMeta();
+
+  // Dispatched by main.js's animateLogomarkDrop() when its bounce timeline
+  // actually completes — same cross-script event pattern already used for
+  // heroEntranceDone, rather than guessing a fixed delay that could fire
+  // before/after the real drop finishes.
+  document.addEventListener('logomarkDropComplete', () => {
+    logomarkDropDone = true;
+    tryRevealLogomarkDate();
+  });
 </script>
 
 {{!-- Testimonial metadata display script (runs after content) --}}

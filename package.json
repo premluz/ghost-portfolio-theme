@@ -85,7 +85,7 @@
           "large"
         ],
         "default": "standard",
-        "description": "Heading scale (h1\u2013h6): standard reproduces the original design"
+        "description": "Heading scale (h1–h6): standard reproduces the original design"
       },
       "page_width": {
         "type": "select",
