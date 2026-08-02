@@ -74,15 +74,19 @@ the vertex shader's `main()` (~line 353 onward — copy the Grid block as the
 most fully-worked example, including the "keep the old version commented
 out" convention below).
 
-## Recipe: reverting a change without git
+## Recipe: reverting a change
 
-This repo has no git. The established convention this thread (grid's square
-vs. organic boundary, its plain-circular vs. noise-perturbed wave/ripple)
-is: **comment the old block out in place, right above the new one, with a
-one-line label** ("kept for revert"). Don't delete working code you might
-want back — search for `kept for revert` / `kept below, unused` in
-`shape-definitions.js` and `particle-animation-loop.js` to find the
-currently-stashed alternates.
+**This theme IS under git** (repo root is the theme folder itself,
+`.../content/themes/thinkingisfree`). An earlier version of this doc said it
+wasn't, and the convention below was built around that assumption — prefer
+`git` for anything you'd otherwise stash in a comment.
+
+The older in-file convention still explains what you'll *find* in the code:
+**the old block commented out in place, right above the new one, with a
+one-line label** ("kept for revert"). Search for `kept for revert` /
+`kept below, unused` in `shape-definitions.js` and
+`particle-animation-loop.js` to find the currently-stashed alternates. Those
+are historical; new work doesn't need to add more of them.
 
 ## Tuning reference (WebGL system, `particle-animation-loop.js` unless noted)
 
