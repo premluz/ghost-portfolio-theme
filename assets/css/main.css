@@ -618,8 +618,9 @@ p:last-child {
 
 /* Role/contributions summary (post.hbs, populated from projectMeta's
    role/contributions fields) — dedicated .role-overview classes below, a
-   left-hand sidebar column alongside .post-header-content on desktop (see
-   .post-header .container's row layout further down). Hidden by default;
+   left-hand sidebar column alongside .container (a sibling of it inside
+   .post-header-row, which owns the row layout — see .post-header-row's
+   own rule further down) on desktop. Hidden by default;
    displayProjectMetadata() in post.hbs reveals it only once there's real
    content to show. */
 .post-project-summary {
@@ -3849,36 +3850,51 @@ body[data-page-width='full'] .gh-canvas {
   /* Initial state for entrance animation — blur/fade (no scale to prevent movement) */
   opacity: 0;
   filter: blur(4px);
+  /* Plain block — .post-header-row (below) owns the two-column row layout,
+     scoped to just .post-project-summary + .container. Making .post-header
+     ITSELF the flex container was tried and reverted: .post-image and
+     .logomark-container are later siblings meant to stack full-width below
+     in normal flow, and became flex items in the same row instead —
+     .container collapsed to 0 width (measured) the moment .post-header
+     became display:flex. */
 }
 
-.post-header .container {
-  /* No padding here — all padding on .post-header level */
-  width: 100%;
-  padding: 0;
+.post-header-row {
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
+}
+
+.post-header .container {
+  /* No padding here — all padding on .post-header level. max-width:none —
+     this is a row-layout child now (flex:1 on desktop, below), not an
+     outer width constraint; that constraint lives on .post-header itself
+     via .post[data-post-hero='...'] .post-header { max-width } further
+     down this file. */
+  width: 100%;
+  padding: 0;
   max-width: none;
 }
 
-/* Wraps category/title/excerpt/meta — the same vertical stack
-   .post-header .container used to provide directly, now that .container
-   also holds .post-project-summary as a sibling (see the row layout
-   below). Unchanged across breakpoints; only .container's own direction
-   (row vs column) and .post-project-summary's position change on desktop. */
+/* Wraps category/title/excerpt/meta */
 .post-header-content {
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
 }
 
-/* Desktop: .role-overview becomes a left-hand column beside
-   .post-header-content, with a generous gap between them. order:-1 moves
-   it first visually without reordering the DOM (the H1 stays the first
-   heading in reading/source order). Mobile keeps the column stack above,
-   in natural DOM order (role-overview after the headline content). */
+/* Desktop: .post-project-summary becomes a left-hand column beside
+   .container (which just wraps .post-header-content), with a generous gap
+   between them. Both are direct children of .post-header-row, which owns
+   the row layout — previously this was .container's job, with
+   .post-project-summary nested awkwardly inside it alongside
+   .post-header-content. order:-1 moves .post-project-summary first
+   visually without reordering the DOM (the H1 stays the first heading in
+   reading/source order). Mobile keeps the natural DOM order (role-overview
+   before .container, since it precedes .container in the markup — see
+   post.hbs) in a column stack. */
 @media (min-width: 769px) {
-  .post-header .container {
+  .post-header-row {
     flex-direction: row;
     align-items: flex-start;
     gap: var(--space-4xl);
@@ -3889,7 +3905,7 @@ body[data-page-width='full'] .gh-canvas {
     order: -1;
   }
 
-  .post-header-content {
+  .post-header .container {
     flex: 1;
     min-width: 0;
   }

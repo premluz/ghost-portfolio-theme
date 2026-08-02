@@ -409,18 +409,15 @@ async function initParticleMorphModular() {
       // anyway, since low-end devices already skip the trigger that morphs
       // TO 'lab' in the first place (setupCardTriggers() isn't called).
       if (!window.__lowEndDevice) {
-        let labWaveAttempts = 0;
-        const waitForBackgroundLayerThenInitLabWave = () => {
-          if (window.BackgroundLayer && window.BackgroundLayer.bindShift) {
-            debug('[particle-morph] Calling system.initLabWave()');
-            system.initLabWave();
-          } else if (labWaveAttempts++ < 100) {
-            setTimeout(waitForBackgroundLayerThenInitLabWave, 80);
-          } else {
-            debugWarn('[particle-morph] BackgroundLayer never became available — Lab wave/orb not initialized');
-          }
-        };
-        waitForBackgroundLayerThenInitLabWave();
+        // Was polling for BackgroundLayer.bindShift before calling this —
+        // left over from when the Lab wavefront was scroll-scrubbed. It
+        // became autonomous (a ping-pong in the loop's _rafCallbacks, see
+        // initLabWave) and stopped using bindShift entirely, so the gate was
+        // blocking on a dependency the function no longer has. It only ever
+        // reads BackgroundLayer.parseColorToRGB for the accent sample, which
+        // initLabWave already guards internally.
+        debug('[particle-morph] Calling system.initLabWave()');
+        system.initLabWave();
       }
 
       // Refresh ScrollTrigger positions after DOM layout changes from particle system init

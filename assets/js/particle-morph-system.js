@@ -3,6 +3,13 @@
  */
 
 class ParticleMorphSystem {
+  // Shapes with no GLB dependency — generated synchronously at init so
+  // start('dispersed') works before any mesh has loaded. Read by BOTH
+  // _createImmediateStates() (what to build now) and createInitialStates()
+  // (what not to rebuild later); they used to be separate hand-kept lists
+  // that had drifted apart.
+  static IMMEDIATE_SHAPES = ['dispersed', 'helix', 'ribbon', 'volatility', 'lab', 'terrain', 'grid', 'dots'];
+
   constructor(container, config = {}) {
     this.container = typeof container === 'string' ? document.querySelector(container) : container;
     this.config = {
@@ -82,8 +89,10 @@ class ParticleMorphSystem {
   }
 
   _createImmediateStates() {
-    // Create only states that don’t depend on GLB meshes
-    const immediate = ['dispersed', 'helix', 'ribbon', 'volatility', 'lab', 'terrain', 'grid', 'dots'];
+    // Create only states that don’t depend on GLB meshes.
+    // Single source of truth — createInitialStates() reads the same list to
+    // decide what NOT to regenerate (see its comment).
+    const immediate = ParticleMorphSystem.IMMEDIATE_SHAPES;
     immediate.forEach(key => {
       try {
         const result = this.shapeRegistry.generateState(key, this.config.particleCount);
@@ -114,16 +123,32 @@ class ParticleMorphSystem {
   }
 
   createInitialStates() {
-    // Generate states for all shapes (must include every state used by triggers)
-    const shapes = ['dispersed', 'helix', 'sphere', 'triple-sphere', 'torus', 'mobile', 'note', 'clapper', 'diamond', 'globe', 'game', 'chart', 'email', 'genie', 'camera', 'footer', 'lab', 'terrain', 'grid', 'dots'];
+    // Generate states for all shapes (must include every state used by triggers).
+    // Three drift bugs fixed here, all of the "two lists that must agree"
+    // kind that the style/shape registry work is meant to remove:
+    //  - 'clapper' and 'genie' were listed but are NOT registered as shapes
+    //    in initializeModules(), so they threw and warned on every single
+    //    load. Removed (clapper.glb was deleted from Ghost content; see the
+    //    preload comment in default.hbs).
+    //  - 'ribbon' and 'volatility' were missing, so they existed only if
+    //    _createImmediateStates() had already made them.
+    //  - the skip-list below was a hand-maintained duplicate of
+    //    _createImmediateStates()'s `immediate` array and had fallen behind
+    //    it (missing 'ribbon'/'volatility'), so those two got regenerated
+    //    here and clobbered the live state. Both now derive from one array.
+    const shapes = ['dispersed', 'helix', 'ribbon', 'volatility', 'sphere', 'triple-sphere', 'torus', 'mobile', 'note', 'diamond', 'globe', 'game', 'chart', 'email', 'camera', 'footer', 'lab', 'terrain', 'grid', 'dots'];
     shapes.forEach(key => {
       try {
         // Skip states already created by _createImmediateStates to avoid overwriting live state
-        if (this.stateRegistry.get(key) && (key === 'dispersed' || key === 'helix' || key === 'lab' || key === 'terrain' || key === 'grid' || key === 'dots')) return;
+        if (this.stateRegistry.get(key) && ParticleMorphSystem.IMMEDIATE_SHAPES.includes(key)) return;
         const result = this.shapeRegistry.generateState(key, this.config.particleCount);
         const positions = result.positions || result; // Handle both old (array) and new (object) formats
         const sizes = result.sizes || null;
-        this.stateRegistry.register(key, positions, { shapeKey: key, sizes });
+        // phis (helix-only per-particle tube angle) was captured in
+        // _createImmediateStates but dropped here — a helix regenerated on
+        // this path lost its wave animation input.
+        const phis = result.phis || null;
+        this.stateRegistry.register(key, positions, { shapeKey: key, sizes, phis });
         if (key === 'lab') {
           console.log(`[particle-morph-system] ✅ Lab state created with ${positions.length / 3} particles`);
         }

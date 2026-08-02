@@ -1,5 +1,21 @@
 # Particle Morph System Template
 
+> ## ⚠️ SUPERSEDED — read `particles.md` instead
+>
+> This file documents an **early design** of the particle system and no longer
+> matches the code. It is kept for the original intent only. Known to be wrong:
+>
+> | This doc says | Actually |
+> |---|---|
+> | `PARTICLE_COUNT = 3000` | 16000 (desktop), see `particle-morph.hbs` |
+> | Three particle groups (core / aura / dispersed background) | No such split exists. One `Points` mesh, per-particle colour from a hash — see `generateColors()` in `particle-morph.hbs` |
+> | `generateDNAHelix()` | `helixGenerator` in `assets/js/shape-definitions.js` |
+> | "Current: Always in Object State" | ~20 scroll triggers drive `morphTo()` between 23 registered states |
+> | Shapes are made by copying the helix function | `ShapeDefinition` + `ShapeRegistry`; see the "adding a new shape" recipe in `particles.md` |
+> | Main file `partials/particle-morph.hbs` | That file is wiring only. The scene, shaders and RAF loop are in `assets/js/particle-animation-loop.js` |
+>
+> **`particles.md` is the accurate, maintained reference.**
+
 ## Overview
 A reusable 3D particle animation system that visualizes objects through three distinct particle groups with smooth state transitions.
 

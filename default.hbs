@@ -468,7 +468,11 @@
     // 'helix' restores the original helix and the lattice doesn't mount.
     // Read by particle-morph.hbs, scroll-scrub-anim.js, volatility-surface.js.
     window.HERO_PARTICLE_MODE = 'helix';
-    window.__heroShape = () => window.HERO_PARTICLE_MODE === 'helix' ? 'helix' : 'helix';
+    // Both arms used to return 'helix', so the switch above was inert and
+    // 'volatility' could never be selected despite being fully built and
+    // registered. No behaviour change at the current setting — this just
+    // makes the documented switch actually work.
+    window.__heroShape = () => window.HERO_PARTICLE_MODE === 'volatility' ? 'volatility' : 'helix';
 
     // PARTICLE SCENARIOS — declarative section→behavior map. Every particle
     // scroll trigger routes through __particleApply(key, builtin, ms), so a

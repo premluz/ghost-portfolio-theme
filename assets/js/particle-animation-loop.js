@@ -147,6 +147,12 @@ class ParticleAnimationLoop {
     this.setupClick();
     this.setupResize();
 
+    // A theme toggle can restyle the canvas, so drop the cached hero-offset
+    // pixel read alongside resize (see _readHeroCanvasOffsetPx). Cheap: fires
+    // on data-theme changes only, not per frame.
+    this._themeObserver = new MutationObserver(() => this._invalidateHeroOffsetCache());
+    this._themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
     // Kick off async composer setup; animate() falls back to direct render
     // until ready. During a full preloader run, wait for preloader:done
     // first: UnrealBloomPass is expensive enough on weak/software GL to tank
@@ -882,11 +888,17 @@ class ParticleAnimationLoop {
     u.uSpriteScale.value = radius * 2.12;
   }
 
-  // Read hero-only canvas offset from CSS custom properties. The user can set
-  // them on the actual canvas tag (or #particle-morph-demo). Convert screen
-  // pixels to world units at z=0. Negative left/top moves the rendered particles
-  // left/up; the particle geometry itself stays centered.
-  _getHeroCanvasOffset() {
+  // Reads --particle-hero-canvas-left/top off the canvas (falling back to
+  // #particle-morph-demo). Those come from width-based media queries in
+  // main.css, so they can only change on RESIZE — never per frame, and never
+  // on scroll. Cached for exactly that reason: _getHeroCanvasOffset() runs
+  // every frame while the helix is active, and getComputedStyle() there was
+  // forcing one style recalc per frame (measured: getComputedStyle/s tracked
+  // draws/s 1:1 on the hero, and dropped to 0 the moment the shape changed).
+  // Invalidated by _invalidateHeroOffsetCache() from applyResize() and on a
+  // data-theme change.
+  _readHeroCanvasOffsetPx() {
+    if (this._heroOffsetPx) return this._heroOffsetPx;
     const target = (this.renderer && this.renderer.domElement) || this.demoContainer;
     let leftPx = 0;
     let topPx = 0;
@@ -901,6 +913,19 @@ class ParticleAnimationLoop {
         topPx = parseFloat(containerStyle.getPropertyValue('--particle-hero-canvas-top')) || 0;
       }
     }
+    this._heroOffsetPx = { leftPx, topPx };
+    return this._heroOffsetPx;
+  }
+
+  _invalidateHeroOffsetCache() {
+    this._heroOffsetPx = null;
+  }
+
+  // Hero-only canvas offset in WORLD units. Only the CSS pixel read is cached
+  // (above); the world conversion stays per-frame because camera.fov is itself
+  // animated on the hero (see _getHeroZoomFov) and would otherwise go stale.
+  _getHeroCanvasOffset() {
+    const { leftPx, topPx } = this._readHeroCanvasOffsetPx();
     const cameraZ = this.camera.position.z;
     const fovRad = (this.camera.fov * Math.PI) / 180;
     const worldPerPixel = (2 * cameraZ * Math.tan(fovRad / 2)) / window.innerHeight;
@@ -1020,6 +1045,13 @@ class ParticleAnimationLoop {
     };
     let resizePending = false;
     const onResize = () => {
+      // Cache-drop happens on EVERY resize, not inside applyResize(): the
+      // camera/renderer resize below is deliberately deferred while the hero
+      // is on screen, but --particle-hero-canvas-left/top are pure CSS and
+      // must track the width media queries immediately. Hanging this off
+      // applyResize() left the hero offset frozen at its first-read value for
+      // as long as the hero stayed visible.
+      this._invalidateHeroOffsetCache();
       if (heroNotVisible()) applyResize();
       else resizePending = true;
     };
@@ -1493,6 +1525,7 @@ class ParticleAnimationLoop {
     this._unsubscribeResize?.();
     this._unsubscribeResizeScrollFlush?.();
     this._unsubscribeMobileScaleResize?.();
+    this._themeObserver?.disconnect();
   }
 
   // ─── Preloader globe intro ────────────────────────────────────────────────
