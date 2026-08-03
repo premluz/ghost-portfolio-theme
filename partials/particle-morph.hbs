@@ -874,6 +874,19 @@ async function initParticleMorphModular() {
         // has no such cache — it re-checks live geometry every frame.
         const labIntro = document.getElementById('work-grid-lab');
         debug(`[trigger-setup] work-grid-lab found: ${!!labIntro}`);
+        // Observe the .gradient-frame WRAPPER, not #work-grid-lab itself —
+        // same element the position timeline above is bound to. Watching
+        // two different elements for "position start" vs "become visible/
+        // morph to lab" was the bug: the wrapper (taller — it includes the
+        // "Explorations, AI experiments" heading above the grid) started
+        // its position travel a full section-height before #work-grid-lab
+        // ever intersected, so by the time the fade-in/morph fired the
+        // sphere had already travelled well off its bottom-of-screen start
+        // position — confirmed via a live scroll trace: posY was -3.1, not
+        // the intended -6.0, the moment it actually became visible. Reusing
+        // the same element for both makes the visible entrance actually
+        // start at the bottom and travel up, as intended.
+        const labEntranceEl = (labIntro && labIntro.closest('.gradient-frame')) || labIntro;
         if (labIntro) {
           let labEntered = false;
           let lastLabScrollY = window.scrollY;
@@ -948,7 +961,7 @@ async function initParticleMorphModular() {
               }
             });
           }, { rootMargin: `0px 0px ${labTriggerOffset}px 0px`, threshold: 0 });
-          labObserver.observe(labIntro);
+          labObserver.observe(labEntranceEl);
         }
 
         debug('[particle-morph] ScrollTriggers initialized');

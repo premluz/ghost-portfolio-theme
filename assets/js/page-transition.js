@@ -157,7 +157,7 @@
     if (pageContent) {
       tl.to(pageContent, { y: 200, opacity: 0, duration: 0.08, ease: 'power1.in' }, 0);
     }
-    tl.to(scrim, { opacity: 1, duration: 0.18, ease: 'power2.in' }, 0);
+    tl.to(scrim, { opacity: 1, duration: 0.1, ease: 'power2.in' }, 0);
   }
 
   // Shared by the close button click and the Escape key (below) — resolves
@@ -273,8 +273,8 @@
     // Matches runCurtainExit's shortened durations (0.3 → 0.18) — same
     // "speed it up" request, applied symmetrically to the return reveal.
     const tl = gsap.timeline();
-    if (main) tl.to(main, { opacity: 1, duration: 0.18, ease: 'power1.out', clearProps: 'transform' }, 0);
-    tl.to(scrim, { opacity: 0, duration: 0.18, ease: 'power1.out' }, 0);
+    if (main) tl.to(main, { opacity: 1, duration: 0.1, ease: 'power1.out', clearProps: 'transform' }, 0);
+    tl.to(scrim, { opacity: 0, duration: 0.1, ease: 'power1.out' }, 0);
 
     return true;
   }
@@ -458,7 +458,7 @@
 
     if (shouldAnimate) {
       // Set initial state: off-screen bottom + invisible
-      gsap.set(main, { y: 100, opacity: 0 });
+      gsap.set(main, { y: 20, opacity: 0 });
 
       // Animate in from bottom with fade. clearProps: 'transform' matters
       // here — GSAP always writes an inline `transform` for `y`, even at

@@ -5298,16 +5298,17 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
 
 /* Main headline */
 .hero-headline {
-  /* flex column, NOT block: the word-line spans carry the gradient clip
-     guard (padding-block 0.3em / margin-block -0.3em), which is only
-     net-zero if both negative margins apply at each junction. As stacked
-     blocks, adjacent negative margins COLLAPSE to a single -0.3em, adding
-     +0.3em phantom stride per line (measured: lh 0.95 rendered as 1.25).
-     Flex items never collapse margins, so the guard is truly layout-neutral
-     and the token line-height is what you actually see. */
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  /* display:block, NOT flex-column: flex-column was built for the
+     .animate-word 2-word-line-group spans (dead code below — initHero()
+     no longer splits into per-line-group spans). It became actively
+     harmful once initHero() started injecting per-character .char spans
+     (letter-by-letter reveal, matching About's page-title treatment):
+     ANY element child of a flex container is blockified into a flex item
+     regardless of its own display value, so each .char span was forced
+     onto its own row — the headline rendered as one letter per line. Plain
+     block + the .char spans' natural inline display flows/wraps normally,
+     same as it did before letter-splitting existed. */
+  display: block;
   /* min() overflow guard: the headline is split into 2-word lines, and the
      longest realistic line measures ~6.9em in this serif ("Technically
      fluent "). Capping font-size at available-width / 7.1 means the line

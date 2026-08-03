@@ -782,10 +782,15 @@ ${styles.fragmentBodyBlocks()}
   // its rotation addition immediately overwritten) — it's a no-op to run
   // this while hidden anyway, since nothing is visible to see it.
   _updateHeroCollapseState() {
-    let heroT = 0;
+    // Default 1 (fully exited), NOT 0: main.js's initHeroFadeOut() sets
+    // .hero to display:none once scrolled well past it, which collapses
+    // getBoundingClientRect() to an all-zero rect. Falling back to 0 there
+    // read that as "back at the very top of the hero" and popped the helix
+    // back up deep in the page — reproduced at scrollY 1612 on this build.
+    let heroT = 1;
     if (this._heroEl) {
       const r = this._heroEl.getBoundingClientRect();
-      heroT = r.height > 0 ? Math.min(1, Math.max(0, -r.top / r.height)) : 0;
+      heroT = r.height > 0 ? Math.min(1, Math.max(0, -r.top / r.height)) : 1;
     }
     // Rescaled so the buildup reaches its full intended amount by the point
     // collapse triggers, instead of only ever reaching heroExitSpan's worth

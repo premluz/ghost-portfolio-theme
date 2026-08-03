@@ -443,22 +443,35 @@ class ScrollScrubAnimationSystem {
       // description get a plain fade alongside it — this used to be a
       // bigger per-item slide+blur stagger, simplified to instant reveal
       // at one point, now this.
+      //
+      // 0.25s start offset: on the same-site/skip path, this block and
+      // page-transition.js's runLandingAnimation() both fire off the same
+      // preloader:done tick, so an unoffset reveal raced .home's own 0.2s
+      // opacity fade — both landed within ~150ms of each other (confirmed
+      // via traced computed-opacity samples), so the letters were already
+      // fully revealed by the time .home became visible enough to see them,
+      // reading as "no reveal, text just appears". Starting after .home's
+      // fade has essentially finished makes the stagger the first thing
+      // visible against an already-shown hero, matching what a fresh/full
+      // preloader load naturally gets for free (there the reveal only
+      // starts once preloader:done fires, seconds after .home settled).
+      const REVEAL_START = 0.25;
       const intro = hero.querySelector('.hero-intro');
       const description = hero.querySelector('.hero-description');
       gsap.set(heading, { y: 0, filter: 'blur(0px)' }); // opacity handled per-letter below
       const entranceTl = gsap.timeline();
       if (window.animateH1LetterByLetter) {
-        window.animateH1LetterByLetter(heading, entranceTl, 0);
+        window.animateH1LetterByLetter(heading, entranceTl, REVEAL_START);
       } else {
         gsap.set(heading, { opacity: 1, visibility: 'visible' });
       }
       if (intro) {
         gsap.set(intro, { y: 0, filter: 'blur(0px)' });
-        entranceTl.fromTo(intro, { opacity: 0 }, { opacity: 1, duration: 0.4, ease: 'power2.out' }, 0);
+        entranceTl.fromTo(intro, { opacity: 0 }, { opacity: 1, duration: 0.4, ease: 'power2.out' }, REVEAL_START);
       }
       if (description) {
         gsap.set(description, { y: 0, filter: 'blur(0px)' });
-        entranceTl.fromTo(description, { opacity: 0 }, { opacity: 1, duration: 0.4, ease: 'power2.out' }, 0.1);
+        entranceTl.fromTo(description, { opacity: 0 }, { opacity: 1, duration: 0.4, ease: 'power2.out' }, REVEAL_START + 0.1);
       }
     });
 

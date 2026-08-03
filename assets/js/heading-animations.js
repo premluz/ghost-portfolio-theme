@@ -394,18 +394,6 @@ function initHeadingAnimations() {
     }
   }
 
-  let lastScrollY = window.scrollY;
-  let isScrollingDown = true;
-  let hasScrolled = false;
-
-  const scrollListener = () => {
-    const currentScrollY = window.scrollY;
-    isScrollingDown = currentScrollY > lastScrollY;
-    lastScrollY = currentScrollY;
-    hasScrolled = true;
-  };
-
-  window.addEventListener('scroll', scrollListener, { passive: true });
 
   const revealedHeadings = new WeakSet();
 
@@ -415,17 +403,25 @@ function initHeadingAnimations() {
       const mode     = resolveMode(heading);
       const blurPx   = resolveBlur(heading);
       const noop = () => {};
-
-      const rect = heading.getBoundingClientRect();
-      const elementCenter = rect.top + rect.height / 2;
-      const viewportCenter = window.innerHeight / 2;
-      const isInBottomHalf = elementCenter > viewportCenter;
       const isRevealed = revealedHeadings.has(heading);
-      // Already visible at page load — reveal immediately without scroll guards
-      const isInitialReveal = !hasScrolled && entry.isIntersecting;
 
+      // Reveal whenever it comes into view, reverse whenever it leaves —
+      // regardless of scroll direction. The previous version required
+      // isScrollingDown (plus isInBottomHalf) before revealing, which
+      // silently skipped the reveal for anything but a clean top-down
+      // encounter: landing already scrolled past a heading (refresh with
+      // browser scroll restoration, a nav click that jumps straight to a
+      // scroll position) and then scrolling UP into it never satisfied
+      // isScrollingDown, so it stayed invisible for the rest of the
+      // session — reported as "only works once, not on refresh/click/
+      // scroll-up". _revealHeadingByLetter/Word/Fade and resetHeading are
+      // all already built to interrupt and take over from wherever the
+      // element currently is, so calling them on every genuine
+      // enter/leave transition (tracked via revealedHeadings, so this
+      // still only fires once per transition, not once per frame) is
+      // safe and was already the intended repeat behaviour.
       if (entry.isIntersecting) {
-        if ((isInitialReveal || (isScrollingDown && isInBottomHalf)) && !isRevealed) {
+        if (!isRevealed) {
           if (mode === 'letter') {
             _revealHeadingByLetter(heading, blurPx, noop);
           } else if (mode === 'word') {
@@ -436,7 +432,7 @@ function initHeadingAnimations() {
           revealedHeadings.add(heading);
         }
       } else {
-        if (!isScrollingDown && isRevealed) {
+        if (isRevealed) {
           resetHeading(heading, mode, blurPx, wordTlMap);
           revealedHeadings.delete(heading);
         }
