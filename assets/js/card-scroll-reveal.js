@@ -191,8 +191,17 @@ function initCardScrollReveal() {
   // additionally raced the metadata fetch that fills in their text/video,
   // making content appear to "fade in with the video" instead of just
   // popping in the instant it's set.
+  // .profile-item also deliberately NOT included here anymore — see
+  // initProfileItemsReveal() below. This per-element system reveals each
+  // card off ITS OWN IntersectionObserver crossing; data-item-index only
+  // ever added a fixed extra delay after that per-item crossing, which
+  // isn't the same thing as a coordinated stagger from one shared trigger
+  // (six items spread down a taller mobile column could each cross the
+  // threshold at visibly different scroll moments instead of reading as
+  // one grouped reveal). initProfileItemsReveal observes the GROUP once
+  // and staggers all six from that single trigger instead.
   const cards = document.querySelectorAll(
-    '.testimonial-card, .about-card, .personal-card, .profile-paragraph, .profile-item, .om3-card'
+    '.testimonial-card, .about-card, .personal-card, .profile-paragraph, .om3-card'
   );
 
   const animatedCards = Array.from(cards).filter(card => {
@@ -354,6 +363,63 @@ function initCardScrollReveal() {
   // one call site below already no-ops safely when unset.
   let tabsBackfill = null;
 
+  // ── Profile items: single-trigger staggered slide-up ──────────────────
+  // Six items revealed together off ONE shared trigger (the group's own
+  // container entering view), not per-item — see the comment on the main
+  // `cards` selector above for why the old per-item observer didn't give a
+  // coordinated stagger. Same visual treatment as testimonial-card/
+  // about-card etc. (SCROLL_REVEAL_CONFIG.card.default — slide-up, not the
+  // old slide-left), just driven by one observer + one gsap.to(stagger)
+  // instead of six independent ones.
+  let profileItemsBackfillFns = [];
+  const initProfileItemsReveal = (container) => {
+    const items = Array.from(container.querySelectorAll('.profile-item'));
+    if (!items.length) return;
+
+    if (prefersReducedMotion || !window.gsap) {
+      items.forEach(el => { el.style.opacity = '1'; });
+      return;
+    }
+
+    const cfg = SCROLL_REVEAL_CONFIG.card.default;
+    gsap.set(items, { opacity: 0, y: cfg.yOffset, scale: cfg.scale.start });
+
+    let revealed = false;
+    const reveal = (instant) => {
+      if (revealed) return;
+      revealed = true;
+      const props = { opacity: 1, y: 0, scale: cfg.scale.end, filter: `blur(${cfg.blur.end}px)`, stagger: cfg.staggerDelay };
+      if (instant) gsap.set(items, props);
+      else gsap.to(items, { ...props, duration: cfg.duration, ease: cfg.ease });
+      observer.disconnect();
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => { if (entry.isIntersecting) reveal(false); });
+    }, { threshold: 0.15, rootMargin: '0px 0px -80px 0px' });
+    observer.observe(container);
+
+    // Backfill hook — same "instant if above/behind the restored viewport,
+    // animated if still on screen" convention window.__revealBackfill
+    // itself uses below. Without this, a curtain-return whose instant
+    // scroll jump lands past .profile-items would strand it at opacity:0
+    // forever (the container never crosses the observer's threshold if
+    // it's never actually scrolled THROUGH after the jump).
+    profileItemsBackfillFns.push((limit) => {
+      if (revealed) return;
+      const viewportTop = window.scrollY;
+      const docTop = container.getBoundingClientRect().top + window.scrollY;
+      if (docTop >= limit) return;
+      reveal(docTop < viewportTop);
+    });
+  };
+  // querySelectorAll, not getElementById — page-about.hbs currently renders
+  // a duplicate #profile-items (2 copies of the same 6 items; root cause
+  // untraced, unrelated to this reveal — flagged separately). Handling
+  // "however many exist" rather than just the first keeps this reveal
+  // correct regardless of whether/when that gets fixed.
+  document.querySelectorAll('.profile-items').forEach(initProfileItemsReveal);
+
   // REVEAL BACKFILL — the solid guardrail for scroll restoration.
   // The curtain-return scroll restore cannot rely on observers firing:
   // IntersectionObserver only evaluates at frame boundaries, and homepage
@@ -384,6 +450,7 @@ function initCardScrollReveal() {
     };
     const docTop = (el) => el.getBoundingClientRect().top + window.scrollY;
     let count = 0;
+    console.log('[revealBackfill] images registry:', allRevealImages.length, 'cards registry:', allCards.length, 'limit:', limit, 'viewportTop:', viewportTop);
     allRevealImages.forEach((img) => {
       if (revealedImages.has(img) || skip(img) || docTop(img) >= limit) return;
       const props = { opacity: 1, scale: imgCfg.scale.end, filter: `blur(${imgCfg.blur.end}px)` };
@@ -409,6 +476,7 @@ function initCardScrollReveal() {
       count++;
     });
     if (tabsBackfill) tabsBackfill(limit);
+    profileItemsBackfillFns.forEach(fn => fn(limit));
     return count;
   };
 }

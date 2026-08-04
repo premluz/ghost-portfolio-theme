@@ -273,6 +273,12 @@
   --type-h2-size: clamp(calc(1.75rem * var(--type-scale-heading)), calc(8vw * var(--type-scale-heading)), calc(4rem * var(--type-scale-heading)));
   --type-h3-size: clamp(calc(1.575rem * var(--type-scale-heading)), calc(2.4vw * var(--type-scale-heading)), calc(2.5rem * var(--type-scale-heading)));
   --type-h4-size: clamp(calc(1.125rem * var(--type-scale-heading)), calc(1.6vw * var(--type-scale-heading)), calc(2.2rem * var(--type-scale-heading)));
+  /* h3/h4's vw term (2.4vw/1.6vw, gentle) only overtakes their floor above
+     ~700-1050px — same "floor dominates too wide a range" shape as h1/
+     display above, but in the opposite direction: these floors are too
+     CLOSE to (or under, once --type-scale-heading goes compact/0.7) body
+     text size rather than too far above it. Bumped on mobile only, where
+     the floor is what actually renders; ≥768px numerically unchanged. */
   --type-h5-size: clamp(calc(0.9rem * var(--type-scale-heading)), calc(1.4vw * var(--type-scale-heading)), calc(1.4rem * var(--type-scale-heading)));
   --type-h6-size: clamp(calc(0.7875rem * var(--type-scale-heading)), calc(1.15vw * var(--type-scale-heading)), calc(1.1rem * var(--type-scale-heading)));
   --type-body-lg-size: clamp(calc(1.125rem * var(--type-scale-body)), calc(1.5vw * var(--type-scale-body)), calc(1.375rem * var(--type-scale-body)));
@@ -442,6 +448,19 @@
   --shift-bg: var(--theme-light-bg);
   --shift-ink: var(--theme-light-ink);
 
+  /* THEME-MIRROR ALIAS — always the opposite of the CURRENT theme, and
+     never overridden by a fixed-palette block (unlike --shift-bg, which a
+     gradient-frame in fixed mode redirects at :root while it is on screen).
+     gradient-frame.js resolves an invert frame's painted background from
+     THIS, not --shift-bg: that resolution happens in JS at init and on
+     theme-change only, so reading a token that another section may have
+     redirected meant a frame could paint itself with a NEIGHBOUR's fixed
+     colour depending purely on when the read happened to fire (reproduced:
+     toggling the theme while Lab was on screen repainted testimonials
+     purple). A frame that wants a fixed colour states it literally via
+     data-gradient-inner instead — see GRADIENT-FRAME-SYSTEM.md. */
+  --shift-bg-theme: var(--theme-light-bg);
+
   /* SHIFT SURFACES — translucent fills (nav pill, keyword/badge glass) for
      the shifted state. Derived from --shift-ink rather than hardcoded per
      theme, so they automatically follow a gradient-frame in "fixed" mode,
@@ -558,6 +577,20 @@
      background rather than a foreign-colored stripe, in both themes,
      without needing its own separate per-theme override below. */
   --nav-fade-tint: color-mix(in srgb, var(--color-background) 55%, transparent);
+  /* SHIFTED twin of the above — the endpoint the frost-fade blends toward
+     while a palette-shifted section owns the screen (gradient-frame invert,
+     .profile). Must keep the SAME STRUCTURE as --nav-fade-tint (the shifted
+     background at the same 55% alpha), not the raw opaque --shift-bg: the
+     blend interpolates alpha as well as hue, so an opaque endpoint made the
+     layer fade from a translucent veil at shift 0 into a fully opaque slab
+     at shift 1. That slab only "matches" where the backdrop happens to be
+     exactly the island's flat colour, and reads as a visible mismatched
+     band everywhere else (over the frame's own gradient bands, over
+     content) — the identical failure this token's own comment above
+     describes from when it was a fixed grey. Alpha now stays 0.55 across
+     the whole ramp; only the hue travels. Tied to --shift-bg so it follows
+     both the per-theme mirror AND a fixed-palette override for free. */
+  --nav-fade-tint-shift: color-mix(in srgb, var(--shift-bg) 55%, transparent);
   /* --nav-gradient (a non-mirrored "to bottom" version of this) was removed
      — the glass effect is bottom-anchored on every viewport width now (not
      just mobile), so nothing uses the un-mirrored direction anymore. */
@@ -571,6 +604,30 @@
 
   /* Cards */
   --card-bg: var(--surface-2);
+}
+
+/* Mobile heading scale (2026-08-04): a deliberate re-tier, not a bug fix —
+   h1 roughly doubled (was ~47px on a 390px phone under the vw term, now a
+   96px floor that dominates the whole ≤768px range), h2/h3 stepped up
+   proportionally, while h4/h5/h6 collapse DOWN toward body on purpose: h4
+   stays just above body (close, but never smaller — a heading rendering
+   under body size reads as broken hierarchy even if the gap is small), h5
+   is set to body exactly (not just a similar clamp — genuinely the same
+   token, so it always matches regardless of the body-size setting), h6
+   stays small, clearly below body.
+   h3 keeps clear separation from body throughout — that's the one boundary
+   that must never collapse. All floors here dominate the full ≤768px range
+   (verified against each one's own vw term at exactly 768px); ≥768px is
+   governed by the base clamp()s above, unchanged. */
+@media (max-width: 768px) {
+  :root {
+    --type-h1-size: clamp(calc(6.5rem * var(--type-scale-heading)), calc(12vw * var(--type-scale-heading)), calc(8rem * var(--type-scale-heading)));
+    --type-h2-size: clamp(calc(4rem * var(--type-scale-heading)), calc(8vw * var(--type-scale-heading)), calc(4rem * var(--type-scale-heading)));
+    --type-h3-size: clamp(calc(2.75rem * var(--type-scale-heading)), calc(2.4vw * var(--type-scale-heading)), calc(2.75rem * var(--type-scale-heading)));
+    --type-h4-size: clamp(calc(1.5rem * var(--type-scale-heading)), calc(1.6vw * var(--type-scale-heading)), calc(1.5rem * var(--type-scale-heading)));
+    --type-h5-size: var(--type-body-size);
+    --type-h6-size: clamp(calc(1.15rem * var(--type-scale-heading)), calc(1.15vw * var(--type-scale-heading)), calc(1.15rem * var(--type-scale-heading)));
+  }
 }
 
 
@@ -602,6 +659,8 @@
      cross-theme primitives in base :root — single source, can't drift). */
   --shift-bg: var(--theme-dark-bg);
   --shift-ink: var(--theme-dark-ink);
+  /* See the base :root declaration for why this alias exists. */
+  --shift-bg-theme: var(--theme-dark-bg);
 
   /* Mirror of the base :root ramp — light theme starts on a black icon and
      shifts to a white one. (--surface-1-shift/--glass-bg-shift need no

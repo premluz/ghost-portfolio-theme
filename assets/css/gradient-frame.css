@@ -16,6 +16,25 @@
  *   --gradient-frame-edge-from/to static pre-WebGL + reduced-motion fallback
  */
 
+/* Each invert-mode frame writes its OWN --gradient-shift-N (gradient-frame.js
+   indexes them per instance) instead of the shared --profile-shift directly
+   — two frames on one page (e.g. Lab + testimonials, both homepage) racing
+   to write the same property meant whichever one's scroll recompute landed
+   last won, even when it was the wrong one (Lab, correctly near-zero since
+   it's long scrolled out of view, was overwriting testimonials' correct 1).
+   --profile-shift is instead DERIVED as the max of all of them — CSS
+   recomputes this from its inputs, so there is no JS ordering to race.
+   4 slots is generous headroom past today's 2 real frames; unused slots
+   fall back to 0 via the var() default and don't affect the max(). */
+:root {
+  --profile-shift: max(
+    var(--gradient-shift-0, 0),
+    var(--gradient-shift-1, 0),
+    var(--gradient-shift-2, 0),
+    var(--gradient-shift-3, 0)
+  );
+}
+
 .gradient-frame {
   /* No position/z-index on purpose: a stacking context here would trap the
      descendants that deliberately sit above the page-level particle canvas

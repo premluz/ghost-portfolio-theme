@@ -122,6 +122,7 @@ async function initGradFlowBackground(canvas, configInput) {
       u_scroll: { value: 0 },
       u_parallax: { value: config.parallax || 0 },
       u_layer2_parallax: { value: l2.parallax != null ? l2.parallax : 0 },
+      u_breathe: { value: config.breathe != null ? config.breathe : DEFAULT_CONFIG.breathe },
     },
   });
 

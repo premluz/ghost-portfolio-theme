@@ -1,6 +1,33 @@
 <div id="particle-morph-demo" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; opacity: 1; pointer-events: none;">
   <div id="particles" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></div>
+  {{!-- Covers the particle canvas until the system is ready, then fades
+        away — a flat solid-color div, not the canvas's own opacity. A
+        WebGL canvas that's actively re-rendering every frame is expensive
+        to ALSO animate opacity on (the browser has to composite an
+        alpha-blended, per-frame-changing layer); a plain div's opacity is
+        cheap regardless of what's happening underneath. See the fade-in
+        trigger further down this file for where this actually fades. --}}
+  <div id="particles-load-scrim" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; background: var(--color-background); opacity: 1;"></div>
 </div>
+<script>
+  // Failsafe — same principle as every other pre-paint veil on this site
+  // (landing-pending/main-pending/curtain-restoring, see LOADING.md): a
+  // veil must never depend solely on one path to clear it. This scrim is
+  // normally cleared either by the skip-path fade-in trigger further down
+  // this file, or by preloader.js's _runParticles() on a full run — if
+  // BOTH of those fail to fire for any reason (a stalled GLB/video fetch,
+  // a thrown error somewhere in the particle bootstrap chain), the scrim
+  // would otherwise sit at opacity:1 forever, permanently hiding the
+  // particles behind a solid color — strictly worse than having no scrim
+  // at all. Force-clear after 6s regardless of what else has or hasn't run.
+  setTimeout(function () {
+    var scrim = document.getElementById('particles-load-scrim');
+    if (scrim && getComputedStyle(scrim).opacity !== '0') {
+      if (window.gsap) window.gsap.to(scrim, { opacity: 0, duration: 0.4 });
+      else scrim.style.opacity = '0';
+    }
+  }, 6000);
+</script>
 
 <!-- Load modular particle system -->
 <script src="{{asset 'js/particle-state.js'}}"></script>
@@ -16,7 +43,7 @@
       existing morphTo triggers are untouched. --}}
 <script src="{{asset 'js/particle-scroll-director.js'}}"></script>
 <script src="{{asset 'js/particle-animation-loop.js'}}"></script>
-<script src="{{asset 'js/particle-morph-system.js'}}"></script>
+<script src="{{asset 'js/particle-morph-system.js'}}?v={{@site.updated_at}}"></script>
 
 <script>
 console.log('[PARTICLE-MORPH] Script executing...');
@@ -392,9 +419,27 @@ async function initParticleMorphModular() {
       window.particleSystem = system;
       window.particleMorphSystem = system;
 
-      // On cached/refresh visits, fade particles in immediately — no observer needed
+      // On cached/refresh visits, reveal particles immediately — no observer
+      // needed. Fades the dedicated scrim (see its markup above), NOT
+      // system.fadeController — that's shared with every other particle
+      // transition on this page (scroll-triggered dissolve/assemble morphs,
+      // hero-exit, etc. — see dissolveAndAssemble() in particle-morph-
+      // system.js), so redirecting IT here would touch all of those too.
+      // 150ms (the old duration, animating the canvas's own opacity via
+      // fadeController) read as janky — likely the cost of animating
+      // opacity on a WebGL canvas that's simultaneously re-rendering every
+      // frame, on top of the particle system's own startup work. A flat
+      // div's opacity is cheap regardless; slower/eased here reads as a
+      // deliberate reveal instead of a rushed one.
       if (!window.__preloaderRunning) {
-        system.handleTriggerAction({ action: 'fade-in', duration: 150 });
+        const loadScrim = document.getElementById('particles-load-scrim');
+        if (loadScrim) {
+          if (window.gsap) {
+            gsap.to(loadScrim, { opacity: 0, duration: 0.6, ease: 'power2.out' });
+          } else {
+            loadScrim.style.opacity = '0';
+          }
+        }
       }
 
       // Initialize Lab wave binding (scroll-driven particle color gradient +
@@ -461,11 +506,39 @@ async function initParticleMorphModular() {
           // screen, not off screen". Y increases upward, and content moves
           // up as you scroll down — hence negative (below) to positive
           // (above).
-          window.particleScrollDirector.setTimeline([
+          //
+          // Two phases: rise into place (0-0.50, same pace as before), then
+          // a CONTINUOUS climb the rest of the way — no flat hold. A hold
+          // was tried here and explicitly rejected: it should keep
+          // scrolling up right until it's off-screen, not pause partway.
+          // The second-half climb covers 14 units (not 7) over the same
+          // 0.50 span, so it's moving at twice the original rate — faster
+          // throughout, not just at the end — and it's already well past
+          // the top edge (~6.1) before t=1.0, so the extra distance beyond
+          // that is travelled off-screen, not visible.
+          window.particleScrollDirector.setZone('lab', [
             { at: 0.00, position: [0, -6.0, 0] },
             { at: 0.50, position: [0,  0.0, 0] },
-            { at: 1.00, position: [0,  7.0, 0] },
+            { at: 1.00, position: [0, 14.0, 0] },
           ], { element: labWrapper });
+        }
+
+        // FOOTER CHOREOGRAPHY — same idea as Lab: the object rises with the
+        // page instead of sitting static. #footer is the very last element
+        // on every page (default.hbs), so it can never fully "scroll past"
+        // like Lab does — the page simply stops scrolling once its bottom
+        // reaches the viewport bottom. Verified live: at the true page
+        // bottom this zone's own progress lands around ~0.4, not 1.0 — so
+        // the resting keyframe is placed at 0.42 (not 1.00), which is where
+        // it actually settles once you can't scroll any further, per
+        // "when we reach the bottom scroll position, the object is in the
+        // bottom part of the screen" (not centred, not off the top).
+        const footerSection = document.getElementById('footer');
+        if (footerSection) {
+          window.particleScrollDirector.setZone('footer', [
+            { at: 0.00, position: [0, -6.0, 0] },
+            { at: 0.42, position: [0, -2.5, 0] },
+          ], { element: footerSection, shapeKey: 'footer' });
         }
       }
       }

@@ -40,6 +40,10 @@
           <span class="text-eyebrow">What I owned</span>
           <div class="post-project-contributions" id="post-project-contributions"></div>
         </div>
+        <div class="role-overview-block">
+          <span class="text-eyebrow">Context</span>
+          <div class="post-project-context" id="post-project-context"></div>
+        </div>
       </div>
     </div>
 
@@ -164,6 +168,7 @@
     const summaryEl = document.getElementById('post-project-summary');
     const roleEl = document.getElementById('post-project-role');
     const contributionsEl = document.getElementById('post-project-contributions');
+    const contextEl = document.getElementById('post-project-context');
     let hasSummaryContent = false;
 
     if (meta.role && roleEl) {
@@ -176,9 +181,55 @@
       console.log('[metadata] Set contributions:', meta.contributions);
     }
 
+    if (meta.context && contextEl) {
+      hasSummaryContent = renderCommaListAsParagraphs(contextEl, meta.context) || hasSummaryContent;
+      console.log('[metadata] Set context:', meta.context);
+    }
+
     if (summaryEl && hasSummaryContent) {
       summaryEl.style.display = 'block';
       console.log('[metadata] Made post-project-summary visible');
+
+      // Stagger fade-in for the role-overview-block children — same shape
+      // as every other reveal on this site (opacity + y + scale + blur, see
+      // SCROLL_REVEAL_CONFIG.card.default), just triggered immediately on
+      // data arrival rather than a scroll observer: this section sits in
+      // the post header, already in view the moment it's populated.
+      const roleBlocks = summaryEl.querySelectorAll('.role-overview-block');
+      const revealRoleBlocks = () => {
+        if (!roleBlocks.length) return;
+        const cfg = window.SCROLL_REVEAL_CONFIG.card.default;
+        gsap.set(roleBlocks, { opacity: 0, y: cfg.yOffset, scale: cfg.scale.start });
+        gsap.to(roleBlocks, {
+          opacity: 1,
+          y: 0,
+          scale: cfg.scale.end,
+          filter: `blur(${cfg.blur.end}px)`,
+          duration: cfg.duration,
+          ease: cfg.ease,
+          stagger: cfg.staggerDelay,
+        });
+      };
+      if (window.gsap && window.SCROLL_REVEAL_CONFIG) {
+        revealRoleBlocks();
+      } else {
+        // GSAP loads via a <script> tag further down the page than this
+        // inline block (default.hbs: {{{body}}} at line 346, GSAP at 401)
+        // — when metadata resolves synchronously (codeinjection_head
+        // embeds it directly, so waitForMeta's first check already
+        // succeeds), this runs before that tag has executed. Poll briefly
+        // rather than falling straight through to no animation at all.
+        // gsapWaitAttempts (not attempts/metaWaitAttempts) — see the
+        // comment on metaWaitAttempts below re: shared top-level scope.
+        let gsapWaitAttempts = 0;
+        const waitForGsap = () => {
+          if (window.gsap && window.SCROLL_REVEAL_CONFIG) { revealRoleBlocks(); return; }
+          gsapWaitAttempts++;
+          if (gsapWaitAttempts < 50) setTimeout(waitForGsap, 50);
+          else roleBlocks.forEach((b) => { b.style.opacity = '1'; });
+        };
+        waitForGsap();
+      }
     }
 
     const containerEl = document.getElementById('logomark-container');

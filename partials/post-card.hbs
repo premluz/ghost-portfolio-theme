@@ -47,14 +47,26 @@
                 reveal (same file) has no exclusion for this container and
                 would otherwise still fade this image in independently,
                 same bug as the container used to have. --}}
-          {{!-- Shimmer placeholder shown until post-and-cards.js's
-                fetchCardMeta knows whether this post has a video — the
-                image below stays opacity:0 (see post-card-grid.css) and
-                is only faded in if it turns out there's no video, so a
-                card never shows a raw image that a video then covers a
-                beat later. --}}
           <div class="card-media-skeleton"></div>
-          <img src="{{feature_image}}" alt="{{title}}" {{#unless first}}loading="lazy" {{/unless}}data-skip-reveal>
+          {{!-- Video vs image is decided HERE, server-side, via an internal
+                #video tag (Ghost renders internal tags with a "hash-" slug
+                prefix — {{#has tag="hash-video"}} is a stock Ghost helper,
+                no custom code). Mutually exclusive: a card either has the
+                tag and gets a video, or doesn't and gets its image — never
+                both, so there's no dual-layer fade-video-in-over-image
+                anymore (post-and-cards.js used to build the <video> via JS
+                from a codeinjection_head-embedded meta.video field for
+                this same reason; that field has no server-side access, so
+                it could only ever produce a JS-injected overlay). Video
+                file must be named after the post's own slug — there's no
+                per-post filename field with this approach, just the tag. --}}
+          {{#has tag="hash-video"}}
+            <video class="post-card-video" muted loop playsinline data-skip-reveal>
+              <source src="/content/images/videos/{{slug}}.mp4" type="video/mp4">
+            </video>
+          {{else}}
+            <img src="{{feature_image}}" alt="{{title}}" {{#unless first}}loading="lazy" {{/unless}}data-skip-reveal>
+          {{/has}}
         </div>
       {{/if}}
     </div>

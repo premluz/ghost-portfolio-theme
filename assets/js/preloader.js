@@ -326,10 +326,19 @@
       // Raise container so sphere shows through transparent preloader
       if (demoEl) demoEl.style.zIndex = '999990';
 
+      // Dedicated scrim (particle-morph.hbs) that covers #particles until
+      // the skip-path reveal fades it — full preloader runs never touch
+      // that fade-in trigger (gated on !window.__preloaderRunning), so
+      // without this the scrim would sit at opacity:1 forever once the
+      // preloader itself finishes fading away, permanently hiding the
+      // particles behind a solid-color layer.
+      const loadScrim = document.getElementById('particles-load-scrim');
+
       getLoopWhenReady((sys) => {
         if (!sys) {
           console.warn('[preloader] particleSystem timeout — fallback');
           if (particlesEl) gsap.to(particlesEl, { opacity: 1, duration: 0.4 });
+          if (loadScrim) gsap.set(loadScrim, { opacity: 0 });
           if (dot) gsap.to(dot, { opacity: 0, duration: 0.1 });
           gsap.to(this.preloader, { opacity: 0, duration: 0.5, delay: 0.2 })
             .then(() => { clearTimeout(safetyTimer); this._hide(); });
@@ -345,6 +354,7 @@
         // Particle burst source position: 20px up and 30px left (adjust here)
         const navH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--nav-height')) || 0;
         if (particlesEl) gsap.set(particlesEl, { y: navH / 2 - 55, x: -40, opacity: 1 });
+        if (loadScrim) gsap.set(loadScrim, { opacity: 0 });
 
         const burstMs = 500;
 

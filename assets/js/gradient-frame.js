@@ -62,13 +62,29 @@
 // defaults), data-gradient-speed, data-gradient-scale (wave squiggliness),
 // data-gradient-enter-span / -exit-span (ramp length in viewport heights),
 // data-gradient-wave2-a/-b/-opacity/-scale/-speed/-center/-width and
-// data-gradient-parallax / -wave2-parallax (second wave layer).
+// data-gradient-parallax / -wave2-parallax (second wave layer),
+// data-gradient-breathe (calm wave-height pulse, 0 disables).
 // Band height is CSS: --gradient-frame-edge-height (gradient-frame.css).
 
 const MODE_COLORS = {
   theme: { outer: '--color-background', inner: '--color-background' },
-  invert: { outer: '--color-background', inner: '--shift-bg' },
+  // --shift-bg-theme, NOT --shift-bg: the two are the same value until a
+  // frame in fixed-palette mode redirects --shift-bg at :root while it is
+  // on screen (see posts-tabs-grid-lab.css). This resolution runs in JS at
+  // init and on theme-change only, so pointing it at the redirectable token
+  // made a frame's painted colour depend on WHEN that read happened to
+  // fire — Lab painted itself the theme mirror (white on a dark site)
+  // because at init nothing was on screen yet, then snapped to its real
+  // purple on the next theme toggle, and testimonials picked up Lab's
+  // purple if the toggle happened while Lab was on screen. A frame wanting
+  // a fixed colour declares it literally via data-gradient-inner.
+  invert: { outer: '--color-background', inner: '--shift-bg-theme' },
 };
+
+// Gives each invert-mode frame on the page its own --gradient-shift-N
+// variable instead of writing the shared --profile-shift directly — see
+// the long comment at the bindShift call site in initFrame() for why.
+let gradientFrameShiftCount = 0;
 
 const DEFAULTS = {
   waveA: '#61177c',
@@ -106,6 +122,11 @@ const DEFAULTS = {
   // read entirely.
   parallax: 0.05,
   wave2Parallax: -0.09,
+  // Calm wave-height pulse — shared by both layers, but each one breathes
+  // at its OWN pace since the shader derives the pulse rate from the
+  // speed already passed in per layer (see waveFlow in gradflow-shaders.js).
+  // 0 disables it (flat, constant amplitude — the old behaviour).
+  breathe: 0.4,
 };
 
 // Any '--foo' resolves against the frame so per-section token overrides
@@ -145,6 +166,7 @@ function readConfig(frame) {
     wave2Width: num(d.gradientWave2Width, DEFAULTS.wave2Width),
     parallax: num(d.gradientParallax, DEFAULTS.parallax),
     wave2Parallax: num(d.gradientWave2Parallax, DEFAULTS.wave2Parallax),
+    breathe: num(d.gradientBreathe, DEFAULTS.breathe),
   };
 }
 
@@ -166,6 +188,7 @@ function bandConfig(cfg, position, frame) {
     noise: 0,
     resolutionScale: cfg.resolutionScale,
     parallax: cfg.parallax,
+    breathe: cfg.breathe,
     layer2: cfg.wave2Opacity > 0 ? {
       color1: resolveColor(cfg.wave2A || cfg.waveA, frame),
       color2: resolveColor(cfg.wave2B || cfg.waveB, frame),
@@ -222,10 +245,35 @@ function initFrame(frame) {
 
   // Palette flip for the nav/text/icons while this frame owns the screen.
   // Scroll math, ramp timing and theme-toggle correctness all live in
-  // bindShift — see BACKGROUND-LAYER-SYSTEM.md. One binding per page:
-  // two writers on --profile-shift fight through the handoff zone.
+  // bindShift — see BACKGROUND-LAYER-SYSTEM.md.
+  //
+  // bindShift's own doc warns "one binding per page writing --profile-shift"
+  // — true for a single binding, but this theme has grown a SECOND
+  // invert-mode frame on the same page (Lab + testimonials, both on the
+  // homepage). Binding both directly to --profile-shift reproduced exactly
+  // the warned-about failure: each computes its own progress correctly, but
+  // whichever one's scroll-triggered recompute finishes last in a given
+  // frame overwrites the other's value — reported as "testimonials' shift
+  // never happens", root-caused to Lab's (correctly near-zero, since it's
+  // scrolled far out of view by then) write landing after testimonials' and
+  // silently zeroing it back out.
+  //
+  // Fix: each invert frame gets its OWN indexed variable
+  // (--gradient-shift-0, -1, ...) — no shared write, no race — and
+  // --profile-shift itself becomes `max()` of all of them (see
+  // gradient-frame.css), which is exactly the semantics wanted: whichever
+  // frame is actually in view dominates, and CSS recomputes it, not a JS
+  // ordering accident. data-gradient-shift-key (optional) also gets mirrored
+  // onto :root as data-active-gradient-frame while THIS frame's shift is
+  // above 0 — lets a frame's own CSS (e.g. a fixed-palette override) scope
+  // itself to "while I'm actually active" instead of "while I merely exist
+  // in the DOM" (see posts-tabs-grid-lab.css's :root:has(#work-grid-lab),
+  // which used to leak its fixed colour into testimonials' shift for
+  // exactly this reason).
   if (cfg.mode === 'invert' && window.BackgroundLayer) {
-    window.BackgroundLayer.bindShift(frame, '--profile-shift', {
+    const shiftVar = '--gradient-shift-' + (gradientFrameShiftCount++);
+    const shiftKey = frame.dataset.gradientShiftKey || null;
+    window.BackgroundLayer.bindShift(frame, shiftVar, {
       quantize: 0.05, // see bindShift: cuts nav backdrop-blur repaints
       enterSpan: cfg.enterSpan,
       exitSpan: cfg.exitSpan,
@@ -235,6 +283,13 @@ function initFrame(frame) {
       // noticeably after it looked like it should have. Read live (not
       // captured) so it tracks --gradient-frame-edge-height at any viewport.
       endInset: function() { return bands[1].band.offsetHeight; },
+      onProgress: shiftKey ? function(t) {
+        if (t > 0.001) {
+          document.documentElement.setAttribute('data-active-gradient-frame', shiftKey);
+        } else if (document.documentElement.getAttribute('data-active-gradient-frame') === shiftKey) {
+          document.documentElement.removeAttribute('data-active-gradient-frame');
+        }
+      } : undefined,
     });
   }
 

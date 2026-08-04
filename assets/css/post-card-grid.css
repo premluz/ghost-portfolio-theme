@@ -550,7 +550,10 @@ body[data-typography-body='medium'] .posts-tab {
   width: 34%;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  /* flex-end, not center: content should sit at the bottom of the row,
+     its last line flush with the image's bottom edge, not vertically
+     centered against it. */
+  justify-content: flex-end;
   min-width: 0;
   order: 0 !important;
   overflow-wrap: break-word;
@@ -1075,6 +1078,22 @@ body[data-typography-body='medium'] .posts-tab {
   object-fit: cover;
 }
 
+/* Same reveal contract as .post-card-image img above — hidden until
+   post-and-cards.js resolves this card's metadata (title/keywords/
+   testimonial arrive at the same moment), not because we're still
+   deciding image-vs-video. That choice is now made server-side (the
+   #video internal tag, post-card.hbs) — whichever element exists in the
+   DOM is the only one that ever needs revealing, no second layer to
+   race against it. */
+.post-card-image video {
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.post-card-image video.is-visible {
+  opacity: 1;
+}
+
 /* Was a dual-layer <video>(.grid-card-video, position:absolute, own
    opacity fade) stacked over this <img> (also its own independent
    opacity fade on `load`) — two async fades racing each other with no
@@ -1529,7 +1548,7 @@ body[data-card-style='blank'] .post-card-image {
      patching nth-of-type(3n+1) as a one-off. */
   .post-card-inner {
     flex-direction: column !important;
-    gap: var(--space-md) !important;
+    
   }
 
   .post-card-inner .post-card-image,

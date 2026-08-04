@@ -106,6 +106,27 @@ class ParticleAnimationLoop {
     this._heroExitTravelY = 2.5;      // world units scrolled upward over the exit
     this._heroExitZoomFactor = 0.72;  // camera distance at t=1, as a fraction of base
     this._heroExitExtraRotation = 1.2; // radians of extra spin added over the exit, on top of ambient auto/mouse rotation
+    // Rate-limited state for the rotation contribution
+    // (easeInQuad(heroT) * _heroExitExtraRotation, extended by overscroll
+    // below) — the target is a pure function of scroll position with no
+    // cap on how fast it can change, so a fast flick/scroll (heroT jumping
+    // a lot between frames) added a correspondingly large chunk of
+    // rotation in just a few frames: fast enough to visually blur the
+    // double helix into reading as a solid sphere. _heroExitRotationCurrent
+    // chases the target by at most _heroExitRotationMaxDelta per frame, so
+    // the RATE is capped regardless of how fast the target itself moves.
+    this._heroExitRotationCurrent = 0;
+    this._heroExitRotationMaxDelta = 0.05; // radians/frame, ~3rad/s cap at 60fps
+    // "Keep the rotation [going] as the scroll goes": once collapsed,
+    // rather than freezing the rotation target at _heroExitExtraRotation,
+    // it keeps growing with however much FURTHER the visitor scrolls past
+    // the collapse point — see _heroCollapseScrollY/overscroll in
+    // _applyHeroExitVisuals(). Tied to scroll position, not elapsed time,
+    // so it holds steady (doesn't run away) if the visitor stops
+    // scrolling, and is fed through the same rate-limited chase above so a
+    // fast flick still can't blur it.
+    this._heroCollapseScrollY = 0;
+    this._heroExitOverscrollSpinRate = 0.0025; // extra rad of rotation TARGET per px scrolled past collapse
     // Fraction of the hero's own height the whole exit choreography (and the
     // collapse trigger) completes within, NOT 1.0 — a separate, pre-existing
     // trigger (particle-morph.hbs's 'profile' IntersectionObserver) hides
@@ -113,9 +134,9 @@ class ParticleAnimationLoop {
     // practice (confirmed via screenshots at several scroll depths) happens
     // well before a full hero-height of scroll. Running the buildup across
     // the full 0-1 range meant most of it played out already hidden behind
-    // that separate trigger. 0.45 was long enough in those screenshots for
-    // the zoom/rotation/travel to read clearly before anything covers it.
-    this._heroExitSpan = 0.45;
+    // that separate trigger. Extended 0.45 → 0.65 per explicit request for
+    // more scroll before collapse triggers.
+    this._heroExitSpan = 0.65;
 
     // Lighting
     const light = new THREE.AmbientLight(0x00f0ff, 1);
@@ -752,23 +773,32 @@ ${styles.fragmentBodyBlocks()}
   // ScrollTrigger (start:8,end:9 — fired ~immediately on any scroll) that
   // used to flip particles.position/camera.fov straight from their hero
   // values to their neutral ones the instant the morph away from 'helix'
-  // began, well before the 400ms morph/600ms fade had visually finished —
-  // that abrupt cut was reported as "helix scales down and moves to
-  // centre". heroT below is a plain 0-1 read of how far scroll has gone
-  // through the hero's OWN height (0 at the top of the page, 1 once
-  // scrolled a full hero-height past it) — NOT the "entering from below"
-  // formula ParticleScrollDirector uses for Lab, which assumes the element
-  // starts below the fold; the hero starts already on screen at load.
-  // Position/zoom/rotation now ease continuously with heroT, so by the
-  // time the shape actually flips to 'collapse' (at heroT 0.9, alongside
-  // the existing fade-to-hidden), it's arriving at that cut already
-  // zoomed in, rotated, and mid-fade — not snapping into it.
+  // began, well before the morph/fade had visually finished — that abrupt
+  // cut was reported as "helix scales down and moves to centre". heroT
+  // below is a plain 0-1 read of how far scroll has gone through the
+  // hero's OWN height (0 at the top of the page, 1 once scrolled a full
+  // hero-height past it) — NOT the "entering from below" formula
+  // ParticleScrollDirector uses for Lab, which assumes the element starts
+  // below the fold; the hero starts already on screen at load.
+  // Position/zoom ease continuously with heroT through the buildup (0 to
+  // _heroExitSpan). At the collapse instant, hero-exit's own "hide" is a
+  // SHAPE MORPH into a sphere ('collapse') — called directly via
+  // system.morphTo(), not through __particleApply's 'hide' branch — with
+  // NO opacity fade: per explicit request, the object stays fully opaque
+  // and folds into a rotating sphere instead of dimming out. Rotation
+  // keeps advancing throughout, including after collapse (see
+  // _heroExitOverscrollSpinRate below) — "keep the rotation as the scroll
+  // goes". camera.z/fov still have to return to base EVENTUALLY (every
+  // later shape renders through this same camera), which happens once
+  // hero-exit's own shapes (base hero shape, or the collapsed sphere) are
+  // no longer current — see the reset at the end of
+  // _updateHeroCollapseState(), not in _applyHeroExitVisuals().
   //
-  // heroT<1 also doubles as the gate ParticleScrollDirector's Lab timeline
-  // checks (loop._heroOffsetActive) before writing particles.position —
-  // the two would otherwise fight over the same property, since Lab's
-  // timeline is live for the whole page lifetime, clamped to its t=0
-  // keyframe while still off-screen below.
+  // loop._heroOffsetActive doubles as the gate ParticleScrollDirector's
+  // Lab/footer zones check before writing particles.position — the two
+  // would otherwise fight over the same property, since those timelines
+  // are live for the whole page lifetime, clamped to their own t=0
+  // keyframe while still off-screen.
   //
   // Split into two halves, called from two different points in animate():
   // _updateHeroCollapseState() just measures heroT and fires the shape
@@ -800,44 +830,110 @@ ${styles.fragmentBodyBlocks()}
     const shouldCollapse = heroT >= this._heroExitSpan;
     if (shouldCollapse !== this._heroCollapsed) {
       this._heroCollapsed = shouldCollapse;
-      if (window.__particleApply && window.particleSystem) {
-        if (shouldCollapse) {
+      if (shouldCollapse) {
+        // "Hide" uses the SAME standard mechanism as operating-model-exit
+        // and testimonials (both also route 'hide' + 'collapse' through
+        // __particleApply): morph to the sphere shape AND fade opacity
+        // together, fast (~400ms morph, ~600ms fade). By the time the
+        // morph is far enough along to read as recognizably "a sphere",
+        // it's already faded most of the way out — hide is a quick
+        // transition, not a shape the visitor is meant to consciously see.
+        // A direct morphTo() bypass (no fade at all, sphere left fully
+        // visible and spinning indefinitely) was tried and replaced here
+        // per explicit follow-up: that read as the sphere persisting far
+        // too long, all the way until Lab's own trigger far down the
+        // page, rather than a brief exit. Rotation still keeps advancing
+        // for however much of the ~700ms-till-hidden window remains
+        // visible (see _applyHeroExitVisuals(), unchanged) —
+        // _heroCollapseScrollY is the zero-point that's measured from.
+        this._heroCollapseScrollY = window.scrollY;
+        if (window.__particleApply && window.particleSystem) {
           window.__particleApply(window.particleSystem, 'hero-exit', 'collapse', 400);
-        } else {
-          const shape = window.__heroShape ? window.__heroShape() : 'helix';
-          window.__particleApply(window.particleSystem, 'hero', shape, 500);
         }
+      } else if (window.__particleApply && window.particleSystem) {
+        const shape = window.__heroShape ? window.__heroShape() : 'helix';
+        window.__particleApply(window.particleSystem, 'hero', shape, 500);
+      }
+    }
+
+    // Release once collapsed AND either window.__particleLayerHidden is
+    // true (some OTHER trigger elsewhere on the page did its own opacity
+    // fade — still possible on other sections, just not this one anymore)
+    // OR the current shape has moved on to something hero-exit doesn't own
+    // itself (neither its base hero shape NOR the 'collapse' sphere it
+    // just morphed into) — signalling a later section (Lab, footer, ...)
+    // has taken over the shared canvas, so hero-exit should stop holding
+    // camera/position ownership. Camera z/fov reset here (not in
+    // _applyHeroExitVisuals(), which keeps running through the sphere
+    // phase — see its own comment) so every later shape renders at the
+    // correct distance/FOV.
+    const heroBaseShape = window.__heroShape ? window.__heroShape() : 'helix';
+    const shapeHandedOff = this.currentState
+      && this.currentState.id !== heroBaseShape
+      && this.currentState.id !== 'collapse';
+    if (this._heroCollapsed && (window.__particleLayerHidden || shapeHandedOff) && this.particles) {
+      // Releasing the position guard HERE, at the same instant as the
+      // camera reset, is the point — see the comment on this flag in
+      // _applyHeroExitVisuals()'s collapsed branch.
+      this._heroOffsetActive = false;
+      if (this.camera.position.z !== this._heroBaseCameraZ) this.camera.position.z = this._heroBaseCameraZ;
+      if (this.camera.fov !== this._baseFov) {
+        this.camera.fov = this._baseFov;
+        this.camera.updateProjectionMatrix();
       }
     }
   }
 
   _applyHeroExitVisuals() {
     const heroT = this._heroT || 0;
-    this._heroOffsetActive = heroT < 1;
-    if (this._heroOffsetActive) {
+    // How far scroll has continued PAST the collapse point — 0 until
+    // collapsed, then grows with every extra px scrolled. Fed into the
+    // rotation target below so the (now-sphere) object keeps spinning
+    // faster for as long as scrolling continues, instead of freezing —
+    // "keep the rotation as the scroll goes".
+    const overscroll = this._heroCollapsed ? Math.max(0, window.scrollY - this._heroCollapseScrollY) : 0;
+
+    // Rotation: ONE continuous rate-limited chase, covering the buildup,
+    // the collapse instant, AND the continuing overscroll spin — no
+    // branch, so there's no pace mismatch at the collapse boundary. heroT
+    // is already clamped to 1 by _updateHeroCollapseState(), so pre-
+    // collapse this is exactly the plain easeInQuad formula; overscroll is
+    // 0 until collapsed, so the target doesn't jump at the boundary, it
+    // just keeps growing afterward instead of capping there.
+    const easeInQuad = heroT * heroT;
+    const targetRotationExtra = easeInQuad * this._heroExitExtraRotation
+      + overscroll * this._heroExitOverscrollSpinRate;
+    const rotDelta = Math.max(
+      -this._heroExitRotationMaxDelta,
+      Math.min(this._heroExitRotationMaxDelta, targetRotationExtra - this._heroExitRotationCurrent)
+    );
+    this._heroExitRotationCurrent += rotDelta;
+    this.particles.rotation.y += this._heroExitRotationCurrent;
+
+    if (heroT < 1) {
+      this._heroOffsetActive = true;
       const heroOffset = this._getHeroCanvasOffset();
-      const easeInQuad = heroT * heroT; // zoom/rotation build up more sharply near the exit
       this.particles.position.x = heroOffset.x;
       this.particles.position.y = heroOffset.y + heroT * this._heroExitTravelY;
       const zoomedZ = this._heroBaseCameraZ * this._heroExitZoomFactor;
       this.camera.position.z = this._heroBaseCameraZ + (zoomedZ - this._heroBaseCameraZ) * easeInQuad;
-      this.particles.rotation.y += easeInQuad * this._heroExitExtraRotation;
       const targetFov = this._getHeroZoomFov(window.innerWidth);
       if (Math.abs(this.camera.fov - targetFov) > 0.01) {
         this.camera.fov = targetFov;
         this.camera.updateProjectionMatrix();
       }
-    } else {
-      this.particles.position.x = 0;
-      this.particles.position.y = 0;
-      if (Math.abs(this.camera.position.z - this._heroBaseCameraZ) > 0.001) {
-        this.camera.position.z = this._heroBaseCameraZ;
-      }
-      if (Math.abs(this.camera.fov - this._baseFov) > 0.01) {
-        this.camera.fov = this._baseFov;
-        this.camera.updateProjectionMatrix();
-      }
     }
+    // COLLAPSED (heroT >= 1) — position.x/y and camera.z/fov left exactly
+    // where the buildup put them, no recentring (the object is now the
+    // 'collapse' sphere shape, morphed in _updateHeroCollapseState(), so
+    // there's no separate reposition needed here). camera.z/fov DO still
+    // need to return to base EVENTUALLY — every later shape (Lab, footer,
+    // grid...) renders through this same camera — but doing it here would
+    // be visible. Deferred to _updateHeroCollapseState(), which keeps
+    // running even once the layer is fully hidden (this function does
+    // not), so that reset happens only once there is nothing left to see.
+    // _heroOffsetActive stays true until that same moment — see the
+    // comment there.
   }
 
   // Hero-only zoom: narrows the FOV (not the canvas/CSS) as the viewport

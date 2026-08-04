@@ -211,7 +211,7 @@ body[data-page-width='full'] .profile[data-home-profile-width='respect_page_widt
   font-weight: var(--text-weight-extrabold, 800);
   /* color: see the color-mix() rule further down (reversed-palette-on-entry) */
   margin-top: 0;
-  margin-bottom: 4rem;
+  margin-bottom: 0;
   width: auto;
   opacity: 1;
   filter: none;
@@ -260,12 +260,20 @@ body[data-page-width='full'] .profile[data-home-profile-width='respect_page_widt
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
-  /* JS (card-scroll-reveal.js, 'slide-left' variant) drives the reveal;
-     this is just a no-JS/pre-paint fallback so nothing flashes at x:0. */
+  /* JS (card-scroll-reveal.js, initProfileItemsReveal — slide-up, matching
+     SCROLL_REVEAL_CONFIG.card.default) drives the reveal; this is just a
+     no-JS/pre-paint fallback so nothing flashes at its resting position.
+     Was translateX(120px) for the old slide-left variant — GSAP only ever
+     animates the axes it's explicitly given (y/scale here), so it reads
+     and PRESERVES whatever it finds already on x when it first touches the
+     element. With the old rule left in place, that stale 120px survived
+     the entire reveal untouched, permanently shifting every item right —
+     on mobile, enough to push them past the viewport edge and create a
+     real horizontal scrollbar (found live, not just a resting-state flash). */
   opacity: 0;
-  transform: translateX(120px);
+  transform: translateY(48px) scale(0.97);
   padding: var(--space-md) 0;
-  
+
 }
 
 .profile-item-header {
@@ -419,6 +427,22 @@ body[data-page-width='full'] .profile[data-home-profile-width='respect_page_widt
   .profile-content {
     height: auto !important;
     justify-content: flex-start !important;
+  }
+
+  /* Desktop's fixed 4rem (base rule) stacks ON TOP of .profile-content's
+     own flex gap (var(--space-md), ~16-24px) — deliberate there, but on
+     mobile the combined gap read as too large relative to everything
+     else in the stack. Zeroing it here leaves spacing to the flex gap
+     alone, same as every other child in this column. */
+  .profile-headline {
+    margin-bottom: 0;
+  }
+
+  /* Base rule caps this at 50% for desktop's side-by-side layout — this
+     section is meant to go full width once text and image stack, but
+     nothing here actually overrode it. */
+  .profile-description {
+    width: 100% !important;
   }
 
   .profile-image-wrapper {

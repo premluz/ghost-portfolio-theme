@@ -57,9 +57,11 @@ may be a literal (`#61177c`) **or** a custom property name
 | `data-gradient-wave2-width` | `0.34` | Its thickness |
 | `data-gradient-parallax` | `0.05` | Base layer drift per viewport-height of scroll |
 | `data-gradient-wave2-parallax` | `-0.09` | Opposite sign ⇒ the layers slide past each other |
+| `data-gradient-breathe` | `0.4` | Calm wave-height pulse — each wave's own amplitude slowly expands/collapses. `0` disables it (constant height, the old behaviour); `1` swings fully flat to double height. One shared knob — the two waves already breathe at different rates because the pulse's own timing is derived from each wave's `speed`/`wave2-speed`, not a separate parameter |
 | `data-gradient-enter-span` | `0.5` | Palette-shift ramp length, in viewport heights |
 | `data-gradient-exit-span` | `0.5` | Revert ramp length |
 | `data-gradient-resolution-scale` | `0.35` | Fraction of device pixels the bands render at |
+| `data-gradient-shift-key` | none | Only needed for a *fixed* palette (see below) — mirrored onto `:root[data-active-gradient-frame]` while this frame's own shift is active, so its CSS override can scope to "while I'm active" |
 
 Band height is CSS: `--gradient-frame-edge-height` (default `480px`).
 
@@ -91,29 +93,81 @@ already in `main.css` reacts for free.
 
 ### A *fixed* palette is not a third mode
 
-To make an island look identical in both themes, use `invert` and override
-the shift tokens in CSS from the page that wants it:
+Two different things are commonly wanted from `invert`, and they are easy to
+confuse:
+
+| Want | What to do |
+|---|---|
+| Island **mirrors** the theme (dark site ⇒ light island, light site ⇒ dark island) | plain `invert`, nothing else. This is testimonials. |
+| Island is **one authored colour in both themes** | `invert` + the two-part recipe below. This is Lab. |
+
+A fixed palette needs **two halves**, because the island and the page chrome
+are painted by different systems:
+
+**Half 1 — the island and its bands** (`data-gradient-inner`, a literal):
+
+```hbs
+<div class="gradient-frame" data-gradient-frame data-gradient-mode="invert"
+     data-gradient-shift-key="lab"
+     data-gradient-inner="#1B092C">
+  ...
+</div>
+```
+
+**Half 2 — the fixed nav**, which lives *outside* the frame (`position: fixed`),
+so no subtree rule can reach it:
 
 ```css
-:root:has(#work-grid-lab) {
-  --shift-bg:  #1B092C;
+:root[data-active-gradient-frame='lab'] {
+  --shift-bg:  #1B092C;        /* hand-kept duplicate of data-gradient-inner */
   --shift-ink: #ffffff;
   --icon-invert-shift: 1;      /* white icons on the island */
   --icon-brightness-shift: 1.2;
 }
 ```
 
-`:has()` with an id outranks both theme blocks in `tokens.css`, so a theme
-toggle cannot move it. `--surface-1-shift` and `--glass-bg-shift` derive from
-`--shift-ink`, so nav pill and badge fills follow automatically.
+`data-active-gradient-frame` is set on `:root` by `gradient-frame.js` while
+*this* frame's own shift is above 0, and removed when it drops back to 0 — so
+the override only applies while the visitor is actually scrolled into it.
+`--surface-1-shift` and `--glass-bg-shift` derive from `--shift-ink`, so nav
+pill and badge fills follow automatically.
 
-**Why `:root` and not the frame?** The nav is `position: fixed` and lives
-*outside* the frame, so a subtree override structurally cannot reach it.
+> ⚠ **The hex appears twice and must be kept in sync by hand.** They are
+> deliberately not the same token: see the trap below.
 
-> **Was:** a JS `fixed` mode that pinned these at `:root` itself and used a
-> colour-luminance heuristic (threshold 140) to guess icon polarity. Deleting
-> it removed a mode, all `:root` writes from the component, the heuristic, and
-> two data attributes — same result, less machinery.
+#### Why half 1 is a literal and not a token
+
+**A frame must never paint itself from a token another section can redirect.**
+`gradient-frame.js` resolves colours **in JS, at init and on theme-change
+only** — not continuously. So if a frame paints from `--shift-bg` (which a
+fixed-palette block redirects at `:root`), the colour it lands on depends
+entirely on *when* that read happened to fire:
+
+- At init, nothing is on screen, so `--shift-bg` is still the theme mirror →
+  **Lab painted itself white on a dark site.**
+- Toggle the theme while Lab is on screen → re-resolve now sees the redirect →
+  Lab snaps to its real purple, *and* testimonials — re-resolved in the same
+  pass — **also turns purple**.
+
+That is the exact "Lab inverts white until I toggle the theme, then everything
+goes dark" bug. The fix has two parts: frames resolve their painted background
+from **`--shift-bg-theme`**, an alias that is always the theme mirror and that
+fixed-palette blocks deliberately *cannot* redirect; and a fixed island states
+its colour **literally**, so no token lookup is involved at all.
+
+> **Was:** `:root:has(#work-grid-lab)` — checks "does this id exist anywhere
+> in the DOM", not "is the visitor scrolled into it", so on a page with a
+> SECOND invert-mode frame (testimonials, alongside Lab, both on the
+> homepage) it permanently hijacked `--shift-bg` for that other frame's shift
+> too, regardless of scroll position — testimonials got Lab's fixed purple
+> instead of the theme's true opposite background. The `data-active-*`
+> attribute is scroll-state-aware where `:has()` on a static id can't be.
+>
+> **Was, before that:** a JS `fixed` mode that pinned these at `:root` itself
+> and used a colour-luminance heuristic (threshold 140) to guess icon
+> polarity. Deleting it removed a mode, all `:root` writes from the
+> component, the heuristic, and two data attributes — same result, less
+> machinery.
 
 ---
 
@@ -291,9 +345,18 @@ every frame and never converges. This bit twice:
   lags ~1s on a hard scroll jump. Deliberately kept: removing it would make
   hover snap. Worth knowing when measuring.
 
-**One `bindShift` per page writing `--profile-shift`.** Two bindings fight
-through the handoff zone (one's exit ramp vs the other's enter ramp) and
-last-writer-wins flickers. Enforced by convention only.
+**One `bindShift` per page writing `--profile-shift` *directly*.** Two such
+bindings fight through the handoff zone (one's exit ramp vs the other's enter
+ramp) and last-writer-wins flickers — this actually happened between Lab and
+testimonials' own frames (both homepage, both `invert`) before each
+`gradient-frame.js` frame was moved to its own indexed `--gradient-shift-N`,
+combined via `max()` in `gradient-frame.css` instead of writing
+`--profile-shift` directly (see "A *fixed* palette is not a third mode"
+above). That fix is internal to `gradient-frame.js` frames specifically —
+`.profile`'s own separate `bindShift` call in `scroll-scrub-anim.js` still
+writes `--profile-shift` directly, which is fine as the only other caller
+site-wide, but a THIRD direct writer would reintroduce this exact bug.
+Enforced by convention only.
 
 **Not every `--profile-shift` consumer has been audited** for the
 "shift == theme opposite" assumption. The three icon sites were fixed; others

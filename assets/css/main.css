@@ -1133,7 +1133,7 @@ html {
 /* Blur fade layer — tint half of the glass effect. position:fixed (not
    absolute-relative-to-.gh-navigation like before) since it's now anchored
    to the viewport's bottom edge regardless of where the actual nav shell
-   sits (top, on desktop) — see .nav-progressive-blur's comment above. */
+   sits (top, on desktop) — see .nav-progressive-blur's comment above. 
 .gh-navigation::before {
   content: '';
   position: fixed;
@@ -1141,19 +1141,11 @@ html {
   left: 0;
   right: 0;
   bottom: 0;
-  height: 196px; /* was 280px — 30% less per explicit request */
-  /* --nav-fade-tint (not --nav-bg): a dark tint over already-dark page
-     content measured as barely perceptible regardless of blur radius
-     (verified via screenshot) — --nav-fade-tint is a lighter wash tied to
-     --color-background instead (tokens.css), so it reads as an actual
-     frosted-glass haze instead of a shadow, in both themes. */
-  background-color: color-mix(in srgb, var(--nav-fade-tint), var(--shift-bg, #22262E) calc(var(--profile-shift, 0) * 100%));
+  height: 196px; 
+  background-color: color-mix(in srgb, var(--nav-fade-tint), var(--nav-fade-tint-shift) calc(var(--profile-shift, 0) * 100%));
   backdrop-filter: blur(32px) saturate(160%);
   -webkit-backdrop-filter: blur(32px) saturate(160%);
-  /* Eases out quickly (was a 0.8-0.9 plateau until 50-60% of the box) —
-     "pull in" the solid-reading portion per explicit request, so this
-     tint hands off to the progressive-blur layers' own gradient quickly
-     instead of staying flat for half the box. */
+  
   mask-image: linear-gradient(
     to top,
     rgba(33, 36, 35, 0.9) 0%,
@@ -1173,6 +1165,24 @@ html {
   pointer-events: none;
   z-index: 1;
   opacity: var(--nav-gradient-opacity, 0);
+
+  transition: opacity 0.3s ease-out;
+}*/
+
+/* was 280px — 30% less per explicit request */
+  /* --nav-fade-tint (not --nav-bg): a dark tint over already-dark page
+     content measured as barely perceptible regardless of blur radius
+     (verified via screenshot) — --nav-fade-tint is a lighter wash tied to
+     --color-background instead (tokens.css), so it reads as an actual
+     frosted-glass haze instead of a shadow, in both themes. */
+  /* Blends between two tints of the SAME structure (both 55%-alpha veils —
+     see --nav-fade-tint-shift in tokens.css). Was blending toward the raw
+     opaque --shift-bg, which turned this frosted layer into an opaque slab
+     at full shift and stopped it matching the inverted section. */
+/* Eases out quickly (was a 0.8-0.9 plateau until 50-60% of the box) —
+     "pull in" the solid-reading portion per explicit request, so this
+     tint hands off to the progressive-blur layers' own gradient quickly
+     instead of staying flat for half the box. */
   /* opacity ONLY. background-color deliberately not transitioned: it is
      driven by --profile-shift, which is scrubbed exactly per frame by
      BackgroundLayer.bindShift. A time-based transition on top of a
@@ -1182,11 +1192,8 @@ html {
      out. Same reasoning as bindShift's own `scrub: true` choice; see
      BACKGROUND-LAYER-SYSTEM.md. --nav-gradient-opacity IS a boolean
      toggle, so it still wants its transition. */
-  transition: opacity 0.3s ease-out;
-}
-
 /* Soft color gradient overlay - adds visual softness. Same position:fixed/
-   bottom-anchoring rationale as ::before above. */
+   bottom-anchoring rationale as ::before above. */  /*
 .gh-navigation::after {
   content: '';
   position: fixed;
@@ -1194,7 +1201,16 @@ html {
   left: 0;
   right: 0;
   bottom: 0;
-  height: 147px; /* was 210px — 30% less per explicit request, same ratio to ::before */
+  height: 147px; 
+  background: var(--nav-gradient-reversed);
+  opacity: var(--nav-gradient-opacity, 0);
+  pointer-events: none;
+  z-index: 0;
+
+  transition: opacity 0.3s ease-out;
+}
+ opacity only — same reason as ::before above. */
+/* was 210px — 30% less per explicit request, same ratio to ::before */
   /* Was color-mix(in srgb, var(--nav-gradient), var(--shift-bg)...) — invalid:
      color-mix() takes two COLORS, not a gradient image, so the whole
      declaration was silently dropped and this overlay never actually
@@ -1202,13 +1218,7 @@ html {
      just use the token directly — --nav-gradient-reversed (not
      --nav-gradient) since this now fades toward the bottom edge, same
      mirrored-stops token already used by the mobile bar. */
-  background: var(--nav-gradient-reversed);
-  opacity: var(--nav-gradient-opacity, 0);
-  pointer-events: none;
-  z-index: 0;
-  /* opacity only — same reason as ::before above. */
-  transition: opacity 0.3s ease-out;
-}
+
 
 .gh-navigation.nav-hidden {
   transform: translateY(-100%);
@@ -2830,7 +2840,7 @@ body.post-template .nav-wrapper {
 .post-card-testimonial {
   /* body copy — retiered off --text-size-h5 (heading axis) to the same
      numbers on the BODY axis, so the body-size setting moves it */
-  font-size: var(--text-size-h4);
+  font-size: var(--text-size-body);
   font-style: normal;
   line-height: 1.4;
   color: var(--color-on-surface) !important;
@@ -2849,7 +2859,7 @@ body.post-template .nav-wrapper {
    clearly bigger than this one. */
 @media (max-width: 768px) {
   .post-card-testimonial {
-    font-size: calc(1.3rem * var(--type-scale-body, 1));
+    font-size: var(--text-size-body);
   }
 }
 
@@ -3910,9 +3920,7 @@ body[data-page-width='full'] .gh-canvas {
    .post-header (col 2, containing the title block AND the feature image),
    with a generous gap between them. order:-1 moves .post-project-summary
    first visually without reordering the DOM (the H1 stays the first
-   heading in reading/source order). Mobile keeps the natural DOM order
-   (role-overview before .post-header, since it precedes it in the markup
-   — see post.hbs) in a column stack. */
+   heading in reading/source order). */
 @media (min-width: 769px) {
   .post-header-layout {
     flex-direction: row;
@@ -3927,6 +3935,20 @@ body[data-page-width='full'] .gh-canvas {
 
   .post-header-layout > .post-header {
     flex: 1;
+  }
+}
+
+/* Mobile: .post-header-layout is already a column flex (base rule above),
+   but with no order set on either child, the stack falls back to DOM
+   order — .post-project-summary precedes .post-header in post.hbs, so it
+   rendered FIRST on mobile despite showing SECOND (as a left column) on
+   desktop. order:1 here (vs .post-header's default order:0) sorts it
+   after .post-header instead, matching the requested mobile reading order
+   (header content, then the role/context summary) without touching the
+   DOM/source order itself. */
+@media (max-width: 768px) {
+  .post-project-summary {
+    order: 1;
   }
 }
 
@@ -5293,6 +5315,9 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
   color:#d0d0d0;
   margin-bottom: 0;
   width: auto;
+  /* See the identical comment on .hero-headline below for why this needs
+     a CSS default now, not just the JS-driven hide it already had. */
+  opacity: 0;
 
 }
 
@@ -5327,16 +5352,51 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
   /* white-space: nowrap removed — the headline no longer splits into
      forced 2-word-per-line spans (see scroll-scrub-anim.js initHero()),
      so it needs to wrap normally instead of overflowing as one line. */
-  /* visibility:hidden removed — it was the ONLY hero text element hidden
-     by default CSS (.hero-intro/.hero-description have no such rule, and
-     were already showing from first paint). Un-hiding required JS
-     (scroll-scrub-anim.js's initHero(), gsap.set(heading,{visibility:
-     'visible'})) to actually run — real time (GSAP CDN load + script init),
-     measured ~300-400ms — during which opacity was already 1 but
-     visibility:hidden alone kept it fully invisible regardless. Now shows
-     immediately like its siblings; initHero()'s gsap.set calls are still
-     there but redundant for visibility specifically. */
+  /* opacity:0 (was removed once, now reinstated for a different reason).
+     initHero() destructively rebuilds this element's innerHTML into
+     per-character .char spans (animateH1LetterByLetter, main.js) — but it
+     only runs after preloader:done, which on a full preloader run can be
+     several seconds after first paint, and .preloader itself is
+     `background: transparent` (main.css), so it never visually covers
+     this text. Net effect with no CSS default: the complete server-
+     rendered headline shows immediately, sits fully visible for that
+     entire gap, THEN visibly vanishes the instant the rebuild runs
+     (all .char spans start at opacity:0) before staggering back in —
+     reads as "shows, then disappears, then re-reveals" on a plain
+     refresh. animateH1LetterByLetter's own first line
+     (`gsap.set(h1El, {opacity:1, visibility:'visible'})`, main.js) already
+     restores this unconditionally before it touches any child span, and
+     the reduced-motion override below forces opacity:1 !important
+     regardless — so hiding by default here only ever removes the gap
+     where raw text was visible before the split, never leaves it stuck
+     invisible. (The EARLIER visibility:hidden default, mentioned in this
+     same comment historically, was removed for a narrower reason — a
+     ~300-400ms blank window on the FAST path before GSAP had even loaded
+     — which no longer applies: this hero entrance already has an
+     intentional ~250ms delay of its own (scroll-scrub-anim.js's
+     REVEAL_START), so a brief pre-reveal blank state is already the
+     expected, designed-for baseline here, not a regression.) */
+  opacity: 0;
   max-width: 880px !important
+}
+
+/* Belt-and-suspenders for the same gap the comment above describes: on this
+   particle/WebGL-heavy page, something can set this element's opacity to 1
+   (confirmed via inline-style inspection — GSAP or otherwise; the exact
+   call site resisted several rounds of runtime interception, likely a V8
+   inline-cache fast path bypassing prototype patches) BEFORE
+   animateH1LetterByLetter's own split has actually run, letting the raw,
+   unsplit server-rendered text flash fully visible for tens of ms before
+   the rebuild clears and re-stages it — "H1 abruptly disappears, then the
+   letter animation triggers." !important always beats an inline style
+   regardless of source, so this makes the OUTCOME impossible rather than
+   depending on finding every possible cause: as long as there are no
+   .char spans yet, this stays forced invisible no matter what sets
+   opacity; the instant animateH1LetterByLetter creates them, this stops
+   matching and the (correctly per-letter-hidden) container can reveal
+   through its own GSAP tween as designed. */
+.hero-headline:not(:has(.char)) {
+  opacity: 0 !important;
 }
 
 /* .hero-line / .hero-headline .animate-word: dead now that initHero() no
@@ -5366,6 +5426,8 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
   hyphens: none;
   word-break: keep-all;
   max-width: 700px;
+  /* See the comment on .hero-headline above — same fix, same reason. */
+  opacity: 0;
 }
 
 /* Tag pills */
@@ -5424,6 +5486,22 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
   visibility: visible;
   pointer-events: none;
   overflow: hidden;
+}
+
+/* No cover image (.hero.no-cover, set from @site.cover_image — hero.hbs):
+   the wrapper renders empty, but width:100% above still claims the FULL
+   viewport (.hero-bg is deliberately full-bleed, see its own comment) —
+   none of the data-home-hero-width overrides below touch `width`, only
+   position/right/bottom/height, so this was never actually overridden.
+   Already pointer-events:none and invisible either way, but the leftover
+   footprint is exactly the "real scrollable area" WebKit issue called out
+   above, just for width instead of the old left-offset. Collapsing it to 0
+   removes that footprint; every JS reference (waitForHeroImages,
+   animateImageEntrance, scroll-scrub-anim.js's exit slide) only ever reads
+   or tweens opacity/x/visibility on this element, never its width, so
+   nothing depends on it staying full-bleed when there's no image to show. */
+.hero.no-cover .hero-image-wrapper {
+  width: 0;
 }
 
 /* When hero respects page width, adjust image positioning */
@@ -5603,6 +5681,12 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
 @media (max-width: 768px) {
   .hero-container {
     padding-top: var(--space-3xl) !important;
+    /* Bottom-anchored content (.hero-content justify-content:flex-end)
+       otherwise sits flush against the true screen edge — leave room
+       roughly matching the fixed nav's own footprint plus a bit of
+       breathing space, so text doesn't read as crammed against the
+       bottom on short phones. */
+    padding-bottom: calc(var(--nav-height) + var(--space-lg)) !important;
   }
 
   /* Image 20% larger on mobile */
@@ -5610,9 +5694,30 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
     flex: 1 1 58% !important;
   }
 
+  /* No cover image (.hero.no-cover — @site.cover_image unset): the wrapper
+     above still claims 58% of the column's HEIGHT via flex-basis even
+     though it's empty (width:0 elsewhere only zeroes it out for the
+     desktop position:absolute case, which doesn't apply here — mobile
+     keeps it position:relative and IN normal flex flow, where flex-basis,
+     not width, is what reserves space along the column's main axis). Left
+     unfixed, that reserved-but-empty 58% pushed the actual text content
+     up into roughly the top half of the hero instead of letting it fill
+     the height and sit truly bottom-adjacent. */
+  .hero.no-cover .hero-image-wrapper {
+    flex: 0 0 0 !important;
+  }
+
   /* Content larger with more spacing */
   .hero-content {
     padding: var(--space-4xl) 0 !important;
+    /* Base rule's align-items:flex-end + the duplicate text-align:right
+       declaration (same file, .hero-content's own rule) right-align both
+       the text and each line/child box — fine for the desktop layout,
+       where the column sits in the right portion of the viewport beside
+       the (absent-on-no-cover) portrait, but wrong on mobile, where this
+       is the only content and should read left-to-right normally. */
+    align-items: flex-start !important;
+    text-align: left !important;
   }
 }
 
@@ -5640,7 +5745,7 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
        something a wider geometric guard can fix without also shrinking the
        default at narrower widths (confirmed: a flat width-based guard here
        would undercut the existing clamp's own min() at ~320px). */
-    font-size: min(clamp(calc(3rem * min(var(--type-scale-heading, 1), 1)), calc(13vw * min(var(--type-scale-heading, 1), 1)), var(--text-size-h1)), 12dvh) !important;
+    font-size: min(clamp(calc(6.5rem * min(var(--type-scale-heading, 1), 1)), calc(13vw * min(var(--type-scale-heading, 1), 1)), var(--text-size-h1)), 12dvh) !important;
   }
 }
 
@@ -6465,6 +6570,8 @@ body[data-page-width='full'] .testimonials-section[data-testimonials-layout="scr
   font-weight: 400;
 }
 
+
+
 /* Testimonial snippet - BIG text (the main quote) */
 .testimonial-snippet h2 {
   font-size: var(--text-size-h2) !important;/* was var(--line-spacing-body-normal); token system removed */
@@ -6475,9 +6582,9 @@ body[data-page-width='full'] .testimonials-section[data-testimonials-layout="scr
 
 /* Testimonial source - regular text underneath */
 .testimonial-source {
-  font-size: var(--text-size-body, 1rem);
+  font-size: var(--text-size-small);
   line-height: var(--text-line-height-body, 1.6);
-  color: var(--color-on-surface-subtle, #a8a8a8);
+  color:var(--color-on-surface-variant, #d0d0d0) !important;
   margin-top: var(--space-sm);
 }
 
@@ -6485,7 +6592,7 @@ body[data-page-width='full'] .testimonials-section[data-testimonials-layout="scr
 .testimonial-excerpt {
   font-size: var(--text-size-body, 1rem);
   line-height: var(--text-line-height-body, 1.6);
-  color: var(--color-on-surface-variant, #d0d0d0);
+  color: var(--color-on-surface-variant, #d0d0d0) !important;
   margin: var(--space-md) 0;
 }
 
@@ -6499,7 +6606,17 @@ body[data-page-width='full'] .testimonials-section[data-testimonials-layout="scr
    same-specificity cascade resolves to these. Identity at shift 0. */
 .testimonials-header h2,
 .testimonial-text,
-.testimonial-snippet h2 {
+.testimonial-snippet h2,
+.testimonial-snippet {
+  /* .testimonial-snippet h2 above is dead in practice: main.js sets the
+     real quote via `.textContent =` directly on the .testimonial-snippet
+     div itself (no h2, no wrapper at all) for every production card —
+     confirmed live, all three current cards render as plain text. The h2
+     selector never matched, so this element's text carried NO shift-ink
+     blend at all (measured stuck at a hardcoded white regardless of
+     --profile-shift). Added the bare .testimonial-snippet selector here
+     alongside it rather than replacing it, in case a future path does
+     render the h2 wrapper. */
   color: color-mix(in srgb, var(--color-on-surface), var(--shift-ink, white) calc(var(--profile-shift, 0) * 100%));
 }
 
@@ -6956,7 +7073,7 @@ body[data-page-width='full'] [data-home-content-width="respect_page_width"] {
   margin-left: auto;
   margin-right: auto;
   width: 100%;
-  max-width: 1200;
+  max-width: 1280px;
 }
 
 [data-home-content-width="wide"] {
@@ -7431,6 +7548,21 @@ textarea::placeholder {
 
 }
 
+/* .page-header's own gap (var(--space-md), above) is what puts space
+   between .page-title and .page-excerpt on page-contact — a plain column
+   flex with those two as direct children. page-about-header overrides that
+   to flex-direction:row (title/excerpt beside the feature image instead of
+   stacked), which nests title+excerpt one level deeper inside this
+   .container div — a generic width/margin-only class with no flex/gap of
+   its own, so the row gap above lands between .container and the image,
+   never between the title and excerpt. Same column+gap pattern as
+   .page-header, just scoped one level down to restore it here. */
+.page-about-header .container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
 @media (max-width: 768px) {
   /* column-reverse, not column: .page-image (the feature image) is the
      second DOM child after .container (title/excerpt) — reversing the
@@ -7454,7 +7586,7 @@ textarea::placeholder {
 .page-excerpt {
   color: var(--color-on-surface-variant);
   margin: 0;
-  font-size: var(--text-size-h4);
+  font-size: var(--text-size-h3);
   line-height: var(--text-line-height-body);
 }
 
@@ -8030,7 +8162,6 @@ textarea::placeholder {
 .statement-heading {
   display: block;
   font-size: var(--text-size-h1);
-
   margin: 0 0 var(--space-md) 0;
   color: var(--color-on-surface);
   text-align: left;

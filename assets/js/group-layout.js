@@ -8,11 +8,11 @@
   'use strict';
 
   // Safe logging (some extensions block console)
-  const log = function(msg) {
-    try { log(msg); } catch (e) {}
+  const log = function(...args) {
+    try { console.log(...args); } catch (e) {}
   };
-  const warn = function(msg) {
-    try { warn(msg); } catch (e) {}
+  const warn = function(...args) {
+    try { console.warn(...args); } catch (e) {}
   };
 
   // Safety: only run on post pages
@@ -183,37 +183,24 @@
 
   /**
    * Initialize: find all group-start markers in post content
-
+   */
   function init() {
-    // Add visible test marker to verify script loaded
-    const testMarker = document.createElement('div');
-    testMarker.style.cssText = 'position: fixed; bottom: 20px; right: 20px; background: green; color: white; padding: 10px; border-radius: 4px; z-index: 9999; font-size: 12px;';
-    testMarker.textContent = 'Group Layout Loaded';
-    document.body.appendChild(testMarker);
-
     const markers = postContent.querySelectorAll('.group-start');
     log(`[group-layout] Found ${markers.length} group markers`);
 
     if (markers.length === 0) {
       log('[group-layout] No markers found, nothing to process');
-      testMarker.textContent = `Group Layout: 0 markers found`;
-      testMarker.style.background = 'orange';
       return;
-    } 
+    }
 
-    let processed = 0;
     for (const marker of markers) {
       try {
         processGroupMarker(marker);
-        processed++;
       } catch (err) {
         log('[group-layout] Error processing marker:', err);
       }
     }
-
-    testMarker.textContent = `Group Layout: ${processed}/${markers.length} processed`;
-    testMarker.style.background = processed > 0 ? 'green' : 'red';
-  }   */
+  }
 
   // Wait for DOM ready
   if (document.readyState === 'loading') {

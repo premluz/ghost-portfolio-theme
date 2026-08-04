@@ -460,11 +460,30 @@ class ScrollScrubAnimationSystem {
       const description = hero.querySelector('.hero-description');
       gsap.set(heading, { y: 0, filter: 'blur(0px)' }); // opacity handled per-letter below
       const entranceTl = gsap.timeline();
-      if (window.animateH1LetterByLetter) {
-        window.animateH1LetterByLetter(heading, entranceTl, REVEAL_START);
-      } else {
-        gsap.set(heading, { opacity: 1, visibility: 'visible' });
-      }
+      // window.animateH1LetterByLetter is defined in main.js, which loads
+      // AFTER this file (default.hbs: scroll-scrub-anim.js at 770, main.js
+      // at 838 — both plain blocking <script> tags, executed in order).
+      // On the same-site "skip path" specifically, initHero() can run
+      // synchronously at script-PARSE time (the preloader-skip decision is
+      // already known, no event to wait for) — well before main.js has
+      // executed and defined this function. A one-shot check here silently
+      // fell through to the plain-opacity fallback below whenever that race
+      // was lost, which read as "sometimes the letter reveal just doesn't
+      // happen, whole H1 pops in at once" — intermittent because it depended
+      // on exact script-load timing, not any conditional logic. Poll instead,
+      // same pattern as waitForParticleSystemThenMorph just above.
+      let letterAnimAttempts = 0;
+      const runLetterReveal = () => {
+        if (window.animateH1LetterByLetter) {
+          window.animateH1LetterByLetter(heading, entranceTl, REVEAL_START);
+        } else if (letterAnimAttempts++ < 25) { // 25 * 20ms = 500ms
+          setTimeout(runLetterReveal, 20);
+        } else {
+          console.warn('[scroll-scrub-anim] animateH1LetterByLetter never became available — hero heading shown without letter reveal');
+          gsap.set(heading, { opacity: 1, visibility: 'visible' });
+        }
+      };
+      runLetterReveal();
       if (intro) {
         gsap.set(intro, { y: 0, filter: 'blur(0px)' });
         entranceTl.fromTo(intro, { opacity: 0 }, { opacity: 1, duration: 0.4, ease: 'power2.out' }, REVEAL_START);
@@ -637,7 +656,11 @@ class ScrollScrubAnimationSystem {
       for (const char of text) {
         const span = document.createElement('span');
         span.className = 'char';
-        span.textContent = char;
+        // A plain space as the sole content of an inline-level span is
+        // subject to CSS whitespace collapsing (trimmed at line-box
+        // edges) — intermittently swallowed depending on where the word
+        // happens to wrap.   is never collapsible, so the gap holds.
+        span.textContent = char === ' ' ? ' ' : char;
         headline.appendChild(span);
         letters.push(span);
       }
@@ -859,6 +882,29 @@ class ScrollScrubAnimationSystem {
       // Skip hero and most profile elements, but allow headline and description (including child spans)
       if (el.closest('.hero')) return;
       if (el.closest('.profile') && !el.matches('.profile-headline') && !el.matches('.profile-description') && !el.closest('.profile-description')) return;
+
+      // Skip the footer heading — it's meant to be exclusively owned by
+      // heading-animations.js (br-safe split, see its own comment on
+      // preserving <br> across the character split), but the
+      // data-heading-anim-done check below is a race: that flag is set
+      // inside THAT script's forEach loop, not before it starts, so
+      // whichever init function's querySelectorAll happens to run first
+      // can still win here. Reproduced live: .footer-title's <br /> got
+      // silently dropped because this function's own splitText() (below,
+      // textContent-based — <br>-blind by construction) ran first and
+      // flattened "Building something<br />complex?" into one string
+      // before heading-animations.js ever got a chance to preserve it.
+      if (el.closest('.gh-footer')) return;
+
+      // Skip the Lab section's statement heading for the identical reason
+      // — it also has a literal <br> ("Explorations, <br />AI experiments",
+      // posts-tabs-grid-lab.hbs). Scoped to the wrapper that also contains
+      // #work-grid-lab rather than a bare .gradient-frame closest check —
+      // that class is reused by profile.hbs's own gradient-frame, which
+      // should still go through this function for .profile-headline (no
+      // <br> in that one, so no bug to avoid there).
+      const frameAncestor = el.closest('.gradient-frame');
+      if (frameAncestor && frameAncestor.querySelector('#work-grid-lab')) return;
 
       // Skip elements inside data-skip-reveal sections (testimonials, etc.)
       if (el.closest('[data-skip-reveal]')) return;

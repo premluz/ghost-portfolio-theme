@@ -62,6 +62,17 @@ const FRAGMENT = `
   uniform float u_parallax;
   uniform float u_layer2_parallax;
 
+  // "Breathe" — the wave's own height (amplitude) slowly expanding and
+  // collapsing over time, rather than holding one constant height. One
+  // knob for both layers; the PACE each one breathes at is derived from
+  // that call's own speed inside waveFlow() below (already different
+  // between the base wave and layer2 — see DEFAULTS.speed vs wave2Speed
+  // in gradient-frame.js) rather than a second per-layer uniform, so the
+  // two layers naturally drift in and out of phase using a parameter that
+  // already exists for another reason. 0 = off, exactly the old constant-
+  // amplitude behaviour.
+  uniform float u_breathe;
+
   varying vec2 vUv;
 
   #define PI 3.14159265359
@@ -176,9 +187,15 @@ const FRAGMENT = `
   // One layer's displaced vertical coordinate. Shared by both waves so
   // they are literally the same curve shape at different frequencies.
   float waveFlow(vec2 uv, float time, float scale, float speed, float parallax, float taper) {
-    float w1 = sin(uv.x * PI * scale * 0.8 + time * speed * 0.5) * 0.1;
-    float w2 = sin(uv.x * PI * scale * 0.5 + time * speed * 0.3) * 0.15;
-    float w3 = sin(uv.x * PI * scale * 1.2 + time * speed * 0.8) * 0.2;
+    // Pulse rate is 0.12x this layer's own speed — heavily slowed down so
+    // it reads as a calm, slow breathing rather than tracking the wave's
+    // own faster side-to-side motion. Ranges the amplitude multiplier
+    // 1-u_breathe .. 1+u_breathe, so u_breathe=1 swings from fully
+    // collapsed (0, flat) to double height (expanded).
+    float breathe = 1.0 + sin(time * speed * 0.12) * u_breathe;
+    float w1 = sin(uv.x * PI * scale * 0.8 + time * speed * 0.5) * 0.1 * breathe;
+    float w2 = sin(uv.x * PI * scale * 0.5 + time * speed * 0.3) * 0.15 * breathe;
+    float w3 = sin(uv.x * PI * scale * 1.2 + time * speed * 0.8) * 0.2 * breathe;
     return uv.y + (w1 + w2 + w3 + u_scroll * parallax) * taper;
   }
 
@@ -348,6 +365,9 @@ const DEFAULT_CONFIG = {
   scale: 1,
   layer2: null, // { color1, color2, opacity, scale, speed, center, width, parallax }
   parallax: 0,
+  // Calm amplitude pulse (see waveFlow in the fragment shader above). 0.4
+  // swings each wave's height between 60% and 140% of its base amplitude.
+  breathe: 0.4,
   type: 'stripe',
   noise: 0.08,
 };

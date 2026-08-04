@@ -65,29 +65,34 @@
         </div>
 
 
-        {{!-- Six items grid: how I work, in practice --}}
+        {{!-- Six items grid: how I work, in practice — revealed as a single
+              slide-up-staggered group by initProfileItemsReveal()
+              (card-scroll-reveal.js), not per-item data-card-reveal (that
+              drove each item off its OWN individual IntersectionObserver
+              crossing, with data-item-index only ever adding a fixed extra
+              delay after that — not a coordinated stagger from one trigger). --}}
         <div class="profile-items" id="profile-items">
-          <div class="profile-item" data-card-reveal="slide-left" data-item-index="0">
+          <div class="profile-item">
             <h3 class="profile-item-header">Partner</h3>
             <p class="profile-item-description">With engineers, product and executives, in their language. Influence earned by work.</p>
           </div>
-          <div class="profile-item" data-card-reveal="slide-left" data-item-index="1">
+          <div class="profile-item">
             <h3 class="profile-item-header">Lead</h3>
             <p class="profile-item-description">Hands-on at one end; mentoring, vision and design ops at the other.</p>
           </div>
-          <div class="profile-item" data-card-reveal="slide-left" data-item-index="2">
+          <div class="profile-item">
             <h3 class="profile-item-header">Build</h3>
             <p class="profile-item-description">Close to code. Complex products and systems.</p>
           </div>
-          <div class="profile-item" data-card-reveal="slide-left" data-item-index="3">
+          <div class="profile-item">
             <h3 class="profile-item-header">Care</h3>
             <p class="profile-item-description">Judgment, empathy, craft, coherence. That part stays human.</p>
           </div>
-          <div class="profile-item" data-card-reveal="slide-left" data-item-index="4">
+          <div class="profile-item">
             <h3 class="profile-item-header">Remove</h3>
             <p class="profile-item-description">More than I add. Killing bolt-ons and scope creep before they ship.</p>
           </div>
-          <div class="profile-item" data-card-reveal="slide-left" data-item-index="5">
+          <div class="profile-item">
             <h3 class="profile-item-header">Deliver</h3>
             <p class="profile-item-description">Value from day one, across 0→1→growth.</p>
           </div>

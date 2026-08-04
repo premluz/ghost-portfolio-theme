@@ -353,11 +353,12 @@
         <div class="footer-signup-section">
           <!--<h2 class="footer-title">{{@site.title}}</h2>-->
 
-          <h2 class="footer-title">Building something<br />complex?</h2>
-                 <p class="footer-description">I help you get it right and ship it faster. <a href="/about" class="text-gradient">How I work.</a></p>
+          <h2 class="footer-title" data-animate="letter">Building something<br />complex?</h2>
+                 <p class="footer-description">I help you get it right and ship it faster.</p>
           <a href="/contact" data-transition class="button footer-button" aria-label="Email">
            Let's make it happen
           </a>
+          <p> <a href="/about" class="">How I work</a> • <a href="/about" class="">LinkedIn</a></p>
           <!-- <form class="footer-form" data-members-form>
             <input
               type="email"
@@ -423,6 +424,40 @@
        top-level logs from those scripts ungated regardless of DEBUG_SCROLL. -->
   <script>
   (function() {
+    // Persist DEBUG_SCROLL across full page navigations (localStorage, not
+    // sessionStorage — should survive as long as the user wants it on, not
+    // just one tab lifetime). Plain `window.DEBUG_SCROLL = true` is a
+    // same-page-load-only flag otherwise — every step of a click-through
+    // flow (home -> post -> close back to home) is a full navigation, so
+    // debugging anything that spans one (e.g. the curtain-return/backfill
+    // path) required re-typing the assignment in devtools after every
+    // single page load. A getter/setter on `window.DEBUG_SCROLL` keeps the
+    // exact same `window.DEBUG_SCROLL = true` UX while mirroring it to
+    // localStorage under the hood, seeded from there on each fresh load.
+    (function persistDebugScroll() {
+      // Seeded from whichever is already true: a value some earlier script
+      // (e.g. Playwright's addInitScript, or any other pre-paint script)
+      // already assigned to window.DEBUG_SCROLL before this IIFE runs, OR
+      // localStorage from a previous page. Checking localStorage alone
+      // silently discarded an already-set `window.DEBUG_SCROLL = true` the
+      // instant this ran, since Object.defineProperty replaces the plain
+      // property outright — confirmed via Playwright tests going silent
+      // after this persistence layer was added.
+      let value = window.DEBUG_SCROLL === true;
+      try { value = value || localStorage.getItem('DEBUG_SCROLL') === '1'; } catch (e) {}
+      Object.defineProperty(window, 'DEBUG_SCROLL', {
+        configurable: true,
+        get() { return value; },
+        set(v) {
+          value = !!v;
+          try {
+            if (value) localStorage.setItem('DEBUG_SCROLL', '1');
+            else localStorage.removeItem('DEBUG_SCROLL');
+          } catch (e) {}
+        },
+      });
+    })();
+
     const originalLog = console.log;
     const originalWarn = console.warn;
     const originalError = console.error;
@@ -495,7 +530,7 @@
       // 'hero-helix' = the tilted, tapering halftone coil (shape-definitions.js).
       // 'helix' = the original DNA-style double tube. 'volatility' = ground plane.
       const m = window.HERO_PARTICLE_MODE;
-      return (m === 'volatility' || m === 'hero-helix') ? m : 'helix';
+      return (m === 'ribbon-dispersed' || m === 'ribbon-dispersed') ? m : 'ribbon-dispersed';
     };
 
     // PARTICLE SCENARIOS — declarative section→behavior map. Every particle
@@ -516,7 +551,7 @@
       },
       'hero-footer': {                // particles ONLY in hero + footer
         'hero-exit': 'hide',
-        //'operating-model': 'hide',
+        'operating-model': 'hide',
         'operating-model-exit': 'hide',
         'helix-section': 'hide',
         profile: 'hide', 'profile-exit': 'hide',
@@ -639,7 +674,7 @@
     // __particleLayerHidden and html.curtain-restoring are both already
     // set by the time this script runs, if this load is a curtain return.
 
-    window.__particleApply = function (system, key, builtinShape, duration) {
+    window.__particleApply = function (system, key, builtinShape, duration, fadeMsOverride) {
       // Global animation kill-switch is authoritative: no morphs, and never
       // clear the hidden flag (a show-path call here used to re-arm the
       // render loop even though the container was display:none).
@@ -653,10 +688,11 @@
       // of the veil: a 'hero' apply landing well past the hero itself is
       // stale — never re-show mid-page. Threshold scales with the hero's
       // own height rather than a fixed px value: particle-animation-loop.js's
-      // _updateHeroExit() now calls 'hero' continuously as you scroll back
-      // up through the whole hero (up to ~90% of its height), not just in
-      // the first few px like the ScrollTrigger it replaced, so a fixed
-      // ~150px cutoff would silently drop most of those legitimate calls.
+      // _updateHeroCollapseState() now calls 'hero' continuously as you
+      // scroll back up through the whole hero (up to ~65% of its height —
+      // the collapse span plus its return-glide span), not just in the
+      // first few px like the ScrollTrigger it replaced, so a fixed ~150px
+      // cutoff would silently drop most of those legitimate calls.
       const veiled = document.documentElement.classList.contains('curtain-restoring');
       if (key === 'hero') {
         const heroEl = document.querySelector('.hero');
@@ -672,19 +708,50 @@
         // fade, so hiding reads as "particles disperse away" rather than a
         // frozen shape dimming out — but only if the layer is currently
         // visible (morphing an already-hidden layer is wasted work).
-        if (!window.__particleLayerHidden && system && typeof system.morphTo === 'function' && builtinShape) {
+        //
+        // Gate on __particleHiding, NOT __particleLayerHidden: the latter
+        // only flips true via the setTimeout below, once a fade has fully
+        // finished, so it stays false for the whole fadeMs/hideDelayMs
+        // window while a fade is already in flight. A second 'hide' caller
+        // landing in that window (e.g. work-cards' trigger firing while
+        // hero-exit's own ~2.1s fade is still running) used to see
+        // __particleLayerHidden still false and re-morph the still-visible,
+        // still-fading layer to ITS builtin shape ('collapse') — a visible
+        // sphere flash mid-fade. __particleHiding goes true synchronously
+        // the instant any hide is requested, so a later hide request during
+        // the same in-flight fade just re-arms the fade/timer, never the
+        // shape morph.
+        const alreadyHiding = window.__particleHiding;
+        window.__particleHiding = true;
+        if (!alreadyHiding && system && typeof system.morphTo === 'function' && builtinShape) {
           system.morphTo(builtinShape, duration);
         }
-        if (layer) { layer.style.transition = 'opacity 0.6s ease'; layer.style.opacity = '0'; }
+        // Fade/hide timing scales WITH duration (1.5x / 1.75x) by default —
+        // every existing caller still passes 400ms, so this reproduces
+        // today's exact constants everywhere unchanged (400*1.5=600,
+        // 400*1.75=700). fadeMsOverride decouples the fade from the SHAPE
+        // morph's own duration for callers that want the shape-swap fast
+        // (matching every other 'hide' trigger) but the fade itself
+        // slower — hero-exit's own "keep rotating while it dissolves"
+        // request specifically (particle-animation-loop.js): the shape
+        // settles at the normal 400ms pace, then lingers, still spinning,
+        // through a longer fade instead of everything ending together.
+        // hideDelayMs keeps the SAME ratio to whichever fade is in play
+        // (1.75/1.5 ≈ 1.1667x it), so the render loop still only pauses
+        // shortly AFTER the fade is visually done, never mid-fade.
+        const fadeMs = fadeMsOverride != null ? fadeMsOverride : duration * 1.5;
+        const hideDelayMs = fadeMs * (1.75 / 1.5);
+        if (layer) { layer.style.transition = `opacity ${fadeMs / 1000}s ease`; layer.style.opacity = '0'; }
         // Pause the render loop only AFTER the fade finishes — pausing
         // immediately would freeze the first hidden frame and the disperse
         // morph above would never be seen.
         clearTimeout(window.__particleHideTimer);
-        window.__particleHideTimer = setTimeout(() => { window.__particleLayerHidden = true; }, 700);
+        window.__particleHideTimer = setTimeout(() => { window.__particleLayerHidden = true; }, hideDelayMs);
         return;
       }
       clearTimeout(window.__particleHideTimer);
       window.__particleLayerHidden = false;
+      window.__particleHiding = false;
       if (layer && layer.style.opacity === '0') { layer.style.transition = 'opacity 0.6s ease'; layer.style.opacity = '1'; }
       if (system && typeof system.morphTo === 'function' && target) system.morphTo(target, duration);
     };
@@ -700,7 +767,7 @@
   <script src="{{asset "js/gradient-layer.js"}}"></script>
   <script src="{{asset "js/background-layer.js"}}"></script>
   <script src="{{asset "js/surface-effect-layer.js"}}?v={{@site.updated_at}}"></script>
-  <script src="{{asset "js/scroll-scrub-anim.js"}}"></script>
+  <script src="{{asset "js/scroll-scrub-anim.js"}}?v={{@site.updated_at}}"></script>
   <!-- DISABLED: Canvas gradient rendering (use CSS gradients instead) -->
   <!-- <script src="{{asset "js/gradient-config.js"}}"></script>
   <script src="{{asset "js/glsl-gradient-manager.v2.js"}}"></script>
@@ -724,13 +791,13 @@
 
   <!-- Phase 2 Day 3 Modules -->
   <script src="{{asset "js/heading-animations.js"}}"></script>
-  <script src="{{asset "js/card-scroll-reveal.js"}}"></script>
+  <script src="{{asset "js/card-scroll-reveal.js"}}?v={{@site.updated_at}}"></script>
 
   <!-- Phase 2 Day 4-6 Modules -->
   <script src="{{asset "js/post-utilities.js"}}"></script>
   <script src="{{asset "js/table-of-contents.js"}}"></script>
   <script src="{{asset "js/feature-modules.js"}}"></script>
-  <script src="{{asset "js/post-and-cards.js"}}"></script>
+  <script src="{{asset "js/post-and-cards.js"}}?v={{@site.updated_at}}"></script>
 
   <!-- Reusable gradient-frame component (animated GradFlow bands wrapping
        any content) — loaded site-wide so any partial can opt in with
@@ -768,7 +835,7 @@
   <script src="{{asset "js/gpu-particles/gpu-particle-system.test.js"}}"></script>
   <script src="{{asset "js/gpu-particles/gpu-particle-system.js"}}"></script>
 
-  <script src="{{asset "js/main.js"}}"></script>
+  <script src="{{asset "js/main.js"}}?v={{@site.updated_at}}"></script>
   <script src="{{asset "js/sticky-nav.js"}}"></script>
   <script src="{{asset "js/word-animation.js"}}"></script>
   <script src="{{asset "js/logos-scroll.js"}}"></script>
@@ -777,16 +844,15 @@
   <!-- <script src="{{asset "js/testimonials-scroll.js"}}"></script> -->
   <!-- <script src="{{asset "js/sequence-animation.js"}}"></script> -->
   <script src="{{asset "js/card-animations.js"}}"></script>
-  <script src="{{asset "js/page-transition.js"}}"></script>
+  <script src="{{asset "js/page-transition.js"}}?v={{@site.updated_at}}"></script>
   {{#is "post"}}
-  <script src="{{asset "js/group-layout.js"}}"></script>
+  <script src="{{asset "js/group-layout.js"}}?v={{@site.updated_at}}"></script>
   {{/is}}
   {{!-- {{ghost_foot}} --}}
 
   <!-- GPU Particle System Integration (Production Setup) -->
  <!-- {{> gpu-particle-integration}} -->
-
- {{> particle-morph}}
+{{> particle-morph}}
 
 
   <!-- Bottom fade gradient pane - creates illusion of content fading in -->

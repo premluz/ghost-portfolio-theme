@@ -25,6 +25,21 @@ class FadeController {
   }
 
   animate(target, duration) {
+    // Sync from the element's actual current opacity before starting a new
+    // interpolation. this.currentOpacity is otherwise just an internal
+    // tracker that only ever gets updated by this class's OWN previous
+    // writes (starts at 0 from the constructor) — if the element's real
+    // opacity is different (its CSS/HTML default, or something else set it
+    // directly), the first animation frame below would snap the element to
+    // the stale tracked value before continuing toward target, instead of
+    // starting from wherever it visually already is. Confirmed cause of
+    // "particles abruptly disappear, then fade back in" on the very first
+    // fadeIn() call of a page load — the element defaulted to opacity 1
+    // (untouched), this.currentOpacity was still its constructor default
+    // of 0, so the first frame here forced a visible snap to 0.
+    const computed = parseFloat(getComputedStyle(this.element).opacity);
+    if (!Number.isNaN(computed)) this.currentOpacity = computed;
+
     this.targetOpacity = target;
     this.duration = duration;
     this.startTime = Date.now();

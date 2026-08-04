@@ -8,7 +8,7 @@ class ParticleMorphSystem {
   // _createImmediateStates() (what to build now) and createInitialStates()
   // (what not to rebuild later); they used to be separate hand-kept lists
   // that had drifted apart.
-  static IMMEDIATE_SHAPES = ['dispersed', 'collapse', 'helix', 'hero-helix', 'ribbon', 'volatility', 'lab', 'terrain', 'grid', 'dots'];
+  static IMMEDIATE_SHAPES = ['dispersed', 'collapse', 'helix', 'hero-helix', 'ribbon', 'ribbon-dispersed', 'volatility', 'lab', 'terrain', 'grid', 'dots'];
 
   constructor(container, config = {}) {
     this.container = typeof container === 'string' ? document.querySelector(container) : container;
@@ -30,6 +30,7 @@ class ParticleMorphSystem {
     this.shapeRegistry.register(window.SPHERE);
     this.shapeRegistry.register(window.HELIX);
     this.shapeRegistry.register(window.RIBBON);
+    this.shapeRegistry.register(window.RIBBON_DISPERSED);
     this.shapeRegistry.register(window.VOLATILITY);
     this.shapeRegistry.register(window.HERO_HELIX);
     this.shapeRegistry.register(window.COLLAPSE);
@@ -67,7 +68,7 @@ class ParticleMorphSystem {
     this.stateRegistry = new window.StateRegistry(this.config.particleCount);
 
     // Create non-GLB states immediately so start('dispersed') works right away
-    this._createImmediateStates();
+    await this._createImmediateStates();
 
     // Fade controller
     this.fadeController = new window.FadeController(this.container);
@@ -75,27 +76,71 @@ class ParticleMorphSystem {
     // Trigger manager
     this.triggerManager = new window.TriggerManager();
 
-    // Load GLBs in the background — creates remaining states when ready
+    // Load GLBs in the background — creates remaining states when ready.
+    // Deferred to requestIdleCallback (not kicked off immediately): each
+    // file's fetch is async, but the moment it resolves, GLTFLoader parse +
+    // subdivideGeometry + MeshSurfaceSampler.build() run synchronously — CPU
+    // work, not I/O — and with 9 files tending to resolve in a burst, that
+    // synchronous work bunches up and freezes the main thread for several
+    // seconds right after page load. On a curtain-return (post -> close back
+    // to home), that freeze starves page-transition.js's backfill
+    // setTimeout(450/1200/2500) calls, so cards restore several seconds late
+    // and then all pop in at once instead of being there already — these
+    // GLBs are only morph targets for later scroll-triggered shape changes
+    // elsewhere on the page, nothing on/near first paint depends on them, so
+    // there's no reason they need to compete with critical-path work for the
+    // thread. Idle callback lets already-queued work (backfill, entrance
+    // animations) run first; the 2s timeout is a ceiling so this can't be
+    // starved indefinitely on a page that's never truly idle.
     if (window.loadGLBMesh) {
-      // lab.glb removed: 'lab' is now sphere-based (see shape-definitions.js),
-      // generated immediately below — no GLB load to wait for.
-      const meshFiles = ['mobile.glb', 'note.glb', 'diamond.glb', 'globe.glb', 'game.glb', 'chart.glb', 'email.glb', 'camera.glb', 'sim.glb'];
-      Promise.allSettled(meshFiles.map(file => window.loadGLBMesh(file)))
-        .then(() => {
-          this.createInitialStates();
-          window.particleSystemGLBsReady = true;
-        });
+      const startGLBLoad = () => {
+        // lab.glb removed: 'lab' is now sphere-based (see shape-definitions.js),
+        // generated immediately above — no GLB load to wait for.
+        const meshFiles = ['mobile.glb', 'note.glb', 'diamond.glb', 'globe.glb', 'game.glb', 'chart.glb', 'email.glb', 'camera.glb', 'sim.glb'];
+        Promise.allSettled(meshFiles.map(file => window.loadGLBMesh(file)))
+          .then(() => {
+            this.createInitialStates();
+            window.particleSystemGLBsReady = true;
+          });
+      };
+      if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(startGLBLoad, { timeout: 2000 });
+      } else {
+        setTimeout(startGLBLoad, 0);
+      }
     } else {
       window.particleSystemGLBsReady = true;
     }
   }
 
-  _createImmediateStates() {
+  async _createImmediateStates() {
     // Create only states that don’t depend on GLB meshes.
     // Single source of truth — createInitialStates() reads the same list to
     // decide what NOT to regenerate (see its comment).
+    //
+    // async + a requestAnimationFrame yield between EACH shape (was one
+    // synchronous forEach): 13 generations (10 IMMEDIATE_SHAPES + 3
+    // dispersed variants) at this.config.particleCount (16000 on desktop)
+    // ran back-to-back with zero paint opportunity in between — measured
+    // 500-2000ms of unbroken main-thread work on every load. Whenever that
+    // window happened to overlap the hero's own letter-by-letter reveal
+    // (scroll-scrub-anim.js initHero(), gated on preloader:done — this
+    // method runs on an entirely separate, uncoordinated timer, a plain
+    // 500ms setTimeout from script-parse in particle-morph.hbs), GSAP's
+    // tween is time-based: with no frame able to paint any intermediate
+    // state, it found real elapsed time already past the whole stagger's
+    // duration the next time it COULD paint, and rendered the fully-
+    // complete state directly — every letter appearing at once with no
+    // visible stagger ("every now and then it just... appears, doesn't
+    // animate letter by letter"). Yielding after each shape breaks that one
+    // multi-hundred-ms block into ~13 short ones with a real paint chance
+    // between each, so a concurrent animation elsewhere on the page keeps
+    // advancing instead of skipping to its end state. system.start()
+    // (particle-morph.hbs) already awaits this method, so total ordering
+    // is unchanged — only now spread across frames instead of one tick.
+    const nextFrame = () => new Promise(requestAnimationFrame);
     const immediate = ParticleMorphSystem.IMMEDIATE_SHAPES;
-    immediate.forEach(key => {
+    for (const key of immediate) {
       try {
         const result = this.shapeRegistry.generateState(key, this.config.particleCount);
         const positions = result.positions || result;
@@ -108,10 +153,11 @@ class ParticleMorphSystem {
       } catch (err) {
         console.warn(`[particle-morph-system] Could not create immediate state: ${key}`, err);
       }
-    });
+      await nextFrame();
+    }
     // Dispersed variants
     const variants = ['dispersed_dense', 'dispersed_chaos', 'dispersed_swarm'];
-    variants.forEach(key => {
+    for (const key of variants) {
       try {
         const shape = this.shapeRegistry.get(key);
         if (shape) {
@@ -121,7 +167,8 @@ class ParticleMorphSystem {
           this.stateRegistry.register(key, positions, { shapeKey: key, sizes });
         }
       } catch (err) {}
-    });
+      await nextFrame();
+    }
   }
 
   createInitialStates() {
@@ -138,7 +185,7 @@ class ParticleMorphSystem {
     //    _createImmediateStates()'s `immediate` array and had fallen behind
     //    it (missing 'ribbon'/'volatility'), so those two got regenerated
     //    here and clobbered the live state. Both now derive from one array.
-    const shapes = ['dispersed', 'collapse', 'helix', 'hero-helix', 'ribbon', 'volatility', 'sphere', 'triple-sphere', 'torus', 'mobile', 'note', 'diamond', 'globe', 'game', 'chart', 'email', 'camera', 'footer', 'lab', 'terrain', 'grid', 'dots'];
+    const shapes = ['dispersed', 'collapse', 'helix', 'hero-helix', 'ribbon', 'ribbon-dispersed', 'volatility', 'sphere', 'triple-sphere', 'torus', 'mobile', 'note', 'diamond', 'globe', 'game', 'chart', 'email', 'camera', 'footer', 'lab', 'terrain', 'grid', 'dots'];
     shapes.forEach(key => {
       try {
         // Skip states already created by _createImmediateStates to avoid overwriting live state

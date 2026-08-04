@@ -8,19 +8,36 @@
    absolutely-positioned canvas slots that used to live here are gone;
    they overlaid the content and clipped at the section edge. */
 
-/* ── FIXED PALETTE for the Lab island ───────────────────────────────
-   The frame runs in "invert" mode, which reads the shift tokens; pinning
-   them here makes the island ONE authored look in both themes instead of
-   the theme's mirror. :root:has() outranks both theme blocks in tokens.css
-   (an id selector inside :has() beats [data-theme]), so a theme toggle
-   cannot move it — which is exactly what the old JS "fixed" mode did, minus
-   the page-global write from a component and the luminance heuristic that
-   guessed the icon polarity.
+/* ── FIXED PALETTE for the Lab island — NAV/CHROME HALF ──────────────
+   The island itself is NOT painted from here: its background and bands come
+   from data-gradient-inner="#1E1825" on the frame (posts-tabs-grid-lab.hbs).
+   This block exists only for the page chrome that sits OUTSIDE the frame —
+   above all the position:fixed nav, which no subtree rule can reach — so it
+   retints to match the island rather than the theme's usual mirror.
+   ⚠ The hex below is a hand-kept duplicate of data-gradient-inner in the
+   partial. Change one, change the other.
+
+   Scoped to data-active-gradient-frame='lab' (set by gradient-frame.js's
+   bindShift onProgress, via this frame's data-gradient-shift-key='lab'),
+   NOT :root:has(#work-grid-lab). The :has() version checked "does
+   #work-grid-lab exist anywhere in the DOM", true on the whole homepage
+   regardless of scroll position — so it permanently hijacked --shift-bg for
+   ANY other section's shift on the same page, breaking testimonials' invert
+   (it got Lab's fixed purple instead of the theme's true opposite
+   background, even scrolled nowhere near Lab). The attribute only applies
+   while Lab's OWN shift is active. tokens.css loads before this file
+   (default.hbs), so plain source order — not an artificially boosted :has()
+   specificity — is enough to outrank both theme blocks there.
+
+   NOTE --shift-bg here is deliberately NOT what the frame paints with
+   (that is --shift-bg-theme, which this block cannot redirect — see
+   tokens.css). Redirecting the token the frame also painted from is exactly
+   what made Lab render white until a theme toggle repainted it.
    Only these four are needed: --surface-1-shift and --glass-bg-shift are
    derived from --shift-ink (tokens.css), so the nav pill and badge fills
    follow automatically. */
-:root:has(#work-grid-lab) {
-    --shift-bg: #1E1825;
+:root[data-active-gradient-frame='lab'] {
+  --shift-bg: #1E1825;
   --shift-ink: #ffffff;
   /* White icons on the island, in both themes — the ramp endpoint the nav
      icons' invert() filter interpolates toward (see tokens.css). */
@@ -231,7 +248,14 @@
   gap: 4rem;
   width: 100%;
   min-width: 0;
-  align-items: center;
+  /* stretch (the flex default), not center: .grid-card-content needs to
+     be as tall as .grid-card-image's row height for its own
+     justify-content:flex-end (below) to have room to push content down
+     to the image's bottom edge — center-aligning here shrink-wraps
+     .grid-card-content to its own content height instead, leaving
+     flex-end nothing to do. .grid-card-image's height still comes from
+     its own aspect-ratio regardless of this value. */
+  align-items: stretch;
 }
 
 .posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-image {
@@ -263,7 +287,10 @@
   width: 34%;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  /* flex-end, not center: content should sit at the bottom of the row,
+     its last line flush with the image's bottom edge — matches the same
+     fix on .post-card-content in post-card-grid.css. */
+  justify-content: flex-end;
   min-width: 0;
   order: 0;
   overflow-wrap: break-word;
@@ -272,6 +299,21 @@
 
 .posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-description {
   display: none;
+}
+
+/* .grid-card-category's own flex:1 (base rule, unscoped to layout mode —
+   this section's grid-mode cards want the category to grow and push
+   title/keywords toward the card's bottom) leaks into list mode too, where
+   it fights the flex-end bottom-alignment above: the category grew to fill
+   the ENTIRE column's free space, making its own box ~327px tall for a
+   one-line label and pushing the real content (category text top-anchored
+   in that oversized box, then title/keywords right after it) noticeably
+   higher than the image's bottom edge instead of flush with it. Reset to
+   non-growing here, matching .post-card-category (post-card-grid.css) —
+   the reference this was supposed to match already has no flex value at
+   all. */
+.posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-category {
+  flex: none;
 }
 
 /* Tablet — collapse list to column */
@@ -283,7 +325,7 @@
 
   .posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-link {
     flex-direction: column;
-    gap: var(--space-md);
+    gap: var(--space-lg);
   }
 
   .posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-image {
@@ -295,6 +337,18 @@
   }
 
   .posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-content {
+    /* Desktop's flex:1 1 34%/width:34% (same file, above) sizes the row's
+       MAIN axis at that breakpoint's flex-direction:row — once .grid-card
+       switches to flex-direction:column just above, that same percentage
+       silently starts constraining the CROSS axis (now horizontal) instead,
+       squeezing the whole content column to 34% of the card's width
+       underneath a full-width image: title wrapping across 5 lines,
+       keyword pills each barely fitting one per row. post-card-grid.css's
+       own list-mode mobile collapse resets this exact case
+       (.post-card-content { width:100% } at max-width:960px) — grid-card
+       never got the equivalent reset. */
+    width: 100%;
+    flex: none;
     order: 1;
   }
 }

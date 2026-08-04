@@ -230,8 +230,6 @@ function animateImageEntrance(imageEl, timeline, ease, startTime = 0, duration =
  * @param {number|null}   blurPx    - Starting blur in px (null = no blur)
  */
 function animateH1LetterByLetter(h1El, timeline, startTime = 0.15, blurPx = null) {
-  // console.log('[h1-anim] Called with h1El:', h1El, 'timeline:', !!timeline, 'startTime:', startTime);
-
   if (!h1El || !timeline) {
     // console.warn('[h1-anim] Missing h1El or timeline, returning');
     if (h1El) gsap.set(h1El, { opacity: 1, visibility: 'visible' });
@@ -244,12 +242,12 @@ function animateH1LetterByLetter(h1El, timeline, startTime = 0.15, blurPx = null
   }
 
   try {
-    // Make parent visible immediately
-    gsap.set(h1El, { opacity: 1, visibility: 'visible' });
-
     const text = h1El.textContent;
     if (!text || text.trim().length === 0) {
       // console.warn('[h1-anim] No text content found');
+      // Nothing to split — reveal whatever's there (empty) rather than
+      // leaving the container stuck at its CSS opacity:0 default forever.
+      gsap.set(h1El, { opacity: 1, visibility: 'visible' });
       return;
     }
 
@@ -272,6 +270,19 @@ function animateH1LetterByLetter(h1El, timeline, startTime = 0.15, blurPx = null
     if (letters.length > 0) {
       // Set all letters invisible initially
       gsap.set(letters, { opacity: 0 });
+
+      // Reveal the CONTAINER only now, after the letters already exist and
+      // are individually hidden — not as the first line of this function.
+      // Revealing the container first (the old order) left a real window,
+      // on this particle/WebGL-heavy page, where the container could paint
+      // at opacity:1 with its original plain, unsplit text still in place,
+      // before the innerHTML rebuild below actually ran — visible as "H1
+      // flashes fully formed, then abruptly clears, then re-stages
+      // letter-by-letter" instead of a clean reveal. Doing the split BEFORE
+      // lifting the container's opacity means there is never a frame where
+      // unsplit text can be visible, regardless of how long the split
+      // itself takes to actually run.
+      gsap.set(h1El, { opacity: 1, visibility: 'visible' });
 
       // Optional blur on the container — unblurs in parallel with letter reveal
       // DISABLED: blur removed from all letter reveal animations
@@ -2296,13 +2307,13 @@ function initTestimonialMetadata() {
           const meta = eval(`(${metaStr})`);
 
           // Apply snippet (big text on home page)
-          if (meta.snippet) {
-            const snippetEl = card.querySelector('.testimonial-snippet');
+          if (meta.title) {
+            const snippetEl = card.querySelector('.testimonial-title');
             if (snippetEl) {
               // Create h2 for snippet (skip animation — testimonials section has data-skip-reveal)
               const h2 = document.createElement('h2');
-              h2.className = 'testimonial-snippet-text';
-              h2.textContent = meta.snippet;
+              h2.className = 'testimonial-title-text';
+              h2.textContent = meta.title;
               snippetEl.innerHTML = ''; // Clear the div
               snippetEl.appendChild(h2);
               // console.log(`[testimonial] ✓ Applied snippet to card`);
@@ -2336,6 +2347,16 @@ function initTestimonialMetadata() {
             if (sourceEl) {
               sourceEl.textContent = meta.source;
               // console.log(`[testimonial] ✓ Applied source to card`);
+            }
+          }
+
+          // Apply short version
+          if (meta.snippet) {
+            const shortEl = card.querySelector('.testimonial-snippet');
+            if (shortEl) {
+              shortEl.textContent = meta.snippet;
+              shortEl.style.display = 'block';
+              // console.log(`[testimonial] ✓ Applied short to card`);
             }
           }
 
@@ -2718,22 +2739,37 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // Route through the scenario map defined in default.hbs so
             // settings like `work-cards: 'hide'` are respected. If the
-            // scenario says hide, morph to 'collapse' rather than a card
-            // object so the field stays folded in while invisible.
+            // scenario says hide, do NOTHING — no shape morph, no opacity
+            // fade, no call at all.
             //
-            // 'collapse', not 'dispersed': this trigger fires continuously
-            // across the whole post-tabs stretch and was the last writer, so
-            // a 'dispersed' builtin here silently undid the hero's collapse
-            // a frame later — the shape held through post-tabs is whatever
-            // THIS line says, not what hero-exit asked for.
+            // Used to route through __particleApply('work-cards', 'collapse'/
+            // null, ...) so the shared canvas stayed folded/hidden for the
+            // whole post-tabs stretch instead of showing real card shapes.
+            // But __particleApply's 'hide' branch ALWAYS fades opacity to 0
+            // once the scenario map says 'hide' for this key, regardless of
+            // what builtinShape is passed — and that fade also eventually
+            // sets window.__particleLayerHidden, which makes animate() skip
+            // itself entirely (particle-animation-loop.js's
+            // `if (window.__particleLayerHidden) return`), FREEZING
+            // hero-exit's own still-running rotate+drift sequence mid-way
+            // and later resuming it from a stale, jumped-ahead scroll
+            // position once un-hidden again. Reported as "it shouldn't fade
+            // out... stops rotating... then only slides left... remove that
+            // keyframe" — hero-exit is supposed to be the ONLY thing
+            // touching the shared canvas until it has visibly drifted off
+            // frame on its own (see particle-animation-loop.js's overscroll
+            // drift), so this trigger needs to stay completely silent
+            // during that whole window, not merely swap what it morphs to.
             const scenarioMap = (window.PARTICLE_SCENARIOS && window.PARTICLE_SCENARIOS[window.PARTICLE_SCENARIO || 'full']) || {};
             const scenarioAction = scenarioMap['work-cards'];
-            const builtin = scenarioAction === 'hide' ? 'collapse' : targetShape;
+            if (scenarioAction === 'hide') {
+              return;
+            }
 
             if (window.__particleApply) {
-              window.__particleApply(sys, 'work-cards', builtin, 400);
+              window.__particleApply(sys, 'work-cards', targetShape, 400);
             } else {
-              sys.morphTo(builtin, 400);
+              sys.morphTo(targetShape, 400);
             }
           } else {
             console.log('[card-morph] Shape not available:', targetShape);

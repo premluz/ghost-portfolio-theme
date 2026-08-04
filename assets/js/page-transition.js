@@ -78,9 +78,9 @@
     // 1. Current page: slide down + fade out
     if (pageContent) {
       tl.to(pageContent, {
-        y:        20,
+        y:        0,
         opacity:  0,
-        duration: 0.01,
+        duration: 0.02,
         ease:     'power1.in',
       }, 0);
     }
@@ -90,7 +90,7 @@
     // speeds up into the panel's arrival.
     tl.to(scrim, {
       opacity:  0.9,
-      duration: 0.01,
+      duration: 0.02,
       ease:     'power2.in',
     }, 0);
 
@@ -155,9 +155,9 @@
     // opaque (covering the page) by the time main's slide/fade finishes,
     // same relationship as before, just compressed.
     if (pageContent) {
-      tl.to(pageContent, { y: 200, opacity: 0, duration: 0.08, ease: 'power1.in' }, 0);
+      tl.to(pageContent, { y: 40, opacity: 0, duration: 0.2, ease: 'power2.in' }, 0);
     }
-    tl.to(scrim, { opacity: 1, duration: 0.1, ease: 'power2.in' }, 0);
+    tl.to(scrim, { opacity: 1, duration: 0.2, ease: 'power2.in' }, 0);
   }
 
   // Shared by the close button click and the Escape key (below) — resolves
@@ -179,6 +179,7 @@
   function runCurtainEntrance() {
     let isCurtainReturn = false;
     try { isCurtainReturn = sessionStorage.getItem('curtainReturn') === '1'; } catch (err) {}
+    console.log('[curtain-return] isCurtainReturn:', isCurtainReturn);
     if (!isCurtainReturn) return false;
     try { sessionStorage.removeItem('curtainReturn'); } catch (err) {}
 
@@ -192,12 +193,21 @@
     // entire window, then popped visible all at once when the failsafe
     // finally stripped it. The curtain entrance has its own scrim/main
     // choreography; drop this veil the moment this path takes ownership.
-    // (home has no equivalent pre-hide anymore — see default.hbs.)
+    // html.landing-pending is the same story for the homepage: it's set on
+    // ANY same-site arrival at '/', and a curtain return from a post is one
+    // — but it's only ever removed by runLandingAnimation(), which this
+    // function short-circuits (runEntranceAnimation: `if
+    // (!runCurtainEntrance()) runLandingAnimation()`). Left alone it sat
+    // until its own 2.5s failsafe with .home at opacity:0 !important,
+    // hiding every post card behind it. This path owns the entrance and
+    // runs its own fade below, so both veils drop here together.
     document.documentElement.classList.remove('main-pending');
+    document.documentElement.classList.remove('landing-pending');
 
     let origin = null;
     try { origin = JSON.parse(sessionStorage.getItem('postOrigin') || 'null'); } catch (err) {}
     try { sessionStorage.removeItem('postOrigin'); } catch (err) {}
+    console.log('[curtain-return] origin:', origin);
 
     const main = document.querySelector('main');
 
@@ -229,8 +239,11 @@
       // without the reveal system, or loads where it initializes late, are
       // covered by the later calls.
       const backfill = () => {
-        try { window.__revealBackfill && window.__revealBackfill(); } catch (e) {}
-        try { window.__cardContentRevealBackfill && window.__cardContentRevealBackfill(); } catch (e) {}
+        let revealCount = null;
+        let contentCount = null;
+        try { revealCount = window.__revealBackfill ? window.__revealBackfill() : 'MISSING'; } catch (e) { revealCount = 'ERROR: ' + e.message; }
+        try { contentCount = window.__cardContentRevealBackfill ? window.__cardContentRevealBackfill() : 'MISSING'; } catch (e) { contentCount = 'ERROR: ' + e.message; }
+        console.log('[curtain-return] backfill @', Math.round(performance.now()), 'revealCount:', revealCount, 'contentCount:', contentCount, 'scrollY:', window.scrollY);
       };
       setTimeout(backfill, 450);
       setTimeout(backfill, 1200);
@@ -270,11 +283,36 @@
       setTimeout(stop, 3000); // hard cap regardless
     }
 
-    // Matches runCurtainExit's shortened durations (0.3 → 0.18) — same
-    // "speed it up" request, applied symmetrically to the return reveal.
+    // Drop the curtain-restoring veil now that the scroll restore above has
+    // actually happened. That veil (html.curtain-restoring, default.hbs
+    // head) hides BOTH the particle layer and .home, to mask the window
+    // between first paint and this function's instant scroll jump — a
+    // mid-page return would otherwise paint at scroll-top (hero visible)
+    // for a frame first. The snapTo above IS "the restore has settled", so
+    // this is the correct moment; it previously waited on the first
+    // non-'hero' __particleApply call instead, which DEADLOCKED on a
+    // restore landing inside the hero: there only 'hero' applies fire, and
+    // that key's guard returns early precisely BECAUSE the veil is up
+    // (`if (veiled || ...) return;` before the remove), so nothing ever
+    // cleared it and .home sat at opacity:0 for the full 8s failsafe —
+    // measured 8122ms, the reported "nothing, then everything pops in".
+    // Cleared unconditionally (not just in the origin.scrollY branch): with
+    // no stored origin there's no restore to mask in the first place.
+    document.documentElement.classList.remove('curtain-restoring');
+
+    // <main> pops to fully visible instantly, UNDER the still-opaque scrim
+    // — not animated in step with the scrim fade below. The two used to run
+    // as simultaneous 0.1s tweens, which meant the scrim was dissolving away
+    // while main (and its cards, still resolving their own metadata-gated
+    // reveals) was mid-fade — you'd see the page's still-loading state
+    // bleed through the curtain instead of a settled page appearing all at
+    // once. Card image/video reveals are themselves instant on this path
+    // now too (see IS_CURTAIN_RETURN in post-and-cards.js), so by the time
+    // the scrim starts lifting a beat later, there's an already-complete
+    // page underneath it — one clean reveal instead of two overlapping ones.
+    if (main) gsap.set(main, { opacity: 1, clearProps: 'transform' });
     const tl = gsap.timeline();
-    if (main) tl.to(main, { opacity: 1, duration: 0.1, ease: 'power1.out', clearProps: 'transform' }, 0);
-    tl.to(scrim, { opacity: 0, duration: 0.1, ease: 'power1.out' }, 0);
+    tl.to(scrim, { opacity: 0, duration: 0.12, ease: 'power1.out' }, 0.06);
 
     return true;
   }
@@ -392,30 +430,44 @@
       // pattern as the non-home branch's html.main-pending removal further
       // down this function.
       document.documentElement.classList.remove('landing-pending');
-      // Slide+fade entrance, same values as About's <main> entrance
-      // (shouldAnimate branch below: y:100->0, opacity:0->1, duration 0.2,
-      // ease power1.out) — per request, "same as entrance of page about".
-      // Split across two elements rather than animating .home directly:
-      // .home must never get a transform (it would become the containing
-      // block for every position:fixed element inside it, the hero
-      // included, and skew the pinned sections' ScrollTrigger
+      // Slide entrance, same y-values as the non-home branch's <main>
+      // entrance below (Work/About/Contact: y:20->0, duration 0.2, ease
+      // power1.out) — was y:100 here (a stale mismatch; the comment that
+      // used to justify it as "matching About exactly" hadn't matched in a
+      // while). Split across two elements rather than animating .home
+      // directly: .home must never get a transform (it would become the
+      // containing block for every position:fixed element inside it, the
+      // hero included, and skew the pinned sections' ScrollTrigger
       // measurements — confirmed earlier: "would be because section is
       // pinned?" — yes). So .home only ever gets the opacity fade, and the
       // y-slide goes on .hero instead — itself position:fixed, so its own
       // transform doesn't create that containing-block problem.
+      // Opacity fade removed — .home is fully visible immediately, no
+      // fade-in tween. The hero's own y-slide is a slide, not a fade;
+      // left as-is per "remove fade in", not "remove entrance motion".
       const heroEl = document.querySelector('.hero');
-      gsap.set(homeEl, { opacity: 0 });
-      if (heroEl) gsap.set(heroEl, { y: 100 });
-      gsap.to(homeEl, {
-        opacity: 1,
-        duration: 0.2,
-        ease: 'power1.out',
-        clearProps: 'transition',
-      });
+      gsap.set(homeEl, { opacity: 1 });
+      if (heroEl) gsap.set(heroEl, { y: 200 });
       if (heroEl) {
         gsap.to(heroEl, {
           y: 0,
           duration: 0.2,
+          ease: 'power1.out',
+          clearProps: 'transform',
+        });
+      }
+      // Posts tabs section: same slide-up treatment (y:20->0, duration 0.2,
+      // ease power1.out) as .about-projects gets on the Work page — that
+      // section has no animation of its own there, it just rides along
+      // with <main>'s slide (see the non-home branch below); this is the
+      // equivalent for the homepage, where .home itself can't carry the
+      // transform that <main> does elsewhere.
+      const postsTabsSection = document.querySelector('.posts-tabs-section');
+      if (postsTabsSection) {
+        gsap.set(postsTabsSection, { y: 120 });
+        gsap.to(postsTabsSection, {
+          y: 0,
+          duration: 0.8,
           ease: 'power1.out',
           clearProps: 'transform',
         });
@@ -457,12 +509,13 @@
     || document.body.classList.contains('post-template');
 
     if (shouldAnimate) {
-      // Set initial state: off-screen bottom + invisible
-      gsap.set(main, { y: 20, opacity: 0 });
+      // Set initial state: off-screen bottom, fully visible (no fade —
+      // opacity stays 1 throughout, only the slide animates).
+      gsap.set(main, { y: 80, opacity: 1 });
 
-      // Animate in from bottom with fade. clearProps: 'transform' matters
-      // here — GSAP always writes an inline `transform` for `y`, even at
-      // y:0 (leaves `matrix(1,0,0,1,0,0)`, not none), and ANY non-none
+      // Animate in from bottom. clearProps: 'transform' matters here —
+      // GSAP always writes an inline `transform` for `y`, even at y:0
+      // (leaves `matrix(1,0,0,1,0,0)`, not none), and ANY non-none
       // transform on an ancestor — identity or not — creates a new
       // containing block for position:fixed descendants. Left uncleared,
       // this silently broke position:fixed for anything nested inside
@@ -470,7 +523,6 @@
       // canvas sizing itself to the full page instead of the viewport).
       gsap.to(main, {
         y: 0,
-        opacity: 1,
         duration: 0.2,
         ease: 'power1.out',
         delay: 0,

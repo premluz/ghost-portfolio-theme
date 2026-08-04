@@ -19,6 +19,27 @@ window.addEventListener('scroll', () => {
 // a separate system with its own state, so it needs its own registry.
 const __cardContentRegistry = [];
 
+// Upper bound on how long a *cache-served* video can take to reach its first
+// decodable frame. A cache hit needs no network round trip and resolves in
+// single-digit ms; anything slower means real fetching, which is what the
+// reveal animation exists to cover. Used to decide instant-vs-fade for card
+// videos (see applyCardMeta) — the readyState probe that used to make that
+// call could never fire, see the comment at its call site.
+const CACHED_VIDEO_MS = 150;
+
+// Read directly (not a flag set by page-transition.js) because this script
+// loads BEFORE page-transition.js (default.hbs) and its eager metadata fetch
+// below can resolve synchronously, from the sessionStorage cache, on the very
+// same DOMContentLoaded tick — before page-transition.js's own handler would
+// even run. A cross-script flag set inside runCurtainEntrance() would lose
+// that race for exactly the common case this exists to speed up. Reading the
+// same sessionStorage key directly, at module load (this script runs first),
+// sidesteps the ordering problem entirely — page-transition.js only clears
+// the key later, well after this has already captured it.
+const IS_CURTAIN_RETURN = (() => {
+  try { return sessionStorage.getItem('curtainReturn') === '1'; } catch (e) { return false; }
+})();
+
 // On-scroll reveal for a card's text content (title/bullets/keywords/
 // testimonial), called once from applyCardMeta after the real text is in
 // place — title and bullets can't be pre-split/pre-hidden at page load like
@@ -174,6 +195,7 @@ window.__cardContentRevealBackfill = (maxDocY) => {
   const viewportTop = window.scrollY;
   const docTop = (el) => el.getBoundingClientRect().top + window.scrollY;
   let count = 0;
+  console.log('[cardContentRevealBackfill] registry size:', __cardContentRegistry.length, 'limit:', limit, 'viewportTop:', viewportTop);
   __cardContentRegistry.forEach((entry) => {
     if (entry.state.revealed || docTop(entry.card) >= limit) return;
     entry.state.revealed = true;
@@ -216,58 +238,86 @@ window.__cardContentRevealBackfill = (maxDocY) => {
 // sites don't need touching.
 function initCardMediaReveal() {}
 
-// Hides the skeleton and shows the <img> — the fallback endpoint for
-// every path that ends up WITHOUT a video (no video field, malformed
-// metadata, fetch failure).
+// Hides the skeleton and shows whichever media element this card actually
+// has — an <img> or a <video>, decided server-side (the #video internal
+// tag, post-card.hbs), never both. Also the fallback endpoint for every
+// path that can't resolve metadata at all (malformed data, fetch failure).
 function showImageFallback(card) {
   const imageEl = card.querySelector('.post-card-image');
   if (!imageEl) return;
   const skeleton = imageEl.querySelector('.card-media-skeleton');
   if (skeleton) skeleton.classList.add('is-hidden');
-  const img = imageEl.querySelector('img');
-  if (!img) return;
+  const media = imageEl.querySelector('img, video');
+  if (!media) return;
 
   const cfg = window.SCROLL_REVEAL_CONFIG && window.SCROLL_REVEAL_CONFIG.image;
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // If the image is already loaded and decoded (cached, or a repeat visit),
-  // there's nothing to reveal — show it instantly, no fade, no matter what.
-  // Also the instant path when gsap/config isn't available or the visitor
-  // prefers reduced motion — never leave the image invisible over that.
-  if ((img.complete && img.naturalWidth > 0) || !window.gsap || !cfg || prefersReducedMotion) {
-    img.style.transition = 'none';
-    img.classList.add('is-visible');
-    if (window.gsap) gsap.set(img, { scale: 1, filter: 'none' });
-    void img.offsetHeight; // flush the style before restoring the transition
-    img.style.transition = '';
-    initCardMediaReveal(card, img);
+  // Shared by both media types — opacity + scale + blur/duration/ease,
+  // matching card-scroll-reveal.js's SCROLL_REVEAL_CONFIG.image exactly
+  // (same reveal a post detail page's in-content images use).
+  const reveal = (instant) => {
+    if (instant || !window.gsap || !cfg || prefersReducedMotion) {
+      media.style.transition = 'none';
+      media.classList.add('is-visible');
+      if (window.gsap) gsap.set(media, { scale: 1, filter: 'none' });
+      void media.offsetHeight; // flush the style before restoring the transition
+      media.style.transition = '';
+      initCardMediaReveal(card, media);
+      return;
+    }
+    media.classList.add('is-visible'); // CSS fallback opacity, harmless once gsap drives the inline style
+    // post-card-grid.css's own `transition: opacity 0.4s ease` would otherwise
+    // fight this tween — it retriggers on every one of GSAP's per-frame inline
+    // opacity updates, dragging/lagging GSAP's own easing instead of a single
+    // clean curve. GSAP owns this exclusively for the duration of the tween;
+    // restored after so any later, unrelated opacity change still transitions.
+    media.style.transition = 'none';
+    gsap.set(media, { opacity: 0, scale: cfg.scale.start, filter: `blur(${cfg.blur.start}px)` });
+    gsap.to(media, {
+      opacity: 1,
+      scale: cfg.scale.end,
+      filter: `blur(${cfg.blur.end}px)`,
+      duration: cfg.duration,
+      ease: cfg.ease,
+      onComplete: () => { media.style.transition = ''; initCardMediaReveal(card, media); },
+    });
+  };
+
+  if (media.tagName === 'VIDEO') {
+    // Play/pause on scroll — independent of the reveal timing below, and
+    // unconditional now (no longer gated behind a meta.video check, since
+    // this element only exists in the DOM at all when the template already
+    // decided this post has a video).
+    const videoObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => { entry.isIntersecting ? media.play() : media.pause(); });
+    }, { threshold: 0.5 });
+    videoObserver.observe(media);
+
+    // A <video> has no synchronous "already decoded" signal the way
+    // img.complete gives an <img> — load() resets readyState to
+    // HAVE_NOTHING and resolves asynchronously, so a fully cached video
+    // still reports 0 on the very next line. Timing the gap to
+    // `loadeddata` against CACHED_VIDEO_MS is what actually distinguishes
+    // a cache hit (a few ms) from a genuine fetch.
+    const videoLoadStartedAt = performance.now();
+    media.load();
+    if (media.readyState >= 2) {
+      reveal(true);
+    } else {
+      media.addEventListener('loadeddata', () => {
+        reveal(IS_CURTAIN_RETURN || performance.now() - videoLoadStartedAt < CACHED_VIDEO_MS);
+      }, { once: true });
+    }
     return;
   }
 
-  // Genuine first load (below-the-fold, lazy-loaded card that just finished
-  // fetching): matches card-scroll-reveal.js's SCROLL_REVEAL_CONFIG.image
-  // exactly — opacity + scale + blur/duration/ease — the same reveal used
-  // for regular in-content images on a post detail page, instead of
-  // post-card-grid.css's flatter opacity-only transition. (Scale was
-  // dropped in an earlier pass per a "just fade, no scale" request — that
-  // was a misread of the actual goal, which was always to match the post
-  // detail page's image reveal 1:1; restored here.)
-  img.classList.add('is-visible'); // CSS fallback opacity, harmless once gsap drives the inline style
-  // post-card-grid.css's own `transition: opacity 0.4s ease` would otherwise
-  // fight this tween — it retriggers on every one of GSAP's per-frame inline
-  // opacity updates, dragging/lagging GSAP's own easing instead of a single
-  // clean curve. GSAP owns this exclusively for the duration of the tween;
-  // restored after so any later, unrelated opacity change still transitions.
-  img.style.transition = 'none';
-  gsap.set(img, { opacity: 0, scale: cfg.scale.start, filter: `blur(${cfg.blur.start}px)` });
-  gsap.to(img, {
-    opacity: 1,
-    scale: cfg.scale.end,
-    filter: `blur(${cfg.blur.end}px)`,
-    duration: cfg.duration,
-    ease: cfg.ease,
-    onComplete: () => { img.style.transition = ''; initCardMediaReveal(card, img); },
-  });
+  // <img> path: server-rendered with a src, so img.complete is already a
+  // meaningful, synchronous signal — no load()/event wait needed. A
+  // curtain return forces the instant path unconditionally either way:
+  // you already saw this exact page once this session, so re-playing the
+  // entrance fade on the way back reads as unwanted extra motion.
+  reveal(IS_CURTAIN_RETURN || (media.complete && media.naturalWidth > 0));
 }
 
 // Extracted from the old fetchCardMeta so both the batched Content API
@@ -407,93 +457,11 @@ function applyCardMeta(card, rawText, onSettled) {
       }
     }
 
-    if (meta.video) {
-      const imageEl = card.querySelector('.post-card-image');
-      if (imageEl) {
-        // Layered ON TOP of the existing <img> (absolute, starts at
-        // opacity:0) instead of replacing it via innerHTML — that
-        // used to destroy the <img> the instant this ran, leaving a
-        // blank gap until the video's own loadeddata fired and its
-        // fade-in completed (image gone, then a beat of nothing,
-        // then video). The <img> stays hidden (skeleton → video,
-        // image never shown at all — a post either HAS a video or
-        // shows its image, never both/overlapping) so there's no
-        // two-layer race (unlike the OLD dual-layer .grid-card
-        // approach this used to mirror — see posts-tabs-grid.js).
-        const videoSrc = meta.video.startsWith('http') ? meta.video : `/content/images/videos/${meta.video}`;
-        const video = document.createElement('video');
-        video.muted = true;
-        video.loop = true;
-        video.playsInline = true;
-        Object.assign(video.style, {
-          position: 'absolute',
-          // width/height:100% removed — redundant with inset:0 (which
-          // alone fully determines the box on all 4 sides) and the
-          // reported bug (video rendering smaller than its container,
-          // skeleton visible behind it at the bottom/right edges) is
-          // exactly the kind of "two competing sizing paths disagree"
-          // symptom that redundancy causes on a dynamically-inserted
-          // element. .card-media-skeleton (which never shows this bug)
-          // only ever used inset:0 alone — matching that here.
-          inset: '0',
-          objectFit: 'cover',
-          opacity: '0',
-        });
-        const source = document.createElement('source');
-        source.src = videoSrc;
-        source.type = 'video/mp4';
-        video.appendChild(source);
-        imageEl.appendChild(video);
-        video.load();
-
-        const skeleton = imageEl.querySelector('.card-media-skeleton');
-        const cfg = window.SCROLL_REVEAL_CONFIG && window.SCROLL_REVEAL_CONFIG.image;
-        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        // instant: already buffered (readyState>=2 the moment we check,
-        // right after .load() — a cache hit) vs. genuinely still loading,
-        // same distinction as showImageFallback's img.complete check above.
-        const fadeIn = (instant) => {
-          if (skeleton) skeleton.classList.add('is-hidden');
-          if (instant || !window.gsap || !cfg || prefersReducedMotion) {
-            if (window.gsap) gsap.set(video, { opacity: 1, scale: 1, filter: 'none' });
-            else video.style.opacity = '1';
-            initCardMediaReveal(card, video);
-            return;
-          }
-          // Matches showImageFallback/card-scroll-reveal.js's generic image
-          // reveal exactly — opacity + scale + blur/duration/ease, same as
-          // a post detail page's in-content images (see showImageFallback's
-          // comment for why scale is back in after an earlier misread).
-          gsap.set(video, { opacity: 0, scale: cfg.scale.start, filter: `blur(${cfg.blur.start}px)` });
-          gsap.to(video, {
-            opacity: 1,
-            scale: cfg.scale.end,
-            filter: `blur(${cfg.blur.end}px)`,
-            duration: cfg.duration,
-            ease: cfg.ease,
-            onComplete: () => initCardMediaReveal(card, video),
-          });
-        };
-        if (video.readyState >= 2) fadeIn(true);
-        else video.addEventListener('loadeddata', () => fadeIn(false), { once: true });
-
-        const videoObserver = new IntersectionObserver((entries) => {
-          entries.forEach(entry => {
-            if (entry.isIntersecting) {
-              video.play();
-            } else {
-              video.pause();
-            }
-          });
-        }, { threshold: 0.5 });
-
-        videoObserver.observe(video);
-      }
-    } else {
-      // No video for this post — resolve the skeleton to the image
-      // instead (see showImageFallback above).
-      showImageFallback(card);
-    }
+    // Video vs image is decided server-side now (the #video internal tag,
+    // post-card.hbs) — meta.video (codeinjection_head) is no longer read
+    // here at all. showImageFallback reveals whichever element the
+    // template actually rendered.
+    showImageFallback(card);
 
     if (meta.cardId) {
       card.setAttribute('data-cardid', meta.cardId);
@@ -517,7 +485,7 @@ function applyCardMeta(card, rawText, onSettled) {
     if (meta.projectEndorser) {
       const endorserEl = card.querySelector('.post-card-endorser');
       if (endorserEl) {
-        endorserEl.textContent = `— ${meta.projectEndorser}`;
+        endorserEl.textContent = meta.projectEndorser;
       }
     }
 

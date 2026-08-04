@@ -620,6 +620,40 @@ setTimeout(() => rebuild('settle fallback'), 1000);
 
 ---
 
+## Loading & Entrance Visibility
+
+> Full reference: **`LOADING.md`** (veils, the four entrance paths, card media,
+> reveal backfill). Entries below are the symptom-first index.
+
+### Post Cards Invisible After Closing a Post, Then Pop In All At Once (~8s)
+**Problem**: Close button on a post → back on home, page blank (particles/helix visible, scrim faded normally), then every card appeared abruptly seconds later. Only reproducible when you had **scrolled down** before opening the post.
+**Root Cause**: Two separate `opacity: 0 !important` veils over `.home`, neither cleared on the curtain-return path (`.post-card-content`/`.post-card-image` have no opacity of their own — they inherit the ancestor's, so this reads as "the cards are broken" when the cards are fine). (1) `html.landing-pending` is raised on *any* same-origin arrival at `/`, including a curtain return, but was only removed by `runLandingAnimation()` — which `runCurtainEntrance()` short-circuits (`if (!runCurtainEntrance()) runLandingAnimation()`), so it sat until its 2.5s failsafe. (2) `html.curtain-restoring` **deadlocked**: only `__particleApply()` with a non-`'hero'` key removed it, but a restore landing inside the hero only fires `'hero'`, whose guard returns early *because the veil is up* (`if (veiled || …) return;` precedes the removal line) — nothing could ever clear it, so it ran the full 8s failsafe. Measured `.home` at opacity 0 for **8122ms**. Note the veil only activates when the saved `scrollY > 100`, hence the "only if you scrolled first" reproduction.
+**Solution**: `runCurtainEntrance()` clears `landing-pending` alongside `main-pending`, and clears `curtain-restoring` immediately after its scroll snap (the actual "restore settled" moment) instead of delegating to a particle trigger that may never fire. 8122ms → **552ms**; veil still masks the pre-restore frame; fresh/menu/post paths unchanged (342/350/935ms).
+**Files**:
+- page-transition.js (`runCurtainEntrance`)
+- main.css (`html.landing-pending .home`, `html.curtain-restoring .home`)
+- default.hbs (head veil script)
+
+### Card Video Always Faded In, Even When Cached
+**Problem**: Skeleton shimmer then a visible fade on card media that was already loaded/cached.
+**Root Cause**: The cache check was `video.readyState >= 2`, evaluated synchronously on the line right after `video.load()`. `load()` **resets** `readyState` to `HAVE_NOTHING` (0) and loads asynchronously, so even a fully cached video reports `0` there — measured `0` in every case, cold and warm. The check could never be true, so every video took the animated branch regardless of cache state. (An `<img>` needs no such handling: it's server-rendered with a `src`, so `img.complete` is genuinely true on a warm cache.)
+**Solution**: Time the `load()` → `loadeddata` gap against `CACHED_VIDEO_MS` (150ms) — cache hits resolve in ~1ms, real fetches cannot. Validated under throttling (800kbps/150ms RTT), because **localhost cannot distinguish the cases** (cold and warm both ~1ms — the test would pass for the wrong reason): cold 951ms → fade, priming fetch 2470ms → fade, cached 1ms → instant.
+**Files**: post-and-cards.js (`applyCardMeta`, `CACHED_VIDEO_MS`)
+
+### Reveal Backfill Fires Seconds Late (Starved by Synchronous GLB Work)
+**Problem**: `setTimeout`-scheduled backfill passes (450/1200/2500ms) fired at 3033/3472/4223ms after a curtain return.
+**Root Cause**: GLB shape loading kicked off immediately during particle init. The fetches are async but the work on resolve is **synchronous CPU** — GLTFLoader parse + `subdivideGeometry` + `MeshSurfaceSampler.build()`, with 9 files resolving in a burst (`mobile.glb` alone expands 43,147 → 1,016,880 vertices) — which blocks the main thread and starves every queued timer.
+**Solution**: Defer the load kickoff to `requestIdleCallback` (2s timeout ceiling). Nothing on/near first paint depends on these — they're morph targets for later scroll-triggered shape changes. First backfill 3033ms → **1342ms**.
+**Files**: particle-morph-system.js (`initializeModules`)
+
+### `window.DEBUG_SCROLL = true` Doesn't Survive a Page Transition
+**Problem**: Console gate reset on every navigation, making any multi-page flow (home → post → close) impossible to debug from devtools — logs appeared to be missing entirely.
+**Root Cause**: A plain property assignment is per-page-load; every step of these flows is a **full navigation**, not a client-side route swap.
+**Solution**: `window.DEBUG_SCROLL` is a getter/setter mirroring localStorage, seeded on each load. Same `window.DEBUG_SCROLL = true` UX, now persistent. Seeds from *either* an already-set value or localStorage — seeding from localStorage alone silently discarded a value set by an earlier script (e.g. Playwright's `addInitScript`), since `defineProperty` replaces the plain property.
+**Files**: default.hbs (console gate IIFE)
+
+---
+
 ## Shape Loading
 
 ### Cube Shape Not Generating
@@ -671,3 +705,6 @@ setTimeout(() => rebuild('settle fallback'), 1000);
 - [ ] Profile → description spans stagger in smoothly, headline reveals by letter
 - [ ] Gradients → post cards show gradient backgrounds on trigger
 - [ ] Scroll buffer → operating model has noticeable pause at end before unpinning
+- [ ] Close button → scroll well down into the work cards, open a post, close it: cards are visible **immediately** at the restored position (not blank-then-pop). Scrolling first is required — the veil only arms when saved `scrollY > 100`
+- [ ] Entrance paths → fresh landing, menu → home, and → Profile/Contact/post all reveal without a 2.5s/8s stall (a failsafe doing the work means something upstream failed)
+- [ ] Card media → on a revisit, cached card videos/images appear with no fade; no skeleton left shimmering once scrolled to

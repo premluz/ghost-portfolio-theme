@@ -148,8 +148,8 @@ const ribbonGenerator = (particleCount, config) => {
 
   const R = config.radius;          // sweep radius of the centerline
   const height = config.height;     // vertical span
-  const turns = 0.9;                // how far the centerline winds
-  const ribbonW = 5.6;              // ribbon width (world units)
+  const turns = 1.2;                // how far the centerline winds
+  const ribbonW = 16.6;              // ribbon width (world units)
   // 0.9 (was 2.3): gentle twist keeps the sheet broadly face-on like the
   // reference — higher values repeatedly turn it edge-on, collapsing the
   // lattice into scalloped pinch lines instead of one woven surface.
@@ -217,12 +217,12 @@ const HELIX = new ShapeDefinition(
     // 12 was almost exactly the viewport height in world units (2*tan(37.5)*8
     // = 12.3 at camera z=8 / fov 75), so the coil stopped right at both
     // edges. Overshooting makes it bleed off top and bottom instead.
-    height: 26,
+    height: 20,
     // 1.5 turns over that height is a single open sweep read as a diagonal
     // band; more winding reads as a coil running down the frame.
-    turns: 3.2,
+    turns: 2.2,
     tubeRadius: 1.6,
-    spacing: 2.2,
+    spacing: 0.5,
     offsetX: 0, offsetY: 0, offsetZ: 0
   }
 );
@@ -233,6 +233,90 @@ const RIBBON = new ShapeDefinition(
   'ribbon',
   ribbonGenerator,
   { radius: 3.5, height: 12 }
+);
+
+// RIBBON-DISPERSED — a duplicate of the ribbon lattice above, but a
+// fraction of the particle budget (config.dispersedFraction, 10% by
+// default) is pulled OUT of the woven lattice and scattered freely
+// instead (same random-cube scatter as dispersedGenerator below), reading
+// as a handful of stray dots drifting loose around the ribbon. Every shape
+// shares one fixed particleCount so morphing between same-length arrays
+// works (see StateRegistry) — this REALLOCATES a slice of the existing
+// budget rather than adding particles on top of it, which the geometry's
+// buffer size doesn't allow anyway.
+const ribbonDispersedGenerator = (particleCount, config) => {
+  const dispersedFraction = config.dispersedFraction != null ? config.dispersedFraction : 0.1;
+  const dispersedCount = Math.round(particleCount * dispersedFraction);
+  const latticeCount = particleCount - dispersedCount;
+
+  const positions = new Float32Array(particleCount * 3);
+  const phis = new Float32Array(particleCount);
+  const sizes = new Float32Array(particleCount);
+
+  const R = config.radius;
+  const height = config.height;
+  const turns = 1.2;
+  const ribbonW = 16.6;
+  const twistTurns = 0.9;
+
+  // Lattice grid sized off latticeCount (not particleCount) — same 3.2:1
+  // density ribbonGenerator uses, so the weave itself looks identical,
+  // just holding fewer rows/cols to make room for the dispersed slice.
+  const cols = Math.max(24, Math.round(Math.sqrt(latticeCount / 3.2)));
+  const rows = Math.max(24, Math.floor(latticeCount / cols));
+
+  const hash = (i) => {
+    const x = Math.sin(i * 127.1) * 43758.5453;
+    return x - Math.floor(x);
+  };
+
+  let idx = 0;
+  for (let r = 0; r < rows && idx < latticeCount; r++) {
+    const u = r / (rows - 1);
+    const t = u * turns * Math.PI * 2;
+    const cx = R * Math.cos(t);
+    const cy = (u - 0.5) * height;
+    const cz = R * Math.sin(t);
+    const tw = u * twistTurns * Math.PI * 2;
+    const dx = Math.cos(tw) * Math.cos(t + Math.PI / 2);
+    const dy = Math.sin(tw) * 0.85;
+    const dz = Math.cos(tw) * Math.sin(t + Math.PI / 2);
+
+    for (let c = 0; c < cols && idx < latticeCount; c++) {
+      const v = (c / (cols - 1) - 0.5) * ribbonW;
+      const j = (hash(idx * 3 + 1) - 0.5) * 0.05;
+      positions[idx * 3]     = cx + dx * v + j;
+      positions[idx * 3 + 1] = cy + dy * v + j;
+      positions[idx * 3 + 2] = cz + dz * v + j;
+      phis[idx] = tw + t;
+      const h = hash(idx);
+      sizes[idx] = 0.38 + h * 0.22;
+      idx++;
+    }
+  }
+  while (idx < latticeCount) {
+    positions[idx * 3] = 0; positions[idx * 3 + 1] = 0; positions[idx * 3 + 2] = 0;
+    phis[idx] = 0; sizes[idx] = 0.4; idx++;
+  }
+
+  // Remaining slice: free-floating, randomly scattered — same cube scatter
+  // as dispersedGenerator below. phis stays 0 (no wave-animation input).
+  const scatterHalfWidth = 25;
+  for (; idx < particleCount; idx++) {
+    positions[idx * 3]     = (Math.random() - 0.5) * scatterHalfWidth * 2;
+    positions[idx * 3 + 1] = (Math.random() - 0.5) * scatterHalfWidth * 2;
+    positions[idx * 3 + 2] = (Math.random() - 0.5) * scatterHalfWidth * 2;
+    phis[idx] = 0;
+    sizes[idx] = 0.3 + Math.random() * 0.3;
+  }
+
+  return { positions, phis, sizes };
+};
+
+const RIBBON_DISPERSED = new ShapeDefinition(
+  'ribbon-dispersed',
+  ribbonDispersedGenerator,
+  { radius: 2.5, height: 22, dispersedFraction: 0.2 }
 );
 
 // GLB Mesh Loader - loads 3D models and caches both geometry and sampler
@@ -828,7 +912,7 @@ const DOTS = new ShapeDefinition(
   // means bigger gaps between dots (excess grid beyond the camera's fixed
   // viewing frustum simply isn't seen). 45, not 16, per explicit "way much
   // less dense" request.
-  { size: 45 }
+  { size: 85 }
 );
 
 // TRIPLE SPHERES - Three spheres arranged in space, rotating together
@@ -1057,26 +1141,31 @@ const HERO_HELIX = new ShapeDefinition(
 // is faded out, so that fading back IN reads as something unfolding rather
 // than a cloud that was always there.
 //
-// Not literally a point. A zero-radius cluster renders as a single blob of
-// overdraw and loses all internal structure, so there is a small radius
-// with a cubed falloff — density concentrated hard at the centre, a thin
-// scatter of stragglers further out. That reads as "collapsed" while still
-// giving the morph something to interpolate between.
+// Not literally a point. A genuine sphere SURFACE (Fibonacci lattice, same
+// algorithm as sphereGenerator above), not a filled volume.
+//
+// Was a small radius with a CUBED falloff (r = radius * h^3) — density
+// concentrated hard at the centre, a thin scatter of stragglers further
+// out. That put the vast majority of particles within the innermost ~20%
+// of the radius, so interpolating toward it from a wide dispersed/helix
+// cloud read as one uniform shrink toward a point, not particles flying to
+// distinct positions — reported as "feels like scaling down ... before
+// particles change location". Every particle on a shell has a genuinely
+// different target position, so the morph reads as particles rearranging
+// into a sphere instead.
 const collapseGenerator = (particleCount, config) => {
   const positions = new Float32Array(particleCount * 3);
   const sizes = new Float32Array(particleCount);
   const radius = config.radius;
   const hash01 = (i) => { const x = Math.sin(i * 127.1) * 43758.5453; return x - Math.floor(x); };
   for (let i = 0; i < particleCount; i++) {
-    const h1 = hash01(i), h2 = hash01(i + 17), h3 = hash01(i + 53);
-    const theta = h1 * Math.PI * 2;
-    const phi = Math.acos(2 * h2 - 1);
-    // Cubed: most particles land very close to the centre.
-    const r = radius * Math.pow(h3, 3);
-    positions[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
-    positions[i * 3 + 1] = r * Math.cos(phi);
-    positions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
-    sizes[i] = 0.38 + h1 * 0.22;
+    const y = 1 - (i / (particleCount - 1)) * 2;
+    const radiusAtY = Math.sqrt(Math.max(0, 1 - y * y));
+    const theta = Math.sqrt(particleCount * Math.PI) * i;
+    positions[i * 3]     = Math.cos(theta) * radiusAtY * radius;
+    positions[i * 3 + 1] = y * radius;
+    positions[i * 3 + 2] = Math.sin(theta) * radiusAtY * radius;
+    sizes[i] = 0.38 + hash01(i) * 0.22;
   }
   return { positions, sizes };
 };
@@ -1183,6 +1272,7 @@ if (typeof window !== 'undefined') {
   window.DOTS = DOTS;
   window.DISPERSED = DISPERSED;
   window.RIBBON = RIBBON;
+  window.RIBBON_DISPERSED = RIBBON_DISPERSED;
   window.VOLATILITY = VOLATILITY;
   window.HERO_HELIX = HERO_HELIX;
   window.COLLAPSE = COLLAPSE;
