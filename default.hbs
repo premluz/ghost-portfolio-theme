@@ -358,7 +358,7 @@
           <a href="/contact" data-transition class="button footer-button" aria-label="Email">
            Let's make it happen
           </a>
-          <p> <a href="/about" class="">How I work</a> • <a href="/about" class="">LinkedIn</a></p>
+          <p> <a href="/about" class="">How I work</a> • <a href="https://www.linkedin.com/in/premluczak/" target="_blank" class="">LinkedIn</a></p>
           <!-- <form class="footer-form" data-members-form>
             <input
               type="email"
@@ -687,12 +687,14 @@
       // footer, …) may take ownership and drop the veil. (2) Independent
       // of the veil: a 'hero' apply landing well past the hero itself is
       // stale — never re-show mid-page. Threshold scales with the hero's
-      // own height rather than a fixed px value: particle-animation-loop.js's
-      // _updateHeroCollapseState() now calls 'hero' continuously as you
-      // scroll back up through the whole hero (up to ~65% of its height —
-      // the collapse span plus its return-glide span), not just in the
-      // first few px like the ScrollTrigger it replaced, so a fixed ~150px
-      // cutoff would silently drop most of those legitimate calls.
+      // own height rather than a fixed px value: the 'hero' director zone
+      // (particle-morph.hbs) and particle-animation-loop.js's
+      // _checkHeroReentry() both call 'hero' continuously as you scroll
+      // back up through the whole hero (up to ~65% of its height — the
+      // collapse span plus its return-glide span), not just in the first
+      // few px like the ScrollTrigger this whole mechanism originally
+      // replaced, so a fixed ~150px cutoff would silently drop most of
+      // those legitimate calls.
       const veiled = document.documentElement.classList.contains('curtain-restoring');
       if (key === 'hero') {
         const heroEl = document.querySelector('.hero');
@@ -851,6 +853,16 @@
   {{!-- {{ghost_foot}} --}}
 
   <!-- GPU Particle System Integration (Production Setup) -->
+  <!-- If this is ever re-enabled: registerScrollTriggersOnGPU()
+       (particle-morph.hbs's old GPU-backend trigger set — 6 ScrollTrigger
+       registrations duplicating what particle-scroll-director.js's zones
+       now do) was deleted as confirmed-dead code during the particle
+       trigger consolidation — its only call site was ALSO already
+       commented out, so window.gpuParticleSystem was never created and it
+       never ran on any page. Do NOT resurrect it: the director's zones
+       and __particleApply/system.morphTo already work against either
+       backend (GPU or legacy THREE.js) — nothing GPU-specific needs to be
+       rebuilt for scroll triggers to keep working here. -->
  <!-- {{> gpu-particle-integration}} -->
 {{> particle-morph}}
 

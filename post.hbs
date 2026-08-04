@@ -5,7 +5,7 @@
 --}}
 {{#post}}
 
-<article class="post" data-post-hero="full" data-post-id="{{id}}" data-post-tags="{{#foreach tags}}{{slug}}{{#unless @last}},{{/unless}}{{/foreach}}">
+<article class="post" data-post-hero="contained" data-post-id="{{id}}" data-post-tags="{{#foreach tags}}{{slug}}{{#unless @last}},{{/unless}}{{/foreach}}">
   {{!-- .post-header-layout is the two-column row: .post-project-summary
         (col 1) beside .post-header (col 2 — EVERYTHING else: title/
         category/excerpt/meta, the feature image, and the logomark all
@@ -30,7 +30,7 @@
           Hidden by default (main.css); displayProjectMetadata() below
           reveals it only once meta.role/meta.contributions actually
           exist. --}}
-    <div class="post-project-summary mt-0 mb-0 mr-0 ml-0 kg-width-wide" style="padding:0;" id="post-project-summary">
+    <!--<div class="post-project-summary mt-0 mb-0 mr-0 ml-0 kg-width-wide" style="padding:0;" id="post-project-summary">
       <div class="role-overview">
         <div class="role-overview-block">
           <span class="text-eyebrow">My Role</span>
@@ -46,7 +46,7 @@
         </div>
       </div>
     </div>
-
+-->
     <header class="post-header">
       <div class="container">
         <div class="post-header-content">

@@ -1629,13 +1629,18 @@ margin:0;
 /* Hover matches .theme-toggle/.nav-icon-btn's hover exactly (same
    background-color tint) — grouped with the "current page" rule below so
    the current item always reads identically to a hovered one, per request.
-   href$= matches regardless of the site's actual domain (Work links to
-   site root, "/", not a /work page — the portfolio list lives on the
-   homepage itself, see index.hbs). */
+   href$= matches regardless of the site's actual domain.
+   body.page-work-index: /work/ has no underlying Ghost Page resource (a
+   custom collection route — see routes.yaml), so body_class renders empty
+   there and there's no real body class to hook this onto the way
+   home/about/contact get for free. navigation.hbs adds this class via a
+   pathname check instead (same regex particle-morph.hbs already uses to
+   detect this page). */
 .nav-menu a:hover,
 body.home-template .nav-menu a[href$="/"],
 body.page-about .nav-menu a[href$="/about"],
-body.page-contact .nav-menu a[href$="/contact"] {
+body.page-contact .nav-menu a[href$="/contact"],
+body.page-work-index .nav-menu a[href$="/work"] {
   color: color-mix(in srgb, var(--color-primary), var(--shift-ink, white) calc(var(--profile-shift, 0) * 100%));
   background-color: var(--color-surface-1);
 }

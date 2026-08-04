@@ -2652,6 +2652,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ═══════════════════════════════════════════════════════════════
   // PARTICLE MORPHING ON CARD ENTRY
   // Single observer tracks all cards; most-visible card wins.
+  //
+  // Deliberately NOT a particle-scroll-director.js zone, unlike hero/lab/
+  // footer/testimonials/operating-model-exit (see that file's own zones,
+  // registered in particle-morph.hbs). Those all derive shape as a step
+  // function of ONE section's own 0-1 scroll progress. This section's
+  // shape is "whichever of N sibling cards currently has the highest
+  // intersection ratio" — not a monotonic function of any single
+  // progress value, since scrolling slowly back and forth between two
+  // similarly-visible cards can flip the winner non-monotonically. Forcing
+  // that onto a keyframe timeline would mean re-deriving "most visible
+  // card" as a synthetic pseudo-t, which is more complex and less correct
+  // than the IntersectionObserver comparison already here — so this stays
+  // as its own, deliberately separate trigger.
   // ═══════════════════════════════════════════════════════════════
   (function initCardParticleMorphing() {
     const cardRatios = new Map();
