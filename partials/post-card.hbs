@@ -1,4 +1,11 @@
-<article class="post-card" data-post-url="{{url}}"{{#if tags}} data-tag-slugs="{{#foreach tags}}{{slug}} {{/foreach}}"{{/if}}{{#if custom.gradientCss}} data-gradient-css="{{custom.gradientCss}}"{{/if}}{{#if custom.cardId}} data-cardid="{{custom.cardId}}"{{else}} data-cardid="{{slug}}"{{/if}}>
+{{!-- --card-gradient mirrors data-gradient-css into a custom property —
+      needed by the cinematic layout's gradient scrim
+      (.post-card-image::before, post-card-grid.css), which is a
+      pseudo-element and so can't be targeted by an attribute selector for
+      its background-image the way a real element could. post-and-cards.js
+      sets the same property for cards whose gradient arrives via the async
+      metadata fetch instead of this server-side custom field. --}}
+<article class="post-card" data-post-url="{{url}}"{{#if tags}} data-tag-slugs="{{#foreach tags}}{{slug}} {{/foreach}}"{{/if}}{{#if custom.gradientCss}} data-gradient-css="{{custom.gradientCss}}" style="--card-gradient: {{custom.gradientCss}};"{{/if}}{{#if custom.cardId}} data-cardid="{{custom.cardId}}"{{else}} data-cardid="{{slug}}"{{/if}}>
   <a href="{{url}}" class="post-card-link" data-transition>
     {{!-- Inner wrapper that scales on hover, while link stays stable --}}
     <div class="post-card-inner">
@@ -49,18 +56,24 @@
                 same bug as the container used to have. --}}
           <div class="card-media-skeleton"></div>
           {{!-- Video vs image is decided HERE, server-side, via an internal
-                #video tag (Ghost renders internal tags with a "hash-" slug
-                prefix — {{#has tag="hash-video"}} is a stock Ghost helper,
-                no custom code). Mutually exclusive: a card either has the
-                tag and gets a video, or doesn't and gets its image — never
-                both, so there's no dual-layer fade-video-in-over-image
-                anymore (post-and-cards.js used to build the <video> via JS
-                from a codeinjection_head-embedded meta.video field for
-                this same reason; that field has no server-side access, so
-                it could only ever produce a JS-injected overlay). Video
-                file must be named after the post's own slug — there's no
-                per-post filename field with this approach, just the tag. --}}
-          {{#has tag="hash-video"}}
+                #video tag, no custom code — {{#has tag=...}} is a stock
+                Ghost helper. Uses the literal tag NAME ("#video"), not the
+                slugified form ("hash-video"): that slugified form is the
+                commonly-documented convention but does NOT match on this
+                install — verified live (2026-08-05) via a temporary debug
+                block on post.hbs: {{#has tag="hash-video"}} was false even
+                with the tag confirmed attached via {{#foreach tags
+                visibility="all"}}, while {{#has tag="#video"}} was true.
+                Mutually exclusive: a card either has the tag and gets a
+                video, or doesn't and gets its image — never both, so
+                there's no dual-layer fade-video-in-over-image anymore
+                (post-and-cards.js used to build the <video> via JS from a
+                codeinjection_head-embedded meta.video field for this same
+                reason; that field has no server-side access, so it could
+                only ever produce a JS-injected overlay). Video file must be
+                named after the post's own slug — there's no per-post
+                filename field with this approach, just the tag. --}}
+          {{#has tag="#video"}}
             <video class="post-card-video" muted loop playsinline data-skip-reveal>
               <source src="/content/images/videos/{{slug}}.mp4" type="video/mp4">
             </video>

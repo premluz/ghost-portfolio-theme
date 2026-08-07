@@ -441,6 +441,67 @@ timing/ordering bug.
 
 ---
 
+### Particles Render as Fat Glowing Blobs Instead of a Fine Lattice After Closing a Post (2026-08-07)
+**Problem**: after opening a project post and closing it back to the source page (the curtain-return
+path), the particle object rendered as a dense, filled-in glowing mass instead of the intended crisp
+dot lattice. Most visible on the Lab section ("Explorations, AI experiments"). It never recovered —
+scrolling further did not fix it; only a full page reload did. A normal scroll to the same section
+always looked correct.
+
+**Root Cause**: `animate()` in `particle-animation-loop.js` had an early return —
+`if (window.__particleLayerHidden) return;` — positioned *before* the morph-advance block. That block
+does two things: advance `morphProgress`, and (on completion) run the handler that bakes the
+destination into the position buffer and sets `currentState = nextState`.
+
+The curtain return restores the previous scroll position **while the particle layer is hidden**, which
+starts a morph inside exactly that window. With the advance gated off, `morphProgress` froze at
+whatever partial value it had, and the completion handler never ran — so the state machine wedged
+permanently mid-morph. What renders in that state is a literal 50/50 blend of two shapes.
+
+Measured at the Lab section, same scroll position (2500), same viewport:
+
+| | normal scroll | after curtain return |
+|---|---|---|
+| `currentState` | `terrain` | `dispersed` |
+| `nextState` | `null` | `terrain` |
+
+Half a dispersed cloud blended into half a terrain surface is precisely the "fat blob" appearance —
+it is not a sizing, DPR, or shader-config problem.
+
+**Solution**: extract the morph advance into `_advanceMorph()` and call it *before* the hidden gate,
+alongside the two calls already documented as needing to run while hidden (`_checkHeroReentry()`,
+`scrollDirector.checkShapesEvenWhileHidden()`) for the same "otherwise permanently stuck" reason:
+```javascript
+if (this.particles) this._checkHeroReentry();
+if (this.scrollDirector) this.scrollDirector.checkShapesEvenWhileHidden();
+this._advanceMorph();          // ← added: morphs must keep progressing while hidden
+if (window.__particleLayerHidden) return;   // the expensive 16k-point DRAW stays skipped
+```
+Cheap enough to run unconditionally: one uniform write per frame plus a single buffer bake on
+completion. The costly thing the gate protects — the draw call — is untouched.
+
+**File**: `assets/js/particle-animation-loop.js` (`_advanceMorph()`, and its call site in `animate()`)
+
+Verified with Playwright by comparing `currentState`/`nextState` at an identical scroll position on
+both paths: after the fix the curtain return reports `terrain`/`null`, byte-identical to a normal
+scroll. Regression-checked that ordinary scrolling still transitions
+`ribbon-dispersed → terrain → grid` and settles with `nextState: null`.
+
+**Two things ruled out first** (don't re-blame them): `uDprNorm`, `uSpriteScale`, `uGlowRadius`,
+`sizeScale` and the renderer's pixel ratio were **identical** on both paths — the "thick blobby hexes"
+comment in the uniforms block describes a *different*, already-fixed DPR bug and is not this. Also,
+browser `goBack()` does **not** reproduce it; only the theme's own close control does, because that is
+what triggers the scroll-restore-while-hidden sequence.
+
+**General lesson**: a performance early-return that skips rendering must not also skip *state
+progression*. Anything that advances a state machine — timers, morph progress, completion handlers —
+has to run above such a gate, or the system can enter a state it can never leave. This file already had
+two other calls hoisted above the same gate for exactly this reason; the morph advance was the one that
+got missed. When adding a "skip work while hidden" optimisation, audit everything below it for
+"does this need to keep ticking even when nothing is drawn?"
+
+---
+
 ## Theme & Flash Prevention
 
 ### White/Dark Flash on Page Load (Theme Blink)
@@ -496,6 +557,23 @@ document.documentElement.style.backgroundColor = bg;  // Set immediately
 **Solution**: Move initialization to immediate call (wire-meta is synchronous) instead of waiting for event/timeout
 **Files**:
 - gradient-layer.js (initGradients function)
+
+### Card Gradient Colors Wrong/Stuck After Fixing `codeinjection_head` (Two Compounding Bugs)
+**Problem**: `gradflow-page-bg`'s (homepage background, `gradflow-page-bg-trigger.js`) crossfaded colors for one specific card rendered strongly wrong (solid blue) despite that card's own `gradientCss` field clearly specifying different colors (pink/lavender/white, confirmed against the swatches in a design reference). Fixing the field's value in Ghost Admin didn't visibly change anything, even after reloading.
+
+**Root Cause (two separate bugs, same visible symptom)**:
+1. **A malformed `codeinjection_head` silently breaks the WHOLE metadata parse, not just one field.** A string value missing its closing quote (`"cardDescription": ","`) makes everything after it — the rest of the object literal — part of one unterminated string, throwing a `SyntaxError` on `eval()` (`post-and-cards.js`). That's caught by a bare `catch (e) { showImageFallback(card); ... }` with **no logging at all**. Every field on that card (title, `gradientCss`, testimonial, everything) silently never applies — the card just falls back to its plain image, indistinguishable from a card that legitimately has no metadata. Because `gradflow-page-bg-trigger.js`'s "most-visible-card-wins" colour trigger skips any card with no usable `data-gradient-css`, it fell through to whichever *adjacent* card did have valid data — reading as "showing the wrong card's colour," not "this card's own data never loaded at all."
+2. **Fixing the Admin field doesn't fix already-cached browsers.** `post-and-cards.js` caches each card's raw `codeinjection_head` string in `sessionStorage`, keyed by slug, with no expiry — the file's own comment says it "survives across reloads for the life of the tab." A tab that had already cached the broken raw text before the Admin fix keeps serving it indefinitely; reloading doesn't help, because the reload is exactly what reads from that cache.
+
+**Solution**:
+1. Fix the malformed field in Ghost Admin (a content fix, not a code change) — every occurrence, not just the one first found: the identical missing-closing-quote pattern turned up on a second, unrelated post's `gradientCss` field too, once looked for.
+2. Bump `CARD_META_CACHE_VERSION` in `post-and-cards.js` to force-invalidate every cached entry for every visitor — the mechanism already existed for exactly this ("bumping `CARD_META_CACHE_VERSION` invalidates every entry at once"), it just hadn't needed using yet.
+
+**Files**:
+- (data fix) Ghost Admin → post → Code Injection → Header, for each affected post
+- post-and-cards.js (`CARD_META_CACHE_VERSION`, `'v1'` → `'v2'`)
+
+**General lesson**: when a `catch` block swallows a parse error with no logging, "this field has the wrong value" and "this field never loaded at all" look identical from the outside — before assuming one value is simply wrong, check whether the *whole* object failed to parse (every field on that entity sitting at its unset/default). Separately: any client-side cache with no expiry needs a version-bump escape hatch, and "I fixed the source data but nothing changed" is the signature symptom of that cache still being warm — verify against a completely fresh browser context (no prior session state) before concluding a fix didn't work.
 
 ### macOS Rubber-Band Overscroll Revealed Opaque-Black Particle Canvas
 **Problem**: Scrolling past the page edge on a Mac trackpad revealed a black background — with particles visible in it — behind the page.

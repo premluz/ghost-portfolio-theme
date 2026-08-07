@@ -1,11 +1,30 @@
 {{!< default}}
 {{> preloader}}
+{{!-- gradflow-page-bg: whole-page fixed 'smoke' background (see that
+      partial's own doc) — sibling of .home, NOT nested inside it, so its
+      z-index:0 competes globally against #page-backdrop/particles instead
+      of being trapped inside any stacking context .home might gain later
+      (it has none today). Dark purple/near-black palette, homepage-only —
+      page-about.hbs keeps the partial's own light pastel default.
+      triggered="true": starts invisible, driven by gradflow-page-bg-
+      trigger.js off the posts-tabs cards (fade in/out + per-card colors)
+      instead of being on for the whole page — see that script's doc. 
+
+{{> gradflow-page-bg
+    triggered="true"
+    color1r="253" color1g="186" color1b="206"
+    color2r="255" color2g="229" color2b="229"
+    color3r="250" color3g="250" color3b="248"
+    speed="0.5" scale="1.1" noise="0.1"
+    type="animated"}}
+
+--}}
 
 <section class="home">
 
   {{!-- Hero section — configured via Ghost Admin › Design › Custom Fields --}}
+
 {{> hero }}
- 
 
 
     {{!-- Logos scroll section — infinite scrolling client logos --}}
@@ -34,29 +53,178 @@
     {{!-- Stats parallax — scrolls in after operating model unpins --}}
   
     
-    <div data-home-content-width="{{@custom.home_content_width}}">
+{{> posts-tabs layout="grid"}}
+
+<!--
+{{!-- lab-particle-backdrop-wrap: gives #201D23 its own layer BETWEEN
+      gradflow-page-bg (z-index:0) and the particle canvas (z-index:1), so
+      the requested stack — page-bg lowest, #201D23 backdrop, particles,
+      section content — is actually achievable. This CANNOT live as
+      .gradient-frame's own `background` (tried first): that element is
+      position:relative;z-index:2 (gradient-frame.css) so its own CONTENT
+      can render above particles, but a CSS stacking context is atomic for
+      paint order — EVERY descendant, including a background layer,
+      inherits the context's global rank relative to things outside it.
+      There is no z-index you can give a child that makes it paint below
+      something the PARENT context already ranks above. This plain wrapper
+      (position:relative, no z-index — doesn't itself create a stacking
+      context) lets the backdrop div and .gradient-frame each rank
+      independently against the particle canvas: backdrop at z-index:0
+      (ties gradflow-page-bg, wins via later DOM order — same mechanism
+      that partial itself uses against #page-backdrop), .gradient-frame
+      unchanged at z-index:2. See .lab-particle-backdrop in
+      posts-tabs-grid-lab.css for why it's inset from the top/bottom by
+      the band height rather than the whole box (must not repaint the
+      band's own fade-to-page-bg edge). --}}
+<div class="lab-particle-backdrop-wrap">
+  <div class="lab-particle-backdrop" aria-hidden="true"></div>
+
+  {{!-- Animated gradient bands above and below the whole Lab section, via
+      the reusable gradient-frame component (gradient-frame.js/.css,
+      loaded site-wide in default.hbs) — it injects the two in-flow bands
+      itself, so this only needs the wrapper.
+
+      Every knob is spelled out below rather than left to the component's
+      defaults, so this element is the single place to tune the look.
+      Changing one here affects only this section; delete an attribute to
+      fall back to the component default (see GRADIENT-FRAME-SYSTEM.md for
+      the full list and what each does).
+
+      The island's own palette (identical in both themes) is NOT here: it is
+      authored in posts-tabs-grid-lab.css as a :root override of the shift
+      tokens — see the "FIXED PALETTE" block there. Colours that must reach
+      the fixed nav have to live at :root; only the band's own wave colours
+      belong on this element. --}}
+<div class="gradient-frame"
+     data-gradient-frame
+     data-gradient-mode="invert"
+     {{!-- Outer (page-facing) edge fades to transparent instead of a flat
+           --color-background-matched color, same as page-about.hbs's
+           gradflow-page-bg use — the homepage now has its own whole-page
+           fixed background (index.hbs) behind this section, so a solid
+           outer edge here would show as a hard seam against it. Inner edge
+           (this island's own fixed palette, data-gradient-inner below)
+           stays fully opaque either way — fadeOuter only touches the side
+           facing the page. --}}
+     data-gradient-fade-outer="true"
+     {{!-- .posts-tabs-grid-lab-section (posts-tabs-grid-lab.css) has no
+           background of its own — the particle system's morphing sphere
+           shows through its gaps by original design, wherever it's
+           scrolled to. Without this, the fade-outer rule above ALSO fills
+           the frame's own middle zone solid (correct for testimonials/
+           profile, whose cards need a backdrop) — reproduced live, that
+           hid the sphere completely for Lab's whole scroll range, not just
+           behind cards. See gradient-frame.css's own doc on this attribute
+           for the stacking-context reasoning. --}}
+     data-gradient-transparent-middle="true"
+     {{!-- FIXED PALETTE (this island is the SAME purple in both themes,
+           it does not mirror the theme like a plain invert frame does).
+           Two halves that must be kept in sync BY HAND:
+             1. this literal — paints the island + its two bands. Stated as
+                a literal, not a token, on purpose: gradient-frame.js
+                resolves it in JS at init/theme-change only, so a token that
+                another section can redirect made the colour depend on when
+                that read fired (see MODE_COLORS in gradient-frame.js).
+             2. the :root[data-active-gradient-frame='lab'] block in
+                posts-tabs-grid-lab.css — retints the FIXED NAV, which sits
+                outside this element and so cannot inherit from it.
+           data-gradient-shift-key is what activates half 2 while this
+           frame (and only this frame) is the one on screen. --}}
+     data-gradient-shift-key="lab"
+     data-gradient-inner="#201D23"
+
+     {{!-- BASE WAVE — the 4-colour ramp's animated core. --}}
+     data-gradient-wave-a="#4C3057"
+     data-gradient-wave-b="#1F1A23"
+     data-gradient-scale="0.9"
+     data-gradient-speed="0.7"
+
+     {{!-- SECOND WAVE — composited in the same shader (no extra canvas).
+           A DIFFERENT scale is what makes the two cross instead of stack.
+           Omit wave2-a/-b to reuse the base pair at partial opacity. --}}
+     data-gradient-wave2-a="#562967"
+     data-gradient-wave2-b="#19141E"
+     data-gradient-wave2-opacity="0.75"
+     data-gradient-wave2-scale="1.4"
+     data-gradient-wave2-speed="0.45"
+     data-gradient-wave2-center="0.52"
+     data-gradient-wave2-width="0.94"
+
+     {{!-- PARALLAX — viewport-heights of scroll. Opposite signs make the
+           two layers slide past each other; both 0 skips the scroll read. --}}
+     data-gradient-parallax="0.05"
+     data-gradient-wave2-parallax="-0.09"
+
+     {{!-- BREATHE — calm wave-height pulse (expand/collapse), shared knob
+           for both layers. Each layer breathes at its OWN pace since the
+           rate is derived from its own speed above (0.7 vs 0.45), so the
+           two drift in and out of phase without a second parameter. --}}
+     data-gradient-breathe="0.4"
+
+     {{!-- PALETTE-SHIFT TIMING — ramp length in viewport heights, and the
+           band render resolution (see gradflow-background.js). --}}
+     data-gradient-enter-span="0.5"
+     data-gradient-exit-span="0.5"
+     data-gradient-resolution-scale="0.35">
+-->
+{{> posts-tabs-grid-lab layout="grid"}}
+   {{!--  Operating model stacked — headers accumulate horizontally --}}
 
 
 
-{{> posts-tabs}}
+<!--
+{{> operating-model}} --}}
+<div class="gradient-frame"
+     data-gradient-frame
+     data-gradient-mode="invert"
+     {{!-- Outer (page-facing) edge — configurable per instance (see
+           gradient-frame.css's own doc on this attribute):
+             "true"  — fades to transparent instead of a flat
+                       --color-background-matched color, blending into
+                       whatever's actually behind the frame.
+             "false" — solid data-gradient-outer color (theme background by
+                       default), a flat hard edge. Currently "false" here,
+                       matching Lab's own reversion (posts-tabs-grid-lab.hbs)
+                       — tried "true" first, reverted per explicit request.
+           Inner edge (this section's own invert-mode palette) stays fully
+           opaque either way — this only ever touches the side facing the
+           page. --}}
+     data-gradient-fade-outer="true"
 
-{{> posts-tabs-grid-lab layout="list"}}
-    {{!-- Operating model stacked — headers accumulate horizontally --}}
+     {{!-- BASE WAVE — the 4-colour ramp's animated core. --}}
+     data-gradient-wave-a="#562967"
+     data-gradient-wave-b="#19141E"
+     data-gradient-scale="0.9"
+     data-gradient-speed="0.7"
 
+     {{!-- SECOND WAVE — composited in the same shader (no extra canvas).
+           A DIFFERENT scale is what makes the two cross instead of stack.
+           Omit wave2-a/-b to reuse the base pair at partial opacity. --}}
+     data-gradient-wave2-a="#562967"
+     data-gradient-wave2-b="#19141E"
+     data-gradient-wave2-opacity="0.75"
+     data-gradient-wave2-scale="1.4"
+     data-gradient-wave2-speed="0.45"
+     data-gradient-wave2-center="0.52"
+     data-gradient-wave2-width="0.64"
 
+     {{!-- PARALLAX — viewport-heights of scroll. Opposite signs make the
+           two layers slide past each other; both 0 skips the scroll read. --}}
+     data-gradient-parallax="0.05"
+     data-gradient-wave2-parallax="-0.09"
 
-   {{!-- Experimental projects lab section --}}
-  
+     {{!-- PALETTE-SHIFT TIMING — ramp length in viewport heights, and the
+           band render resolution (see gradflow-background.js). --}}
+     data-gradient-enter-span="0.5"
+     data-gradient-exit-span="0.5"
+     data-gradient-resolution-scale="0.35">
 
-{{> operating-model}}
-
+-->
 
    {{> testimonials}}
 
  
  
-    </div>
-
     {{!--
   {{#if pagination.next}}
     <div class="pagination">
@@ -71,4 +239,5 @@
       </div>
     </div>
   {{/if}}--}}
+  
 </section>

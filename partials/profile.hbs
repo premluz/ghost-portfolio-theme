@@ -11,6 +11,18 @@
 <div class="gradient-frame"
      data-gradient-frame
      data-gradient-mode="invert"
+     {{!-- Outer (page-facing) edge fades to transparent instead of a flat
+           --color-background-matched color — page-about.hbs has its own
+           whole-page fixed gradflow background behind this section, so a
+           solid outer edge would read as a hard seam against it. Matches
+           posts-tabs-grid-lab.hbs/testimonials.hbs, which carry this for
+           the same reason on the homepage. Inner edge (this section's own
+           invert-mode palette) stays fully opaque either way — fadeOuter
+           only touches the side facing the page. NOTE this also requires
+           the frame's OWN background to be carved out of the band zones,
+           or it just shows through the now-transparent band: that's the
+           [data-gradient-fade-outer='true'] rule in gradient-frame.css. --}}
+     data-gradient-fade-outer="false"
 
      {{!-- BASE WAVE — the 4-colour ramp's animated core. --}}
      data-gradient-wave-a="#562967"

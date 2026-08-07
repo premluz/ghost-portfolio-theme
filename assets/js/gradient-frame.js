@@ -63,8 +63,27 @@
 // data-gradient-enter-span / -exit-span (ramp length in viewport heights),
 // data-gradient-wave2-a/-b/-opacity/-scale/-speed/-center/-width and
 // data-gradient-parallax / -wave2-parallax (second wave layer),
-// data-gradient-breathe (calm wave-height pulse, 0 disables).
+// data-gradient-breathe (calm wave-height pulse, 0 disables),
+// data-gradient-breathe-rate (that pulse's own speed, independent of
+// data-gradient-speed), data-gradient-amplitude (overall wave-height
+// multiplier — scale is frequency, this is "how tall"),
+// data-gradient-fade-outer="true" (fade each band's outer/page-facing edge
+// to transparent instead of a flat matched color — works for any type, not
+// just wave — so the frame can overlap non-solid content behind it).
 // Band height is CSS: --gradient-frame-edge-height (gradient-frame.css).
+//
+// data-gradient-type (default 'wave') — any GRADIENT_TYPE_NUMBER key in
+// gradflow-shaders.js (linear/conic/animated/wave/silk/smoke/stripe).
+// EVERY type except 'wave' is an untouched 3-color CYCLE (see that file's
+// own comment on u_color4) — no edge-to-page-background matching, so
+// data-gradient-outer/-inner/-wave-a/-wave-b (wave-only concepts: which
+// color sits at which edge so the band fades cleanly into the page) don't
+// apply. Non-wave types use THREE direct colors instead:
+// data-gradient-color1/-color2/-color3 (same literal-or-'--token' rule as
+// every other color attribute here), plus data-gradient-noise (default 0,
+// 'wave' ignores it — noise is a cycle-type-only shader param). The second-
+// wave layer (data-gradient-wave2-*) is also wave-specific and is skipped
+// for any other type.
 
 const MODE_COLORS = {
   theme: { outer: '--color-background', inner: '--color-background' },
@@ -91,6 +110,14 @@ const DEFAULTS = {
   waveB: '#2e073e',
   speed: 0.7,
   scale: 0.5,
+  // Non-wave-type-only (see the data-gradient-type doc above) — falls back
+  // to the wave palette so an instance that sets type without colors still
+  // renders something, rather than crashing on an undefined uniform.
+  type: 'wave',
+  color1: '#61177c',
+  color2: '#61177c',
+  color3: '#2e073e',
+  noise: 0,
   // Ramp lengths in viewport heights. bindShift's geometric default is 1
   // (the full crossing), which reads as slow and late here: at 1 the enter
   // ramp only completes once the frame's top edge reaches the viewport TOP,
@@ -127,6 +154,19 @@ const DEFAULTS = {
   // speed already passed in per layer (see waveFlow in gradflow-shaders.js).
   // 0 disables it (flat, constant amplitude — the old behaviour).
   breathe: 0.4,
+  // Pulse rate multiplier, on top of each layer's own speed — was a
+  // hardcoded 0.12 inside waveFlow(), now tunable per instance independent
+  // of how fast the wave itself travels sideways.
+  breatheRate: 0.12,
+  // Overall wave-height multiplier — `scale` is frequency ("squiggliness"),
+  // this is amplitude ("how tall"). 1 = the original hardcoded heights.
+  amplitude: 1,
+  // Fade each band's OUTER (page-facing) edge to transparent instead of a
+  // flat page-background-matching color — lets the frame overlap non-solid
+  // content behind it (an image, texture, another canvas). Off by default:
+  // every existing instance keeps painting a solid, theme-matched outer
+  // edge exactly as before.
+  fadeOuter: false,
 };
 
 // Any '--foo' resolves against the frame so per-section token overrides
@@ -146,12 +186,19 @@ function readConfig(frame) {
   const exitSpan = parseFloat(d.gradientExitSpan);
   const resolutionScale = parseFloat(d.gradientResolutionScale);
   const num = (v, fallback) => { const n = parseFloat(v); return isNaN(n) ? fallback : n; };
+  const noise = parseFloat(d.gradientNoise);
   return {
     mode: mode,
     outer: d.gradientOuter || MODE_COLORS[mode].outer,
     inner: d.gradientInner || MODE_COLORS[mode].inner,
     waveA: d.gradientWaveA || DEFAULTS.waveA,
     waveB: d.gradientWaveB || DEFAULTS.waveB,
+    // Non-wave-type-only — see data-gradient-type's own doc above.
+    type: d.gradientType || DEFAULTS.type,
+    color1: d.gradientColor1 || DEFAULTS.color1,
+    color2: d.gradientColor2 || DEFAULTS.color2,
+    color3: d.gradientColor3 || DEFAULTS.color3,
+    noise: isNaN(noise) ? DEFAULTS.noise : noise,
     speed: isNaN(speed) ? DEFAULTS.speed : speed,
     scale: isNaN(scale) ? DEFAULTS.scale : scale,
     enterSpan: isNaN(enterSpan) ? DEFAULTS.enterSpan : enterSpan,
@@ -167,16 +214,46 @@ function readConfig(frame) {
     parallax: num(d.gradientParallax, DEFAULTS.parallax),
     wave2Parallax: num(d.gradientWave2Parallax, DEFAULTS.wave2Parallax),
     breathe: num(d.gradientBreathe, DEFAULTS.breathe),
+    breatheRate: num(d.gradientBreatheRate, DEFAULTS.breatheRate),
+    amplitude: num(d.gradientAmplitude, DEFAULTS.amplitude),
+    fadeOuter: d.gradientFadeOuter === 'true',
   };
 }
 
 // waveGradient puts color1 at the band's BOTTOM edge and color4 at its TOP
 // edge, so the top band (page above it, content below it) and the bottom
-// band (content above, page below) are exact mirrors of each other.
+// band (content above, page below) are exact mirrors of each other. Every
+// OTHER type is an untouched 3-color cycle (gradflow-shaders.js) with no
+// edge-to-page-background concept, so it skips the outer/inner mirroring
+// entirely — top and bottom bands get the same three colors, direct.
 function bandConfig(cfg, position, frame) {
+  // Which physical edge of THIS band is its outer (page-facing) one —
+  // type-independent, purely geometric: a top band's own top edge faces the
+  // page above it; a bottom band's own bottom edge faces the page below.
+  // Feeds u_outer_at_one (gradflow-shaders.js) when fadeOuter is on.
+  const outerAtTop = position === 'top';
+  if (cfg.type !== 'wave') {
+    return {
+      color1: resolveColor(cfg.color1, frame),
+      color2: resolveColor(cfg.color2, frame),
+      color3: resolveColor(cfg.color3, frame),
+      speed: cfg.speed,
+      scale: cfg.scale,
+      type: cfg.type,
+      noise: cfg.noise,
+      resolutionScale: cfg.resolutionScale,
+      parallax: cfg.parallax,
+      breathe: cfg.breathe,
+      breatheRate: cfg.breatheRate,
+      amplitude: cfg.amplitude,
+      fadeOuter: cfg.fadeOuter,
+      outerAtTop: outerAtTop,
+      layer2: null, // second-wave layer is a wave-specific composited effect
+    };
+  }
   const outer = resolveColor(cfg.outer, frame);
   const inner = resolveColor(cfg.inner, frame);
-  const edges = position === 'top'
+  const edges = outerAtTop
     ? { color1: inner, color4: outer }
     : { color1: outer, color4: inner };
   return Object.assign({
@@ -189,6 +266,10 @@ function bandConfig(cfg, position, frame) {
     resolutionScale: cfg.resolutionScale,
     parallax: cfg.parallax,
     breathe: cfg.breathe,
+    breatheRate: cfg.breatheRate,
+    amplitude: cfg.amplitude,
+    fadeOuter: cfg.fadeOuter,
+    outerAtTop: outerAtTop,
     layer2: cfg.wave2Opacity > 0 ? {
       color1: resolveColor(cfg.wave2A || cfg.waveA, frame),
       color2: resolveColor(cfg.wave2B || cfg.waveB, frame),
@@ -205,9 +286,20 @@ function bandConfig(cfg, position, frame) {
 function paintBand(band, config) {
   // Static fallback under the canvas: covers the moment before ogl loads,
   // and is the whole effect under reduced motion. Direction matches the
-  // shader's own color1-at-bottom / color4-at-top mapping.
-  band.style.setProperty('--gradient-frame-edge-from', config.color1);
-  band.style.setProperty('--gradient-frame-edge-to', config.color4);
+  // shader's own color1-at-bottom / color4-at-top mapping. Non-wave types
+  // have no color4 (see bandConfig) — color3 (the cycle's last stop) is the
+  // nearest equivalent "far" color for this two-stop CSS approximation.
+  let from = config.color1;
+  let to = config.color4 || config.color3;
+  // fadeOuter has no CSS-gradient/alpha equivalent worth building (this
+  // fallback only ever shows pre-WebGL or under reduced motion) — closest
+  // approximation is dropping the outer stop to transparent outright, same
+  // "let whatever's behind it show" intent as the shader's alpha fade.
+  if (config.fadeOuter) {
+    if (config.outerAtTop) to = 'transparent'; else from = 'transparent';
+  }
+  band.style.setProperty('--gradient-frame-edge-from', from);
+  band.style.setProperty('--gradient-frame-edge-to', to);
 }
 
 function initFrame(frame) {
@@ -215,9 +307,31 @@ function initFrame(frame) {
   frame.__gradientFrameReady = true;
 
   const cfg = readConfig(frame);
+  // data-gradient-bands-container: opt-in escape hatch for a frame whose
+  // z-index (needed for ITS OWN content to sit above the particle canvas —
+  // see .gradient-frame's own doc) would otherwise also drag the bands'
+  // WebGL canvas above the particle canvas, hard-cutting across it
+  // wherever the two overlap (reproduced live on Lab: the wave band's
+  // straight rectangular edge sliced across the particle sphere). A
+  // stacking context is atomic — nothing inside .gradient-frame can paint
+  // below something the frame itself out-ranks — so the only fix is
+  // moving the bands OUTSIDE it, into a container this attribute names (a
+  // CSS selector), which must be a plain position:relative element with NO
+  // z-index of its own (so it doesn't create the same trap) sized to
+  // exactly cover .gradient-frame's own box — see
+  // .lab-particle-backdrop-wrap in posts-tabs-grid-lab.hbs for the
+  // existing example (used there for the SAME reason, for its solid
+  // backdrop div). The .gradient-frame-edge--external class below gets the
+  // absolute positioning + low z-index this needs; the normal (no
+  // attribute) case is entirely unchanged.
+  const bandsContainer = frame.dataset.gradientBandsContainer
+    ? (document.querySelector(frame.dataset.gradientBandsContainer) || frame)
+    : frame;
+  const external = bandsContainer !== frame;
   const bands = ['top', 'bottom'].map(function(position) {
     const band = document.createElement('div');
     band.className = 'gradient-frame-edge gradient-frame-edge-' + position;
+    if (external) band.classList.add('gradient-frame-edge--external');
     band.setAttribute('aria-hidden', 'true');
     return { position: position, band: band };
   });
@@ -233,9 +347,12 @@ function initFrame(frame) {
 
   // Bands are inserted around the EXISTING children rather than wrapping
   // them in a new element — reparenting content would break the scripts
-  // that already hold references to (and measure) it.
-  frame.insertBefore(bands[0].band, frame.firstChild);
-  frame.appendChild(bands[1].band);
+  // that already hold references to (and measure) it. In the external
+  // case, bandsContainer is a DIFFERENT, dedicated element (see doc
+  // above), so this same insertBefore/appendChild pattern is still safe —
+  // nothing else lives there to reparent around.
+  bandsContainer.insertBefore(bands[0].band, bandsContainer.firstChild);
+  bandsContainer.appendChild(bands[1].band);
   applyColors();
 
   // A theme toggle re-resolves every CSS custom property automatically,

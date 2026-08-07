@@ -94,6 +94,18 @@ function initCardScrollReveal() {
     // can't catch it. Confirmed this exact failure mode by measurement:
     // naturalWidth/complete both fine, opacity stuck at 0 forever.
     if (img.closest('.logomark-container')) return false;
+    // .modal-overlay: the gallery modal's own DOM (modal.js, appended to
+    // <body> at init so it sits outside every ancestor exclusion above).
+    // Its close icon is a black-fill SVG recolored by a CSS `filter:
+    // invert(...)` (modal.css .modal-close-icon) — this system writes its
+    // own `filter: blur(...)` inline, which REPLACES that invert outright
+    // (filter is one property, not a list that merges), leaving a black
+    // icon on a dark background: invisible. Same family as the
+    // .logomark-container case above — measured `filter: blur(0px)` where
+    // the invert should have been. Excludes the whole overlay, not just
+    // the icon, so gallery content images rendered into it later can never
+    // be claimed either.
+    if (img.closest('.modal-overlay')) return false;
     if (img.closest('.post-navigation')) return false;
     if (img.closest('.logos-scroll-container')) return false;
     if (img.closest('.logos-ribbon-item')) return false;

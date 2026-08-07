@@ -63,9 +63,76 @@
   // ── Animation ─────────────────────────────────────────────────────────────
   let animating = false;
 
+  // ── Page-to-page loading bar ─────────────────────────────────────────────
+  // Reuses the SAME Material indeterminate chase #preloader-progress-bar
+  // uses on the homepage's first load (main.css ".progress-bar-track"
+  // system) — .scroll-progress (default.hbs, every page) is the SAME
+  // element that normally tracks real scroll position; armLoadingBar()
+  // switches it into the chase for the duration of a navigation,
+  // releaseLoadingBar() hands it back.
+  //
+  // The tricky part: this is a REAL browser navigation (window.location.href
+  // in the timelines below), not a client-side route swap — the JS context
+  // that calls armLoadingBar() is destroyed the moment navigation starts.
+  // sessionStorage carries the bar's start timestamp across that boundary
+  // (same pattern this file already uses for postOrigin/curtainReturn/
+  // navPrevNextHop), so the INCOMING page can (a) show the chase immediately
+  // — a small inline script right after .scroll-progress's own markup in
+  // default.hbs reads this same key, before that page's first paint, so
+  // there's no flash-off during the actual network gap — and (b) know how
+  // long the chase has already been running when it's time to release it.
+  function armLoadingBar() {
+    try { sessionStorage.setItem('ptBarStart', String(Date.now())); } catch (err) {}
+    const bar = document.querySelector('.scroll-progress');
+    if (bar) bar.classList.add('is-loading');
+  }
+
+  // Called once, from the INCOMING page's own entrance point — the same
+  // moment runLandingAnimation()/runCurtainEntrance() remove the
+  // main-pending/landing-pending veils (below). Gated through
+  // window.__barMinCycleRelease (preloader.js — loaded before this file on
+  // every page, not just the homepage; see that file's own comment) so a
+  // fast navigation can never cut the chase off before one full loop.
+  function releaseLoadingBar() {
+    const bar = document.querySelector('.scroll-progress');
+    if (!bar) return;
+    let startTime = null;
+    try {
+      const raw = sessionStorage.getItem('ptBarStart');
+      if (raw) startTime = parseInt(raw, 10);
+      sessionStorage.removeItem('ptBarStart');
+    } catch (err) {}
+    // No transition was in flight (fresh/direct load, or the flag was
+    // never set) — nothing armed the chase, so there's nothing to release.
+    // Still strip the classes defensively in case an interrupted/aborted
+    // navigation left a stale one behind.
+    if (!startTime || isNaN(startTime)) {
+      bar.classList.remove('is-loading', 'is-complete');
+      return;
+    }
+    const finish = () => {
+      bar.classList.add('is-complete');
+      // Hold until the exit slide has fully played (main.css
+      // .progress-bar-track.is-complete → bar-exit-right, 0.55s) before
+      // handing back to scroll-progress.js's normal JS-driven width
+      // tracking. Stripping the classes any earlier cuts the slide/fade
+      // off mid-flight and the bar vanishes instead of leaving.
+      // ⚠ Keep in sync with bar-exit-right's animation-duration.
+      setTimeout(() => {
+        bar.classList.remove('is-loading', 'is-complete');
+      }, 600);
+    };
+    if (typeof window.__barMinCycleRelease === 'function') {
+      window.__barMinCycleRelease(startTime, finish);
+    } else {
+      finish();
+    }
+  }
+
   function runTransition(href) {
     if (animating) return;
     animating = true;
+    armLoadingBar();
 
     const pageContent = document.querySelector('main');
 
@@ -135,6 +202,7 @@
   function runCurtainExit(href) {
     if (animating) return;
     animating = true;
+    armLoadingBar();
 
     // Destination is already known synchronously (origin.url, from
     // closePost()) — no reason to wait for the animation to finish before
@@ -203,6 +271,7 @@
     // runs its own fade below, so both veils drop here together.
     document.documentElement.classList.remove('main-pending');
     document.documentElement.classList.remove('landing-pending');
+    releaseLoadingBar();
 
     let origin = null;
     try { origin = JSON.parse(sessionStorage.getItem('postOrigin') || 'null'); } catch (err) {}
@@ -241,9 +310,19 @@
       const backfill = () => {
         let revealCount = null;
         let contentCount = null;
+        let gradflowIndex = null;
         try { revealCount = window.__revealBackfill ? window.__revealBackfill() : 'MISSING'; } catch (e) { revealCount = 'ERROR: ' + e.message; }
         try { contentCount = window.__cardContentRevealBackfill ? window.__cardContentRevealBackfill() : 'MISSING'; } catch (e) { contentCount = 'ERROR: ' + e.message; }
-        console.log('[curtain-return] backfill @', Math.round(performance.now()), 'revealCount:', revealCount, 'contentCount:', contentCount, 'scrollY:', window.scrollY);
+        // Same problem, same fix, for the homepage's gradient background
+        // (gradflow-page-bg-trigger.js): an instant scroll jump means its
+        // own IntersectionObserver never sees the ratio CHANGE it reacts
+        // to, so it kept showing whichever card's colour its own load-time
+        // bootstrap happened to set instead of the card actually in view
+        // after a curtain return. Absent on any page without that script
+        // (only index.hbs loads it) — the ?. guard covers that the same
+        // way the other two backfills do.
+        try { gradflowIndex = window.__gradflowBgBackfill ? window.__gradflowBgBackfill() : 'MISSING'; } catch (e) { gradflowIndex = 'ERROR: ' + e.message; }
+        console.log('[curtain-return] backfill @', Math.round(performance.now()), 'revealCount:', revealCount, 'contentCount:', contentCount, 'gradflowIndex:', gradflowIndex, 'scrollY:', window.scrollY);
       };
       setTimeout(backfill, 450);
       setTimeout(backfill, 1200);
@@ -380,8 +459,17 @@
   // Same dismissal as clicking .nav-close-btn (see closePost above).
   // Post-only (.nav-close-btn only exists in the DOM there — see
   // navigation.hbs's {{#is "post"}} guard), so this is a no-op elsewhere.
+  // Backs off entirely while the kg-gallery-card modal is open (modal.js
+  // sets window.__galleryModalOpen) — this listener is on `document`,
+  // which fires BEFORE modal.js's own Escape handler (registered on
+  // `window`, later in the bubble phase), so without this check both fired
+  // on the same keypress: the modal closed AND the post navigated away,
+  // since this handler had no way to know the modal existed. The modal
+  // should own Escape exclusively while it's open; this only resumes
+  // owning it once the modal is closed.
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
+    if (window.__galleryModalOpen) return;
     if (!document.querySelector('.nav-close-btn')) return;
     closePost();
   });
@@ -397,6 +485,12 @@
     gsap.set(scrim, { opacity: 0 });
     const main = document.querySelector('main');
     if (main) gsap.set(main, { y: 0, opacity: 1, filter: 'none' });
+    // A bfcache restore can land on a page where armLoadingBar() ran (the
+    // outgoing exit) but the destination's own releaseLoadingBar() never
+    // did (navigation didn't complete the normal way) — leaving .is-loading
+    // stuck. Same defensive reset as everything else in this handler.
+    const bar = document.querySelector('.scroll-progress');
+    if (bar) bar.classList.remove('is-loading', 'is-complete');
   });
 
   // ── Landing animation: slide up + fade in on page load ────────────────────
@@ -430,6 +524,7 @@
       // pattern as the non-home branch's html.main-pending removal further
       // down this function.
       document.documentElement.classList.remove('landing-pending');
+      releaseLoadingBar();
       // Slide entrance, same y-values as the non-home branch's <main>
       // entrance below (Work/About/Contact: y:20->0, duration 0.2, ease
       // power1.out) — was y:100 here (a stale mismatch; the comment that
@@ -494,6 +589,7 @@
     // don't match shouldAnimate, with nothing else hiding <main> at all),
     // so there's never a gap where neither CSS nor GSAP is holding it.
     document.documentElement.classList.remove('main-pending');
+    releaseLoadingBar();
 
     // Check if current page should have landing animation
     // Look for class on body, section, or in data-page-id

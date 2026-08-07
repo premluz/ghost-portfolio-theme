@@ -185,3 +185,57 @@ If something isn't working:
 4. Make sure end marker is present
 
 The system is fail-safe — if something is wrong, it logs a warning but doesn't break the page.
+
+---
+
+# Content Grid — card rows in post bodies
+
+Added 2026-08-05. For rows of cards inside a post (2-up metric tiles, 3-up
+context/role/contributions blocks, etc.). Paste as an **HTML card** in the Ghost
+editor.
+
+```html
+<div class="content-grid" data-cols="3">
+  <div class="content-grid-item">
+    <h3>Context</h3>
+    <p>…</p>
+  </div>
+  <div class="content-grid-item">…</div>
+  <div class="content-grid-item">…</div>
+</div>
+```
+
+## Attributes
+
+| Attribute | Values | Default | Effect |
+|---|---|---|---|
+| `data-cols` | `1` `2` `3` `4` `auto` | `auto` | Cards per row. A number is exact and wraps to as many rows as the card count needs. `auto` fits as many as will fit. |
+| `data-cols-mobile` | `2` | — | Keeps a 2-up row on phones instead of collapsing to 1. Good for short cards (metric tiles); bad for anything with a paragraph. |
+| `data-layout` | `grid` `carousel` | `grid` | `carousel` turns the row into a horizontal scroll-snap track. |
+
+## Behaviour
+
+- **Mobile (≤768px)** collapses to a single column regardless of `data-cols`,
+  unless `data-cols-mobile="2"` is set. Carousels are exempt — a horizontal
+  track is already appropriate on a phone.
+- **Card width** for `auto` is driven by `--content-grid-min` (280px default).
+  Override it on the grid for chunkier or tighter cards:
+  `<div class="content-grid" style="--content-grid-min: 360px">`.
+- **Carousel** is layout-only right now: it scrolls and snaps, but has no arrows
+  or dots yet. Those can be added later without changing any published markup —
+  the attribute is already the switch.
+
+## Legacy `.flexlayout` / `.col`
+
+All previously published posts use this older markup:
+
+```html
+<div class="flexlayout">
+  <div class="col">…</div>
+</div>
+```
+
+It still works — it's mapped onto the same engine as `.content-grid` and behaves
+like `data-cols="auto"`. **Don't bulk-migrate existing posts**; there's no
+rendering difference to gain. Use `.content-grid` for anything new, where the
+`data-cols` / `data-layout` control is worth having.

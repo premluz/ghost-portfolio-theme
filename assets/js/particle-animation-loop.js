@@ -245,6 +245,9 @@ class ParticleAnimationLoop {
 
   createParticles(positions, colors, sizes, phis) {
     if (this.particles) {
+      // Carried onto the replacement below — see the _heroOffsetSeeded block
+      // at the end of this method.
+      this._lastParticlePosition = this.particles.position.clone();
       this.scene.remove(this.particles);
     }
 
@@ -547,6 +550,40 @@ ${styles.fragmentBodyBlocks()}
     });
 
     this.particles = new THREE.Points(geo, mat);
+
+    // Seed the object transform with the hero canvas offset on FIRST creation.
+    // Without this, particles are born at (0,0,0) — the dispersed cloud renders
+    // centred — and the hero zone's positionBase (particle-morph.hbs's `frame`,
+    // which resolves to _getHeroCanvasOffset(): -420px worth of world units on
+    // desktop, see --particle-hero-canvas-left in main.css) only lands once
+    // that zone's ownsPosition/heroStillRelevant() turns true, i.e. only AFTER
+    // the morph target has become the hero shape. `position` is a whole-object
+    // transform, not per-vertex data, so it cannot tween with the morph — it
+    // snaps in a single frame, which is the sideways jump seen right after the
+    // hero shape finishes forming. Applying it up front means the offset is
+    // already in place before anything is visible and the director's own
+    // per-frame write becomes a no-op re-assertion of the same value.
+    // Guarded to the first build only: later createParticles() calls (instant
+    // shape swaps via setState's duration<=0 path) happen mid-page, where some
+    // other zone may legitimately own `position` — re-seeding there would stomp
+    // it. Wrapped because _getHeroCanvasOffset() reads live CSS/camera state.
+    if (!this._heroOffsetSeeded) {
+      this._heroOffsetSeeded = true;
+      if (document.querySelector('.hero')) {
+        try {
+          const off = this._getHeroCanvasOffset();
+          this.particles.position.set(off.x, off.y, 0);
+        } catch (err) {
+          console.warn('[particle-animation-loop] hero offset seed failed', err);
+        }
+      }
+    } else if (this._lastParticlePosition) {
+      // Preserve whatever transform was live across a rebuild — createParticles
+      // replaces the Points object wholesale, so a fresh one would otherwise
+      // reset to (0,0,0) for the frames before the director writes again.
+      this.particles.position.copy(this._lastParticlePosition);
+    }
+
     this.scene.add(this.particles);
   }
 
@@ -726,6 +763,52 @@ ${styles.fragmentBodyBlocks()}
 
   _invalidateHeroOffsetCache() {
     this._heroOffsetPx = null;
+  }
+
+  /**
+   * Advance an in-flight morph and finalise it when it completes.
+   *
+   * Extracted from animate() so it can be called BEFORE the
+   * window.__particleLayerHidden early-return: it used to live after that
+   * gate, which meant a morph begun while the layer was hidden never
+   * progressed and never completed (see the call site's comment for the
+   * measured curtain-return repro). GPU path — the vertex shader does the
+   * per-vertex blending from uMorphProgress, so this is one uniform write
+   * per frame, not a CPU lerp over 16k points.
+   */
+  _advanceMorph() {
+    if (!this.morphStartTime || !this.nextState) return;
+
+    this.morphProgress = Math.min(1, (Date.now() - this.morphStartTime) / this.morphDuration);
+    const morphU = this.particles?.material?.uniforms?.uMorphProgress;
+
+    if (this.morphProgress < 1) {
+      if (morphU) morphU.value = this.morphProgress * (2 - this.morphProgress); // ease-out, as before
+      return;
+    }
+
+    // Completion: bake the destination into the position buffer ONCE so
+    // non-shader consumers (preloader intro scaling, gesture forces, the
+    // interrupt bake in setState) keep seeing true resting positions.
+    const geo = this.particles?.geometry;
+    if (geo) {
+      const pos = geo.attributes.position;
+      const n = Math.min(pos.array.length, this.nextState.positions.length);
+      for (let i = 0; i < n; i++) pos.array[i] = this.nextState.positions[i];
+      pos.needsUpdate = true;
+      const sz = geo.attributes.size;
+      if (sz && this.nextState.sizes) {
+        const m = Math.min(sz.array.length, this.nextState.sizes.length);
+        for (let i = 0; i < m; i++) sz.array[i] = this.nextState.sizes[i];
+        sz.needsUpdate = true;
+      }
+    }
+    if (morphU) morphU.value = 0;
+    this.currentState = this.nextState;
+    this.morphStartTime = null;
+    this.nextState = null;
+    this.morphProgress = 0;
+    this.helixReached = true;
   }
 
   // Hero-only canvas offset in WORLD units. Only the CSS pixel read is cached
@@ -937,6 +1020,25 @@ ${styles.fragmentBodyBlocks()}
     // further down into a later section, could get permanently stuck.
     if (this.particles) this._checkHeroReentry();
     if (this.scrollDirector) this.scrollDirector.checkShapesEvenWhileHidden();
+    // Morphs must keep ADVANCING while the layer is hidden, for the same
+    // reason the two calls above run here: a morph started while hidden
+    // would otherwise freeze at whatever partial blend it began with, and
+    // the completion handler — which sets currentState = nextState — would
+    // never run, so the state machine stays wedged forever.
+    //
+    // Reproduced (home -> post -> close back to home, the curtain-return
+    // path): at the Lab section a normal scroll settles on
+    // currentState 'terrain' / nextState null, but after a curtain return
+    // the same scroll position reported currentState 'dispersed' /
+    // nextState 'terrain' — stuck mid-morph, and still stuck after
+    // scrolling further. Rendering that frozen blend is the "fat glowing
+    // blob instead of a fine lattice" report: it is literally half a
+    // dispersed cloud blended into half a terrain surface.
+    //
+    // Cheap enough to run unconditionally: one uniform write per frame
+    // plus a single buffer bake on completion. The expensive thing the
+    // gate below protects is the 16k-point DRAW, which stays skipped.
+    this._advanceMorph();
     // PARTICLE_SCENARIO 'hide' support: while the layer is faded out
     // (window.__particleLayerHidden, set by __particleApply in default.hbs),
     // skip simulation + render entirely — measured cost of NOT doing this
@@ -965,39 +1067,12 @@ ${styles.fragmentBodyBlocks()}
       this.particles.material.uniforms.uTime.value = (Date.now() - this._orbClockStart) * 0.001;
     }
 
-    // Update morph — GPU path: one uniform write per frame; the vertex
-    // shader mixes position → aTargetPos itself (replaces blendStates()).
-    if (this.morphStartTime && this.nextState) {
-      this.morphProgress = Math.min(1, (Date.now() - this.morphStartTime) / this.morphDuration);
-      const morphU = this.particles?.material?.uniforms?.uMorphProgress;
-
-      if (this.morphProgress < 1) {
-        if (morphU) morphU.value = this.morphProgress * (2 - this.morphProgress); // ease-out, as before
-      } else {
-        // Completion: bake the destination into the position buffer ONCE so
-        // non-shader consumers (preloader intro scaling, gesture forces,
-        // the interrupt bake above) keep seeing true resting positions.
-        const geo = this.particles?.geometry;
-        if (geo) {
-          const pos = geo.attributes.position;
-          const n = Math.min(pos.array.length, this.nextState.positions.length);
-          for (let i = 0; i < n; i++) pos.array[i] = this.nextState.positions[i];
-          pos.needsUpdate = true;
-          const sz = geo.attributes.size;
-          if (sz && this.nextState.sizes) {
-            const m = Math.min(sz.array.length, this.nextState.sizes.length);
-            for (let i = 0; i < m; i++) sz.array[i] = this.nextState.sizes[i];
-            sz.needsUpdate = true;
-          }
-        }
-        if (morphU) morphU.value = 0;
-        this.currentState = this.nextState;
-        this.morphStartTime = null;
-        this.nextState = null;
-        this.morphProgress = 0;
-        this.helixReached = true;
-      }
-    }
+    // The morph advance USED to live here. It now runs earlier in this
+    // method, above the window.__particleLayerHidden early-return — a morph
+    // started while the layer is hidden has to keep progressing, or it
+    // freezes at a partial blend and its completion handler (which sets
+    // currentState = nextState) never runs, wedging the state machine. See
+    // _advanceMorph() and its call site. Do not move it back down here.
 
     // Lab orb deformation amount — driven purely by which shape is current,
     // NOT scroll position. The orb morphs continuously and independently

@@ -74,7 +74,12 @@ async function initGradFlowBackground(canvas, configInput) {
   const renderer = new Renderer({
     canvas,
     dpr: bufferDpr(),
-    alpha: false,
+    // true so a fadeOuter band (see gradient-frame.js's data-gradient-fade-
+    // outer) can actually composite over whatever's behind it in the DOM.
+    // Every existing caller still outputs alpha 1.0 everywhere (u_fade_outer
+    // defaults to 0, see the shader), so this is a no-op for them — same
+    // fully-opaque canvas as before.
+    alpha: true,
     antialias: false,
     powerPreference: 'high-performance',
   });
@@ -123,6 +128,10 @@ async function initGradFlowBackground(canvas, configInput) {
       u_parallax: { value: config.parallax || 0 },
       u_layer2_parallax: { value: l2.parallax != null ? l2.parallax : 0 },
       u_breathe: { value: config.breathe != null ? config.breathe : DEFAULT_CONFIG.breathe },
+      u_breathe_rate: { value: config.breatheRate != null ? config.breatheRate : DEFAULT_CONFIG.breatheRate },
+      u_amplitude: { value: config.amplitude != null ? config.amplitude : DEFAULT_CONFIG.amplitude },
+      u_fade_outer: { value: config.fadeOuter ? 1 : 0 },
+      u_outer_at_one: { value: config.outerAtTop ? 1 : 0 },
     },
   });
 

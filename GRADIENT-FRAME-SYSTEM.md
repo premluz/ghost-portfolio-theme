@@ -43,27 +43,40 @@ may be a literal (`#61177c`) **or** a custom property name
 
 | Attribute | Default | Meaning |
 |---|---|---|
-| `data-gradient-mode` | `theme` | `theme` or `invert` (see below) |
-| `data-gradient-outer` | per mode | Band edge facing the page |
-| `data-gradient-inner` | per mode | Band edge facing the content |
-| `data-gradient-wave-a` / `-b` | `#61177c` / `#2e073e` | Base wave's two colours |
-| `data-gradient-scale` | `0.5` | Base wave frequency — the "squiggliness" knob |
-| `data-gradient-speed` | `0.7` | Base wave animation speed |
-| `data-gradient-wave2-a` / `-b` | base pair | Second wave's colours |
-| `data-gradient-wave2-opacity` | `0.55` | `0` disables the second wave entirely |
-| `data-gradient-wave2-scale` | `1.4` | **Must differ from `scale`** or the two stack instead of crossing |
-| `data-gradient-wave2-speed` | `0.45` | |
-| `data-gradient-wave2-center` | `0.52` | Where the second band sits vertically (0 = bottom edge) |
-| `data-gradient-wave2-width` | `0.34` | Its thickness |
-| `data-gradient-parallax` | `0.05` | Base layer drift per viewport-height of scroll |
-| `data-gradient-wave2-parallax` | `-0.09` | Opposite sign ⇒ the layers slide past each other |
-| `data-gradient-breathe` | `0.4` | Calm wave-height pulse — each wave's own amplitude slowly expands/collapses. `0` disables it (constant height, the old behaviour); `1` swings fully flat to double height. One shared knob — the two waves already breathe at different rates because the pulse's own timing is derived from each wave's `speed`/`wave2-speed`, not a separate parameter |
+| `data-gradient-mode` | `theme` | `theme` or `invert` (see below) — **wave-only**: non-wave types skip the edge-matching this drives, see below |
+| `data-gradient-type` | `wave` | Any `GRADIENT_TYPE_NUMBER` key in `gradflow-shaders.js`: `linear`/`conic`/`animated`/`wave`/`silk`/`smoke`/`stripe`. Every type except `wave` is an untouched 3-colour **cycle** — no edge-to-page-background matching, no second wave layer, no breathe (see below) |
+| `data-gradient-outer` | per mode | Band edge facing the page — **wave-only** |
+| `data-gradient-inner` | per mode | Band edge facing the content — **wave-only** |
+| `data-gradient-wave-a` / `-b` | `#61177c` / `#2e073e` | Base wave's two colours — **wave-only** |
+| `data-gradient-color1` / `-color2` / `-color3` | `#61177c` / `#61177c` / `#2e073e` | The three cycle colours — **non-wave types only**. Same top/bottom band for both (no edge-mirroring concept to differ by) |
+| `data-gradient-noise` | `0` | Cycle-type-only shader param — `wave` ignores it |
+| `data-gradient-scale` | `0.5` | Wave frequency ("squiggliness") for `wave`; general pattern scale for other types |
+| `data-gradient-speed` | `0.7` | Animation speed, all types |
+| `data-gradient-wave2-a` / `-b` | base pair | Second wave's colours — **wave-only** |
+| `data-gradient-wave2-opacity` | `0.55` | `0` disables the second wave entirely — **wave-only** |
+| `data-gradient-wave2-scale` | `1.4` | **Must differ from `scale`** or the two stack instead of crossing — **wave-only** |
+| `data-gradient-wave2-speed` | `0.45` | **wave-only** |
+| `data-gradient-wave2-center` | `0.52` | Where the second band sits vertically (0 = bottom edge) — **wave-only** |
+| `data-gradient-wave2-width` | `0.34` | Its thickness — **wave-only** |
+| `data-gradient-parallax` | `0.05` | Base layer drift per viewport-height of scroll — offsets the pattern by `scrollY/viewportHeight * parallax`, so it moves at a different rate than the page itself scrolling past it. Works for `wave` and `smoke` (smoke reads it too, added alongside `data-gradient-fade-outer` below); other cycle types don't reference it yet |
+| `data-gradient-wave2-parallax` | `-0.09` | Opposite sign ⇒ the layers slide past each other — **wave-only** |
+| `data-gradient-breathe` | `0.4` | Calm wave-height pulse — each wave's own amplitude slowly expands/collapses. `0` disables it (constant height, the old behaviour); `1` swings fully flat to double height. One shared knob — the two waves already breathe at different rates because the pulse's own timing is derived from each wave's `speed`/`wave2-speed`, not a separate parameter. **wave-only** — `waveFlow()`, the function that reads `u_breathe`, is only called from `waveGradient()`; other types' shader functions (`smokeGradient`, `silkGradient`, etc.) never reference it, so setting this on a non-wave frame is inert |
+| `data-gradient-breathe-rate` | `0.12` | Multiplier on the breathe pulse's own timing, on top of `speed`/`wave2-speed` — was hardcoded, now tunable independently of how fast the wave travels sideways. Higher = faster pulse. **wave-only**, same reason as `breathe` above |
+| `data-gradient-amplitude` | `1` | Overall multiplier on wave height. `scale` is frequency ("squiggliness"); this is the missing "how tall" counterpart — was hardcoded per-layer (0.1/0.15/0.2) inside `waveFlow()`. `2` = double height, `0.5` = half. **wave-only**, same reason as `breathe` above |
+| `data-gradient-fade-outer` | `"false"` | `"true"` fades each band's OUTER (page-facing) edge to transparent instead of a flat page-background-matched color, so the frame can overlap non-solid content behind it (an image, texture, another canvas) rather than always painting over it. Works for **every type** — plain screen-space `uv.y` fade over the outer third of the band, independent of whatever pattern the active type computes (see the shader's own doc in `gradflow-shaders.js`), not hooked into `wave`'s edge-matching logic. The INNER (content-facing) edge is never affected — always fully opaque. Needs `alpha: true` on the WebGL context (now the default — every existing instance still outputs alpha 1.0 everywhere since this defaults off, so nothing else changed) |
 | `data-gradient-enter-span` | `0.5` | Palette-shift ramp length, in viewport heights |
 | `data-gradient-exit-span` | `0.5` | Revert ramp length |
 | `data-gradient-resolution-scale` | `0.35` | Fraction of device pixels the bands render at |
 | `data-gradient-shift-key` | none | Only needed for a *fixed* palette (see below) — mirrored onto `:root[data-active-gradient-frame]` while this frame's own shift is active, so its CSS override can scope to "while I'm active" |
 
 Band height is CSS: `--gradient-frame-edge-height` (default `480px`).
+
+Reference implementation for `data-gradient-type="smoke"`:
+`page-about.hbs`'s hero header (see that file — attributes go directly on
+the wrapping `.gradient-frame` div, which itself wraps `<header>`, NOT on
+`<header>` itself; `.page-about-header` is `flex-direction: row` and the two
+auto-inserted bands need normal block stacking to render as full-width
+top/bottom bands rather than becoming narrow flex-row side columns).
 
 > The Lab section spells all of these out explicitly even where they match
 > the defaults, so the partial is a single tuning surface. Deleting an

@@ -8,6 +8,45 @@
    absolutely-positioned canvas slots that used to live here are gone;
    they overlaid the content and clipped at the section edge. */
 
+/* Requested stack: page-level gradflow background (lowest) < this solid
+   #201D23 backdrop < particle canvas < section content. .gradient-frame
+   itself can't provide this — it's position:relative;z-index:2 so its OWN
+   content renders above particles, and a stacking context is atomic: every
+   descendant (including a background layer) inherits the context's global
+   rank against things outside it, so nothing inside .gradient-frame can
+   ever paint below something the frame itself already out-ranks. This
+   wrapper has no z-index of its own (doesn't create a stacking context),
+   so the backdrop div below and .gradient-frame each rank independently:
+   backdrop at z-index:0 (ties gradflow-page-bg, wins on later DOM order —
+   same mechanism that partial uses against #page-backdrop), frame
+   unchanged at z-index:2. */
+.lab-particle-backdrop-wrap {
+  position: relative;
+}
+
+/* Hand-kept duplicate of data-gradient-inner on the .gradient-frame in
+   posts-tabs-grid-lab.hbs — change one, change the other. Can't reference
+   --gradient-frame-inner directly: that custom property is set on the
+   .gradient-frame element itself (gradient-frame.js), and this div is a
+   SIBLING of it, not a descendant, so it doesn't inherit it.
+   top/bottom insets (not inset:0) are deliberate: the two bands' own
+   fade-outer edge (gradient-frame.css) blends toward whatever is BEHIND
+   the frame — covering the band zones here would repaint that edge's
+   target color, undoing the smooth blend into gradflow-page-bg the fade
+   was built for. Same --gradient-frame-edge-height custom property the
+   bands themselves size from, so this only ever covers the true middle
+   zone, in sync automatically if that height ever changes. */
+.lab-particle-backdrop {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--gradient-frame-edge-height, 480px);
+  bottom: var(--gradient-frame-edge-height, 480px);
+  z-index: 0;
+  background: #201D23;
+  pointer-events: none;
+}
+
 /* ── FIXED PALETTE for the Lab island — NAV/CHROME HALF ──────────────
    The island itself is NOT painted from here: its background and bands come
    from data-gradient-inner="#1E1825" on the frame (posts-tabs-grid-lab.hbs).

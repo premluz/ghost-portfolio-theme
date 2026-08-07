@@ -90,6 +90,7 @@
       "page_width": {
         "type": "select",
         "options": [
+          "narrow",
           "contained",
           "wide",
           "full"
@@ -181,10 +182,11 @@
           "grid",
           "list",
           "carousel",
-          "stacked"
+          "stacked",
+          "cinematic"
         ],
         "default": "grid",
-        "description": "Posts display: grid, list, carousel, or stacked"
+        "description": "Posts display: grid, list, carousel, stacked, or cinematic"
       },
       "testimonials_layout": {
         "type": "select",

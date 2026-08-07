@@ -10,6 +10,30 @@
 (function () {
   'use strict';
 
+  // Shared "at least one full cycle" gate for the indeterminate loading bar
+  // (main.css .progress-bar-track — the single-streak grow/collapse
+  // sequence, shared by #preloader-progress-bar here AND .scroll-progress
+  // during regular page navigation, see page-transition.js). Defined here,
+  // ABOVE this file's own early-return below, specifically so it's
+  // registered on EVERY page — page-transition.js loads after this file
+  // (default.hbs script order) and needs this on every navigation, not just
+  // the homepage. Without a minimum hold, a fast page load or navigation
+  // can call the "done" trigger before the bar has completed even one
+  // visible sequence — reads as a flicker, not a loading indicator.
+  // ⚠ MUST be >= bar-grow's animation-duration in main.css (currently
+  // 0.9s). That is not just cosmetic pacing: the .is-complete exit assumes
+  // it starts from a settled scaleX(1), and this gate is the only thing
+  // guaranteeing the one-shot grow has actually finished before the exit
+  // can be applied. Drop it below the grow duration and a fast load will
+  // cut the grow off mid-way and jump. Update both together.
+  window.__BAR_CYCLE_MS = 900;
+  window.__barMinCycleRelease = function (startTime, release) {
+    var elapsed = Date.now() - startTime;
+    var remaining = window.__BAR_CYCLE_MS - elapsed;
+    if (remaining <= 0) { release(); return; }
+    setTimeout(release, remaining);
+  };
+
   // Only run on homepage (preloader element present)
   if (!document.getElementById('preloader')) return;
 
@@ -20,9 +44,31 @@
   // the old "once per localStorage session" check (see commented-out
   // block below) — that flag stopped being read by the anti-flash script
   // in default.hbs's <head> too; keep both in sync if this logic changes.
+  //
+  // isReload override (2026-08-06): document.referrer alone can't tell a
+  // refresh apart from an in-site click earlier in this tab's history — a
+  // browser reload PRESERVES the referrer from the page's original
+  // navigation, it doesn't clear it. So once you'd reached this page via
+  // an internal link even once, cameFromSameSite stayed true on every
+  // later refresh of that tab, permanently skipping the preloader (bug
+  // report: the loading bar never showed on refresh). Navigation Timing's
+  // own `type` is the correct signal for "was this specific request a
+  // reload" — checked first and allowed to override the referrer
+  // heuristic. Same override added to default.hbs's two copies of this
+  // check; keep all three in sync.
+  let isReload = false;
+  try {
+    const navEntry = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+    isReload = navEntry
+      ? navEntry.type === 'reload'
+      : !!(performance.navigation && performance.navigation.type === performance.navigation.TYPE_RELOAD);
+  } catch (e) {
+    isReload = false;
+  }
+
   let cameFromSameSite = false;
   try {
-    cameFromSameSite = !!document.referrer && new URL(document.referrer).origin === window.location.origin;
+    cameFromSameSite = !isReload && !!document.referrer && new URL(document.referrer).origin === window.location.origin;
   } catch (e) {
     cameFromSameSite = false;
   }
@@ -90,13 +136,17 @@
   }, { once: true });
 
   // ─── Assets to track ─────────────────────────────────────────────────────
-  const GLB_FILES = [
-    'mobile.glb', 'note.glb', 'diamond.glb',
-    'globe.glb', 'game.glb', 'chart.glb', 'email.glb',
-    'camera.glb', 'sim.glb'
-  ];
+  // GLB_FILES removed 2026-07-25 (mobile / note / diamond / globe / game /
+  // chart / email / camera / sim .glb). It fully fetch()ed ~2.0 MB of models
+  // — mobile.glb alone was 1.47 MB — and HELD THE PRELOADER OPEN until every
+  // one resolved, even though the hero shape ('helix') is generated
+  // procedurally and needs no GLB. These are all morph targets for sections
+  // further down the page, so the preloader was gating first paint on assets
+  // nothing on screen wanted yet. The same set was ALSO preloaded in
+  // default.hbs's <head> (removed there too) — they were being requested
+  // twice per load. Shapes now load on demand at first morph.
   const VIDEO_FILES = [
-    '01.mp4', 'Genie2.mp4', 'IoT.mp4', 'Tracr.mp4', 'b2b.mp4'
+    'IoT.mp4', 'Tracr.mp4'
   ];
 
   // ─── Helper: poll for window.particleSystem ───────────────────────────────
@@ -119,7 +169,6 @@
       this.preloader   = document.getElementById('preloader');
       this.wordmark    = document.querySelector('.preloader-wordmark');
       this.progressBar = document.getElementById('preloader-progress-bar');
-      this.progressPct = document.getElementById('preloader-progress-pct');
 
       if (!this.preloader || !this.wordmark) return;
 
@@ -128,37 +177,53 @@
       this.dot        = this.wordmark.querySelector('.preloader-dot');
 
       this._loaded = 0;
-      this._total  = GLB_FILES.length + VIDEO_FILES.length;
+      this._total  = VIDEO_FILES.length;
       this._readyToFinish = false;
       this._wordmarkDone  = false;
+      // Bar becomes visible the instant this constructor runs (CSS handles
+      // the chase from its own 0% keyframe, no JS width to wait on) — this
+      // timestamp anchors the __barMinCycleRelease "at least one full
+      // cycle" gate in _finish() below.
+      this._barStartTime = Date.now();
 
       const particlesEl = document.getElementById('particles');
       if (particlesEl) gsap.set(particlesEl, { opacity: 0 });
 
       console.log('[preloader] Constructor: starting loading + wordmark animation');
       this._startLoading();
-      this._animateVisibleProgress();
       this._runWordmarkAnimation();
     }
 
     // ── Progress tracking ───────────────────────────────────────────────────
-    // Real asset loading still gates _readyToFinish (below) — we don't
-    // start the reveal before GLBs/videos are actually ready. But the
-    // VISIBLE progress bar/percentage no longer tracks real fetch timing
-    // (which is network-dependent and unpredictable); it's a fixed 1s
-    // animation instead (see _animateVisibleProgress), for a consistent
-    // feel regardless of connection speed.
+    // Real asset loading still gates _readyToFinish (below) — we don't start
+    // the reveal before videos are actually ready. The VISIBLE bar is pure
+    // CSS (main.css .preloader-progress-bar — Material Design's own linear
+    // indeterminate two-bar animation, no JS width-driving here);
+    // _animateVisibleProgress()/_setProgress() were removed 2026-08-06 along
+    // with it — see main.css's comment on that rule for why a determinate
+    // readout didn't fit an indeterminate bar.
     _startLoading() {
       const onProgress = () => {
         this._loaded++;
         if (this._loaded >= this._total) this._onAllLoaded();
       };
 
-      GLB_FILES.forEach(file => {
-        fetch(`/content/images/${file}`)
-          .then(onProgress)
-          .catch(onProgress);
-      });
+      // Nothing to wait on → complete immediately. Without this, an empty
+      // tracked-asset list means onProgress never fires, _readyToFinish stays
+      // false, and _finish() is never reached — and the 8s safety timer lives
+      // INSIDE _finish(), so nothing recovers it. The overlay itself is
+      // force-hidden site-wide (`#preloader { display:none !important }` in
+      // default.hbs), so this would not visibly block the page; what stalls
+      // is the completion chain _finish() drives — preloader:done /
+      // window.__preloaderDoneFired, which the particle bootstrap and other
+      // listeners wait on. Cheap guard, added when removing GLB_FILES shrank
+      // this list from 11 entries to 2.
+      if (this._total === 0) {
+        this._onAllLoaded();
+        return;
+      }
+
+      // GLB fetch loop removed here — see GLB_FILES comment at top of file.
 
       VIDEO_FILES.forEach(file => {
         const v = document.createElement('video');
@@ -167,23 +232,6 @@
         v.onerror = onProgress;
         v.src = `/content/images/videos/${file}`;
       });
-    }
-
-    // Fixed 1s 0→100% animation driving the visible progress bar/percentage,
-    // independent of real asset-loading speed (see _startLoading above).
-    _animateVisibleProgress() {
-      const counter = { pct: 0 };
-      gsap.to(counter, {
-        pct: 100,
-        duration: 1,
-        ease: 'power1.out',
-        onUpdate: () => this._setProgress(Math.round(counter.pct)),
-      });
-    }
-
-    _setProgress(pct) {
-      if (this.progressBar) this.progressBar.style.width = pct + '%';
-      if (this.progressPct) this.progressPct.textContent = pct + '%';
     }
 
     _onAllLoaded() {
@@ -246,7 +294,22 @@
       this._finishing = true;
       console.log('[preloader] _finish() — starting fade-out sequence');
 
-      this._setProgress(100);
+      // Stops the CSS chase and holds a full, bright bar for this handoff
+      // beat (main.css .progress-bar-track.is-complete) — replaces the old
+      // _setProgress(100) width snap, which no longer applies now that the
+      // bar is an indeterminate CSS animation, not JS-driven width. Gated
+      // through __barMinCycleRelease (defined at the top of this file) so
+      // the chase always completes at least one full loop before stopping
+      // — in practice _finish() only ever fires well after that on the
+      // homepage (the wordmark/dot sequence alone takes ~2.75s, longer than
+      // one 1.6s cycle), but the gate is applied uniformly rather than
+      // assumed safe here specifically — same helper page-transition.js
+      // uses for .scroll-progress, where timing is NOT naturally slow.
+      if (this.progressBar) {
+        window.__barMinCycleRelease(this._barStartTime, () => {
+          this.progressBar.classList.add('is-complete');
+        });
+      }
 
       const safetyTimer = setTimeout(() => { this._hide(); }, 8000);
 
@@ -400,6 +463,20 @@
     if (el) el.style.display = 'none';
     document.documentElement.classList.remove('preloading');
     document.documentElement.classList.add('page-ready');
+    // Clear __preloaderRunning: it's set to true unconditionally at the top
+    // of this IIFE on the fresh-landing path, back when that path really did
+    // run the full Preloader. With the preloader disabled, _runParticles()
+    // — the ONLY thing that clears #particles-load-scrim on a full run —
+    // never executes, while the flag staying true also gates OFF the skip
+    // path's own scrim fade in particle-morph.hbs (`if
+    // (!window.__preloaderRunning)`). Net effect on every fresh load /
+    // refresh: the scrim sat at opacity 1 hiding the particles behind a
+    // solid colour until the 6s failsafe in particle-morph.hbs cleared it.
+    // (Same-site nav was unaffected — it takes the skip path, which returns
+    // before the flag is ever set.) Cleared here so the skip-path fade is
+    // the single live clear route for both entries.
+    window.__preloaderRunning = false;
+    window.__preloaderSkipped = true;
     window.__preloaderDoneFired = true; // sticky flag — see other dispatch points' comment
     window.dispatchEvent(new CustomEvent('preloader:done'));
   };

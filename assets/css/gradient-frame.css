@@ -36,10 +36,103 @@
 }
 
 .gradient-frame {
-  /* No position/z-index on purpose: a stacking context here would trap the
-     descendants that deliberately sit above the page-level particle canvas
-     (e.g. .posts-tabs-grid-lab-section's z-index:2). */
+  /* Was deliberately unpositioned — a stacking context here would trap the
+     descendants that sit above the page-level particle canvas
+     (.posts-tabs-grid-lab-section etc.'s own z-index:2) into a LOCAL
+     context, needing the frame itself to also carry a competitive z-index
+     or they'd lose their global ranking. That's exactly why it needs one
+     NOW too, for a reason that didn't exist when this was written: the
+     frame's OWN `background` below (the "inner" fill BETWEEN the bands —
+     where testimonials'/profile's own content doesn't fully cover the
+     frame's box) was ALSO non-positioned, painting in the same tier as any
+     plain in-flow content — always below ANY positioned z-index:0+ element
+     regardless of z-index number, per CSS's stacking order (Appendix E):
+     tier 3 non-positioned content < tier 6 positioned z-index:0/auto,
+     unconditionally. partials/gradflow-page-bg.hbs (position:fixed;
+     z-index:0) sits in tier 6, so it painted OVER this background wherever
+     it wasn't otherwise covered — reproduced live, the frame's own fill
+     showed the fixed page background bleeding through instead of its
+     intended solid/inverted color. Safe to add now (unlike when the
+     comment above was written): every actual descendant that needs to
+     compete globally (bands, .posts-tabs-grid-lab-section, .testimonials-
+     section, .profile) already carries its OWN explicit z-index:2 — giving
+     the frame the SAME value doesn't change their relative order among
+     each other, just lifts the whole package (frame background included)
+     into the same tier together. Verified by isolation (toggling just this
+     rule on/off, live): --profile-shift's value through testimonials' own
+     scroll range is IDENTICAL with and without this position/z-index —
+     whatever governs --gradient-shift-N/invert nav-icon-color-shift here,
+     this rule isn't it, so it isn't the thing to suspect if that ever
+     needs debugging. */
+  position: relative;
+  z-index: 2;
   background: var(--gradient-frame-inner, transparent);
+}
+
+/* FADE-OUTER frames: keep the frame's own fill OUT of the two band zones.
+   The rule above paints --gradient-frame-inner across the frame's WHOLE
+   box — including behind the top and bottom bands, which are its first and
+   last children. That is exactly right for a normal frame (the bands are
+   opaque, so it never shows) but it defeats data-gradient-fade-outer
+   entirely: the band's canvas and its CSS fallback both correctly fade to
+   alpha 0 at the outer edge, and all that reveals is this solid fill
+   sitting directly underneath — so the outer edge still reads as a hard
+   solid block against whatever is behind the frame. Reproduced live on
+   testimonials/Lab: elementFromPoint at the band's outer edge showed the
+   band's own `linear-gradient(to top, rgb(250,250,248), rgba(0,0,0,0))`
+   (correct) stacked directly on the frame's `rgb(250,250,248)` (the
+   culprit).
+
+   Hard stops (each position stated twice) rather than a real ramp: the
+   inner fill must be exactly itself right up to the band boundary and
+   exactly nothing past it, with no interpolation. This also sidesteps the
+   `transparent` = rgba(0,0,0,0) fringing trap — nothing interpolates
+   toward transparent here, so no grey/black halo appears at the seams.
+   Band height is the same custom property the bands themselves size from,
+   so the three stay in sync automatically. */
+.gradient-frame[data-gradient-fade-outer='true'] {
+  background: linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent var(--gradient-frame-edge-height, 480px),
+    var(--gradient-frame-inner, transparent) var(--gradient-frame-edge-height, 480px),
+    var(--gradient-frame-inner, transparent) calc(100% - var(--gradient-frame-edge-height, 480px)),
+    transparent calc(100% - var(--gradient-frame-edge-height, 480px))
+  );
+}
+
+/* Lab opts OUT of the middle fill above — independent of data-gradient-
+   fade-outer on purpose (NOT compounded into one selector): fade-outer is
+   about the BAND's own edge (transparent vs solid data-gradient-outer,
+   configurable per instance, see that attribute's own doc), this is about
+   .gradient-frame's OWN plain CSS fill, a completely separate concern.
+   Compounding them meant turning fade-outer off for an instance that also
+   needs this would silently re-solid the middle zone too — reproduced:
+   that's exactly what setting data-gradient-fade-outer="false" on Lab did
+   before this was split out.
+   That fill is correct for testimonials/profile — their own content
+   doesn't fully cover the frame's box, so it's the thing painting a solid
+   backdrop in the gaps — but .posts-tabs-grid-lab-section (posts-tabs-
+   grid-lab.css) has no background of its own at all: by original design,
+   the particle system's morphing sphere shows through its gaps directly,
+   at whatever position it's scrolled to. This frame sits at
+   position:relative;z-index:2 (same rule this file starts with)
+   specifically so its CONTENT (the section, already z-index:2 on its own)
+   renders above the particle canvas — but that same z-index also lifts
+   the FRAME'S OWN plain CSS background into the same paint tier, and once
+   it's a solid fill there, "above the particle canvas" stops being
+   conditional on where the section's content actually is and becomes
+   true for the whole box. Reproduced live: added the middle-fill rule
+   above, and Lab's particle sphere disappeared entirely for its whole
+   scroll range, not just behind cards. A transparent background doesn't
+   have this problem — it has no opaque pixels for any z-index to apply
+   to, so the particle canvas (z-index:1, genuinely below this frame's
+   z-index:2) shows through correctly regardless of the stacking context
+   boundary. Lab's actual solid backdrop (#201D23) now lives in a
+   dedicated element BELOW the particle canvas instead — see
+   .lab-particle-backdrop in posts-tabs-grid-lab.css. */
+.gradient-frame[data-gradient-transparent-middle='true'] {
+  background: transparent;
 }
 
 /* INVERT MODE — the frame paints its own inverted background (JS sets
@@ -105,6 +198,52 @@
     var(--gradient-frame-edge-from, transparent),
     var(--gradient-frame-edge-to, transparent)
   );
+  /* Bands are children of .gradient-frame, which deliberately has no
+     position/z-index of its own (see that rule's comment) — without their
+     OWN position+z-index, these stay non-positioned (CSS stacking order
+     tier 3, "in-flow block descendants"), which paints BELOW ANY positioned
+     element regardless of z-index value, including z-index:0 ones — a tier
+     below where they'd ever need to compete with .posts-tabs-grid-lab-
+     section's own z-index:2 to be reproduced. Same z-index as the sections
+     these frames wrap (2) — consistent "above particles, above any fixed
+     page-level background" tier sitewide, not specific to one page-bg
+     layer. Reproduced live: added partials/gradflow-page-bg.hbs (z-index:0)
+     to the homepage and these bands vanished behind it; .posts-tabs-grid-
+     lab-section itself (z-index:2, correctly positioned) was unaffected —
+     only the bands, because they aren't inside that section, they're
+     siblings of it under the same .gradient-frame. */
+  position: relative;
+  z-index: 2;
+}
+
+/* Bands moved OUTSIDE .gradient-frame via data-gradient-bands-container
+   (gradient-frame.js) — see that attribute's own doc for why (a stacking
+   context is atomic; nothing inside .gradient-frame can paint below
+   something the frame itself out-ranks, so a band that needs to sit below
+   the particle canvas has to physically leave). The base .gradient-frame-edge
+   rule above sets position:relative;z-index:2 — correct when the band IS a
+   child of .gradient-frame, stacking above/below the frame's other in-flow
+   children in document order. That doesn't work for an externally-placed
+   band: it's now a child of a plain wrapper alongside .gradient-frame itself
+   (a SEPARATE box), so it needs to be taken out of flow and pinned to its
+   own edge of that wrapper directly, and given a z-index BELOW the particle
+   canvas (1) instead of above it. MUST come after the base rule above: both
+   selectors are single-class (specificity 0,1,0) and target the same
+   element (bands carry both classes), so on a tie CSS takes the LAST rule
+   in source order — this one has to be declared later to actually win. */
+.gradient-frame-edge--external {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 0;
+}
+
+.gradient-frame-edge--external.gradient-frame-edge-top {
+  top: 0;
+}
+
+.gradient-frame-edge--external.gradient-frame-edge-bottom {
+  bottom: 0;
 }
 
 .gradient-frame-canvas {

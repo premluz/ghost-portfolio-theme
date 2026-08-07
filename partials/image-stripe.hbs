@@ -19,6 +19,87 @@
 --}}
 
 
+{{!-- Animated gradient bands above and below the whole Lab section, via
+      the reusable gradient-frame component (gradient-frame.js/.css,
+      loaded site-wide in default.hbs) — it injects the two in-flow bands
+      itself, so this only needs the wrapper.
+
+      Every knob is spelled out below rather than left to the component's
+      defaults, so this element is the single place to tune the look.
+      Changing one here affects only this section; delete an attribute to
+      fall back to the component default (see GRADIENT-FRAME-SYSTEM.md for
+      the full list and what each does).
+
+      The island's own palette (identical in both themes) is NOT here: it is
+      authored in posts-tabs-grid-lab.css as a :root override of the shift
+      tokens — see the "FIXED PALETTE" block there. Colours that must reach
+      the fixed nav have to live at :root; only the band's own wave colours
+      belong on this element. --}}
+<div class="gradient-frame"
+     data-gradient-frame
+     data-gradient-mode="invert"
+     {{!-- FIXED PALETTE (this island is the SAME purple in both themes,
+           it does not mirror the theme like a plain invert frame does).
+           Two halves that must be kept in sync BY HAND:
+             1. this literal — paints the island + its two bands. Stated as
+                a literal, not a token, on purpose: gradient-frame.js
+                resolves it in JS at init/theme-change only, so a token that
+                another section can redirect made the colour depend on when
+                that read fired (see MODE_COLORS in gradient-frame.js).
+             2. the :root[data-active-gradient-frame='lab'] block in
+                posts-tabs-grid-lab.css — retints the FIXED NAV, which sits
+                outside this element and so cannot inherit from it.
+           data-gradient-shift-key is what activates half 2 while this
+           frame (and only this frame) is the one on screen. --}}
+     data-gradient-shift-key="lab"
+     data-gradient-inner="#1E1825"
+
+     {{!-- BASE WAVE — the 4-colour ramp's animated core. --}}
+     data-gradient-wave-a="#562967"
+     data-gradient-wave-b="#19141E"
+     data-gradient-scale="0.9"
+     data-gradient-speed="0.7"
+
+     {{!-- SECOND WAVE — composited in the same shader (no extra canvas).
+           A DIFFERENT scale is what makes the two cross instead of stack.
+           Omit wave2-a/-b to reuse the base pair at partial opacity. --}}
+     data-gradient-wave2-a="#562967"
+     data-gradient-wave2-b="#19141E"
+     data-gradient-wave2-opacity="0.75"
+     data-gradient-wave2-scale="1.4"
+     data-gradient-wave2-speed="0.45"
+     data-gradient-wave2-center="0.52"
+     data-gradient-wave2-width="0.64"
+
+     {{!-- PARALLAX — viewport-heights of scroll. Opposite signs make the
+           two layers slide past each other; both 0 skips the scroll read. --}}
+     data-gradient-parallax="0.05"
+     data-gradient-wave2-parallax="-0.09"
+
+     {{!-- BREATHE — calm wave-height pulse (expand/collapse), shared knob
+           for both layers. Each layer breathes at its OWN pace since the
+           rate is derived from its own speed above (0.7 vs 0.45), so the
+           two drift in and out of phase without a second parameter. --}}
+     data-gradient-breathe="0.4"
+
+     {{!-- PALETTE-SHIFT TIMING — ramp length in viewport heights, and the
+           band render resolution (see gradflow-background.js). --}}
+     data-gradient-enter-span="0.5"
+     data-gradient-exit-span="0.5"
+     data-gradient-resolution-scale="0.35">
+
+  <section class="statement-slide" style="min-height: 40vh !important; height:10vh !important; margin-top:0; margin-bottom: 0; ">
+    <div class="statement-container">
+      <h2 class="statement-heading text-gradient"data-animate="letter">Explorations, <br />AI experiments</h2>
+      <h5 class="statement-description" >Currently exploring how trust is designed into AI-native products.</h5>
+    </div>
+  </section>
+
+
+  <section class="posts-tabs-grid-lab-section" id="work-grid-lab" data-posts-layout="{{#if layout}}{{layout}}{{else}}{{@custom.posts_layout}}{{/if}}">
+
+
+
 <section class="image-stripe" data-stripe-id="{{#if stripeId}}{{stripeId}}{{else}}image-stripe{{/if}}">
  
    
@@ -84,3 +165,5 @@
   </div>
 </section>
 -->
+
+</div>

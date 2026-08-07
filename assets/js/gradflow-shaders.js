@@ -37,6 +37,15 @@ const FRAGMENT = `
   uniform float u_noise;
   uniform vec2 u_resolution;
 
+  // OUTER-EDGE FADE — lets a band overlap non-solid content behind it (an
+  // image, texture, another canvas) instead of always painting a flat
+  // page-background-matching color there. Deliberately generic (plain
+  // screen-space uv.y, not hooked into any one type's own internal
+  // pattern/ramp) so it works identically for wave, smoke, or any other
+  // type — see gradient-frame.js's data-gradient-fade-outer.
+  uniform float u_fade_outer;    // 0/1 — off by default, matches every existing instance's current opaque behaviour
+  uniform float u_outer_at_one;  // 0/1 — which physical edge (uv.y=0 or 1) is THIS band's outer (page-facing) side; derived per-band from its top/bottom position, not user-set
+
   // ── SECOND WAVE LAYER (waveGradient only) ─────────────────────────
   // A second, independently-shaped wave composited over the base ramp, so
   // a band reads as two crossing currents instead of one wash. Its own
@@ -72,6 +81,14 @@ const FRAGMENT = `
   // already exists for another reason. 0 = off, exactly the old constant-
   // amplitude behaviour.
   uniform float u_breathe;
+  // Pulse rate multiplier (on top of each wave's own speed) — was a
+  // hardcoded 0.12 inside waveFlow(), pulled out so instances can tune the
+  // breathe rhythm independently of travel speed. See gradient-frame.js's
+  // data-gradient-breathe-rate.
+  uniform float u_breathe_rate;
+  // Overall wave-height multiplier — u_scale is frequency ("squiggliness"),
+  // this is amplitude ("how tall"). 1 = the original hardcoded heights.
+  uniform float u_amplitude;
 
   varying vec2 vUv;
 
@@ -187,15 +204,15 @@ const FRAGMENT = `
   // One layer's displaced vertical coordinate. Shared by both waves so
   // they are literally the same curve shape at different frequencies.
   float waveFlow(vec2 uv, float time, float scale, float speed, float parallax, float taper) {
-    // Pulse rate is 0.12x this layer's own speed — heavily slowed down so
-    // it reads as a calm, slow breathing rather than tracking the wave's
-    // own faster side-to-side motion. Ranges the amplitude multiplier
-    // 1-u_breathe .. 1+u_breathe, so u_breathe=1 swings from fully
-    // collapsed (0, flat) to double height (expanded).
-    float breathe = 1.0 + sin(time * speed * 0.12) * u_breathe;
-    float w1 = sin(uv.x * PI * scale * 0.8 + time * speed * 0.5) * 0.1 * breathe;
-    float w2 = sin(uv.x * PI * scale * 0.5 + time * speed * 0.3) * 0.15 * breathe;
-    float w3 = sin(uv.x * PI * scale * 1.2 + time * speed * 0.8) * 0.2 * breathe;
+    // Pulse rate is u_breathe_rate x this layer's own speed (default 0.12,
+    // heavily slowed down so it reads as a calm, slow breathing rather than
+    // tracking the wave's own faster side-to-side motion). Ranges the
+    // amplitude multiplier 1-u_breathe .. 1+u_breathe, so u_breathe=1 swings
+    // from fully collapsed (0, flat) to double height (expanded).
+    float breathe = 1.0 + sin(time * speed * u_breathe_rate) * u_breathe;
+    float w1 = sin(uv.x * PI * scale * 0.8 + time * speed * 0.5) * 0.1 * breathe * u_amplitude;
+    float w2 = sin(uv.x * PI * scale * 0.5 + time * speed * 0.3) * 0.15 * breathe * u_amplitude;
+    float w3 = sin(uv.x * PI * scale * 1.2 + time * speed * 0.8) * 0.2 * breathe * u_amplitude;
     return uv.y + (w1 + w2 + w3 + u_scroll * parallax) * taper;
   }
 
@@ -278,6 +295,12 @@ const FRAGMENT = `
     vec2 p = (2.0 * fragCoord.xy - u_resolution.xy) / mr;
 
     p *= u_scale;
+    // Scroll-linked drift — u_scroll/u_parallax already exist for waveFlow's
+    // own parallax (data-gradient-parallax); reusing them here so the smoke
+    // pattern can also move at a different rate than the page scrolls,
+    // instead of only ever animating by elapsed time. 0 (the default)
+    // leaves this exactly as before — inert.
+    p.y += u_scroll * u_parallax;
 
     float iTime = time * u_speed;
 
@@ -348,7 +371,29 @@ const FRAGMENT = `
       color *= (1.0 - u_noise * 0.4 + u_noise * grain * 0.4);
     }
 
-    gl_FragColor = vec4(color, 1.0);
+    // Fade to transparent across the WHOLE band (outer edge alpha 0, inner
+    // edge alpha 1) — plain screen-space uv.y, independent of whatever
+    // pattern the active type computed above, so it works the same for
+    // every type. u_outer_at_one flips which physical edge counts as
+    // "outer" per band (top band: its own top edge; bottom band: its own
+    // bottom edge — see gradient-frame.js's bandConfig).
+    //
+    // Was smoothstep(0.0, 0.333, outerT) — only the outer THIRD faded,
+    // full opacity for the inner two-thirds. Reproduced live on testimonials'
+    // wave: a color ramp's own "still basically the inner color" zone (wave
+    // types blend color1→color2→color3→color4 across the FULL band, slower
+    // than the fade) sat inside that opaque two-thirds, so it read as a
+    // flat solid block before the fade started, not a continuous blend.
+    // smoothstep(0,1,...) removes the opaque plateau entirely — SOME fade
+    // is happening at every point across the band, so nothing reads as a
+    // hard edge regardless of how the active type's own color ramp moves.
+    float alpha = 1.0;
+    if (u_fade_outer > 0.5) {
+      float outerT = u_outer_at_one > 0.5 ? (1.0 - uv.y) : uv.y;
+      alpha = smoothstep(0.0, 1.0, outerT);
+    }
+
+    gl_FragColor = vec4(color, alpha);
   }
 `;
 
@@ -368,8 +413,28 @@ const DEFAULT_CONFIG = {
   // Calm amplitude pulse (see waveFlow in the fragment shader above). 0.4
   // swings each wave's height between 60% and 140% of its base amplitude.
   breathe: 0.4,
+  // How fast that pulse cycles — a multiplier on top of the wave's own
+  // `speed` (waveFlow's `time * speed * u_breathe_rate`). Decoupled from
+  // `speed` itself so the breathe rhythm can be tuned independently of how
+  // fast the wave travels sideways — was a hardcoded 0.12 (chosen so the
+  // pulse read as calm and slow relative to the wave's own faster side-to-
+  // side motion; kept as the default here for the same reason).
+  breatheRate: 0.12,
+  // Overall multiplier on each wave's height (the 0.1/0.15/0.2 per-layer
+  // constants in waveFlow) — `scale` already controls frequency
+  // ("squiggliness"); this is the missing amplitude/"how tall" counterpart.
+  // 1 = unchanged from the original hardcoded heights.
+  amplitude: 1,
   type: 'stripe',
   noise: 0.08,
+  // Outer-edge alpha fade (see the shader's own doc above) — off by
+  // default, matches every existing caller's current fully-opaque bands.
+  fadeOuter: false,
+  // Which physical edge (uv.y=1 = "top" of this band's own canvas) is the
+  // outer one — irrelevant when fadeOuter is false. gradient-frame.js sets
+  // this per band from its top/bottom position; a direct caller of
+  // initGradFlowBackground would set it explicitly too.
+  outerAtTop: false,
 };
 
 window.GRADFLOW_SHADERS = { VERTEX, FRAGMENT, GRADIENT_TYPE_NUMBER, DEFAULT_CONFIG };

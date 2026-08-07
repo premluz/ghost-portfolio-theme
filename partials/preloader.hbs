@@ -36,8 +36,30 @@
 </style>
 
 <section id="preloader" class="preloader">
-  <div class="preloader-progress-bar" id="preloader-progress-bar"></div>
-  <div class="preloader-progress-pct" id="preloader-progress-pct">0%</div>
+  {{!-- Indeterminate — no aria-valuenow on purpose (WAI-ARIA: omit it when
+        the duration isn't known, same reason the visible % text was
+        dropped; see main.css's .preloader-progress-bar comment). ONE
+        streak (.progress-bar-streak) — was a Material Design two-bar
+        chase, reverted 2026-08-06 ("too many firing off": two overlapping
+        bars × two duplicate layers below = 4 visible streaks) — see
+        main.css's comment on .progress-bar-streak/bar-comet-shoot for the
+        current "comet/shooting star" motion design. .progress-bar-streak and
+        the .progress-bar-track marker are SHARED with .scroll-progress
+        (default.hbs) — same animated-bar system reused for page-to-page
+        navigation, not a preloader-only component (see page-transition.js).
+        The streak is duplicated TWICE — once in .progress-bar-clip (crisp,
+        clipped to the track), once in .progress-bar-glow (identical,
+        blurred, stacked on top) — see main.css's comment on those two
+        classes for why a real duplicate layer, not box-shadow, and why it
+        has to live outside the clip. --}}
+  <div class="preloader-progress-bar progress-bar-track" id="preloader-progress-bar" role="progressbar" aria-valuetext="Loading" aria-label="Loading">
+    <div class="progress-bar-clip">
+      <div class="progress-bar-streak"></div>
+    </div>
+    <div class="progress-bar-glow" aria-hidden="true">
+      <div class="progress-bar-streak"></div>
+    </div>
+  </div>
   <div class="preloader-content">
     <div class="preloader-wordmark" data-skip-animation="true">
       <span class="pl-word-prem serif">prems</span><span class="preloader-dot sans">.</span><span class="pl-word-design sans">design</span>

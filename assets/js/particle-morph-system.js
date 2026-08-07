@@ -233,8 +233,15 @@ class ParticleMorphSystem {
   generateParticleColors(particleCount, state) {
     const colors = new Float32Array(particleCount * 3);
 
-    // Read --color-particles from CSS (theme-responsive: bright cyan for dark, dark teal for light)
-    let r = 90 / 255, g = 220 / 255, b = 220 / 255;  // Fallback: Soft cyan
+    // Read --color-particles from CSS (theme-responsive dark teal, see default.hbs).
+    // Fallback matches the DARK theme's own --color-particles (#1D4551) rather than
+    // an arbitrary bright cyan: if this ever fires (the CSS var reading empty — should
+    // not happen once default.hbs's <style> block has parsed, but this function's own
+    // output has no accent/jitter, so any wrong colour here reads as an obvious flat
+    // patch on the sphere), it should fail toward the theme's real colour, not a
+    // jarring off-brand flash. See partials/particle-morph.hbs's readCSSColor() for
+    // the same reasoning applied to the jittered-palette pipeline's own fallback.
+    let r = 29 / 255, g = 69 / 255, b = 81 / 255;
     try {
       const raw = getComputedStyle(document.documentElement)
         .getPropertyValue('--color-particles').trim();

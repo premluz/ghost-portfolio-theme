@@ -126,48 +126,190 @@
     }
 
     requestAnimationFrame(function () {
-      // scrollWidth/2 undercounts by half a gap: 10 items (2 identical
-      // sets of 5) in a flex row have only 9 gaps between them, not 10 —
-      // there's no gap rendered after the very last item. But the true
-      // seamless wrap point needs a "virtual" gap between the end of one
-      // repetition and the start of the next, same size as every other
-      // gap. Confirmed empirically: without adding it back, every item's
-      // position was off by exactly gap/2 (80px, for a 160px gap) after
-      // wrapping by scrollWidth/2 — a real, visible jump, not a rounding
-      // artifact.
-      var trackGap = parseFloat(getComputedStyle(track).columnGap) || 0;
-      var halfWidth = (track.scrollWidth + trackGap) / 2;
-      if (halfWidth <= 0) { setTimeout(initLogosRibbon, 200); return; }
+      // PERIOD = distance from item[0] to item[n/2] — the offset at which
+      // Set B sits exactly where Set A does. Measured from real laid-out
+      // positions rather than derived from scrollWidth.
+      //
+      // This is a ROBUSTNESS change, not a bug fix: on the current markup it
+      // produces 1941, identical to the old (scrollWidth + gap) / 2. Verified
+      // live — item[5].offsetLeft - item[0].offsetLeft === 1941 === the old
+      // formula's result, and the wrap is mathematically seamless either way.
+      //
+      // It is kept because the old formula only coincidentally agrees. It
+      // assumes every item is the same width, and they are NOT: measured
+      // widths on this page are 235/267/252/253/234, and scrollWidth (3742)
+      // differs from 10*itemW + 9*gap (3610) by 132px. Any future change to
+      // one logo's width, the gap, or the item count would silently
+      // desynchronise the loop — whereas the offsetLeft delta IS the period
+      // by construction, whatever the widths and gaps happen to be.
+      var items = track.children;
+      var halfCount = items.length / 2;
+      var period = 0;
+      if (items.length >= 2 && halfCount === Math.floor(halfCount)) {
+        period = items[halfCount].offsetLeft - items[0].offsetLeft;
+      }
+      // Fallback for an odd/empty track (shouldn't happen — Set A and Set B
+      // are duplicates by construction, see the markup above — but a wrong
+      // period silently breaks the loop, so degrade to the old estimate
+      // rather than dividing by zero further down).
+      if (period <= 0) {
+        var trackGap = parseFloat(getComputedStyle(track).columnGap) || 0;
+        period = (track.scrollWidth + trackGap) / 2;
+      }
+      if (period <= 0) { setTimeout(initLogosRibbon, 200); return; }
+
+      // ── Fill the carrier: repeat the set until it always overflows ──────
+      //
+      // The markup ships exactly TWO sets, which is the minimum for a wrap
+      // but NOT enough to keep the strip full. Once the first period has
+      // scrolled away, only (trackWidth - period) is left to cover the
+      // carrier — and if that is narrower than the carrier, the tail end has
+      // nothing in it. The next set then has to travel in from off-screen,
+      // which is exactly the "second clone starting with GalaChain appears
+      // abruptly" symptom: it is not appearing early, it is arriving LATE.
+      //
+      // Measured before this fix (spare = trackWidth - period = 1801px):
+      //   1440px viewport -> covered (last logo ended at x=1369)
+      //   1920px viewport -> 119px bald patch
+      //   2560px viewport -> 405px bald patch
+      // The carrier is 160vw wide at left:-30vw, so the requirement scales
+      // with the viewport while the markup's two sets do not — the wider the
+      // screen, the worse it gets.
+      //
+      // Cloning whole sets keeps every guarantee the wrap depends on: each
+      // set is a byte-identical copy in the same order, so `period` (the
+      // offset between corresponding items of adjacent sets) is unchanged
+      // and stays exact. Only the amount of tail coverage grows.
+      var setSize = halfCount === Math.floor(halfCount) ? halfCount : items.length;
+      var originals = Array.prototype.slice.call(items, 0, setSize);
+      var carrierWidth = track.parentElement.getBoundingClientRect().width;
+      // Need: everything after one period has scrolled away still spans the
+      // carrier. +1 set of headroom absorbs sub-pixel/rounding slack and the
+      // 3D rotateY foreshortening, which makes on-screen extents smaller
+      // than the flat layout width.
+      function appendSet() {
+        for (var s = 0; s < originals.length; s++) {
+          var clone = originals[s].cloneNode(true);
+          // Purely decorative repeats — the logos are already announced once
+          // by the markup's own two sets, so hide the rest from assistive
+          // tech rather than repeating the client list N times.
+          clone.setAttribute('aria-hidden', 'true');
+          track.appendChild(clone);
+        }
+      }
+      var guard = 0;
+      while (track.scrollWidth - period < carrierWidth && guard++ < 12) appendSet();
+      // One more set beyond the strict minimum, for the headroom noted above.
+      appendSet();
 
       // ── Scroll-delta ribbon drive ─────────────────────────────────────
       // ScrollTrigger scrub is unreliable inside transformed containers
       // (page-content-wrapper). Raw delta + lerp works everywhere and
       // gives a natural momentum feel without any scrub lag artifacts.
       //
-      // Formula: display = xCurrent % halfWidth
-      //   xCurrent=0   → 0     (ribbon at start)
-      //   xCurrent=-800 → -800  (scrolled left)
-      //   xCurrent=-halfWidth → 0 via modulo (seamless loop)
-      var xCurrent = 800;
-      var xTarget  = 800;
+      // Start at 0, not 800. JS `%` keeps the sign of the DIVIDEND, so a
+      // positive xCurrent produced a positive display value — which
+      // translates the track to the RIGHT, leaving empty space on the left
+      // exactly where Set A should be. Measured before this fix: 72 of 213
+      // sampled frames sat at positive x (peak +798.9), i.e. a third of the
+      // time the ribbon was visibly missing its leading logos. 0 starts the
+      // ribbon flush, and the wrap below keeps it there.
+      var xCurrent = 0;
+      var xTarget  = 0;
       var lastY    = window.scrollY;
       var raf      = null;
 
+      // Only drive the ribbon while the section is actually on screen.
+      // Without this the scroll handler ran for the ENTIRE page — every
+      // scroll event anywhere kicked a rAF that wrote a transform to a track
+      // that was nowhere near the viewport. The generous rootMargin keeps it
+      // warm just off-screen so it is never caught mid-catch-up when it
+      // scrolls into view.
+      var onScreen = true;
+      if ('IntersectionObserver' in window) {
+        onScreen = false;
+        new IntersectionObserver(function (entries) {
+          onScreen = entries[0].isIntersecting;
+          // Re-sync the scroll origin on re-entry: while off-screen we stop
+          // accumulating, so lastY would otherwise be stale by however far
+          // the page scrolled in between and the ribbon would lurch by that
+          // whole distance on its first visible frame.
+          if (onScreen) {
+            lastY = window.scrollY;
+            if (!raf) raf = requestAnimationFrame(ribbonStep);
+          }
+        }, { rootMargin: '200% 0px' }).observe(section);
+      }
+
       window.addEventListener('scroll', function () {
+        if (!onScreen) { lastY = window.scrollY; return; }
         xTarget -= (window.scrollY - lastY) * 2.2;
         lastY = window.scrollY;
         if (!raf) raf = requestAnimationFrame(ribbonStep);
       }, { passive: true });
 
+      // Sign-safe modulo — always returns [0, period), unlike JS `%` which
+      // returns (-period, period) depending on the sign of the input. The
+      // raw operator is what allowed positive offsets to reach the track at
+      // all; this makes the wrap direction-independent, so scrolling UP
+      // through the section loops as cleanly as scrolling down.
+      function wrap(v, m) {
+        return ((v % m) + m) % m;
+      }
+
       function ribbonStep() {
         raf = null;
         var diff = xTarget - xCurrent;
         xCurrent += diff * 0.1;
-        // Wrap to [-halfWidth, 0) — correct at 0, seamless at -halfWidth
-        var display = xCurrent % halfWidth;
-        gsap.set(track, { x: display });
+
+        // Wrap ONLY at render time; the accumulator runs free. Do not
+        // normalise xCurrent/xTarget here — the rendered position is a pure
+        // function of xCurrent, so rewriting the accumulator changes nothing
+        // visually and only risks desyncing it from the scroll delta.
+        //
+        // wrap() maps any value into [0, period); subtracting period puts it
+        // in [-period, 0), so the track is always translated LEFT. Since Set
+        // B sits exactly `period` after Set A, the rendered frame is
+        // identical at xCurrent and at xCurrent ± period — which is what
+        // makes the boundary invisible.
+        //
+        // Note when debugging: a wrap and the frame's ordinary motion often
+        // land in the SAME frame, so the observed x delta is `period - step`
+        // (e.g. 1875 for a 66px step, not 1941). That is correct and
+        // invisible — verified by reconstructing every such frame as
+        // render(previous - step). Do not "fix" it.
+        gsap.set(track, { x: wrap(xCurrent, period) - period });
+
+        // Keep the accumulator bounded once it has SETTLED (diff is tiny, so
+        // no motion is in flight). xCurrent otherwise grows without limit
+        // over a long session — it is a running sum of every scroll delta —
+        // and large float magnitudes lose precision in the fractional part
+        // that the lerp depends on.
+        //
+        // Shifting xCurrent and xTarget by the SAME amount preserves their
+        // difference exactly, so the lerp is unaffected and the rendered
+        // position is unchanged (wrap() is periodic). Deliberately not done
+        // mid-motion: that is the change measured to have no visual effect
+        // above, so there is no reason to run it every frame.
+        if (Math.abs(diff) <= 0.05) {
+          var norm = wrap(xCurrent, period);
+          xTarget += norm - xCurrent;
+          xCurrent = norm;
+        }
+
         if (Math.abs(diff) > 0.05) raf = requestAnimationFrame(ribbonStep);
       }
+
+      // Paint the correct resting offset immediately. Without this the track
+      // keeps its untransformed x:0 until the first scroll event fires, so
+      // the very first frame after load shows a different alignment than
+      // every frame after it.
+      gsap.set(track, { x: wrap(xCurrent, period) - period });
+
+      // Expose for the seam probe / console debugging:
+      //   window.__ribbon.period  -> the measured loop distance
+      window.__ribbon = { get period() { return period; },
+                          get x() { return xCurrent; } };
 
       // Animation for this section is now handled by unified scroll-scrub-anim.js
       // H2 and P have data-animate attributes that trigger automatic animations

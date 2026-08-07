@@ -469,10 +469,19 @@ function initGalleryModals() {
     // Build modal items array for this gallery
     const galleryItems = Array.from(images).map((img, index) => ({
       id: `gallery-${galleryIndex}-img-${index}`,
-      title: img.alt || `Image ${index + 1}`,
+      // title commented out per request — this rendered the "Image 1"
+      // count heading above each slide (img.alt when set, the index
+      // fallback otherwise). renderModal() already hides .modal-title
+      // when no title is present, so omitting the key is all that's
+      // needed; restore by uncommenting.
+      // title: img.alt || `Image ${index + 1}`,
+      // Layout/sizing moved to modal.css (.gallery-modal-scroll /
+      // .gallery-modal-image) — was a wall of inline styles here, which
+      // also made the image width impossible to configure without editing
+      // JS. See those rules for the width system.
       content: `
-        <div class="gallery-modal-scroll" style="width: 100%; max-width: 100vw; height: 100vh; overflow-y: auto; overflow-x: hidden; display: flex; justify-content: center; padding: var(--space-lg);">
-          <img src="${img.src}" alt="${img.alt || ''}" class="gallery-modal-image" style="width: 100%; height: auto; max-width: 100%; object-fit: contain;">
+        <div class="gallery-modal-scroll">
+          <img src="${img.src}" alt="${img.alt || ''}" class="gallery-modal-image">
         </div>
       `
     }));

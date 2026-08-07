@@ -17,7 +17,7 @@
     <div class="nav-blur-layer nav-blur-layer-4"></div>
     <div class="nav-blur-layer nav-blur-layer-5"></div>
   </div>
-  <div class="nav-wrapper">
+  <div class="nav-wrapper glass-liquid">
     <!-- Logo -->
     <div class="logoandnavwrapper">
      <!-- <a href="{{@site.url}}" data-transition class="nav-logo"  style="margin-bottom:0;">
@@ -47,10 +47,10 @@
           of hiding the whole menu as it did before. --}}
     <!-- Desktop Menu -->
     <ul class="nav-menu">
-       <li><a href="{{@site.url}}/" data-transition><img src="{{asset "icons/work.svg"}}" alt="" class="nav-menu-icon"><span class="nav-menu-label">Prem Luczak</span></a></li>
-      <li><a href="{{@site.url}}/work" data-transition><img src="{{asset "icons/work.svg"}}" alt="" class="nav-menu-icon"><span class="nav-menu-label">Work</span></a></li>
-      <li><a href="{{@site.url}}/about" data-transition><img src="{{asset "icons/user.svg"}}" alt="" class="nav-menu-icon"><span class="nav-menu-label">Profile</span></a></li>
-      <li><a href="{{@site.url}}/contact" data-transition><img src="{{asset "icons/contact.svg"}}" alt="" class="nav-menu-icon"><span class="nav-menu-label">Contact</span></a></li>
+       <li><a href="{{@site.url}}/" data-transition aria-label="Home"><img src="{{asset "icons/home.svg"}}" alt="" class="nav-menu-icon"><span class="nav-menu-label">Home</span><span class="nav-tooltip">Home</span></a></li>
+      <!--<li><a href="{{@site.url}}/work" data-transition><img src="{{asset "icons/work.svg"}}" alt="" class="nav-menu-icon"><span class="nav-menu-label">Work</span></a></li>-->
+      <li><a href="{{@site.url}}/about" data-transition aria-label="Profile"><img src="{{asset "icons/user.svg"}}" alt="" class="nav-menu-icon"><span class="nav-menu-label">Profile</span><span class="nav-tooltip">Profile</span></a></li>
+      <li><a href="{{@site.url}}/contact" data-transition aria-label="Contact"><img src="{{asset "icons/contact.svg"}}" alt="" class="nav-menu-icon"><span class="nav-menu-label">Contact</span><span class="nav-tooltip">Contact</span></a></li>
      <!-- <li><a href="{{#get 'pages' limit='1' filter='slug:about'}}{{url}}{{else}}{{@site.url}}about/{{/get}}#aboutme">About</a></li>-->
     </ul>
     </div>
@@ -77,8 +77,8 @@
             bottom cards and these. rel="prev"/"next" is what makes
             page-transition.js's click handler skip overwriting
             sessionStorage's postOrigin for these two — same mechanism the
-            bottom post-nav cards use. 
-      <div class="nav-post-controls">
+            bottom post-nav cards use.   -->
+   <!--   <div class="nav-post-controls">
         <a href="#" data-transition rel="prev" class="nav-icon-btn nav-post-prev" aria-label="Previous post" title="Previous post">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
@@ -91,8 +91,8 @@
           </svg>
           <span class="nav-tooltip">Next</span>
         </a>
-      </div>
-     -->
+      </div>-->
+   
 
       <!-- Search Button
       <button class="nav-icon-btn search-btn" aria-label="Search" data-ghost-search>
@@ -110,12 +110,12 @@
 
       <!-- Theme Toggle  -->
       <button class="nav-icon-btn theme-toggle" aria-label="Toggle theme">
-        {{!-- Icons wrapped separately from .nav-tooltip: the stagger nav-hide
+       {{!-- Icons wrapped separately from .nav-tooltip: the stagger nav-hide
               mode's max-width collapse (main.css) needs overflow:hidden on
               whatever it's shrinking so the icon doesn't spill out mid-
               transition — scoping that to just the icons (not the whole
               button) keeps the tooltip, which sits outside the icons' own
-              box via top:100%, from being clipped along with it. --}}
+              box via top:100%, from being clipped along with it. --}}  
         <span class="theme-toggle-icons">
           <img src="{{asset "icons/sun.svg"}}" alt="Light mode" class="theme-icon-sun">
           <img src="{{asset "icons/moon.svg"}}" alt="Dark mode" class="theme-icon-moon">

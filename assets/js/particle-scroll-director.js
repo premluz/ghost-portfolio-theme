@@ -116,7 +116,11 @@ class ParticleScrollDirector {
    *             NOT interchangeable in PARTICLE_SCENARIOS) — falls back to
    *             the zone-level shapeKey when a keyframe doesn't set one.
    *   morphMs   duration passed to __particleApply for this zone's shape
-   *             morphs (default 600).
+   *             morphs (default 600). Can also be set per-keyframe
+   *             (`{ at, shape, morphMs }`), falling back to the zone-level
+   *             morphMs when a keyframe doesn't set one — e.g. Lab's own
+   *             entrance is a deliberately slow, dramatic reveal (800ms)
+   *             but its exit should be fast like every other hide (400ms).
    *   chase     { channel: maxDeltaPerFrame } — rate-limits a *Delta
    *             channel's frame-to-frame change (mirrors hero's old
    *             _heroExitRotationCurrent chase, which existed specifically
@@ -154,6 +158,19 @@ class ParticleScrollDirector {
    *             never pass this option are unaffected — they write
    *             `position` exactly as before as long as no OTHER zone
    *             currently claims exclusive ownership.
+   *   reverseExit { shape, shapeKey?, morphMs? } — fires once when the user
+   *             scrolls back UP out of this zone's own entrance, having
+   *             genuinely been inside it before. Pure keyframes can't
+   *             express this: `_sampleShape()` stays silent (no opinion)
+   *             before a zone's first real shape keyframe on purpose (see
+   *             this file's own doc on why an early claim is unsafe), so
+   *             scrolling back out just freezes the last-applied shape
+   *             forever instead of reverting anything — there's no
+   *             "leaving in reverse" keyframe to land on, only a direction-
+   *             aware check can tell "approaching for the first time" (stay
+   *             silent, correct) apart from "was inside, now backing out"
+   *             (should hide again). `shapeKey`/`morphMs` fall back to the
+   *             zone-level defaults, same as a keyframe's own overrides.
    */
   setZone(name, keyframes, options) {
     options = options || {};
@@ -170,6 +187,8 @@ class ParticleScrollDirector {
       continuous: options.continuous || null,
       frame: options.frame || null,
       ownsPosition: options.ownsPosition || null,
+      reverseExit: options.reverseExit || null,
+      _shapeEverEntered: false,
       _chaseCurrent: {},
       _lastRect: null,
       _rawT: 0,
@@ -313,11 +332,13 @@ class ParticleScrollDirector {
    * all cases where an IntersectionObserver simply never fires and the old
    * triggers leave the wrong shape on screen.
    *
-   * Returns { shape, shapeKey } rather than a bare shape — the keyframe
-   * that produced the current shape may carry its own `shapeKey` override
-   * (falls back to the zone's own default), since different points in one
-   * zone's span can need different PARTICLE_SCENARIOS keys (see setZone()'s
-   * own doc comment on shapeKey).
+   * Returns { shape, shapeKey, morphMs } rather than a bare shape — the
+   * keyframe that produced the current shape may carry its own `shapeKey`
+   * and/or `morphMs` override (each falls back to the zone's own default
+   * independently), since different points in one zone's span can need
+   * different PARTICLE_SCENARIOS keys and/or morph speeds (see setZone()'s
+   * own doc comments on shapeKey/morphMs) — e.g. Lab's slow, dramatic
+   * entrance reveal vs. its own fast "hide, never really seen" exit.
    *
    * Returns undefined (no opinion) when `t` is BEFORE the first shape
    * keyframe's own `at` — deliberately NOT the same clamp-to-first-value
@@ -339,7 +360,11 @@ class ParticleScrollDirector {
     for (let i = 0; i < frames.length; i++) {
       if (t >= frames[i].at) active = frames[i]; else break;
     }
-    return { shape: active.shape, shapeKey: active.shapeKey || zone.shapeKey };
+    return {
+      shape: active.shape,
+      shapeKey: active.shapeKey || zone.shapeKey,
+      morphMs: active.morphMs || zone.morphMs,
+    };
   }
 
   _sampleStyle(zone, key, t) {
@@ -394,17 +419,45 @@ class ParticleScrollDirector {
   _checkZoneShape(zone, t) {
     if (!zone.channels.has('shape')) return;
     const sampled = this._sampleShape(zone, t);
-    if (!sampled || sampled.shape === zone.shape) return;
-    zone.shape = sampled.shape;
-    // Routed through __particleApply, not morphTo, so the scenario map in
-    // default.hbs (hero-footer / full / 'hide') still governs what a
-    // section actually does — the director decides WHEN, the scenario
-    // decides WHAT, exactly as the existing triggers do.
+    if (sampled) {
+      zone._shapeEverEntered = true;
+      if (sampled.shape !== zone.shape) {
+        zone.shape = sampled.shape;
+        this._applyShape(sampled.shape, sampled.shapeKey, sampled.morphMs);
+      }
+      return;
+    }
+    // `sampled` undefined: t has dropped back below this zone's own first
+    // shape keyframe. Only act if we'd genuinely been inside before
+    // (_shapeEverEntered) AND the zone opted into reverseExit — see that
+    // option's own doc for why this can't just be another keyframe. One-shot
+    // per entry: reset immediately so re-entering (scrolling back down) and
+    // leaving again fires it again, but lingering just above the threshold
+    // doesn't re-apply every frame.
+    if (zone._shapeEverEntered && zone.reverseExit) {
+      zone._shapeEverEntered = false;
+      const rx = zone.reverseExit;
+      if (rx.shape !== zone.shape) {
+        zone.shape = rx.shape;
+        this._applyShape(rx.shape, rx.shapeKey || zone.shapeKey, rx.morphMs || zone.morphMs);
+      }
+    }
+  }
+
+  /**
+   * Routed through __particleApply, not morphTo, so the scenario map in
+   * default.hbs (hero-footer / full / 'hide') still governs what a section
+   * actually does — the director decides WHEN, the scenario decides WHAT,
+   * exactly as the existing triggers do. Shared by both branches of
+   * _checkZoneShape() (forward sampling and reverseExit) so there's one
+   * apply code path, not two drifting copies.
+   */
+  _applyShape(shape, shapeKey, morphMs) {
     const sys = window.particleSystem;
     if (window.__particleApply && sys) {
-      window.__particleApply(sys, sampled.shapeKey, sampled.shape, zone.morphMs);
+      window.__particleApply(sys, shapeKey, shape, morphMs);
     } else if (sys && sys.morphTo) {
-      sys.morphTo(sampled.shape, zone.morphMs);
+      sys.morphTo(shape, morphMs);
     }
   }
 

@@ -179,6 +179,17 @@
   --color-on-surface-variant: var(--primitive-neutral-300);
   --color-on-surface-subtle: var(--primitive-neutral-400);
 
+  /* TOOLTIP — deliberately theme-INVARIANT, unlike everything above. Frozen
+     copies of this block's own dark values, declared once here (outside
+     any [data-theme] scope) so they never flip. .nav-tooltip (main.css)
+     used to reference --color-surface/--color-on-surface-variant directly
+     — which flip to a near-white surface in [data-theme='light']
+     (#F5F4F1) — so the tooltip reverted to a light bubble in light mode
+     instead of staying the dark contextual popup it reads as everywhere
+     else. Bug report: 2026-08-06. */
+  --tooltip-bg: #202020;
+  --tooltip-text: var(--primitive-neutral-300);
+
   /* ICON & INTERACTIVE COLORS */
   --color-icon: var(--primitive-neutral-100);
   --color-link: var(--color-primary);
@@ -416,6 +427,30 @@
 
   --space-section: clamp(3rem, 8vw, 6rem);
 
+  /* PROSE FLOW — vertical rhythm for post body copy ONLY (.gh-content /
+     .post-content children). Deliberately FIXED steps, not clamp()/vw like
+     the --space-* scale above.
+
+     Why fixed: the t-shirt scale is viewport-interpolated, so two different
+     tokens land on two arbitrary intermediate values at any given width and
+     never repeat. Measured on a live post at 1440px, consecutive blocks were
+     separated by 15 distinct gaps (29, 31, 48, 55, 62, 67, 86, 96, 103, 118,
+     127, 143, 150, 158, 198) — a rhythm the eye reads as noise. Fixed steps
+     that are multiples of 8 give a small, repeating set instead.
+
+     vw-fluid spacing is still right for SECTION padding (--space-section
+     above), where the gap should breathe with the viewport. It is wrong for
+     prose, where the gap's job is to encode hierarchy consistently.
+
+     Scale: 8 / 16 / 24 / 40 / 64 / 96. Mobile values step down at ≤768px
+     (see the media query further down this file). */
+  --prose-flow-2xs: 0.5rem;   /*  8px — tight pairs (h5 + its list)      */
+  --prose-flow-xs: 1rem;      /* 16px — within a block group             */
+  --prose-flow-sm: 1.5rem;    /* 24px — default block-to-block           */
+  --prose-flow-md: 2.5rem;    /* 40px — around media/figures             */
+  --prose-flow-lg: 4rem;      /* 64px — before a new h2 section          */
+  --prose-flow-xl: 6rem;      /* 96px — major structural break (hr)      */
+
   /* Primitive spacing aliases for hero tag pills */
   --space-1: var(--primitive-space-1);
   --space-3: var(--primitive-space-3);
@@ -513,7 +548,18 @@
   --shift-scope-panel: 0;
 
   /* LAYOUT */
-  --max-width: 1800px;
+  /* The universal cap for "full-bleed" sections' CONTENT (not their
+     background — a full-bleed background stays its own separate full-
+     viewport element, see PAGE-WIDTH-SYSTEM.md's "full-bleed-with-
+     contained-header pattern"). Every `-width="full"` absolute value in
+     main.css (page-content-width, home-content-width, footer-width,
+     post-hero fullscreen, hero's own full default) used to resolve to
+     `max-width: none` — literally unconstrained, so content stretched to
+     the raw viewport edge on ultra-wide monitors. 1920px is the common
+     "widest normal desktop" reference width; + two content-paddings so
+     the padding a full-bleed section already carries doesn't eat into
+     that 1920px rather than sitting outside it. */
+  --max-width: calc(1920px + var(--content-padding) * 2);
   --content-padding: clamp(1rem, 4vw, 4rem);
 
   /* Content width — easily configurable by page_width setting */
@@ -621,12 +667,24 @@
    governed by the base clamp()s above, unchanged. */
 @media (max-width: 768px) {
   :root {
-    --type-h1-size: clamp(calc(6.5rem * var(--type-scale-heading)), calc(12vw * var(--type-scale-heading)), calc(8rem * var(--type-scale-heading)));
+    --type-h1-size: clamp(calc(5.5rem * var(--type-scale-heading)), calc(10vw * var(--type-scale-heading)), calc(6rem * var(--type-scale-heading)));
     --type-h2-size: clamp(calc(4rem * var(--type-scale-heading)), calc(8vw * var(--type-scale-heading)), calc(4rem * var(--type-scale-heading)));
     --type-h3-size: clamp(calc(2.75rem * var(--type-scale-heading)), calc(2.4vw * var(--type-scale-heading)), calc(2.75rem * var(--type-scale-heading)));
     --type-h4-size: clamp(calc(1.5rem * var(--type-scale-heading)), calc(1.6vw * var(--type-scale-heading)), calc(1.5rem * var(--type-scale-heading)));
     --type-h5-size: var(--type-body-size);
     --type-h6-size: clamp(calc(1.15rem * var(--type-scale-heading)), calc(1.15vw * var(--type-scale-heading)), calc(1.15rem * var(--type-scale-heading)));
+
+    /* Prose rhythm steps down on phones — same ladder, ~60-70% of desktop,
+       still all multiples of 8 so the repeating-gap property is preserved.
+       Kept in this existing ≤768px block rather than a new one so the
+       mobile type re-tier above and the spacing that goes with it stay
+       readable as one decision. */
+    --prose-flow-2xs: 0.5rem;   /*  8px */
+    --prose-flow-xs: 0.75rem;   /* 12px */
+    --prose-flow-sm: 1rem;      /* 16px */
+    --prose-flow-md: 1.5rem;    /* 24px */
+    --prose-flow-lg: 2.5rem;    /* 40px */
+    --prose-flow-xl: 3.5rem;    /* 56px */
   }
 }
 

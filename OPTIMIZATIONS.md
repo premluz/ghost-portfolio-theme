@@ -1,6 +1,7 @@
 # Performance Optimizations & Low-End Device Handling
 
-Verified live against the running theme on 2026-07-21. Every item below was re-checked in the
+Verified live against the running theme on 2026-07-21; §1.5, §1.6 and the §1 weight baseline
+added and verified 2026-07-25. Every item below was re-checked in the
 actual files (not memory) before being listed — see the "Verify" line under each entry to
 re-confirm it yourself later. If any of these ever seem not to be working, run its Verify
 command first; don't assume the description of the fix is still accurate.
@@ -8,6 +9,23 @@ command first; don't assume the description of the fix is still accurate.
 ---
 
 ## 1. Load-time (first paint / DOMContentLoaded)
+
+**Homepage weight baseline** (measured 2026-07-25, cold cache, after 1.5/1.6). Ghost serves
+text assets **brotli-compressed** (~4× reduction) but images and `.glb` binaries uncompressed —
+so on-disk size badly misranks the real cost. Wire weight is what's listed:
+
+| Asset | Wire | Note |
+|---|---|---|
+| `three.min.js` (CDN) | ~160 KB | 654 KB raw — largest single script |
+| Local JS ×69 files | ~250 KB | 949 KB raw, unbundled |
+| Local CSS ×13 files | ~120 KB | 482 KB raw (`main.css` = 291 KB) |
+| HTML | 44 KB | 153 KB raw |
+| GSAP + ScrollTrigger | ~30 KB | |
+| **Total** | **≈ 2.7 MB** | was ≈ 8.9 MB before 1.5/1.6 |
+
+Re-measure wire weight with:
+`curl -s -H "Accept-Encoding: br, gzip" <url> | wc -c` — *not* `ls`/`stat`, which report raw
+bytes and will make text assets look ~4× worse than they are.
 
 ### 1.1 Lazy per-card metadata fetching
 **File:** `assets/js/posts-tabs-grid.js`
@@ -44,6 +62,45 @@ which nothing on the site ever registers (`registerTime` is gated behind `config
 never set). Replaced with a 500ms `setTimeout` poll that only upgrades to rAF cadence if a
 time trigger is ever actually registered.
 **Verify:** `grep -n "setTimeout(updateFrame, 500)" assets/js/particle-morph-system.js`
+
+### 1.5 Unused 6.24 MB portrait preloads removed (2026-07-25)
+**File:** `default.hbs` (`<head>`, just after the `@site.cover_image` preload)
+`prem-front-dark.png` and `prem-front-light.png` (**3.04 MB each**) were preloaded with
+`fetchpriority="high"` on **every page of the site** — and no live template rendered either
+one. The partials that used to show them are in `backup/`; `partials/testimonials.hbs`'s copy
+is inside an HTML comment and `partials/hero.hbs`'s is inside a `{{!-- --}}` block, so
+neither reaches the browser as a live reference. Being *high* priority, they also queued
+**ahead of** fonts, CSS and `three.min.js`, delaying first paint on top of the wasted bytes.
+The PNGs remain on disk — only the preload tags were removed. If a portrait is ever
+reintroduced, preload the **one** theme variant actually painted above the fold, not both.
+**Result measured:** homepage eager transfer ~8.9 MB → ~2.7 MB when combined with 1.6 (**−8.2 MB**).
+**Verify:** `grep -rn "prem-front" --include="*.hbs" . | grep -v backup/` — every hit must be
+inside a comment. Definitive check (0 = correct):
+`curl -s http://localhost:2369/ | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>console.log((d.replace(/<!--[\s\S]*?-->/g,"").match(/prem-front/g)||[]).length))'`
+
+### 1.6 Eager GLB shape preloading removed, both copies (2026-07-25)
+**Files:** `default.hbs` (`<head>`) **and** `assets/js/preloader.js` (`GLB_FILES`)
+The eight `.glb` morph shapes (~**2.0 MB**, of which `mobile.glb` alone is **1.47 MB**) were
+being fetched **twice per load**: once by `<link rel="preload">` in `<head>`, and again by
+`preloader.js`'s `GLB_FILES` list. Worse, the `preloader.js` copy **gated preloader
+completion** — `_total` counted all 9 files and `_onAllLoaded()` only fired once every one
+resolved, so the completion chain waited on multi-megabyte models.
+
+Nothing above the fold ever needed them: the hero shape is `helix`
+(`window.HERO_PARTICLE_MODE`, `default.hbs`), which is generated **procedurally** and loads no
+GLB at all. Every one of these files is a morph target for sections further down the page.
+Shapes now load on demand at first morph.
+
+Two supporting changes in `preloader.js`: `_total` counts only `VIDEO_FILES`, and
+`_startLoading()` gained a `_total === 0` short-circuit to `_onAllLoaded()`. That guard
+matters because the 8s safety timer lives **inside** `_finish()` — if the tracked list ever
+empties, nothing recovers it. The overlay itself is force-hidden site-wide
+(`#preloader { display: none !important; }`, `default.hbs`), so a stall would not visibly
+block the page; what stalls is `preloader:done` / `window.__preloaderDoneFired`, which the
+particle bootstrap and other listeners wait on.
+**Verify:** `grep -n "GLB_FILES\|_total === 0" assets/js/preloader.js` — `GLB_FILES` must
+appear only in comments. And `curl -s http://localhost:2369/ | grep -c 'rel="preload"'` → `0`
+(unless `@site.cover_image` is set).
 
 ---
 
@@ -262,6 +319,18 @@ the codebase).
 - `heading-animations.js` registers one scroll listener per heading (~5 on a typical page) —
   measured ~6ms total per full-page scroll. Sloppy, not costly.
 - GSAP's own ticker running at display refresh rate — expected, not a bug.
+- **Unused Google Fonts weight axes** (`default.hbs` stylesheet URL). The request spans
+  100–900 across Crimson Pro + DM Sans, but `--primitive-font-weight-thin` is `300` and only
+  **one** rule in the codebase uses `200` (`main.css`, `font-weight: 200`). The **100** axes
+  are downloaded and never used. Small (subset woff2 per axis) but free to reclaim — narrow
+  the URL when next touching type.
+  **Verify:** `grep -rnE "font-weight:\s*(100|200)" assets/css/*.css`
+- **69 unbundled JS + 13 CSS files** on the homepage — 82 requests. HTTP/2 multiplexing
+  softens this, so it is connection/parse overhead rather than transfer weight; a build step
+  is the fix, and that is a bigger change than this pass scoped.
+- `b2b.mp4` is **10.87 MB**, but `preloader.js` loads videos at `preload='metadata'`, so only
+  the moov atom is pulled, not the file. Costs a connection, not bulk transfer. Worth knowing
+  before anyone "optimises" it in a panic.
 
 ## 9. Deliberately not attempted
 

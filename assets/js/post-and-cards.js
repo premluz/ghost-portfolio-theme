@@ -473,6 +473,14 @@ function applyCardMeta(card, rawText, onSettled) {
 
     if (meta.gradientCss) {
       card.setAttribute('data-gradient-css', meta.gradientCss);
+      // Mirrored into a custom property (not just the attribute) so CSS can
+      // read it directly — needed for the cinematic layout's gradient scrim
+      // (.post-card-image::before, post-card-grid.css), which is a
+      // pseudo-element and so can never receive an inline style from JS.
+      // The server-side case (custom.gradientCss set at build time,
+      // post-card.hbs) sets this same property inline on the <article> tag
+      // itself — this keeps the async-fetched path in sync with it.
+      card.style.setProperty('--card-gradient', meta.gradientCss);
     }
 
     if (meta.projectTestimonial) {
@@ -573,8 +581,17 @@ function slugFromHref(href) {
 // these posts had changed since they last loaded, showing the skeleton for
 // a full network round-trip again. sessionStorage survives across those
 // reloads for the life of the tab; bumping CARD_META_CACHE_VERSION
-// invalidates every entry at once if the stored shape ever changes.
-const CARD_META_CACHE_VERSION = 'v1';
+// invalidates every entry at once — for a stored-SHAPE change, or (this
+// bump, 2026-08-06) for a stale-CONTENT one: iot-connectivity-platform and
+// gala-defi's codeinjection_head both had a malformed field (a string
+// missing its closing quote) that threw a SyntaxError on the whole
+// metadata object, silently caught, leaving gradientCss/title/etc. never
+// applied — fixed in Admin, but any tab that had already cached the BROKEN
+// raw text under v1 kept serving it indefinitely (no cache ever expires on
+// its own), which is exactly why the fix didn't visibly take until this
+// bump. Confirmed live: a tab with no prior cache renders the correct
+// colors immediately; the bug was the cache, not the extraction pipeline.
+const CARD_META_CACHE_VERSION = 'v2';
 function cardMetaCacheKey(slug) {
   return `cardMeta:${CARD_META_CACHE_VERSION}:${slug}`;
 }

@@ -1,9 +1,16 @@
 # Trigger System Issues
 
+**Resolved for particle triggers** — see `PARTICLE-SCROLL-DIRECTOR.md` for the
+implemented system (this doc's own "Suggested architecture" below, built) and
+a summary of the migration. The rest of this document is kept as the original
+audit/rationale; the "Current state" section below now describes history for
+the particle-specific rows (GPU/legacy particle morphs), not the present.
+`card-scroll-reveal.js`/`heading-animations.js` remain deliberately
+unconsolidated — see this doc's own reasoning on why below, unchanged.
+
 An audit of every "when does section X enter/exit the viewport" mechanism in
 this theme. Written because none of them are unified — before adding a new
-one, know what already exists and why it's fragmented. **Not fixed yet** —
-this documents the current state and a proposed direction for later.
+one, know what already exists and why it's fragmented.
 
 ---
 

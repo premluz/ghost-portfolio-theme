@@ -1,0 +1,109 @@
+{{!-- GRADFLOW PAGE BACKGROUND — a single fixed, full-viewport 'smoke' canvas
+      meant to sit at the very bottom of the WHOLE page's stacking order:
+      below every in-flow section, below the nav, below the particle canvas
+      (#gpu-canvas / #particle-morph-demo, z-index:1) too — see
+      .gradflow-page-bg's z-index:0 in main.css, strictly between
+      #page-backdrop's -1 and particles' 1.
+
+      Distinct from gradient-frame.js (profile.hbs etc.), which wraps
+      specific content with top/bottom BANDS edge-matched to the page
+      background — this is WHOLE-PAGE, viewport-FIXED, and doesn't scroll;
+      everything (sections, nav, particles) renders on top of it.
+
+      Include once per page template that wants it — NOT loaded site-wide.
+      Placement matters: it must land as a SIBLING of the page's own
+      top-level section (`.page-about-post`/`.home`/etc.), not nested
+      inside it — that section sets position:relative;z-index:2 (main.css),
+      which creates its OWN stacking context; anything nested inside would
+      be trapped in that LOCAL context and always paint above this canvas
+      regardless of this file's own z-index. e.g. in a page-*.hbs file:
+        {{!< default}}
+        {{#page}}
+        {{> gradflow-page-bg}}
+        <section class="page ...">...</section>
+        {{/page}}
+
+      PER-INSTANCE CONFIG: optional params, all-or-nothing — pass every one
+      of color1r/g/b, color2r/g/b, color3r/g/b, speed, scale, noise, or pass
+      none and get the defaults below (page-about.hbs's own look). Presence
+      is detected off color1r alone (stock Handlebars has no "was this
+      param passed" check beyond truthiness, so a caller passing
+      color1r="0" would be treated as "no override" — not a real risk for a
+      color channel in practice, just noting it since it's a real edge the
+      {{#if}} pattern below can't distinguish). Example:
+        {{> gradflow-page-bg
+            color1r="120" color1g="38"  color1b="78"
+            color2r="49"  color2g="16"  color2b="96"
+            color3r="18"  color3g="18"  color3b="18"
+            speed="0.5" scale="1.1" noise="0.32"}}
+      In use: page-about.hbs (defaults, light pastel), index.hbs (homepage,
+      explicit dark purple override, params as in the example above).
+
+      type: independent of the all-or-nothing colour group above — pass it
+      alone to change ONLY the pattern and keep default colours, or combine
+      it with the colour params, either way. Any GRADIENT_TYPE_NUMBER key in
+      gradflow-shaders.js: linear/conic/animated/wave/silk/smoke/stripe.
+      Defaults to 'smoke' (this partial's original, only type until now).
+      An unrecognised string doesn't error — initGradFlowBackground falls
+      back to 'animated' (gradflow-background.js's own `!= null` check on
+      the lookup). Every type besides 'wave' is an untouched 3-colour CYCLE
+      (see gradflow-shaders.js's own doc on u_color4) — color1/2/3 above
+      still apply to all of them, there's just no edge-matching/4th-colour
+      concept outside 'wave'. Example: {{> gradflow-page-bg type="silk"}}
+
+      CARD-TRIGGERED MODE — pass triggered="true" (index.hbs only):
+      gradflow-page-bg-trigger.js then drives this canvas's visibility and
+      colors off the posts-tabs section's cards (fade in on first card
+      entrance, fade out past the last card, colors crossfade to whichever
+      card is most visible) instead of the always-on look page-about.hbs
+      uses — mirrors the old, now-dormant gradient-layer.js/#page-gradient
+      system, retargeted at this WebGL canvas. Opt-in via a modifier class
+      (gradflow-page-bg--triggered, main.css: opacity:0 + transition) rather
+      than changing the base class's default, so page-about's always-on
+      usage is untouched. That trigger script needs the mounted instance's
+      setColors() handle, which initGradFlowBackground() resolves
+      asynchronously — stashed on the canvas element itself
+      (canvas.__gradflowHandle) since this partial can be included more than
+      once per page in principle and a single window global would collide.
+
+      speed:0.6 default, not 0 — a genuinely static config was tried first
+      (0, this partial's very first version) per an explicit early request,
+      but reads as broken/frozen next to gradient-frame's own moving waves.
+      Non-zero directly unfreezes it: `iTime = time * u_speed` inside
+      smokeGradient() (gradflow-shaders.js) is 0 for every frame when speed
+      is 0, so the pattern never advances regardless of elapsed time — 0.3
+      first, then raised to 0.6 (still noticeably slower than wave's own
+      0.7 default, "smoke" reads best unhurried). noise:0 default — was
+      0.2, removed per explicit request; smoke's own flowing pattern
+      already reads as organic without the extra per-fragment grain (see
+      FRAGMENT's `if (u_noise > 0.001)` block, gradflow-shaders.js — 0
+      skips that branch entirely, free). --}}
+<div class="gradflow-page-bg{{#if triggered}} gradflow-page-bg--triggered{{/if}}" aria-hidden="true">
+  <canvas class="gradflow-page-bg-canvas"></canvas>
+  <script>
+    (function () {
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      var canvas = document.currentScript.previousElementSibling;
+      var attempts = 0;
+      (function tryInit() {
+        if (window.initGradFlowBackground) {
+          // Stashed on the canvas (not a window global — see this file's own
+          // doc above) so gradflow-page-bg-trigger.js can drive setColors()
+          // once the async mount resolves. Undefined until then; that
+          // script guards for it.
+          window.initGradFlowBackground(canvas, {
+            color1: { r: {{#if color1r}}{{color1r}}{{else}}212{{/if}}, g: {{#if color1r}}{{color1g}}{{else}}227{{/if}}, b: {{#if color1r}}{{color1b}}{{else}}254{{/if}} },
+            color2: { r: {{#if color1r}}{{color2r}}{{else}}249{{/if}}, g: {{#if color1r}}{{color2g}}{{else}}211{{/if}}, b: {{#if color1r}}{{color2b}}{{else}}224{{/if}} },
+            color3: { r: {{#if color1r}}{{color3r}}{{else}}250{{/if}}, g: {{#if color1r}}{{color3g}}{{else}}250{{/if}}, b: {{#if color1r}}{{color3b}}{{else}}248{{/if}} },
+            speed: {{#if color1r}}{{speed}}{{else}}0.6{{/if}},
+            scale: {{#if color1r}}{{scale}}{{else}}1.5{{/if}},
+            type: '{{#if type}}{{type}}{{else}}smoke{{/if}}',
+            noise: {{#if color1r}}{{noise}}{{else}}0{{/if}},
+          }).then(function (handle) { canvas.__gradflowHandle = handle; });
+        } else if (attempts++ < 100) {
+          setTimeout(tryInit, 100);
+        }
+      })();
+    })();
+  </script>
+</div>

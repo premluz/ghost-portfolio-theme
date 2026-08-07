@@ -424,6 +424,18 @@ body[data-typography-body='medium'] .posts-tab {
   width: 100%;
 }
 
+/* Same fix as list mode's own .post-card-image img rule below (line 567):
+   filled card style (post-card-grid.css further down) adds inset padding
+   to .post-card-image, shrinking the box the generic .post-card-image img
+   rule's object-fit: cover then crops against — cover fills that smaller
+   box by cutting off part of the image. contain scales the whole image to
+   fit instead, so it reads correctly framed rather than cropped. Grid mode
+   had no override here at all (list's did), which is why only grid looked
+   cut off. */
+.posts-grid[data-posts-layout='grid'] .post-card-image img {
+  object-fit: contain;
+}
+
 .posts-grid[data-posts-layout='grid'] .post-card-content {
   width: 100%;
 }
@@ -864,6 +876,254 @@ body[data-typography-body='medium'] .posts-tab {
 }
 
 /* ─────────────────────────────────────────────────────────── */
+/* CINEMATIC LAYOUT                                            */
+/* ─────────────────────────────────────────────────────────── */
+
+/* One big, centered, max-width card per post — content (category/title/
+   testimonial) overlaid on the image itself via position:absolute, instead
+   of sitting beside it the way list/grid do. Image sizing is deliberately
+   NOT redeclared here: the base .post-card-image rule already carries
+   aspect-ratio: 1440/900 (list mode's own comment: "matches the grid
+   layout's large single-row card exactly"), so cinematic inherits that
+   same proven size for free. */
+
+.posts-grid[data-posts-layout='cinematic'] .container {
+  display: block;
+  max-width: none;
+}
+
+.posts-grid[data-posts-layout='cinematic'] .carousel-track {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-3xl);
+  width: 100%;
+  padding: var(--space-section) var(--content-padding);
+}
+
+.posts-grid[data-posts-layout='cinematic'] .post-card {
+  /* +30% over the base "wide" content token, on explicit request — calc()
+     over the token rather than a new hardcoded max-width, so this still
+     scales with the site's own page_width tiers (1000/1100/1800px)
+     instead of picking one fixed pixel value that only looks right at one
+     tier. */
+  max-width: calc(var(--content-max-width-wide) * 1.3);
+  width: 100%;
+  margin: 0 auto;
+  padding: 0;
+}
+
+.posts-grid[data-posts-layout='cinematic'] .post-card-link {
+  display: block;
+}
+
+/* display:block, not the base rule's flex row — content/image are stacked
+   via position:absolute below, not laid out side by side. */
+.posts-grid[data-posts-layout='cinematic'] .post-card-inner {
+  display: block;
+  gap: 0;
+}
+
+.posts-grid[data-posts-layout='cinematic'] .post-card-image {
+  margin-bottom: 0;
+}
+
+/* Colour wash — the card's own gradient (data-gradient-css, mirrored into
+   --card-gradient by post-card.hbs/post-and-cards.js since a pseudo-element
+   can't be targeted by an attribute selector for background-image the way
+   a real element could — same source data the old gradient-layer.js /
+   #page-gradient-blobs systems read). Sits UNDER the static shadow below,
+   not blended with it — the shadow has to win near the text regardless of
+   how light or saturated any given card's own colour happens to be.
+   Hover-only, on request: hidden at rest (opacity:0), fades in only while
+   the card is actually being interacted with — the shadow below is what
+   carries legibility at rest, this is a separate accent on top of it. */
+.posts-grid[data-posts-layout='cinematic'] .post-card-image::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: var(--card-gradient, transparent);
+  opacity: 0;
+  transition: opacity var(--duration-standard) var(--ease-standard);
+  pointer-events: none;
+}
+
+/* Cinematic hover gradient disabled 2026-08-06
+.posts-grid[data-posts-layout='cinematic'] .post-card-link:hover .post-card-image::before {
+  opacity: 1;
+}
+*/
+
+/* Legibility scrim — always dark, independent of the (now hover-only)
+   colour wash above; this is what actually carries "helps legibility for
+   the text" at rest, since the colour wash isn't always there anymore.
+   Radial, not the earlier full-width linear band — an ellipse (flatter
+   than a circle: wider than it is tall) centered near the BOTTOM-LEFT
+   corner, on request, so it reads as slanted/directional rather than a
+   flat horizontal wash: strongest exactly where .post-card-content sits
+   (bottom-left, see that rule below), fading out well before the bottom-
+   right corner, which stays comparatively clear. Bumped stronger too
+   (0.8→0.92 core, reaches further before fully transparent) per "slightly
+   more prominent." */
+.posts-grid[data-posts-layout='cinematic'] .post-card-image::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: radial-gradient(
+    ellipse 75% 65% at 18% 100%,
+    rgba(0, 0, 0, 0.92) 0%,
+    rgba(0, 0, 0, 0.55) 45%,
+    transparent 85%
+  );
+  pointer-events: none;
+}
+
+/* .post-card-link (base rule) is position:relative — the containing block
+   this anchors against. Taking .post-card-content out of flow (absolute)
+   leaves .post-card-image (in normal flow, aspect-ratio-driven height) as
+   the only thing sizing .post-card-inner/.post-card-link, so this ends up
+   flush against the image's own bottom edge regardless of how much text a
+   given card has. */
+.posts-grid[data-posts-layout='cinematic'] .post-card-content {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  padding: var(--space-xl);
+  /* Hard backstop, not just the conservative title size above — a card
+     with a long title AND a long testimonial together could still stack
+     past the image's own top edge otherwise (bottom:0 alone puts no
+     ceiling on how tall this box can grow). max-height leaves a margin
+     off the full image height (not 100%) so the top of the image is never
+     fully covered even when this box does need to clip. */
+  max-height: 85%;
+  overflow: hidden;
+}
+
+/* This is an island over a photo, not page content — text stays a fixed
+   white/near-white regardless of site theme, same reasoning as gradient-
+   frame's invert-mode islands (GRADIENT-FRAME-SYSTEM.md), just without the
+   full --profile-shift machinery since nothing outside this one image
+   needs to react. */
+.posts-grid[data-posts-layout='cinematic'] .post-card-category,
+.posts-grid[data-posts-layout='cinematic'] .post-card-title {
+  color: #fff !important;
+}
+
+/* NOT bumped to --text-size-h1 the way 'stacked' mode bumps its own title
+   — tried first here, and this data field (meta.longTitle) can be a full
+   phrase ("-33 → +62 NPS improvement"), not a short headline like stacked's
+   own cards use; at h1 size that wrapped to 3 lines and overflowed clean
+   past the top of the image (reproduced live: .post-card-content has no
+   height cap of its own, only bottom:0, so a tall enough block just grows
+   upward out of the card). Left at the base rule's own --text-size-h3 —
+   proven to fit in every other layout without this problem. */
+
+.posts-grid[data-posts-layout='cinematic'] .post-card-testimonial {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.posts-grid[data-posts-layout='cinematic'] .post-card-endorser {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+/* Fields the reference screenshot doesn't show for this layout — same
+   "hide what doesn't fit the layout" precedent as list mode hiding
+   .post-card-client/-description just above. */
+.posts-grid[data-posts-layout='cinematic'] .post-card-meta,
+.posts-grid[data-posts-layout='cinematic'] .post-card-client,
+.posts-grid[data-posts-layout='cinematic'] .post-card-description,
+.posts-grid[data-posts-layout='cinematic'] .post-card-bullets {
+  display: none;
+}
+
+/* MOBILE: content leaves the image and stacks underneath it, the way list
+   mode already reads. Three things have to move together, because taking
+   the text off the photo removes the thing that made it legible:
+
+   1. .post-card-content drops out of position:absolute (its desktop rule
+      above pins it over the image's bottom-left).
+   2. The ::after legibility scrim is switched off — it exists purely to
+      darken the photo behind overlaid text, and there is no overlaid text
+      here anymore.
+   3. The #fff/white-alpha text colours are replaced. They are the reason
+      this needed a second pass: with the text now on the PAGE background
+      rather than the photo, white-on-light is unreadable in light theme.
+
+   `order` is required, not cosmetic: .post-card-content precedes
+   .post-card-image in post-card.hbs (the absolute positioning made source
+   order irrelevant on desktop), so a plain column flex would stack the
+   text ABOVE the photo. */
+@media (max-width: 768px) {
+  .posts-grid[data-posts-layout='cinematic'] .post-card-inner {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .posts-grid[data-posts-layout='cinematic'] .post-card-image {
+    order: 1;
+  }
+
+  .posts-grid[data-posts-layout='cinematic'] .post-card-content {
+    order: 2;
+    position: static;
+    max-height: none;
+    overflow: visible;
+    padding: var(--space-md) 0;
+    z-index: auto;
+  }
+
+  /* Legibility scrim off — content is below the image, not over it. */
+  .posts-grid[data-posts-layout='cinematic'] .post-card-image::after {
+    display: none;
+  }
+
+  .posts-grid[data-posts-layout='cinematic'] .post-card-meta {
+    display: block;
+  }
+
+  /* Ink colours, authored against the THEME attribute rather than the
+     --color-on-surface token.
+
+     Both obvious approaches were tried and measured to fail here:
+       * `inherit` resolved to oklch(1 0 0) — pure white — because
+         .post-card-title carries no colour of its own and the nearest
+         ancestor with one is this layout's own #fff rule.
+       * var(--color-on-surface) ALSO resolved to oklch(100% 0 0) at this
+         element: something in this section's scope re-points that token
+         (--shift-ink reads #1a1a1a here, i.e. the background-shift system
+         is active), so it is not a trustworthy "theme ink" signal inside
+         a shifted section — the same trap BACKGROUND-LAYER-SYSTEM.md
+         warns about for per-section palettes.
+
+     A fixed pair keyed off :root[data-theme] cannot be re-pointed by any
+     section-scoped token, which is the whole point. Values match
+     tokens.css's own light/dark ink so this stays consistent with the
+     rest of the site. */
+  :root[data-theme='dark'] .posts-grid[data-posts-layout='cinematic'] .post-card-title {
+    color: #f5f5f5 !important;
+  }
+
+  :root[data-theme='dark'] .posts-grid[data-posts-layout='cinematic'] .post-card-category,
+  :root[data-theme='dark'] .posts-grid[data-posts-layout='cinematic'] .post-card-testimonial,
+  :root[data-theme='dark'] .posts-grid[data-posts-layout='cinematic'] .post-card-endorser {
+    color: #d0d0d0 !important;
+  }
+
+  :root[data-theme='light'] .posts-grid[data-posts-layout='cinematic'] .post-card-title {
+    color: #1a1a1a !important;
+  }
+
+  :root[data-theme='light'] .posts-grid[data-posts-layout='cinematic'] .post-card-category,
+  :root[data-theme='light'] .posts-grid[data-posts-layout='cinematic'] .post-card-testimonial,
+  :root[data-theme='light'] .posts-grid[data-posts-layout='cinematic'] .post-card-endorser {
+    color: #4a4a4a !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────── */
 /* POST CARD BASE                                              */
 /* ─────────────────────────────────────────────────────────── */
 
@@ -997,6 +1257,16 @@ body[data-typography-body='medium'] .posts-tab {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  /* The wrapper (.post-card-image) already clips at its own border-radius
+     via overflow:hidden, which is enough when the img fills the box
+     exactly (object-fit: cover). But filled-card style insets the wrapper
+     with padding and switches list/grid mode to object-fit: contain (see
+     the layout-specific rules below), so the img renders smaller than the
+     frame — its own corners are then what's visible, not the wrapper's
+     clip. inherit keeps this in sync with whatever the wrapper's radius
+     resolves to (var(--radius-md) normally, var(--glass-radius) in filled
+     mode) instead of a second hardcoded value that could drift. */
+  border-radius: inherit;
   /* Hidden until fetchCardMeta (post-and-cards.js) knows whether this
      post has a video — shown only if it doesn't, so a card either shows
      its video OR its image, never a raw image visible first that a video
@@ -1279,7 +1549,6 @@ body[data-card-style='elevated'] .post-card,
 body[data-card-style='elevated'] .om-card,
 body[data-card-style='elevated'] .om-card-metric,
 body[data-card-style='elevated'] .om3-card,
-body[data-card-style='elevated'] .profile-item,
 body[data-card-style='elevated'] .posts-grid-lab-cards .grid-card,
 body[data-card-style='elevated'] .posts-grid-cards .grid-card,
 body[data-card-style='elevated'] .about-projects-grid .grid-card {
@@ -1291,7 +1560,6 @@ body[data-card-style='outlined'] .post-card,
 body[data-card-style='outlined'] .om-card,
 body[data-card-style='outlined'] .om-card-metric,
 body[data-card-style='outlined'] .om3-card,
-body[data-card-style='outlined'] .profile-item,
 body[data-card-style='outlined'] .posts-grid-lab-cards .grid-card,
 body[data-card-style='outlined'] .posts-grid-cards .grid-card,
 body[data-card-style='outlined'] .about-projects-grid .grid-card {
@@ -1300,25 +1568,37 @@ body[data-card-style='outlined'] .about-projects-grid .grid-card {
   border-radius: var(--glass-radius);
 }
 
-/* Profile panes invert their border with the section palette flip so the
-   outline stays visible against the shifted light/dark panel. */
-body[data-card-style='outlined'] .profile-item {
-  border-color: color-mix(in srgb, var(--glass-border), var(--glass-border-shift) calc(var(--profile-shift, 0) * 100%));
-}
+/* .profile-item removed from the card-style system 2026-07-25 — it now
+   matches .content-grid-item (main.css) and is styled solely by profile.css.
+   The shift-aware border-color that used to live here was NOT deleted: it
+   moved to .profile-item in profile.css, unconditionally. It has to survive,
+   because --glass-border is a FLAT token (tokens.css) — unlike --glass-bg it
+   does not color-mix against --profile-shift on its own, so without that rule
+   a white 16% border sits invisible on the profile section's shifted light
+   panel. .content-grid-item needs no equivalent: it renders in gh-content,
+   which is never inside a --profile-shift scope. */
 
 body[data-card-style='filled'] .post-card-image,
 body[data-card-style='filled'] .om-card2,
-body[data-card-style='filled'] .testimonial-card,
 body[data-card-style='filled'] .om-card-metric2,
-body[data-card-style='filled'] .profile-item,
 body[data-card-style='filled'] .posts-grid-lab-cards .grid-card-image,
 body[data-card-style='filled'] .posts-grid-cards .grid-card-image,
 body[data-card-style='filled'] .about-projects-grid .grid-card-image {
   background: var(--glass-bg);
-  border: none;
+  /* Was `border: none` / no shadow at all — brought in line with the
+     glass-liquid module's stronger presence (visible border + inset
+     highlight), reusing the SAME existing --glass-* tokens the
+     tab-switch-grid-pill already pairs this way (posts-tabs-grid.css),
+     not new ones. */
+  border: 1px solid var(--glass-border);
   border-radius: var(--glass-radius);
-  backdrop-filter: var(--glass-backdrop);
-  -webkit-backdrop-filter: var(--glass-backdrop);
+  /* Same blur recipe as the nav's glass-liquid pane (--glass-liquid-backdrop,
+     glass-liquid.css), not the shared --glass-backdrop (blur(20px)
+     saturate(180%)) — reuses that token directly rather than a second
+     hardcoded copy, so the two stay in sync if it's ever tuned. */
+  backdrop-filter: var(--glass-liquid-backdrop);
+  -webkit-backdrop-filter: var(--glass-liquid-backdrop);
+  box-shadow: var(--glass-shadow), var(--glass-inset-light);
   padding: var(--space-lg);
 }
 /* body[data-card-style='filled'] .post-card {
@@ -1327,12 +1607,36 @@ body[data-card-style='filled'] .about-projects-grid .grid-card-image {
     padding: var(--space-xl)   var(--space-lg) !important;
 } */
 
-body[data-card-style='filled'] .post-card-image, 
+body[data-card-style='filled'] .post-card-image,
 body[data-card-style='filled'] .about-projects-grid .grid-card-image,
 body[data-card-style='filled'] .posts-grid-cards .grid-card-image,
 body[data-card-style='filled'] .posts-grid-lab-cards .grid-card-image {
   border-radius: var(--glass-radius) !important;
-  padding: var(--space-xl)  var(--space-3xl) !important;
+  padding: var(--space-xl) var(--space-3xl) !important;
+}
+
+/* The padding above shrinks the CONTENT box to different proportions than
+   the wrapper's own aspect-ratio: 1440/900 (measured 1.507 vs the image's
+   natural 1.600), so object-fit: contain letterboxed the image inside it,
+   leaving transparent bands top and bottom. border-radius rounds the BOX,
+   not the letterboxed pixels — the curve cut through empty space while the
+   image's real top/bottom edges stayed square, which is the "corner radius
+   cut off on top" symptom. Blank mode never had this because it has no
+   padding, so its content box keeps the wrapper's ratio exactly.
+
+   Fixed on the IMG rather than by re-tuning the padding: the padding would
+   only stay ratio-neutral at one specific horizontal:vertical proportion
+   (1.6:1 here), silently breaking again on any padding or aspect-ratio
+   change. Giving the img the ratio directly makes it hold regardless —
+   height:auto lets it derive from the ratio instead of stretching to the
+   box, and object-fit then has no letterboxing left to do. */
+body[data-card-style='filled'] .post-card-image > img,
+body[data-card-style='filled'] .about-projects-grid .grid-card-image > img,
+body[data-card-style='filled'] .posts-grid-cards .grid-card-image > img,
+body[data-card-style='filled'] .posts-grid-lab-cards .grid-card-image > img {
+  aspect-ratio: 1440 / 900;
+  height: auto;
+  object-fit: cover;
 }
 
 /* Both the fallback <img> AND a dynamically-inserted <video> (see
@@ -1364,23 +1668,60 @@ body[data-card-style='filled'] .grid-card-image video {
 }
 
 
-/* Profile panes invert their glass background with the section palette flip
-   so filled panes stay visible and match the operating-model cards. */
-body[data-card-style='filled'] .profile-item {
-  /* --glass-bg is shift-aware at the token level now (tokens.css) */
-  background: var(--glass-bg);
-}
+/* body[data-card-style='filled'] .profile-item removed 2026-07-25 along with
+   the rest of .profile-item's card-style enrolment (see the 'outlined' note
+   above). No replacement needed for this one: it only set
+   background: var(--glass-bg), and .content-grid-item — the look
+   .profile-item now matches — sets no background at all. */
 
 body[data-card-style='blank'] .post-card,
 body[data-card-style='blank'] .om-card,
 body[data-card-style='blank'] .om-card-metric,
 body[data-card-style='blank'] .om3-card,
-body[data-card-style='blank'] .profile-item,
 body[data-card-style='blank'] .posts-grid-lab-cards .grid-card,
 body[data-card-style='blank'] .posts-grid-cards .grid-card,
 body[data-card-style='blank'] .about-projects-grid .grid-card {
   background-color: transparent;
   border: none;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   GLASS PANE TREATMENT — posts-tabs + posts-tabs-grid-lab MEDIA WRAPPERS
+   Same border / radius / shadow recipe as .profile-item (profile.css) and
+   .content-grid-item (main.css). Those are twinned by hand, not linked —
+   restyle one, restyle the others.
+
+   Applied to the image wrapper, NOT the card. (An earlier pass put it on
+   .post-card / .grid-card; moved here deliberately.)
+
+   Why the elevated specificity: each layout mode sets its own radius on
+   these wrappers — .posts-grid[data-posts-layout='list'] .post-card-image
+   and .posts-tabs-grid-lab-section[data-posts-layout='list']
+   .grid-card-image are both (0,3,0) — and body[data-card-style='filled']
+   sets border + radius on them at (0,2,1)/(0,3,1). The forms below sit at
+   (0,3,1) and (0,4,1), winning on specificity alone rather than on source
+   order, so this block can be moved without silently breaking.
+   NOTE the stacked layout sets `border-radius: … !important` on
+   .post-card-image; nothing here can outrank that. Both sections currently
+   render `list`, so it doesn't collide today — but switching posts-tabs to
+   stacked would defeat the radius below (border and shadow still apply).
+
+   Scoped to these two sections ON PURPOSE. .post-card-image is also
+   rendered by post-cards-lab / author / tag / projects, and
+   .grid-card-image by about-projects / posts-tabs-grid / work-projects;
+   only the two sections named here get the treatment, so every other
+   consumer keeps following the card-style setting untouched.
+
+   CAVEAT: --glass-inset-light is the 1px inner top highlight. These
+   wrappers are filled edge-to-edge by their <img>/<video>, and an inset
+   shadow paints below content — so the highlight is covered wherever the
+   media sits. The border and the outer drop shadow read normally; parity
+   with .profile-item is visual on those two, not on the inset. */
+body[data-card-style] .posts-tabs-section .post-card-image,
+body[data-card-style] .posts-tabs-grid-lab-section .posts-grid-lab-cards .grid-card-image {
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow), var(--glass-inset-light);
 }
 
 body[data-card-style='blank'] .post-card-content {

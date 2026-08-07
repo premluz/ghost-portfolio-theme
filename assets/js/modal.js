@@ -30,6 +30,18 @@ const ModalSystem = (() => {
   }
 
   function createModalDOM() {
+    // Same icon markup as the main nav's post prev/next/close buttons
+    // (navigation.hbs) — identical paths/viewBox, kept as this modal's own
+    // instance (modal-nav-btn/modal-close-btn classes, not .nav-icon-btn
+    // itself, which carries the fixed site-nav's own positioning/sizing).
+    const prevSvg = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>`;
+    const nextSvg = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>`;
+
+    // Close sits INSIDE the pill, leftmost — same arrangement as the main
+    // nav's collapsed post-page pill (navigation.hbs: close, then prev,
+    // then next). The pill itself is therefore always visible; only
+    // prev/next toggle per modal type (see renderModal), because hiding
+    // the whole container would take the close button with it.
     const modalHTML = `
       <div class="modal-overlay" style="display:none;">
         <div class="modal-content">
@@ -39,18 +51,38 @@ const ModalSystem = (() => {
           </div>
 
           <div class="modal-actions">
-            <div class="modal-nav-controls" style="display:none;">
-              <button class="modal-nav-btn modal-prev" aria-label="Previous">←</button>
+            <div class="modal-nav-controls">
+              <button class="modal-close-btn" aria-label="Close">
+                <img class="modal-close-icon" alt="Close" data-skip-reveal>
+              </button>
+              <button class="modal-nav-btn modal-prev" aria-label="Previous">${prevSvg}</button>
+              <!-- Page indicator ("1 / 3") commented out per request — kept
+                   here (and its renderModal/CSS handling left intact, both
+                   null-guarded) so it can be restored by uncommenting.
               <span class="modal-page-indicator"></span>
-              <button class="modal-nav-btn modal-next" aria-label="Next">→</button>
+              -->
+              <button class="modal-nav-btn modal-next" aria-label="Next">${nextSvg}</button>
             </div>
-            <button class="modal-close-btn" aria-label="Close">✕</button>
           </div>
         </div>
       </div>
     `;
 
     document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+    // The close icon is a fixed-black-fill SVG asset (icons/close.svg),
+    // recolored via the same CSS filter as .nav-icon-close (main.css) —
+    // not currentColor-able like the chevrons above, since it's an <img>
+    // reference, not inline SVG. Reuses whatever URL Ghost already
+    // resolved for the nav's own close icon (its {{asset}} helper output)
+    // rather than guessing/hardcoding the theme's asset path from this
+    // plain JS file — falls back to the theme's known asset path only if
+    // that element isn't on the page for some reason.
+    const closeIcon = document.querySelector('.modal-close-icon');
+    const navCloseIcon = document.querySelector('.nav-icon-close');
+    if (closeIcon) {
+      closeIcon.src = navCloseIcon ? navCloseIcon.src : '/assets/icons/close.svg';
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -135,7 +167,6 @@ const ModalSystem = (() => {
     const overlay = document.querySelector('.modal-overlay');
     const title = overlay.querySelector('.modal-title');
     const inner = overlay.querySelector('.modal-inner');
-    const navControls = overlay.querySelector('.modal-nav-controls');
     const pageIndicator = overlay.querySelector('.modal-page-indicator');
 
     const currentItem = modalState.items[modalState.currentIndex];
@@ -166,16 +197,32 @@ const ModalSystem = (() => {
       });
     }
 
-    // Show nav for group modals with multiple items
-    if (modalState.type === 'group' && modalState.items.length > 1) {
-      navControls.style.display = '';
+    // Show prev/next for group modals with multiple items. Toggles the two
+    // BUTTONS, not the pill around them — the pill now also holds the close
+    // button (see createModalDOM), which has to stay reachable on every
+    // modal type; hiding the container outright would take it with it and
+    // leave the modal closable only by Escape/backdrop-click.
+    // pageIndicator is null while its markup is commented out — guarded
+    // rather than removed, so uncommenting is the only step to restore it.
+    const isMultiItemGroup = modalState.type === 'group' && modalState.items.length > 1;
+    const prevBtn = overlay.querySelector('.modal-prev');
+    const nextBtn = overlay.querySelector('.modal-next');
+    if (prevBtn) prevBtn.style.display = isMultiItemGroup ? '' : 'none';
+    if (nextBtn) nextBtn.style.display = isMultiItemGroup ? '' : 'none';
+    if (pageIndicator) {
+      pageIndicator.style.display = isMultiItemGroup ? '' : 'none';
       pageIndicator.textContent = `${modalState.currentIndex + 1} / ${modalState.items.length}`;
-    } else {
-      navControls.style.display = 'none';
     }
   }
 
   function showModal() {
+    // Read by page-transition.js's Escape handler (post-page close button)
+    // so it can back off while this modal owns Escape — without this, both
+    // fired on the same keypress: this modal closed AND the post navigated
+    // away, since page-transition.js's handler has no other way to know
+    // this modal exists.
+    window.__galleryModalOpen = true;
+
     const overlay = document.querySelector('.modal-overlay');
     overlay.style.display = '';
 
@@ -194,6 +241,8 @@ const ModalSystem = (() => {
   }
 
   function hideModal() {
+    window.__galleryModalOpen = false;
+
     const overlay = document.querySelector('.modal-overlay');
     overlay.classList.remove('modal-visible');
     setTimeout(() => {

@@ -11,7 +11,7 @@
 
 
   .logos-ribbon-section {
-    padding: 200px 0 0 0;
+    padding: 200px 0 200px 0;
     margin-bottom: 0 !important;
 
   }
@@ -75,11 +75,7 @@
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: linear-gradient(
-    to bottom,
-    transparent 0,
-    var(--color-background) 20%
-  );
+
   pointer-events: none;
 }
 

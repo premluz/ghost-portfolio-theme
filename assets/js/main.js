@@ -794,7 +794,7 @@ function initPostHeaderAnimation() {
       animateH1LetterByLetter(postTitle, tl, 0);
     }
 
-    const heroImage = headerEl.querySelector('.post-image img, .post-image-wrapper img, .page-image img');
+    const heroImage = headerEl.querySelector('.post-image img, .post-image video, .post-image-wrapper img, .page-image img');
     if (heroImage) {
       // CSS holds the initial state (opacity 0, scale 0.95 in main.css);
       // this animation is the only thing that reveals the image — it must
@@ -2052,10 +2052,16 @@ function initLogomarkAnimation() {
     return;
   }
 
-  // Landing position is anchored to .post-header-content's own box (the
-  // category/title/excerpt/meta column) — its BOTTOM edge for Y (lands
-  // just past whatever that block ends with, not tied to one specific
-  // child like .post-excerpt) and its RIGHT edge for X (flush against it).
+  // Landing position: Y is anchored to .post-excerpt's own bottom edge
+  // (minus its padding-bottom, so it's the excerpt's actual text/content
+  // edge, not its padded box) — lands flush with the excerpt specifically,
+  // regardless of whatever else follows it in .post-header-content (meta,
+  // testimonial, etc.). X is still anchored to .post-header-content's
+  // RIGHT edge (flush against it) — only the vertical anchor changed.
+  // Falls back to .post-header-content's own bottom edge if .post-excerpt
+  // is missing or empty (zero-size rect — e.g. no custom_excerpt set for
+  // this post), so a post without an excerpt still lands somewhere
+  // sensible instead of at Y=0.
   // Live getBoundingClientRect() measurement, not the old data-post-hero-
   // tiered `right: calc(...)` CSS (removed) — that broke silently whenever
   // the attribute's actual value didn't match one of the three hardcoded
@@ -2070,17 +2076,34 @@ function initLogomarkAnimation() {
     const contentEl = document.querySelector('.post-header-content');
     if (!contentEl || !logomarkEl.parentElement) return { y: landingY, right: null };
     const positioningParent = logomarkEl.parentElement;
-    const contentRect = contentEl.getBoundingClientRect();
     const parentRect = positioningParent.getBoundingClientRect();
+
+    const excerptEl = document.querySelector('.post-excerpt');
+    const excerptRect = excerptEl ? excerptEl.getBoundingClientRect() : null;
+    // A hidden/empty excerpt (display:none, or just never rendered any
+    // text) reports a zero-size rect — bottom would be 0, not "not
+    // present". Treat that the same as missing and fall back.
+    const hasUsableExcerpt = excerptRect && excerptRect.bottom > 0;
+    const excerptPaddingBottom = hasUsableExcerpt
+      ? parseFloat(getComputedStyle(excerptEl).paddingBottom) || 0
+      : 0;
+
+    const contentRect = contentEl.getBoundingClientRect();
+    const anchorBottom = hasUsableExcerpt ? (excerptRect.bottom - excerptPaddingBottom) : contentRect.bottom;
 
     // The logomark starts off-screen via CSS `top: -420px`, and GSAP's y
     // transform is applied on top of that CSS position, so we must add
     // the absolute value of the CSS top offset to land at the correct
     // visual position.
     const cssTopOffset = Math.abs(parseFloat(getComputedStyle(logomarkEl).top)) || 0;
-    // -140 = the container's own fixed height (main.css), so its BOTTOM
-    // edge — not its top — lands flush with .post-header-content's base.
-    const y = contentRect.bottom - parentRect.top - 140 + cssTopOffset;
+    // The container's own height, so its BOTTOM edge — not its top —
+    // lands flush with the anchor's base. Read live (not a hardcoded 140)
+    // since main.css now sizes this fluidly (clamp(80px, 10vw, 140px)),
+    // not a flat 140px — a fixed constant here would land the logomark
+    // increasingly too high as the rendered box shrinks on narrower
+    // viewports.
+    const logomarkHeight = logomarkEl.getBoundingClientRect().height || 140;
+    const y = anchorBottom - parentRect.top - logomarkHeight + cssTopOffset;
     // Distance from the positioning parent's right edge to
     // .post-header-content's right edge — what CSS `right` needs to sit
     // flush against it.

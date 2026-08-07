@@ -1,0 +1,263 @@
+/* ═══════════════════════════════════════════════════════════════ */
+/* GLASS-LIQUID — alternative frosted-glass skin (opt-in, additive)  */
+/* ═══════════════════════════════════════════════════════════════ */
+/* A second, independent glass treatment alongside the existing
+   --glass-* system (tokens.css, consumed by .nav-wrapper and the
+   posts-tabs filled mode in main.css). Deliberately self-contained:
+   its own custom properties, its own file, loaded after main.css —
+   nothing here edits or overrides the original --glass-* tokens or
+   any rule that uses them.
+
+   Usage: add the `glass-liquid` class alongside an element's existing
+   classes (e.g. class="nav-wrapper glass-liquid"). Because this file
+   loads after main.css, its declarations win the cascade on shared
+   properties (background, border, backdrop-filter, border-radius) by
+   source order alone — no !important, no extra specificity needed.
+   Remove the class to revert instantly; the base rule underneath
+   (e.g. .nav-wrapper in main.css) is never touched.
+
+   Currently wired to: .nav-wrapper (partials/navigation.hbs), as a
+   test. To roll onto a card or another panel later, add `glass-liquid`
+   to its container, and — only if it has a row of individual pill/
+   icon items inside that should get the matching treatment — add
+   `glass-liquid-dock` to the row wrapper and `glass-liquid-item` /
+   `glass-liquid-icon` / `glass-liquid-label` to each item. Ported
+   from a reference "liquid glass" dock design (frosted pane + sheen
+   overlay + optional SVG refraction). */
+
+/* --glass-liquid-backdrop lives at :root (not inside .glass-liquid below)
+   specifically so OTHER, unrelated elements can reuse the exact same blur
+   recipe via var(--glass-liquid-backdrop) — custom properties only reach
+   descendants through inheritance, so a value scoped to .glass-liquid
+   itself wouldn't be visible to e.g. a post card elsewhere in the DOM.
+   Consumed by: .nav-wrapper.glass-liquid (below) and the filled-mode post
+   card (post-card-grid.css). */
+:root {
+  --glass-liquid-backdrop: blur(14px) saturate(190%) brightness(0.9);
+}
+
+.glass-liquid {
+  --glass-liquid-radius: 16px;
+  --glass-liquid-bg: linear-gradient(180deg, rgba(26, 26, 30, 0.38), rgba(12, 12, 14, 0.5));
+  --glass-liquid-border: rgba(255, 255, 255, 0.15);
+  --glass-liquid-border-top: rgba(255, 255, 255, 0.34);
+  --glass-liquid-border-bottom: rgba(255, 255, 255, 0.07);
+  --glass-liquid-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.18) inset,
+    0 -1px 0 0 rgba(255, 255, 255, 0.05) inset,
+    0 0 0 0.5px rgba(0, 0, 0, 0.25),
+    0 24px 60px rgba(0, 0, 0, 0.22),
+    0 6px 16px rgba(0, 0, 0, 0.12);
+  --glass-liquid-backdrop-distort: url(#glass-distortion) blur(8px) saturate(190%) brightness(0.95);
+  --glass-liquid-fallback-bg: linear-gradient(180deg, rgba(22, 22, 26, 0.58), rgba(10, 10, 12, 0.72));
+  --glass-liquid-sheen:
+    radial-gradient(140% 70% at 50% -10%, rgba(255, 255, 255, 0.13), transparent 55%),
+    linear-gradient(115deg, rgba(255, 255, 255, 0.07) 0%, transparent 20%, transparent 80%, rgba(255, 255, 255, 0.04) 100%);
+
+  position: relative;
+  /* No overflow:hidden here (removed) — .glass-liquid::before/::after
+     already clip themselves to the same rounded shape via border-radius:
+     inherit, so the pane still LOOKS correctly rounded without it (verified
+     visually). Actual overflow:hidden was clipping .nav-tooltip, which
+     needs to escape below .nav-wrapper's own box on hover — this was
+     silently breaking every nav tooltip (.nav-icon-btn's Close/Theme/
+     prev-next, not just .nav-menu's) since .glass-liquid went on
+     .nav-wrapper, their shared ancestor. */
+  border-radius: var(--glass-liquid-radius);
+  background: var(--glass-liquid-bg);
+  border: 1px solid var(--glass-liquid-border);
+  border-top-color: var(--glass-liquid-border-top);
+  border-bottom-color: var(--glass-liquid-border-bottom);
+  box-shadow: var(--glass-liquid-shadow);
+}
+
+/* Light-theme variant — DISABLED 2026-08-05. Nav shouldn't visually flip
+   when the site theme toggles, so the pane now always renders the dark
+   variant above regardless of data-theme (paired with the color pin
+   below, which freezes nav text/icons the same way). Uncomment this
+   block to restore per-theme adaptation.
+:root[data-theme='light'] .glass-liquid {
+  --glass-liquid-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.32));
+  --glass-liquid-border: rgba(0, 0, 0, 0.1);
+  --glass-liquid-border-top: rgba(255, 255, 255, 0.6);
+  --glass-liquid-border-bottom: rgba(0, 0, 0, 0.05);
+  --glass-liquid-fallback-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0.55));
+  --glass-liquid-sheen:
+    radial-gradient(140% 70% at 50% -10%, rgba(255, 255, 255, 0.4), transparent 55%),
+    linear-gradient(115deg, rgba(255, 255, 255, 0.25) 0%, transparent 20%, transparent 80%, rgba(255, 255, 255, 0.12) 100%);
+}
+*/
+
+/* .nav-wrapper specifically: background-layer.js's bindShift() scrubs
+   --profile-shift on <html> as certain sections (e.g. About) scroll past
+   the fixed nav, which every nav text/icon rule in main.css blends
+   toward via var(--profile-shift, 0) — built for the OLD translucent nav,
+   which needed to invert to stay legible against whatever page color was
+   showing through it. The glass-liquid pane has its own opaque-enough
+   gradient background regardless of what's behind it, so that inversion
+   is no longer needed here — pinned back to 0 (identity) for every
+   descendant, overriding the inherited scrubbed value. Scoped to
+   .nav-wrapper rather than the generic .glass-liquid class: a future
+   non-nav rollout (e.g. a card) may still want shift-awareness.
+
+   Same reasoning extends to the THEME axis (light/dark toggle, not just
+   scroll): with the light-theme pane variant disabled above, the pane
+   now always renders dark — so nav text/icon color must stop following
+   data-theme too, or they'd flip to light-mode's dark-on-light values
+   against a pane that's still dark, going illegible. Pinned to the base
+   (dark-theme) values main.css's nav rules already resolve to today —
+   --color-on-surface-variant/--color-on-surface/--color-icon/
+   --color-primary (text + active-state color) and --icon-invert-base/
+   --icon-brightness-base (icon filter; the *-shift halves of those two
+   are already inert since --profile-shift is pinned to 0 above). Revert
+   alongside the block above — remove this pin once that's uncommented.
+
+   --color-surface-1 added too: .nav-menu a:hover/.nav-icon-btn:hover both
+   use it as their hover background, and it ALSO differs per theme
+   (tokens.css: #ffffff08 dark, #00000010 light, #222222 dim) — without
+   pinning it, the base (unhovered) icon color would stay frozen but the
+   hover background would still flip, an inconsistent half-fix. */
+.nav-wrapper.glass-liquid {
+  --profile-shift: 0;
+  --color-on-surface-variant: var(--primitive-neutral-300);
+  --color-on-surface: var(--primitive-neutral-0);
+  --color-icon: var(--primitive-neutral-100);
+  --color-primary: oklch(93% 0 0);
+  --color-surface-1: #ffffff08;
+  --icon-invert-base: 1;
+  --icon-brightness-base: 1.2;
+}
+
+/* Blur layer — backdrop-filter samples what's behind the whole
+   .glass-liquid box (the page content showing through its translucent
+   background), not its own children, so nav labels/icons stay crisp. */
+.glass-liquid::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+  -webkit-backdrop-filter: var(--glass-liquid-backdrop);
+  backdrop-filter: var(--glass-liquid-backdrop);
+}
+
+/* SVG-distortion enhancement — OFF by default. Opt in per-page/site by
+   adding `glass-distort` to <html>; uses the #glass-distortion filter
+   injected once in default.hbs. Safari/Firefox don't resolve url()
+   filters inside backdrop-filter, so this stays additive rather than
+   the default — every browser still gets the plain blur above. */
+html.glass-distort .glass-liquid::before {
+  -webkit-backdrop-filter: var(--glass-liquid-backdrop-distort);
+  backdrop-filter: var(--glass-liquid-backdrop-distort);
+}
+
+/* No backdrop-filter support at all: flatten to a solid-ish gradient
+   so the pane still reads instead of going see-through. */
+@supports not (backdrop-filter: blur(1px)) {
+  .glass-liquid {
+    background: var(--glass-liquid-fallback-bg);
+  }
+}
+
+/* Sheen overlay — sits above content on purpose (thin highlight wash,
+   pointer-events: none, low alpha), matching the reference design. */
+.glass-liquid::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 50;
+  background: var(--glass-liquid-sheen);
+}
+
+/* ── Reusable item styling — for future rollout onto individual
+   cards/links inside a .glass-liquid pane. Not yet wired to any
+   markup; add these classes when extending this style past nav. ── */
+.glass-liquid-dock {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 5px;
+}
+
+.glass-liquid-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  height: 38px;
+  border-radius: 10px;
+  padding: 0 8px;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.45);
+  text-decoration: none;
+  user-select: none;
+  background: transparent;
+  border: 1px solid transparent;
+  overflow: hidden;
+  transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.glass-liquid-item:hover {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.glass-liquid-item:active {
+  opacity: 0.7;
+  transition-duration: 0.05s;
+}
+
+.glass-liquid-item.active {
+  color: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.11);
+  border-color: rgba(255, 255, 255, 0.14);
+  border-top-color: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.14) inset;
+}
+
+:root[data-theme='light'] .glass-liquid-item {
+  color: rgba(0, 0, 0, 0.45);
+}
+
+:root[data-theme='light'] .glass-liquid-item:hover {
+  color: rgba(0, 0, 0, 0.85);
+  background: rgba(0, 0, 0, 0.06);
+}
+
+:root[data-theme='light'] .glass-liquid-item.active {
+  color: rgba(0, 0, 0, 0.9);
+  background: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+.glass-liquid-icon {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.glass-liquid-icon svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.glass-liquid-label {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}

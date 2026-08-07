@@ -275,10 +275,10 @@ class ScrollScrubAnimationSystem {
     // to a light panel (the light theme's own dark-teal particles). Both
     // sides are looked up fresh from data-theme every call, not cached — so
     // a site theme toggle at any point just works, nothing to reconcile.
-    const PARTICLE_NORMAL = { dark: '#1D4551', light: '#17516E' }; // mirrors default.hbs's --color-particles
+    const PARTICLE_NORMAL = { dark: '#1D4551', light: '#082A3C' }; // mirrors default.hbs's --color-particles
     const PARTICLE_SHIFTED = {
       light: { r: 255, g: 255, b: 255 },  // light site → dark panel → white particles
-      dark:  { r: 23, g: 81, b: 110 },    // dark/dim site → light panel → #17516E (light theme's particle colour)
+      dark:  { r: 8, g: 42, b: 60 },      // dark/dim site → light panel → #082A3C (light theme's particle colour)
     };
 
     const invertParticles = (t) => {

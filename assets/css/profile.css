@@ -254,12 +254,23 @@ body[data-page-width='full'] .profile[data-home-profile-width='respect_page_widt
   gap: var(--space-xl) var(--space-xl);
   margin-top: var(--space-xl);
   width: 100%;
+  /* Every row the same height as the tallest.
+
+     Cards within a row already matched (grid stretches them); it was the
+     ROWS that differed, each sizing to its own tallest card — measured
+     180.4 / 154.8 / 154.8px at 768px, which reads as a ragged block of
+     panes rather than one grid. 1fr on auto-rows makes every row take the
+     largest row's height, so all six panes are identical.
+
+     Safe because the grid has no explicit height: `1fr` in grid-auto-rows
+     resolves against the content-derived maximum, so this equalises rather
+     than stretching the section to fill anything. */
+  grid-auto-rows: 1fr;
 }
 
 .profile-item {
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
   /* JS (card-scroll-reveal.js, initProfileItemsReveal — slide-up, matching
      SCROLL_REVEAL_CONFIG.card.default) drives the reveal; this is just a
      no-JS/pre-paint fallback so nothing flashes at its resting position.
@@ -272,8 +283,28 @@ body[data-page-width='full'] .profile[data-home-profile-width='respect_page_widt
      real horizontal scrollbar (found live, not just a resting-state flash). */
   opacity: 0;
   transform: translateY(48px) scale(0.97);
-  padding: var(--space-md) 0;
 
+  /* Visual recipe deliberately identical to .content-grid-item (main.css) —
+     same four glass tokens, same padding. .profile-item used to also be
+     enrolled in the body[data-card-style='…'] system (post-card-grid.css)
+     while .content-grid-item never was, so the live 'blank' setting stripped
+     this border and background back off and the two diverged. That enrolment
+     was removed 2026-07-25; profile.css is now the single source for how a
+     profile pane looks. Keep these in step with .content-grid-item by hand —
+     they are intentionally twinned, not linked. */
+  min-width: 0;
+  box-shadow: var(--glass-shadow), var(--glass-inset-light);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius);
+  padding: var(--space-lg);
+  /* The ONE thing .content-grid-item doesn't need. --glass-border is a flat
+     token — unlike --glass-bg it does NOT color-mix against --profile-shift
+     itself (tokens.css), so a plain white 16% border goes invisible when this
+     section scrubs to its shifted light panel. Carried over verbatim from the
+     old body[data-card-style='outlined'] .profile-item rule, now unconditional
+     since the pane is bordered under every setting. .content-grid-item is
+     exempt because gh-content is never inside a --profile-shift scope. */
+  border-color: color-mix(in srgb, var(--glass-border), var(--glass-border-shift) calc(var(--profile-shift, 0) * 100%));
 }
 
 .profile-item-header {
@@ -281,6 +312,12 @@ body[data-page-width='full'] .profile[data-home-profile-width='respect_page_widt
   font-weight: var(--text-weight-extrabold, 800);
   /* color: see the color-mix() rule further up (reversed-palette-on-entry) */
   margin: 0;
+  /* The header and its description are a PAIR — the spacing between them is
+     the card's own internal rhythm and belongs here, not in the flex gap
+     (which would also space any future third child identically). Measured
+     before this: the two boxes sat flush at 0px, so the 44.8px header ran
+     straight into 16px body text with only line-box leading between them. */
+  margin-bottom: var(--space-sm);
 }
 
 .profile-item-description {
@@ -463,7 +500,42 @@ body[data-page-width='full'] .profile[data-home-profile-width='respect_page_widt
 
   .profile-items {
     grid-template-columns: repeat(2, 1fr);
-    gap: var(--space-md) var(--space-sm);
+    /* Symmetric. Was `var(--space-md) var(--space-sm)` — a 16px row gap
+       against an 8px column gap, which read as the columns being crowded
+       rather than as a deliberate ratio. */
+    gap: var(--space-md);
+  }
+
+  /* The header uses --text-size-h2, which the ratified 2026-08-04 mobile
+     re-tier pins at a flat 44.8px for every viewport (tokens.css). That is
+     correct for page headings but not inside a card: measured at 390px the
+     card is 170px wide with 24px padding = 122px of usable width, and
+     "Partner" at 44.8px very nearly fills it edge to edge, forcing the
+     description to wrap to 6 lines and leaving each card a different
+     height (255 / 229 / 204).
+
+     Scoped to .profile-item-header ONLY — the global h2 tier is untouched,
+     so nothing else on any page moves.
+
+     An explicit rem value rather than another --text-size-* token: at
+     ≤768px EVERY heading token is multiplied by --type-scale-heading (0.7),
+     which collapses the whole ladder toward body size. --text-size-h4 was
+     tried first and computed to 16.8px against 16px body text — a header
+     rendering at essentially body size, i.e. no hierarchy at all. 1.75rem
+     (28px) keeps a clear step above body while still fitting the card. */
+  .profile-item-header {
+    font-size: 1.75rem;
+  }
+}
+
+/* Single column on phones. Two columns at 390px gave 170px cards (122px of
+   usable text width) — too narrow for these descriptions regardless of the
+   header size above. One column takes the card to the full ~358px, which
+   is what makes the copy readable rather than a column of 6-line fragments. */
+@media (max-width: 560px) {
+  .profile-items {
+    grid-template-columns: 1fr;
+    gap: var(--space-md);
   }
 }
 

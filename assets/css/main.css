@@ -50,6 +50,42 @@
   );
 }
 
+/* Gradflow whole-page fixed background (see partials/gradflow-page-bg.hbs)
+   — z-index:0, strictly between .page-backdrop (-1, the flat page-color
+   layer above) and the particle canvas (#gpu-canvas/#particle-morph-demo,
+   z-index:1, below). Every in-flow section paints on top via .page's own
+   z-index:2. The wrapping div (not just the canvas) is what's
+   position:fixed: gradflow-background.js's own resize() sizes the canvas
+   off canvas.parentElement's clientWidth/clientHeight — if the canvas's
+   parent were something in normal document flow (e.g. <body>, which is as
+   tall as the whole scrollable page), the drawing buffer would be sized to
+   the page's full scroll height instead of one viewport's worth. A
+   position:fixed;inset:0 parent's client size IS the viewport, regardless
+   of page height, which is what makes this "just" a viewport cover. */
+.gradflow-page-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Opt-in (gradflow-page-bg.hbs's triggered="true" param, index.hbs only):
+   starts invisible and is faded in/out by gradflow-page-bg-trigger.js as the
+   posts-tabs cards scroll through — see that script's own doc. A modifier
+   class, not the base rule above, so page-about.hbs's always-on usage of
+   the same partial is untouched. 0.4s matches the old gradient-layer.js
+   system's own section-visibility fade this replaces. */
+.gradflow-page-bg--triggered {
+  opacity: 0;
+  transition: opacity 0.4s ease-in-out;
+}
+
+.gradflow-page-bg-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 /* ── GRADIENT TEXT UTILITY (DNA-Capital-style headline fill) ─────────────
    background-clip:text with a token-driven fill image/gradient
    (--gradient-text-image, per theme — see tokens.css; swap in an authored
@@ -151,6 +187,140 @@
   display: block;
   pointer-events: none;
   user-select: none;
+}
+
+/* ─────────────────────────────────────────────────────────────── */
+/* GRADIENT "AURA" BACKGROUND (default.hbs #page-gradient-blobs) */
+/* ─────────────────────────────────────────────────────────────── */
+/* Separate component from .page-gradient-bg above (gradient-layer.js's
+   per-card crossfade, scoped to .posts-tabs-section) — this is a
+   general-purpose whole-page decoration. Same z-index slot as
+   .gradflow-page-bg (partials/gradflow-page-bg.hbs): above #page-backdrop
+   (-1), below the particle canvas/page content (1+).
+   Second attempt at this component — first was 3 separate blurred divs
+   animated via transform (compositor-only, no repaint). This version
+   trades that for a richer blend: one element, several radial-gradient
+   layers stacked in a single background-image (each gradient's own
+   "transparent 50%" stop supplies the softness — no filter:blur() at
+   all), animated by stepping background-position through @keyframes.
+   Cost note: unlike transform, animating background-position repaints
+   the gradient every frame rather than just moving a cached layer — the
+   direct trade for this technique's blended look. Colors: --aura-1/2/3
+   set by the inline script (default.hbs) from data-blob-colors; --aura-1
+   is reused for a 4th, later gradient stop (same trick the reference
+   this was built from uses) so the pattern blends back into its own
+   starting color instead of visibly resetting each loop.
+   Invisible at rest (opacity:0) — this element is present site-wide
+   (default.hbs) but does nothing until a page-specific trigger calls
+   window.pageGradientBlobs.show()/.hide() (default.hbs's own inline
+   script exposes that API). First trigger: assets/js/gradient-blobs-
+   trigger.js, fading it in/out around .posts-tabs-section. The @keyframes
+   animation itself keeps running even while opacity:0 (animations don't
+   pause just because the element is invisible) — negligible cost since
+   it's the same single-layer repaint either way, and this way there's no
+   visible "jump" to a random point in the loop when it fades in. */
+.page-gradient-blobs {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  --aura-size: 200%;
+  --aura-speed: 24s;
+  opacity: 0;
+  transition: opacity 0.8s ease;
+  background-size: var(--aura-size) var(--aura-size);
+  background-image:
+    radial-gradient(at 62% 9%, var(--aura-1, transparent) 0px, transparent 50%),
+    radial-gradient(at 69% 60%, var(--aura-2, transparent) 0px, transparent 50%),
+    radial-gradient(at 24% 89%, var(--aura-3, transparent) 0px, transparent 50%),
+    radial-gradient(at 78% 92%, var(--aura-1, transparent) 0px, transparent 50%);
+  animation: page-gradient-aura var(--aura-speed) linear infinite;
+}
+
+.page-gradient-blobs.is-visible {
+  opacity: 0.55;
+}
+
+@keyframes page-gradient-aura {
+  0% {
+    background-position: 50% 50%, 30% 100%, 100% 10%, 0% 80%;
+  }
+  33.333% {
+    background-position: 10% 75%, 40% 80%, 60% 20%, 16% 30%;
+  }
+  66.666% {
+    background-position: 25% 35%, 80% 50%, 10% 10%, 30% 0%;
+  }
+  100% {
+    background-position: 50% 50%, 30% 100%, 100% 10%, 0% 80%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-gradient-blobs {
+    animation: none;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────── */
+/* GRADIENT AURA FRAME — reusable, multi-instance wrapper component */
+/* ─────────────────────────────────────────────────────────────── */
+/* Same gradient technique as .page-gradient-blobs above, repackaged as a
+   wrap-your-own-content component instead of a single site-wide fixed
+   layer — modeled directly on the existing .gradient-frame component
+   (gradient-frame.js/.css: a div with data-gradient-frame wraps some
+   content, JS scans the whole page for every match and initializes each
+   independently). Usage:
+     <div class="gradient-aura-frame" data-gradient-aura
+          data-aura-colors="#D16BA5,#86A8E7,#5FFBF1"
+          data-aura-size="200%" data-aura-speed="24s">
+       ...content...
+     </div>
+   assets/js/gradient-aura-frame.js reads those data- attributes into
+   --aura-1/2/3/--aura-size/--aura-speed as INLINE styles on this element
+   — pseudo-elements inherit custom properties from their own element, so
+   ::before below picks them up automatically. That's also what makes
+   multiple instances on one page safe with zero extra work: each
+   instance's values live on that instance's own element, not a shared
+   global, so there's no ID/collision scheme to manage.
+   "Full page width always": the wrapper itself can sit inside a narrow/
+   padded container (that's the point — it wraps whatever content needs
+   the effect behind it, at whatever width that content naturally has),
+   but ::before breaks out to 100vw via the standard left:50%/
+   translateX(-50%) technique regardless, same as the site's other
+   full-bleed-background-behind-contained-content sections (hero, hero-bg
+   vs hero-container — see PAGE-WIDTH-SYSTEM.md's "Full-bleed-with-
+   contained-header pattern"). */
+.gradient-aura-frame {
+  position: relative;
+  isolation: isolate;
+}
+
+.gradient-aura-frame::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 100vw;
+  height: 100%;
+  transform: translateX(-50%);
+  z-index: -1;
+  pointer-events: none;
+  --aura-size: 200%;
+  --aura-speed: 24s;
+  background-size: var(--aura-size) var(--aura-size);
+  background-image:
+    radial-gradient(at 62% 9%, var(--aura-1, transparent) 0px, transparent 50%),
+    radial-gradient(at 69% 60%, var(--aura-2, transparent) 0px, transparent 50%),
+    radial-gradient(at 24% 89%, var(--aura-3, transparent) 0px, transparent 50%),
+    radial-gradient(at 78% 92%, var(--aura-1, transparent) 0px, transparent 50%);
+  animation: page-gradient-aura var(--aura-speed) linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gradient-aura-frame::before {
+    animation: none;
+  }
 }
 
 /* Work page WebGL gradient background (assets/glsl-gradient/, work.hbs) —
@@ -256,7 +426,7 @@ html.preloading .gh-footer {
   visibility: hidden !important;
 }
 
-html.preloading main > *:not(#preloader):not(.home) {
+html.preloading main > *:not(#preloader):not(.home):not(.gradflow-page-bg) {
   opacity: 0;
   pointer-events: none;
 }
@@ -284,8 +454,16 @@ html.page-ready .home .gh-navigation {
 /* .home excluded — it paints normally from the first frame now (no
    pre-hide, see default.hbs), so this rule's own 0.5s transition has
    nothing to do with it either way; excluding it avoids the transition
-   applying at all should .home's opacity ever get touched some other way. */
-html.page-ready main > *:not(#preloader):not(.home) {
+   applying at all should .home's opacity ever get touched some other way.
+   .gradflow-page-bg excluded for the same "manages its own visibility"
+   reason: it's .gradflow-page-bg--triggered's opacity:0 default (main.css,
+   below) plus gradflow-page-bg-trigger.js that owns this element's
+   visibility, scroll-position-driven, not page-load-driven — reproduced
+   live before this exclusion: this rule's own specificity (the :not(#id)
+   argument alone outranks a single class) completely overrode the
+   triggered canvas's opacity:0, forcing it permanently visible from the
+   moment the page finished loading regardless of scroll position. */
+html.page-ready main > *:not(#preloader):not(.home):not(.gradflow-page-bg) {
   opacity: 1;
   transition: opacity 0.5s ease-out;
 }
@@ -320,32 +498,358 @@ html.page-ready main > *:not(#preloader):not(.home) {
   justify-content: center;
 }
 
+/* Indeterminate loading bar (2026-08-06). Was a determinate 0→100% width
+   driven by preloader.js's _setProgress() — but that width was COSMETIC:
+   _animateVisibleProgress() drove it with a fixed 1s GSAP tween regardless
+   of real asset-loading speed, while the actual gate (_loaded/_total,
+   tracking VIDEO_FILES metadata) is real but now down to just 2 items after
+   GLB_FILES was removed — too few data points to look like real progress
+   even if wired up honestly. A specific "73%" next to a bar whose fill rate
+   has nothing to do with it reads as worse than no number at all, so the %
+   readout (.preloader-progress-pct, preloader.js's progressPct) was dropped
+   along with it — see preloader.hbs and preloader.js.
+   MOTION — SOURCE OF TRUTH is a hand-drawn storyboard (9 traced frames,
+   top-to-bottom = time), NOT any named third-party component. Several
+   earlier passes chased other references (a hand-rolled sweep runner, an
+   exact reproduction of Material Design's two-bar indeterminate curve, a
+   "laser" curve that charged before accelerating); all are gone, and no
+   part of this should be reasoned about in Material's terms again. What
+   the storyboard actually shows is ONE object, never several beams, doing
+   a two-phase grow-then-collapse:
+
+     Frames 1-5  GROW.     The LEFT edge stays pinned at 0. The right edge
+                           races rightward, so the object's width scales up
+                           from ~nothing to the track's full width.
+     Frame  5    FULL.     Spans the whole track — the sequence's midpoint.
+     Frames 5-9  COLLAPSE. Now the RIGHT edge is what stays pinned (at the
+                           far side). The LEFT edge sweeps rightward,
+                           "eating" the object from its own start — i.e. it
+                           scales back to zero in the OPPOSITE direction it
+                           grew, rather than mirroring the grow backwards.
+     Frames 7-9  FADE.     Once collapsed to about half width, the WHOLE
+                           object starts fading out — a uniform opacity
+                           fade on the single element, NOT a differential
+                           per-part/"tail" fade. (An earlier pass tried to
+                           fake a slower-fading tail via an asymmetric
+                           background gradient; explicitly dropped —
+                           plain CSS can't fade parts of one element at
+                           different rates, and the storyboard doesn't ask
+                           for it.)
+
+   Implemented as TWO one-shot states, not a loop — bar-grow (scaleX, held
+   with `forwards`) while loading, then bar-exit-right (translateX +
+   opacity) on completion. transform/opacity being animated is why
+   .is-complete and the reduced-motion fallback (both further down)
+   explicitly pin both — cancelling an animation without restating its
+   properties strands the element wherever that animation last computed.
+   The sharp+blurred duplicate-layer system (.progress-bar-clip /
+   .progress-bar-glow, filter:blur(50px)) is unchanged; see those two
+   classes' own comments for why they're structured the way they are.
+   ⚠ Cycle duration is duplicated in JS — window.__BAR_CYCLE_MS
+   (preloader.js) gates "show for at least one full cycle" and must be kept
+   equal to the animation-duration used below. */
+
+/* ── SHARED TRACK: child class, not scoped to a parent ────────────────────
+   .progress-bar-streak works inside ANY container that provides it —
+   #preloader-progress-bar (homepage first load) and .scroll-progress
+   (every other page, during navigation — see page-transition.js) both use
+   this SAME rule/keyframes rather than each having their own copy. Each
+   container still owns its OWN position/sizing (further down); only the
+   animated streak itself is shared.
+
+   Gated behind .progress-bar-track.is-loading, not unconditional: on
+   #preloader-progress-bar that class is always present (preloader.hbs —
+   the whole element only exists during loading, there's no "off" state).
+   On .scroll-progress it's toggled by page-transition.js, because that
+   SAME element ALSO does its normal job the rest of the time — a plain,
+   JS-driven width fill tracking real scroll position (scroll-progress.js)
+   — and the streak must stay fully inert (display:none, not just
+   un-animated) then. Left unconditional, its own position:absolute would
+   sit on top of that normal fill at all times, not just during a
+   navigation. */
+.progress-bar-track:not(.is-loading) .progress-bar-streak {
+  display: none;
+}
+
+.progress-bar-track.is-loading .progress-bar-streak {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-radius: var(--radius-full);
+  /* Symmetric soft ends — feathered to transparent on BOTH sides so
+     neither end is a hard edge against the track (border-radius alone only
+     rounds the corners; the flat left/right edges between them were still
+     an abrupt opacity cutoff). Deliberately symmetric again: the previous
+     asymmetric version existed only to fake a slower-fading comet tail,
+     which is explicitly dropped — see the storyboard notes above. */
+  background: linear-gradient(90deg,
+    transparent 0%,
+    var(--color-primary) 12%,
+    var(--color-secondary) 88%,
+    transparent 100%
+  );
+  left: 0;
+  width: 100%;
+  transform-origin: left center;
+  /* ONE-SHOT, NOT A LOOP (2026-08-06). Everything before this was an
+     infinite cycle that grew, exited, then restarted from the left — and
+     that restart is exactly what read as the bar "going back reverse":
+     nothing was animating backwards, the loop was simply snapping to its
+     0% keyframe. No amount of retuning the curve could fix that, because
+     the loop itself was the problem.
+     The real sequence has only two states, and they map to the two classes
+     JS already toggles:
+       .is-loading   grow 0 → 100% ONCE, then HOLD (forwards).
+       .is-complete  slide the full-width bar off to the right (below).
+     `forwards` is what makes the hold work — without it the bar would snap
+     back to width 0 the instant the animation ends, which would look like
+     yet another reverse.
+     scaleX (not width) so the grow is a compositor-only transform: no
+     layout on any frame, and it composes cleanly with the exit's own
+     translateX since both live on `transform`. Keep the duration in sync
+     with __BAR_CYCLE_MS (preloader.js) — that gate is what guarantees the
+     grow has finished before .is-complete can land, so the exit never
+     interrupts a partial grow. */
+  animation: bar-grow 0.9s cubic-bezier(0.16, 0.84, 0.44, 1) forwards,
+             bar-comet-glow 1.3s ease-in-out infinite;
+}
+
+/* The blurred duplicate layer pulses in intensity across the sequence
+   ("the blurred part of it, the glow, pulses as it goes") — dimmest while
+   the object is small at either end of its travel, brightest as it reaches
+   full extension. Same duration/start as the streak's own three animations
+   above, so the swell tracks the object rather than drifting against it.
+   Gated on .is-loading: unconditional, this would run a pointless infinite
+   animation on every page for the whole session, since .progress-bar-glow
+   itself is always in the DOM (its streak child is display:none when not
+   loading — see the :not(.is-loading) rule above). */
+.progress-bar-track.is-loading .progress-bar-glow {
+  animation: bar-comet-glow-pulse 1.3s ease-in-out infinite;
+}
+
+/* ── Sharp + blurred duplicate layers ─────────────────────────────────────
+   Each track (#preloader-progress-bar / .scroll-progress) wraps ONE
+   .progress-bar-streak TWICE — once inside .progress-bar-clip (the crisp
+   original, clipped to the track), once inside .progress-bar-glow (an
+   identical duplicate, blurred, stacked on top — glow comes SECOND in DOM
+   order, so it paints over the clip layer, per explicit "duplicated...
+   another instance ON TOP" request). Both copies share the exact same
+   .progress-bar-track.is-loading/.is-complete descendant rules here (a
+   space-combinator selector matches at ANY depth, so the
+   .progress-bar-clip/.progress-bar-glow nesting level is transparent to
+   them) — no JS or animation-rule duplication needed, only the markup and
+   these two wrapper rules.
+   overflow:hidden lives HERE, not on the track itself (#preloader-
+   progress-bar / .scroll-progress.is-loading, further down/above) — a CSS
+   filter is clipped by an ANCESTOR's overflow:hidden even though it isn't
+   clipped by its OWN box, so overflow:hidden on the outer track would
+   silently cut the glow layer's blur off at the same 3px line it's meant
+   to escape. The clip layer still needs ITS OWN overflow:hidden (to
+   contain the streak's horizontal slide, a real, separate requirement) —
+   just kept one level in, off the unclipped outer track. */
+.progress-bar-clip {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.progress-bar-glow {
+  position: absolute;
+  inset: 0;
+  filter: blur(50px);
+  pointer-events: none;
+}
+
+/* .scroll-progress's OWN background/width (the normal, non-loading scroll
+   indicator) must be suppressed while the streak is visible on top of it —
+   otherwise its flat gradient fill shows through/behind it at whatever
+   width the last real scroll position left it.
+   width: 100% needs !important: scroll-progress.js/waitForHeroImages()
+   (main.js) both write width via a plain INLINE style.width, not a class —
+   a user who scrolled at all on THIS page before triggering a navigation
+   (armLoadingBar() can fire on the SAME page a moment after real scrolling
+   already ran) leaves a stale inline width behind, and an inline style
+   always beats a non-!important stylesheet rule regardless of specificity.
+   Caught in testing, not assumed away: verified live with a pre-set inline
+   width before adding .is-loading. background needs no !important — no
+   inline background is ever set by either script.
+   No overflow:hidden here — see .progress-bar-clip above for why it lives
+   one level in instead. */
+.scroll-progress.is-loading {
+  background: transparent;
+  width: 100% !important;
+}
+
+/* DIRECTION IS ALWAYS LEFT→RIGHT, AND THERE IS NO LOOP. Nothing in this
+   component ever runs backwards or repeats. Both of those were real
+   defects, fixed together 2026-08-06:
+
+   1. "goes back reverse" — the old animation was `infinite`, so on every
+      restart it snapped from its end state back to its 0% keyframe. That
+      snap was the reverse motion; no individual keyframe moved leftward.
+      A loop cannot be made to not do this by retuning its curve, which is
+      why several attempts at re-easing it did not help. Removing the loop
+      is the fix.
+   2. "another motion scaling happening" — the completion state used to run
+      its own fill+recede on top of the grow, i.e. a second scale gesture
+      after the first had finished.
+
+   What remains is two one-shot states and one motion each:
+      .is-loading   bar-grow       scaleX 0 → 1, then HOLD (forwards)
+      .is-complete  bar-exit-right translateX 0 → 100%, fading from 50%
+
+   STATE 1 — grow. Left edge pinned at 0 (transform-origin: left), right
+   edge races right. Runs ONCE with `forwards`, then holds at full width
+   for however long the load actually takes. */
+@keyframes bar-grow {
+  0%   { transform: scaleX(0); }
+  100% { transform: scaleX(1); }
+}
+
+/* STATE 2 — exit. The full-width bar slides its own whole width to the
+   right and leaves; the clip (.progress-bar-clip, overflow:hidden) does
+   the rest. Because the bar is exactly track-width, translateX(100%) puts
+   it entirely past the right edge.
+
+   WHY A SLIDE RATHER THAN A SHRINK: visually these are identical here —
+   as the bar slides right under the clip, the visible region's LEFT edge
+   marches rightward while its right edge stays flush with the track's own
+   right edge, which is precisely "the left side scales towards the right".
+   Taking the translate route (explicitly offered as equivalent: "if it's
+   one thousand pixel move width, move it by thousand pixels... same
+   effect") buys three things a scaleX/width shrink doesn't: it's
+   compositor-only so no frame does layout, the soft gradient ends keep
+   their real proportions instead of being squashed as the bar narrows,
+   and there is exactly ONE motion — no second scale animation of the kind
+   that was called out here ("there is something, again, like another
+   motion scaling happening. We don't need that").
+
+   FADE AT 50% OF TRAVEL, and the timing function is `linear` specifically
+   so that promise holds literally: under linear interpolation the 50%
+   keyframe sits exactly on the transform's own straight line, so 50% of
+   elapsed time IS 50% of distance travelled, and the extra keyframe
+   introduces no kink in the motion. (Under any eased curve those two
+   diverge and "fifty percent" would silently mean one or the other —
+   an ambiguity a previous revision of this component actually shipped.) */
+@keyframes bar-exit-right {
+  0%   { transform: translateX(0);    opacity: 1; }
+  50%  { transform: translateX(50%);  opacity: 1; }
+  100% { transform: translateX(100%); opacity: 0; }
+}
+
+@keyframes bar-comet-glow {
+  0%, 100% { box-shadow: 0 0 6px 0px color-mix(in srgb, var(--color-secondary) 55%, transparent); }
+  50%      { box-shadow: 0 0 16px 2px color-mix(in srgb, var(--color-secondary) 85%, transparent); }
+}
+
+/* Intensity swell on the blurred duplicate layer — see its rule above. */
+@keyframes bar-comet-glow-pulse {
+  0%, 100% { opacity: 0.5; }
+  50%      { opacity: 1; }
+}
+
+/* "Done" beat — shared by preloader.js's _finish() (homepage bar) and
+   page-transition.js's entrance completion (.scroll-progress) — both add
+   .is-complete to their respective track element right before handing off
+   (fade-out / real scroll-tracking resuming). Both gate this on the SAME
+   "at least one full cycle" minimum-display timer — see __barMinCycleRelease
+   in preloader.js (defined there, referenced from page-transition.js;
+   "keep in sync" note lives on that function) — so a fast page load or
+   navigation can never cut the streak off before it's completed one
+   visible loop.
+   Scoped to .progress-bar-track (a shared marker both #preloader-progress-
+   bar and .scroll-progress carry, see their own rules above) — NOT a bare
+   .is-complete — so this can't accidentally match an unrelated element
+   elsewhere that happens to reuse that class name.
+
+   ONE motion, not a sequence. This previously ran a two-phase
+   fill-then-recede (a 0.5s transition into a held bar, then a 0.6s
+   keyframe receding it back across itself). Both halves are gone: the
+   recede travelled leftward-in-feel against the bar's own direction, and
+   the fill was a second scale gesture on top of the grow — exactly the
+   two complaints raised here ("another motion scaling happening… and then
+   after this, it kind of goes back reverse").
+   Now .is-complete does one thing: slide the already-full bar off to the
+   right, fading from the halfway point (bar-exit-right, above).
+   No `transition` needed to pick up mid-flight state any more, either —
+   .is-loading's grow is a one-shot that __BAR_CYCLE_MS guarantees has
+   already finished, so this always starts from a settled scaleX(1). The
+   grow keeps running (it's `forwards`, holding scaleX(1)) while this
+   animates translateX; they share `transform` but CSS composes multiple
+   animations on one property in list order, and the grow is static by
+   then, so the net transform is simply scaleX(1) translated. */
+.progress-bar-track.is-complete .progress-bar-streak {
+  box-shadow: 0 0 16px 2px color-mix(in srgb, var(--color-secondary) 70%, transparent);
+  animation: bar-grow 0.9s cubic-bezier(0.16, 0.84, 0.44, 1) forwards,
+             bar-exit-right 0.55s linear forwards;
+}
+
+/* Hold the blurred layer's intensity steady for the whole completion
+   gesture. Its own swell (bar-comet-glow-pulse, 1.3s infinite) is phased
+   to the LOOPING sequence, not to this one — left running it would swing
+   brightness independently across the 1.1s fill+recede and read as a
+   flicker over what should be one clean closing move. */
+.progress-bar-track.is-complete .progress-bar-glow {
+  animation: none;
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Same severity as the particle system's own reduced-motion handling
+     (particle-morph.hbs): no motion at all, not even once — not a slowed
+     or single-run version of the grow.
+     Scoped to .progress-bar-track.is-loading .progress-bar-streak
+     (matching the normal rule's own depth above) for two reasons: (1) that
+     depth is what actually wins the specificity fight — a shallower
+     selector here would lose regardless of coming later in the file or
+     being inside a media block, the exact bug class caught earlier on this
+     same component (2026-08-06); (2) without .is-loading the streak is
+     display:none regardless (see the :not(.is-loading) rule above) — an
+     override for a hidden element's animation would be moot anyway.
+     transform/opacity pinned explicitly because BOTH are animated now
+     (scaleX by the grow, translateX+opacity by the exit) — cancelling an
+     animation without restating its properties leaves the element at
+     whatever the cancelled animation last computed, which for this
+     component would be an invisible or half-scaled bar. */
+  .progress-bar-track.is-loading .progress-bar-streak {
+    animation: none;
+    transform: scaleX(1);
+    opacity: 1;
+    box-shadow: 0 0 8px 1px color-mix(in srgb, var(--color-secondary) 60%, transparent);
+  }
+
+  /* Land straight on the exit's end state — fully off to the right and
+     invisible — rather than animating there. Same reasoning as .is-loading
+     above; page-transition.js strips both classes a beat later anyway. */
+  .progress-bar-track.is-complete .progress-bar-streak {
+    animation: none;
+    transform: scaleX(1) translateX(100%);
+    opacity: 0;
+  }
+
+  /* The blurred layer's own intensity swell is motion too — same treatment,
+     held at a flat mid intensity rather than pulsing. Without this the
+     wrapper would keep animating even though the streak inside it is
+     frozen, which is exactly the "half the component still moving under
+     reduced-motion" bug this component has already produced once. */
+  .progress-bar-track.is-loading .progress-bar-glow {
+    animation: none;
+    opacity: 0.75;
+  }
+}
+
+/* #preloader-progress-bar's OWN track sizing/positioning (homepage first
+   load only) — the shared rules above only style the animated children.
+   No overflow:hidden here — see .progress-bar-clip's comment (above, near
+   .progress-bar-glow) for why it moved one level in, off this element. */
 .preloader-progress-bar {
   position: fixed;
   top: 0;
   left: 0;
-  width: 0%;
+  width: 100%;
   height: 3px;
-  background: linear-gradient(90deg, var(--color-primary), var(--color-secondary));
-  box-shadow: 0 0 10px rgba(var(--color-accent-rgb, 99,102,241), 0.5);
-  /* No CSS transition here — preloader.js now drives width via a GSAP tween
-     with frequent onUpdate calls (already smooth, fixed 1s duration); a
-     competing CSS transition on top of that would restart on every tick
-     and read as laggy/jittery instead of one continuous fill. */
+  background: transparent;
   z-index: 1000000;
-}
-
-.preloader-progress-pct {
-  position: fixed;
-  top: 20px;
-  left: 20px;
-  font-size: var(--text-size-h1);
-  
-  letter-spacing: 0.1em;
-  color: var(--color-primary);
-  font-variant-numeric: tabular-nums;
-  z-index: 1000000;
-
 }
 
 
@@ -510,7 +1014,7 @@ html.page-ready main > *:not(#preloader):not(.home) {
 
 h1, h2, h3, h4, h5, h6 {
   line-height: 1.2;
-  margin-top: var(--space-2xl);
+  margin-top: var(--space-xl);
   margin-bottom: var(--space-sm);
   color: var(--color-on-surface);
 }
@@ -599,18 +1103,107 @@ p:last-child {
 }
 
 
-.flexlayout {
-  display: flex;
+/* ═════════════════════════════════════════════════════════════ */
+/* CONTENT GRID — card rows inside post content                  */
+/* ═════════════════════════════════════════════════════════════ */
+/*
+  Replaces the old flex-based .flexlayout/.col pair (kept below as a
+  legacy alias — existing published post HTML keeps working untouched).
+
+  Markup:
+    <div class="content-grid" data-cols="3">
+      <div class="content-grid-item">…</div>
+      …
+    </div>
+
+  data-cols   1 | 2 | 3 | 4 | auto   (default: auto)
+              A fixed number gives exactly that many per row and wraps to
+              as many rows as the item count needs. "auto" fits as many as
+              will fit at --content-grid-min, which is what the legacy
+              .flexlayout alias uses to preserve its old wrap behaviour.
+  data-layout grid | carousel        (default: grid)
+              carousel is the layout half of the future carousel mode —
+              a real scroll-snap track today, with no JS controls yet.
+              Wiring arrows/dots to it later needs no markup change.
+
+  Both are attributes rather than modifier classes so a post's code
+  injection can flip one without restructuring, and so future values
+  don't multiply the class list.
+*/
+.content-grid {
+  
+  display: grid;
   gap: var(--space-md);
+  /* auto is the default: no data-cols needed for "just fit them". */
+  grid-template-columns: repeat(auto-fit, minmax(min(var(--content-grid-min, 280px), 100%), 1fr));
 }
 
-.flexlayout .col  {
-  flex: 1 1 min(420px, 48%);
-  margin-top: var(--space-md);
+.content-grid[data-cols="1"] { grid-template-columns: minmax(0, 1fr); }
+.content-grid[data-cols="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.content-grid[data-cols="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.content-grid[data-cols="4"] { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+.content-grid-item {
+
+  border-radius: var(--radius-md);
+ 
+  min-width: 0;
+      
+    border: 1px solid var(--glass-border);
+    border-radius: var(--glass-radius);
+
+    box-shadow: var(--glass-shadow), var(--glass-inset-light);
+    padding: var(--space-lg);
+}
+
+/* First heading in a card shouldn't add the global top margin — it's
+   already positioned by the card's own padding. */
+.content-grid-item > :first-child {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+
+.content-grid-item > :last-child {
+  margin-bottom: 0;
+}
+
+/* Carousel layout — horizontal scroll-snap track. Items get an explicit
+   basis since a flex track can't inherit the grid's column sizing. */
+.content-grid[data-layout="carousel"] {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding: 0;
+  -webkit-overflow-scrolling: touch;
+}
+
+.content-grid[data-layout="carousel"] > .content-grid-item {
+  flex: 0 0 clamp(260px, 78%, 420px);
+  scroll-snap-align: start;
+}
+
+/* ── Legacy alias ────────────────────────────────────────────────
+   .flexlayout/.col is the markup every already-published post uses (see
+   any project post's code injection). Mapped onto the component above
+   rather than left as its own parallel implementation, so there's one
+   set of behaviour to maintain; new content should use .content-grid.
+   Deliberately NOT given a data-cols default — it inherits the base
+   auto-fit track, which is the closest equivalent to the old
+   `flex: 1 1 min(420px, 48%)` wrap behaviour. */
+.flexlayout {
+  display: grid;
+  gap: var(--space-md);
+  grid-template-columns: repeat(auto-fit, minmax(min(var(--content-grid-min, 280px), 100%), 1fr));
+}
+
+.flexlayout .col {
   padding: var(--space-lg);
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--surface-1) 100%, transparent) !important; 
+  background: var(--surface-1);
+  min-width: 0;
 }
+
+.flexlayout .col > :first-child,
 .flexlayout .col h3 {
   margin-top: 0 !important;
   padding-top: 0 !important;
@@ -639,6 +1232,36 @@ p:last-child {
   gap: var(--space-xs);
 }
 
+/* Mobile: 2 columns, explicit placement (not DOM order) — col 1 is
+   role/team/what-I-owned, col 2 is date/context. DOM order stays the
+   desktop reading order (date, role, team, contributions, context); this
+   only rearranges the visual grid on narrow screens via each block's own
+   data-field attribute (post.hbs), independent of source order. */
+@media (max-width: 768px) {
+  .role-overview {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: var(--space-md);
+    row-gap: var(--space-lg);
+  }
+
+  .role-overview-block[data-field="role"]          { grid-column: 1; grid-row: 1; }
+  .role-overview-block[data-field="team"]          { grid-column: 1; grid-row: 2; }
+  .role-overview-block[data-field="contributions"] { grid-column: 1; grid-row: 3; }
+  .role-overview-block[data-field="date"]          { grid-column: 2; grid-row: 1; }
+  .role-overview-block[data-field="context"]       { grid-column: 2; grid-row: 2; }
+}
+
+/* Block-level, not per-field (.post-project-role p etc.) — covers all five
+   role-overview fields (date/role/team/contributions/context) from one
+   rule instead of needing a new selector added here every time a field is
+   added. text-small (--type-body-sm-size), not the inherited body size
+   from the global `p` rule. */
+.role-overview-block p {
+  font-size: var(--text-size-small);
+  color: var(--color-on-surface-subtle);
+}
+
 .post-project-role p,
 .post-project-contributions p {
   margin: 0 0 var(--space-xs) 0;
@@ -665,8 +1288,14 @@ p:last-child {
   text-align: inherit;
 }
 
-.gh-content > h2, .gh-content > h3 { margin-top: var(--space-2xl); margin-bottom: var(--space-sm); }
-.gh-content > h2 + p, .gh-content > h3 + p { margin-top: var(--space-sm); }
+/* Removed 2026-08-06: `.gh-content > h2, > h3 { margin-top/-bottom }` and
+   `.gh-content > h2 + p, > h3 + p { margin-top }`. Both are now expressed
+   by the prose flow system ("PROSE VERTICAL RHYTHM" further down this
+   file) — `* + h2` / `* + h3` for the space above, `h2 + *` / `h3 + *`
+   for the tight coupling to the copy below, which is exactly what the
+   second rule here was doing for the `p` case only. Keeping them would
+   re-introduce the competing-declaration problem the flow system exists
+   to remove, since both out-specify `.gh-content > * + *`. */
 
 
 
@@ -711,13 +1340,18 @@ p:last-child {
     filter: none;
   }
 
+  /* Single column on mobile regardless of data-cols — the fixed-column
+     variants would otherwise squeeze 3-4 cards into a phone width.
+     data-cols-mobile="2" opts back into a 2-up row for short cards
+     (metric tiles etc.). Carousel is exempt: a horizontal track is
+     already mobile-appropriate and is often the point on small screens. */
+  .content-grid:not([data-layout="carousel"]),
   .flexlayout {
-    flex-direction: column;
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .flexlayout .col {
-    flex: 1 1 100%;
-    width: 100%;
+  .content-grid[data-cols-mobile="2"]:not([data-layout="carousel"]) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -766,10 +1400,136 @@ width: 100%;
 /* POST BODY READING EXPERIENCE */
 /* ─────────────────────────────────────────────────────────── */
 
+/* ── PROSE VERTICAL RHYTHM ──────────────────────────────────────────
+   ONE owner for the space between post-body blocks. Everything below is
+   margin-TOP on the second element of a pair (the "owl" pattern); no
+   prose block sets its own vertical margin, so a block's spacing can
+   never depend on what happens to precede it.
+
+   This rule already existed and already used the owl pattern, but it was
+   one of FOUR rules writing margin to the same elements — `h1..h6`,
+   `.gh-content > h2, > h3` and `.gh-content ul, ol` each re-declared
+   margin-top/bottom at higher specificity, so the flow system only
+   actually governed paragraphs and cards. Measured consequence on a live
+   post: two structurally identical h2 blocks rendered 143px and 198px of
+   space above them, and consecutive blocks used 15 distinct gap values.
+   Those competing declarations now set only their non-vertical
+   properties (see .gh-content ul/ol and the h1-h6 rule); this is the one
+   place vertical prose spacing is decided.
+
+   margin-bottom is deliberately NOT set here. Setting both sides is what
+   made the old values ambiguous — with `* { margin: 0 }` already in play,
+   top-only is sufficient and leaves exactly one number responsible for
+   any given gap.
+
+   Headings inside prose are zeroed FIRST. The global `h1..h6` rule near
+   the top of this file sets margin-top/-bottom site-wide and out-specifies
+   a bare `.gh-content > * + *` on element selectors; it is left intact
+   because every other page depends on it, and neutralised here instead so
+   the reset stays scoped to post bodies. */
+.post-content > h1, .gh-content > h1,
+.post-content > h2, .gh-content > h2,
+.post-content > h3, .gh-content > h3,
+.post-content > h4, .gh-content > h4,
+.post-content > h5, .gh-content > h5,
+.post-content > h6, .gh-content > h6,
+/* `p { margin-bottom: --space-sm }` near the top of this file is site-wide
+   and survived the first pass of this consolidation — measured still adding
+   14.4px below every prose paragraph, which is why p-to-next gaps came out
+   at 38/93/131 instead of the flow system's own step. Neutralised here with
+   the headings rather than edited at source, for the same reason: other
+   pages depend on the global rule. */
+.post-content > p, .gh-content > p {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
 .post-content > * + *,
 .gh-content > * + * {
-  margin-top: var(--space-md);
-  margin-bottom: var(--space-xs);
+  margin-top: var(--prose-flow-sm);
+}
+
+/* Headings open a new section: more air above, and deliberately tight to
+   the copy that follows them (that pairing is what makes a heading read
+   as belonging to its paragraph rather than floating between two). */
+.post-content > h2 + *,
+.gh-content > h2 + *,
+.post-content > h3 + *,
+.gh-content > h3 + *,
+.post-content > h4 + *,
+.gh-content > h4 + *,
+.post-content > h5 + *,
+.gh-content > h5 + *,
+.post-content > h6 + *,
+.gh-content > h6 + * {
+  margin-top: var(--prose-flow-xs);
+}
+
+.post-content > * + h2,
+.gh-content > * + h2 {
+  margin-top: var(--prose-flow-lg);
+}
+
+.post-content > * + h3,
+.gh-content > * + h3 {
+  margin-top: var(--prose-flow-md);
+}
+
+.post-content > * + h4,
+.gh-content > * + h4,
+.post-content > * + h5,
+.gh-content > * + h5,
+.post-content > * + h6,
+.gh-content > * + h6 {
+  margin-top: var(--prose-flow-sm);
+}
+
+/* Media gets its own band, on both sides — a figure between two text
+   blocks needs symmetric breathing room, unlike text-to-text.
+
+   Covers the kg-width and kg-card wrappers as well as bare <figure>: Ghost
+   emits media either as a direct <figure class="kg-card"> or wrapped in a
+   <div class="kg-width-wide">, and matching only `figure` left every
+   wrapped card on the default --prose-flow-sm step (visible in the audit
+   as card gaps that didn't match the figure gaps around them). */
+.post-content > * + figure,
+.gh-content > * + figure,
+.post-content > figure + *,
+.gh-content > figure + *,
+.post-content > * + .kg-card,
+.gh-content > * + .kg-card,
+.post-content > .kg-card + *,
+.gh-content > .kg-card + *,
+.post-content > * + .kg-width-wide,
+.gh-content > * + .kg-width-wide,
+.post-content > .kg-width-wide + *,
+.gh-content > .kg-width-wide + *,
+.post-content > * + .kg-width-full,
+.gh-content > * + .kg-width-full,
+.post-content > .kg-width-full + *,
+.gh-content > .kg-width-full + *,
+.post-content > * + .kg-gallery-container,
+.gh-content > * + .kg-gallery-container,
+.post-content > .kg-gallery-container + *,
+.gh-content > .kg-gallery-container + * {
+  margin-top: var(--prose-flow-md);
+}
+
+/* A heading still opens a section even when the block before it is media —
+   restated after the media band above so the larger step wins the tie
+   (equal specificity, later source). Without this, an h2 following a card
+   dropped back to the media step and read as if it belonged to the image. */
+.post-content > * + h2,
+.gh-content > * + h2 {
+  margin-top: var(--prose-flow-lg);
+}
+
+/* hr is an explicit structural break — the largest step in the ladder. */
+.post-content > * + hr,
+.gh-content > * + hr,
+.post-content > hr + *,
+.gh-content > hr + * {
+  margin-top: var(--prose-flow-xl);
 }
 
 
@@ -810,13 +1570,18 @@ width: 100%;
   margin: var(--space-section) 0;
 }
 
+/* margin-left only — indentation, not rhythm. The margin-top/-bottom that
+   used to be here competed with the prose flow system above (this rule is
+   more specific than `.gh-content > * + *`, so it won on every list and
+   was a direct contributor to the 15-distinct-gaps measurement). Vertical
+   spacing for lists now comes from the flow system like every other
+   block. Nested lists still need this indent, hence the descendant (not
+   child) selector is kept as-is. */
 .post-content ul,
 .post-content ol,
 .gh-content ul,
 .gh-content ol {
-  margin-top: var(--space-lg);
   margin-left: var(--space-md);
-  margin-bottom: var(--space-md);
 }
 
 .post-content li,
@@ -889,7 +1654,7 @@ pre code {
    Strategy: hide browser's native scrollbar entirely, paint a custom
    scrollbar using a fixed pseudo-element. Because our custom bar is always
    visible, Ghost Portal's overflow:hidden on <html> doesn't change the
-   layout width — no scrollbar-appears/disappears jump.
+   layout width — no scrollbar-appears/disappears jump. */
 /* ─────────────────────────────────────────────────────────── */
 
 /* Native scrollbar styling - thin, visible, and grabbable */
@@ -1058,6 +1823,19 @@ html {
      so this is a static 1: always on, matching the progressive-blur
      layers below, which were never scroll-gated in the first place. */
   --nav-gradient-opacity: 1;
+}
+
+/* data-nav-layout was previously dangling — set from @custom.nav_layout
+   (navigation.hbs) but never read by any CSS rule. .nav-wrapper is
+   inline-flex/fit-content already, so this is a no-op today (the pill
+   never approaches --max-width regardless of viewport), but nav is
+   exactly the kind of "full" section the cap exists for — its own
+   content, not just full-bleed backgrounds like gradient-frame, should
+   never be free to stretch to the raw viewport edge if its layout ever
+   changes. Only 'fullscreen' has a live value site-wide currently; the
+   'respects_page_width' arm has no consumer to write it. */
+.gh-navigation[data-nav-layout='fullscreen'] .nav-wrapper {
+  max-width: var(--max-width);
 }
 
 /* Multi-layer progressive blur (navigation.hbs) — real stacked elements,
@@ -1370,15 +2148,30 @@ html {
    shrinks — a faded-but-still-laid-out <ul> wouldn't change its parent's
    width at all. Delayed on the way out so links visibly fade before the
    space they occupied collapses under them; immediate on the way back in
-   so there's room for them to slide into. */
+   so there's room for them to slide into.
+   NO overflow clipping in the expanded (resting) state — see below. */
 .gh-navigation[data-nav-hide-mode="stagger"] .nav-menu {
   max-width: 500px;
-  overflow: hidden;
   transition: max-width 0.4s cubic-bezier(0.2, 0, 0, 1) 0s;
 }
 
+/* The clip lives ONLY on the collapsed state, not the base rule above.
+   History: the base rule used to carry `overflow: hidden` (needed so the
+   max-width collapse visually clips the icons instead of just shrinking a
+   box they overflow). But each link's .nav-tooltip is position:absolute and
+   escapes the <ul> on BOTH axes — downward via top:100%, and sideways for
+   the first/last items, whose tooltips are wider than their own 48px icon
+   ("Contact" ≈72px) and so overhang .nav-menu's left/right edge by ~12px.
+   Any clipping on this element cut one or the other off.
+   Neither `overflow-x: clip` nor `overflow-clip-margin: 40px` solved it:
+   verified in an isolated repro that the margin is simply not honoured
+   here, still slicing the tooltips at the <ul>'s exact edges. Scoping the
+   clip to .nav-hidden sidesteps the conflict entirely — the resting state
+   (the only time a tooltip can be hovered) has no clipping at all, and the
+   collapsed state still clips exactly when the animation needs it. */
 .gh-navigation[data-nav-hide-mode="stagger"].nav-hidden .nav-menu {
   max-width: 0;
+  overflow: hidden;
   transition: max-width 0.4s cubic-bezier(0.2, 0, 0, 1) 0.15s;
 }
 
@@ -1624,6 +2417,17 @@ margin:0;
   align-items: center;
   padding: var(--space-xs) var(--space-sm);
   border-radius: var(--radius-md);
+  /* Anchors .nav-tooltip's position:absolute (see below) to this link
+     itself, same as .nav-icon-btn already does for its own tooltip. */
+  position: relative;
+}
+
+/* Tooltip on hover — reuses .nav-tooltip's base look (main.css, "Navigation
+   tooltips" above), same trigger pattern as .nav-icon-btn:hover .nav-tooltip.
+   Needed now that .nav-menu-label is hidden (icon-only nav, see above) and
+   the icon alone no longer conveys what each link goes to. */
+.nav-menu a:hover .nav-tooltip {
+  opacity: 1 !important;
 }
 
 /* Hover matches .theme-toggle/.nav-icon-btn's hover exactly (same
@@ -1649,9 +2453,32 @@ body.page-work-index .nav-menu a[href$="/work"] {
   transform: scale(0.97);
 }
 
-/* Icon shown only on mobile (see max-width:768px override below) — desktop
-   keeps the text label only, same as before this markup was added. */
+/* Icon shown, label hidden — unconditional on every viewport (was
+   desktop-label/mobile-icon before; the mobile-only icon swap this filter
+   treatment is lifted from is further down, commented out). Profile-shift-
+   aware invert/brightness, same formula as .nav-icon-close/.theme-icon-*,
+   so it stays legible against the shifted palette while scrolling through
+   the profile section. */
 .nav-menu-icon {
+  display: block;
+  width: 20px;
+  height: 20px;
+  filter: invert(calc(var(--icon-invert-base, 1) + (var(--icon-invert-shift, 0) - var(--icon-invert-base, 1)) * var(--profile-shift, 0)))
+          brightness(calc(var(--icon-brightness-base, 1.2) + (var(--icon-brightness-shift, 1) - var(--icon-brightness-base, 1.2)) * var(--profile-shift, 0)));
+  transition: filter var(--duration-fast) var(--ease-standard);
+}
+
+/* [data-theme='light'] .nav-menu-icon override REMOVED — it hardcoded
+   invert(var(--profile-shift,0)) directly, bypassing --icon-invert-base
+   entirely and re-flipping the icon color between themes (white in dark
+   mode, black in light mode). .nav-wrapper.glass-liquid already pins
+   --icon-invert-base/--icon-brightness-base to fixed values (glass-
+   liquid.css) specifically so nav icons stay one color regardless of
+   theme — this override was silently defeating that pin for .nav-menu-
+   icon specifically (the other nav icons, e.g. .nav-icon-close, never had
+   an equivalent override and were already theme-stable). */
+
+.nav-menu-label {
   display: none;
 }
 
@@ -1706,16 +2533,38 @@ body.post-template .nav-post-controls {
 .theme-toggle:hover {
   color: var(--color-primary) !important;
   background-color: rgba(var(--primary-rgb, 74, 158, 92), 0.08) !important;
+  /* .theme-toggle is `.nav-icon-btn theme-toggle` (navigation.hbs), which
+     inherits .nav-icon-btn's border-radius: var(--radius-full) — a perfect
+     circle. Overridden to the SAME rounded-rectangle radius .nav-menu a
+     (Home/Profile/Contact) uses, so the hover fill reads consistently with
+     the rest of the nav instead of being the one circular highlight among
+     rectangular ones. Scoped to :hover only, not .theme-toggle's base
+     rule — background is transparent at rest, so the shape is invisible
+     until this fill appears; no need to touch the resting box. Other
+     .nav-icon-btn siblings (close/search/prev/next) are unaffected on
+     purpose — not part of what was asked. */
+  border-radius: var(--radius-md) !important;
 }
 
-/* Navigation tooltips — appear below icon buttons */
+/* Navigation tooltips — appear below icon buttons. translateY(14px), not
+   6px: the pill's own border-radius (16px, .glass-liquid) curves inward
+   over roughly its last 16px of width/height at each corner. For an icon
+   sitting near the pill's left/right edge (.nav-menu's Home/Contact), the
+   centered tooltip's square top corner landed inside that curve at only
+   6px of clearance — the tooltip's dark background visually fused with
+   the pill's rounded corner instead of reading as a separate floating
+   element below it ("cut off" on whichever side was closer to the pill's
+   edge). 14px clears the curve with a visible gap. */
 .nav-tooltip {
   position: absolute !important;
   top: 100% !important;
   left: 50% !important;
-  transform: translateX(-50%) translateY(6px) !important;
-  background: var(--color-surface) !important;
-  color: var(--color-on-surface-variant) !important;
+  transform: translateX(-50%) translateY(14px) !important;
+  /* Fixed dark styling regardless of active site theme — see --tooltip-bg/
+     --tooltip-text (tokens.css) for why this can't be --color-surface/
+     --color-on-surface-variant directly (those flip light in light mode). */
+  background: var(--tooltip-bg) !important;
+  color: var(--tooltip-text) !important;
   padding: 6px 12px !important;
   border-radius: 4px !important;
   font-size: calc(0.8rem * var(--type-scale-body, 1)) !important;
@@ -2761,8 +3610,16 @@ body.post-template .nav-wrapper {
 .logomark-container {
   position: absolute;
   top: -420px;
-  width: 140px;
-  height: 140px;
+  /* Fluid, not a flat 140px — it previously stayed that exact size across
+     the whole desktop/tablet range (769px-4000px+), only ever snapping to
+     display:none at the 768px mobile cutoff below. That read as "doesn't
+     scale down with the window" right up until it vanished outright.
+     80px floor (~800px viewport) to 140px ceiling (~1400px+); main.js's
+     calculateLandingPosition() reads the actual rendered height at
+     runtime rather than assuming 140px, so its landing position stays
+     correct at every size here. */
+  width: clamp(80px, 10vw, 140px);
+  height: clamp(80px, 10vw, 140px);
   border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
@@ -3305,6 +4162,45 @@ webkit-box-shadow: 10px 10px 100px 0px rgba(0,0,0,0.3);
   opacity: 1 !important;
 }
 
+/* ── TOOLTIP LANDING GUARD ───────────────────────────────────────────
+   Suppresses every :hover tooltip until the visitor's pointer has actually
+   MOVED on this page. html.tooltips-suppressed is set in default.hbs's
+   <head> (before <body> exists, so no tooltip can paint even for a frame)
+   and removed on the first pointermove/mousemove/touchstart/keydown.
+
+   The problem it solves: an in-site nav click is a real browser navigation
+   (page-transition.js sets window.location.href), so the cursor is still
+   sitting on the same icon when the next page paints. Pure-CSS :hover
+   matches immediately and re-shows the tooltip the visitor just dismissed
+   by clicking — one tooltip, seemingly shown twice.
+
+   Specificity matters here and a bare `:root.tooltips-suppressed
+   .nav-tooltip` is NOT enough — measured: it computed opacity:1 while
+   suppressed, because `.nav-menu a:hover .nav-tooltip` is (0,2,1) against
+   its (0,2,0) AND sits later in this file, so it won on both counts even
+   with !important on both sides. Each trigger is therefore matched with
+   its own :hover in the selector, which adds that same weight back and
+   puts the guard ahead on the leading class.
+
+   posts-tabs-grid.css loads AFTER main.css (default.hbs), so its own
+   `.tab-switch-grid-btn:hover .nav-tooltip` cannot be beaten on source
+   order — only on specificity, which the :root prefix supplies.
+
+   visibility is belt-and-braces: it alone already prevented the tooltip
+   rendering (verified), but leaving opacity to lose the cascade would mean
+   the guard silently depended on one property. */
+:root.tooltips-suppressed .nav-menu a:hover .nav-tooltip,
+:root.tooltips-suppressed .nav-icon-btn:hover .nav-tooltip,
+:root.tooltips-suppressed .tab-switch-btn:hover .nav-tooltip,
+:root.tooltips-suppressed .tab-switch-outer.is-sticky .tab-switch-btn:hover .nav-tooltip,
+:root.tooltips-suppressed .tab-switch-grid-btn:hover .nav-tooltip,
+:root.tooltips-suppressed .tab-switch-grid-outer.is-sticky .tab-switch-grid-btn:hover .nav-tooltip,
+:root.tooltips-suppressed .nav-tooltip {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  transition: none !important;
+}
+
 /* ── Description ───────────────────────────────────────────── */
 .tab-switch-description {
   font-size: var(--text-size-lede);
@@ -3660,7 +4556,32 @@ body[data-typography-body='medium'] .posts-tab {
   --gap: max(4vmin, 20px);
   --main: min(var(--content-max-width-text), 100% - var(--gap) * 2);
   --container: 1280px;
-  --wide: minmax(0, calc((var(--container) + 200 - var(--main)) / 2));
+  /* CONTAINED zone (added 2026-08-05): a step between the text measure and
+     the wide zone, so body text and images no longer have to share one
+     width. Text stays in `main`/`narrow` (unchanged measure — existing
+     posts don't reflow); images default here instead, widening from the
+     text measure to --content-max-width-wide. `narrow-start/-end` are
+     aliases for the same track as `main-start/-end` — the zone scale reads
+     narrow → contained → wide → full (matching the data-*-width attribute
+     scale), while every existing `main-start / main-end` rule in this file
+     keeps working untouched. */
+  /* No longer halved (/2): each track below is now a SINGLE right-side
+     increment, not two symmetric gutters that together summed to the
+     target width (see the left-anchoring comment on grid-template-columns
+     below) — halving here would make each zone reach only half its
+     intended width past --main. --contained's target total width is
+     --content-max-width-wide, so the track itself is the FULL difference. */
+  --contained: minmax(0, calc(var(--content-max-width-wide) - var(--main)));
+  /* --wide's target total width is (container + 200px) — same total this
+     produced before left-anchoring, just reached via one track instead of
+     two halves. 200px, not a bare 200: the unitless form here made this
+     calc() invalid (px + <number> is not valid CSS math), which
+     invalidated the ENTIRE grid-template-columns below — so the whole
+     narrow/wide/full zone system silently never applied and every child
+     just filled the canvas width. Verified with CSS.supports-style
+     parsing: the unitless variant is rejected outright, the px variant
+     parses. Long-standing, predates the contained zone. */
+  --wide: minmax(0, calc(var(--container) + 200px - var(--content-max-width-wide)));
   /* Floor dropped to 0 (was var(--gap)) — .kg-width-full/.kg-gallery-card
      already carry their own explicit content-padding (below), so this
      track no longer needs to reserve a minimum width itself. At/near
@@ -3670,11 +4591,25 @@ body[data-typography-body='medium'] .posts-tab {
      of the wide-zone content that its own padding then compounded. */
   --full: minmax(0, 1fr);
 
+  /* Left-anchored, not centered (changed 2026-08-06): every zone's
+     START line now sits at the same position — narrow, contained, and
+     wide all begin flush at .gh-content's own left edge, matching where
+     the post header starts, and only their END lines differ (narrow
+     ends soonest, full latest). The old version put an equal gutter on
+     BOTH sides of every zone, which centered narrow/contained WITHIN
+     .gh-content's own box — invisible on a plain single-column blog
+     layout where .gh-content itself was already centered on the page,
+     but once the post-page side rail (.post-layout) shifted the content
+     area rightward without shifting .gh-content's own centering logic,
+     that left gutter became a real, visible second indent on top of the
+     side-rail offset: text/images landed further right than the header,
+     instead of lining up with it. `full` is unaffected either way — it
+     already spanned .gh-content's complete width (0 to 100%) in both
+     versions, since it's the outermost zone with no gutter beyond it. */
   display: grid;
   grid-template-columns:
-    [full-start] var(--full)
-    [wide-start] var(--wide)
-    [main-start] var(--main) [main-end]
+    [full-start wide-start contained-start main-start narrow-start] var(--main) [main-end narrow-end]
+    var(--contained) [contained-end]
     var(--wide) [wide-end]
     var(--full) [full-end];
   grid-auto-flow: dense;
@@ -3816,15 +4751,48 @@ body[data-page-width='full'] .gh-canvas {
   padding: 0 var(--content-padding);
 }
 
-/* Ensure gallery and media containers span properly */
-.kg-gallery-container {
-  margin: var(--space-lg) 0;
+/* Post-page override: .post-layout (further down this file) already insets
+   its whole box by content-padding, so the element-level padding above —
+   needed when .gh-canvas has no outer cap of its own, see the comment at
+   .gh-content > p above — is a SECOND, redundant inset specifically inside
+   .post-body-area (post.hbs). Confirmed via computed geometry on a live
+   post: a .gh-content > p measured an 800px grid track (the correct narrow
+   measure) but its OWN 64px padding on each side then shrank the actually
+   visible text to 672px. Zeroed out only within .post-body-area —
+   page.hbs/about.hbs/page-about.hbs/page-contact.hbs use bare .gh-canvas
+   with no such outer inset, so they still need the padding this overrides. */
+.post-body-area .gh-content > p,
+.post-body-area .gh-content > blockquote,
+.post-body-area .gh-content > ul,
+.post-body-area .gh-content > ol,
+.post-body-area .gh-content > hr,
+.post-body-area .gh-content > h2,
+.post-body-area .gh-content > h3,
+.post-body-area .gh-content > h4,
+.post-body-area .gh-content > h5,
+.post-body-area .gh-content > h6,
+.post-body-area .kg-width-regular,
+.post-body-area .kg-width-regular figure,
+.post-body-area .kg-width-wide,
+.post-body-area .kg-width-wide figure,
+.post-body-area .kg-width-full,
+.post-body-area .kg-width-full figure,
+.post-body-area .kg-gallery-card,
+.post-body-area .kg-width-full.kg-gallery-container {
+  padding: 0;
 }
 
-.kg-width-full,
-.kg-width-wide {
-  margin: var(--space-lg) 0;
-}
+/* Vertical margins removed 2026-08-06 — these used the `margin` SHORTHAND,
+   which re-set margin-bottom as well, and as single-class selectors they
+   out-specified the prose flow system's `.gh-content > * + figure` etc.
+   That made Kajero cards the last remaining source of irregular gaps after
+   the flow system landed (measured: text blocks had settled to a repeating
+   set while card-to-card gaps still ranged 67-189px). Spacing for these now
+   comes from the flow system like every other prose block; `* { margin: 0 }`
+   earlier in this file already supplies the zero, so nothing needs to be
+   declared here at all. See "PROSE VERTICAL RHYTHM". */
+
+/* Ensure gallery and media containers span properly */
 
 /* Override class to remove padding if needed */
 .kg-width-full.no-padding,
@@ -3855,7 +4823,11 @@ body[data-page-width='full'] .gh-canvas {
 /* .post-header class is reused by THREE templates in two different roles:
    - page.hbs / page-about.hbs: .post-header is a DIRECT CHILD of the
      .post-hero article/section — the outer padded/max-width/entrance
-     element itself. No sidebar, no wrapper.
+     element itself. No sidebar, no wrapper — page-about.hbs's whole-page
+     gradflow background ({{> gradflow-page-bg}}) is a SIBLING of the
+     page's own <section>, not a wrapper around .post-header, so it needs
+     no compensating selector here (an earlier .page-about-hero-wrap
+     attempt did wrap it and briefly needed one — see git history).
    - post.hbs: .post-header-layout (new) is the outer two-column row —
      .post-project-summary (col 1) beside .post-header (col 2 — title/
      excerpt/meta, the feature image, AND the logomark, all stacked
@@ -3868,21 +4840,139 @@ body[data-page-width='full'] .gh-canvas {
    INSIDE .post-header alongside just the title block, image forced below
    full-width — read as the summary sitting next to the title only, not
    next to the whole header.) */
-.post > .post-header,
-.post-header-layout {
+/* Standalone .post-header (page.hbs/page-about.hbs) — the outer role:
+   width + content-padding + entrance state, all on one element. */
+.post > .post-header {
   width: 100%;
   padding: 0 var(--content-padding);
   position: relative;
   /* Initial state for entrance animation — blur/fade (no scale to prevent
      movement); initPostHeaderAnimation() in main.js targets whichever of
-     these two actually exists on the page. */
+     this and .post-header-layout actually exists on the page. */
   opacity: 0;
   filter: blur(4px);
 }
 
-/* Two-column row — .post-header-layout only (post.hbs). The standalone
-   .post-header (page.hbs/page-about.hbs) keeps plain block stacking for
-   its own .container/.post-image children, exactly as it always has. */
+/* post.hbs — the same two responsibilities, now split across the two
+   elements that took over the old single wrapper's roles: .post-layout
+   owns the outer box (width + content-padding, and the data-post-hero
+   max-width tiers further down), .post-header-layout owns only the
+   header area's own positioning context and entrance state. Keeping the
+   padding on .post-layout is what lets the side rail sit inside the same
+   inset as the header rather than hanging off the page edge. */
+.post-layout {
+  width: 100%;
+  padding: 0 var(--content-padding);
+}
+
+.post-header-layout {
+  position: relative;
+  opacity: 0;
+  filter: blur(4px);
+}
+
+/* Section-scoped invert (see INVERSION.md) — --profile-shift here reaches
+   only THIS element's descendants (a plain CSS custom property, no :root
+   write), so the nav and everything outside stays untouched. Forced by
+   default (the --profile-shift: 1 below); add data-invert-scroll to an
+   instance to scroll-scrub it instead — see the auto-init script in
+   default.hbs, right after this file's own doc explains why. A JS-driven
+   inline value on the SAME property always wins the cascade over this
+   class rule, so opting into scroll mode never needs a separate class. */
+.invert-wrapper {
+  position: relative; /* anchors ::before below */
+  --profile-shift: 1;
+  --color-on-surface: color-mix(in srgb, var(--gradient-frame-ink-base), var(--shift-ink, white) calc(var(--profile-shift, 0) * 100%));
+  --color-on-surface-variant: color-mix(in srgb, var(--gradient-frame-ink-variant-base), var(--shift-ink, white) calc(var(--profile-shift, 0) * 100%));
+  --color-primary: color-mix(in srgb, var(--gradient-frame-ink-primary-base), var(--shift-ink, white) calc(var(--profile-shift, 0) * 100%));
+}
+
+/* The actual inverted BACKGROUND panel — the three color-mix() rules above
+   only ever flip ink (text/icon) colors; nothing paints a background, so
+   without this the section reads as broken (its old background still
+   showing through, tanking contrast against the now-flipped text) rather
+   than "inverted." Same pattern as .profile::before (profile.css), minus
+   the --shift-scope-panel gate: that flag exists because .profile has a
+   PAGE-level backdrop alternative (main.css #page-backdrop) it can defer
+   to instead — .invert-wrapper has no such alternative (its shift is
+   scoped, so #page-backdrop's own --profile-shift read never sees it), so
+   this panel must be unconditional or the section never gets a background
+   at all. z-index:0 is a POSITIONED stacking tier, which paints ABOVE
+   plain in-flow content by default — the child rule below is what keeps
+   the actual section content on top of this panel, not the reverse. */
+.invert-wrapper::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-color: var(--shift-bg, #22262E);
+  opacity: var(--profile-shift, 0);
+  pointer-events: none;
+}
+
+.invert-wrapper > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── POST PAGE LAYOUT GRID (post.hbs) ────────────────────────────
+   Page-level grid: the side rail runs alongside BOTH the header and the
+   body content on desktop, and drops between them on mobile.
+
+   Mobile (base): one column, ordered header → side → content.
+   Desktop (≥769px): two columns, side spanning both rows —
+       "side  header"
+       "side  content"
+
+   DOM order is header → side → content (matching the mobile visual
+   order, and keeping the H1 first for a11y/SEO); grid-template-areas do
+   all the repositioning, so no `order` juggling is needed on either
+   breakpoint the way the old flex version required. */
+.post-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "header"
+    "side"
+    "content";
+  row-gap: var(--space-lg);
+}
+
+.post-header-layout { grid-area: header; }
+.post-side          { grid-area: side; }
+.post-body-area     { grid-area: content; min-width: 0; }
+
+/* Two-column only once there's actually a summary to put in the rail.
+   .post-project-summary is display:none by default and revealed by
+   displayProjectMetadata() (post.hbs), which adds .has-side here at the
+   same moment — without that gate, a post with no projectMeta would
+   reserve an empty 260px column and push its content off-centre for no
+   reason. Class rather than :has([style*="block"]) on purpose: the inline
+   style string is an implementation detail of how the JS reveals it, and
+   matching on it would break the moment that changes. */
+@media (min-width: 769px) {
+  .post-layout.has-side {
+    /* 260px matches the width the summary column had as a flex item in
+       the previous header-only two-column row. */
+    grid-template-columns: 260px minmax(0, 1fr);
+    grid-template-areas:
+      "side header"
+      "side content";
+    column-gap: var(--space-xl);
+  }
+
+  /* Top-aligned, not stretched — the rail is short relative to a full
+     article, and a stretched grid item would centre its content down the
+     page's full height. */
+  .post-side {
+    align-self: start;
+  }
+}
+
+/* Header area wrapper — the logomark's positioning parent (see post.hbs)
+   and initPostHeaderAnimation()'s target. Was itself the two-column row
+   before the .post-layout grid above took that job over; now it just
+   stacks the header and the absolutely-positioned logomark. */
 .post-header-layout {
   display: flex;
   flex-direction: column;
@@ -3926,40 +5016,21 @@ body[data-page-width='full'] .gh-canvas {
    with a generous gap between them. order:-1 moves .post-project-summary
    first visually without reordering the DOM (the H1 stays the first
    heading in reading/source order). */
-@media (min-width: 769px) {
-  .post-header-layout {
-    flex-direction: row;
-    align-items: flex-start;
-    gap: var(--space-xl);
-  }
+/* The old flex two-column rules that lived here (.post-header-layout →
+   flex-direction:row, .post-project-summary → flex:0 0 260px + order:-1,
+   and the mobile order:1 counterpart) are gone: .post-layout's grid areas
+   above now own both the desktop side-by-side arrangement and the mobile
+   header → side → content stack, and the summary is no longer a sibling
+   of .post-header at all. */
 
-  .post-project-summary {
-    flex: 0 0 260px;
-    order: -1;
-  }
-
-  .post-header-layout > .post-header {
-    flex: 1;
-  }
-}
-
-/* Mobile: .post-header-layout is already a column flex (base rule above),
-   but with no order set on either child, the stack falls back to DOM
-   order — .post-project-summary precedes .post-header in post.hbs, so it
-   rendered FIRST on mobile despite showing SECOND (as a left column) on
-   desktop. order:1 here (vs .post-header's default order:0) sorts it
-   after .post-header instead, matching the requested mobile reading order
-   (header content, then the role/context summary) without touching the
-   DOM/source order itself. */
-@media (max-width: 768px) {
-  .post-project-summary {
-    order: 1;
-  }
-}
-
-/* Override page-width constraints for fullscreen post hero */
+/* Override page-width constraints for fullscreen post hero — releases
+   .container from the site-wide page_width cap (body[data-page-width='X']
+   .container below, 1280/1600/1800px) so a fullscreen-hero post isn't
+   squeezed to the same width as a normal page. Capped at --max-width
+   (tokens.css) rather than released to fully unconstrained, so it still
+   doesn't stretch to the raw viewport edge on ultra-wide monitors. */
 .post[data-post-hero='fullscreen'] .container {
-  max-width: none;
+  max-width: var(--max-width);
 }
 
 .post-category {
@@ -4014,7 +5085,8 @@ body[data-page-width='full'] .gh-canvas {
   aspect-ratio: 16 / 10;
 }
 
-.post-image img {
+.post-image img,
+.post-image video {
   width: 100%;
   height: 100%;
   display: block;
@@ -4026,8 +5098,12 @@ body[data-page-width='full'] .gh-canvas {
   filter: blur(8px);
 }
 
-/* Post hero image (feature image inside header) — animate from scaled-down */
-.post-header .post-image img {
+/* Post hero image (feature image inside header) — animate from scaled-down.
+   video included: post.hbs renders a <video> instead of <img> when the post
+   carries the #video internal tag (same server-side branch post-card.hbs
+   uses for grid cards) — same reveal, same selector shape. */
+.post-header .post-image img,
+.post-header .post-image video {
   opacity: 0;
   transform: scale(0.95);
   filter: blur(0px);
@@ -4048,31 +5124,38 @@ body[data-page-width='full'] .gh-canvas {
 
 /* Post hero respecting page width — constrain header and image to page width.
    Two targets, same reasoning as the .post-header-layout block above: the
-   direct-child `.post > .post-header` for the standalone case (page.hbs/
-   page-about.hbs) and `.post-header-layout` for the two-column case
-   (post.hbs) — the `>` combinator keeps them from ever cross-matching.
-   .post-image is a sibling of .container inside .post-header either way,
-   so whichever outer element's content-padding applies insets it too. */
+   direct-child `.post > .post-header`
+   for the standalone case (page.hbs/page-about.hbs — the :is() branch
+   reaches through page-about's own gradient-frame wrapper, see that file)
+   and `.post-header-layout` for the two-column case (post.hbs) — the `>`
+   combinator keeps them from ever cross-matching. .post-image is a sibling
+   of .container inside .post-header either way, so whichever outer
+   element's content-padding applies insets it too. */
 .post[data-post-hero='respects_page_width'] > .post-header,
-.post[data-post-hero='respects_page_width'] .post-header-layout {
+.post[data-post-hero='respects_page_width'] .post-layout {
   margin-left: auto;
   margin-right: auto;
   width: 100%;
   padding: 0 var(--content-padding);
 }
 
+body[data-page-width='narrow'] .post[data-post-hero='respects_page_width'] > .post-header,
+body[data-page-width='narrow'] .post[data-post-hero='respects_page_width'] .post-layout {
+  max-width: 880px;
+}
+
 body[data-page-width='contained'] .post[data-post-hero='respects_page_width'] > .post-header,
-body[data-page-width='contained'] .post[data-post-hero='respects_page_width'] .post-header-layout {
+body[data-page-width='contained'] .post[data-post-hero='respects_page_width'] .post-layout {
   max-width: 1280px;
 }
 
 body[data-page-width='wide'] .post[data-post-hero='respects_page_width'] > .post-header,
-body[data-page-width='wide'] .post[data-post-hero='respects_page_width'] .post-header-layout {
+body[data-page-width='wide'] .post[data-post-hero='respects_page_width'] .post-layout {
   max-width: 1600px;
 }
 
 body[data-page-width='full'] .post[data-post-hero='respects_page_width'] > .post-header,
-body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-header-layout {
+body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-layout {
   max-width: 1800px;
 }
 
@@ -4080,6 +5163,10 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-h
   margin: var(--space-xl) auto;
   padding: 0;
   width: 100%;
+}
+
+body[data-page-width='narrow'] .post[data-post-hero='respects_page_width'] .post-image {
+  max-width: 880px;
 }
 
 body[data-page-width='contained'] .post[data-post-hero='respects_page_width'] .post-image {
@@ -4100,21 +5187,26 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-i
    direct-child .post-header target for page.hbs/page-about.hbs's
    standalone case). See PAGE-WIDTH-SYSTEM.md "Overriding one section's
    width manually". */
+.post[data-post-hero='narrow'] > .post-header,
 .post[data-post-hero='contained'] > .post-header,
 .post[data-post-hero='wide'] > .post-header,
-.post[data-post-hero='contained'] .post-header-layout,
-.post[data-post-hero='wide'] .post-header-layout {
+.post[data-post-hero='narrow'] .post-layout,
+.post[data-post-hero='contained'] .post-layout,
+.post[data-post-hero='wide'] .post-layout {
   margin-left: auto;
   margin-right: auto;
   width: 100%;
   padding: 0 var(--content-padding);
 }
 
+.post[data-post-hero='narrow'] > .post-header,
+.post[data-post-hero='narrow'] .post-layout { max-width: 880px; }
 .post[data-post-hero='contained'] > .post-header,
-.post[data-post-hero='contained'] .post-header-layout { max-width: 1280px; }
+.post[data-post-hero='contained'] .post-layout { max-width: 1280px; }
 .post[data-post-hero='wide'] > .post-header,
-.post[data-post-hero='wide'] .post-header-layout { max-width: 1600px; }
+.post[data-post-hero='wide'] .post-layout { max-width: 1600px; }
 
+.post[data-post-hero='narrow'] .post-image,
 .post[data-post-hero='contained'] .post-image,
 .post[data-post-hero='wide'] .post-image {
   margin: var(--space-lg) auto;
@@ -4122,6 +5214,7 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-i
   width: 100%;
 }
 
+.post[data-post-hero='narrow'] .post-image { max-width: 880px; }
 .post[data-post-hero='contained'] .post-image { max-width: 1280px; }
 .post[data-post-hero='wide'] .post-image { max-width: 1600px; }
 
@@ -4242,12 +5335,26 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-i
 /* KOENIG EDITOR ELEMENTS */
 /* ═════════════════════════════════════════════════════════════ */
 
-.kg-card {
-  margin: var(--space-lg) 0;
+/* Vertical margin removed — see the .kg-width-full/.kg-width-wide note
+   above; same shorthand-out-specifies-the-flow-system problem, same fix. */
+
+/* Images/cards default to the CONTAINED zone, text stays in narrow/main —
+   the split the contained track was added for (see .gh-canvas above).
+   .content-grid grouped in here too, not just .kg-card: same "non-text
+   content defaults wider than prose" reasoning applies to a card row as
+   much as an image — and without an explicit rule here it had NO zone
+   assignment at all (falls through to plain grid auto-placement, landing
+   wherever the implicit grid puts it — not any of the four named zones).
+   Explicitly excludes .kg-width-narrow so either can still be pinned back
+   to the text measure when it should read as part of the prose. */
+.gh-content .kg-card:not(.kg-width-wide):not(.kg-width-full):not(.kg-width-narrow),
+.gh-content > .content-grid:not(.kg-width-wide):not(.kg-width-full):not(.kg-width-narrow) {
+  grid-column: contained-start / contained-end;
 }
 
-.gh-content .kg-card:not(.kg-width-wide):not(.kg-width-full) {
-  grid-column: main-start / main-end;
+/* Opt a card (or a content-grid row) back down to the text measure. */
+.gh-content .kg-width-narrow {
+  grid-column: narrow-start / narrow-end;
 }
 
 .kg-image {
@@ -4259,7 +5366,7 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-i
 .kg-gallery {
   display: grid;
   gap: var(--space-md);
-  margin: var(--space-lg) 0;
+  /* Vertical margin removed — see .kg-embed-card below, same reason. */
 }
 
 .kg-gallery-row {
@@ -4281,7 +5388,10 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-i
 }
 
 .kg-embed-card {
-  margin: var(--space-lg) 0;
+  /* Vertical margin removed — same shorthand-vs-flow-system issue as
+     .kg-card / .kg-width-*; this rule was the last one still setting
+     margin-bottom (measured 48px) after the others were converted.
+     Spacing comes from the prose flow system. */
   width: 100%;
   max-width: 100%;
  grid-column: wide-start / wide-end !important;
@@ -4494,8 +5604,16 @@ body.page-contact .gh-footer {
   margin-right: 0;
 }
 
+/* max-width added: .gh-footer[data-footer-width="full"] deliberately stays
+   an unconstrained full-bleed background shell (margin-left/right:0, see
+   above) — this is the actual content wrapper, and had no cap of its own,
+   so its margin:0 auto centered nothing and its links/text stretched to
+   the raw viewport edge in "full" footer mode. In respect_page_width mode
+   this is a no-op: .gh-footer itself is already capped narrower there, so
+   this max-width never binds. */
 .footer-content {
   margin: 0 auto;
+  max-width: var(--max-width);
 }
 
 .footer-signup-section {
@@ -5253,6 +6371,15 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
 
 .hero[data-home-hero-width='contained'] .hero-container { max-width: 1280px; }
 .hero[data-home-hero-width='wide'] .hero-container { max-width: 1600px; }
+/* 'full' (the default — package.json) had no absolute pin of its own,
+   unlike its contained/wide siblings above — .hero-container's base rule
+   (this file, ~line 5511) sets width:100%/margin:0 auto with no max-width,
+   so it stretched fully unconstrained. Capped at --max-width (tokens.css),
+   same as every other "full" spot in this file. Only the width — the
+   base rule's own layout (.hero-container/.hero-image-wrapper positioning)
+   is untouched, so 'full' keeps its distinct side-by-side hero layout,
+   unlike contained/wide's absolutely-positioned image treatment above. */
+.hero[data-home-hero-width='full'] .hero-container { max-width: var(--max-width); }
 
 /* When animation is disabled, allow content to scroll over hero image */
 
@@ -6332,6 +7459,14 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
   padding: var(--space-section) 0;
   width: 100%;
   position: relative;
+  /* Was missing while every sibling section that sits above the particle
+     canvas (.posts-tabs-grid-lab-section, .profile, .image-stripe,
+     .gh-footer) already had it — position:relative alone leaves z-index at
+     auto, which paints below ANY positioned z-index:0+ element regardless
+     of DOM order (CSS stacking tier 3 vs tier 6). Latent even before this:
+     harmless while nothing opaque and positioned sat directly behind it,
+     newly visible once partials/gradflow-page-bg.hbs (z-index:0) shipped. */
+  z-index: 2;
   overflow-x: clip; /* contains .profile-image-wrapper's off-screen slide (now position:absolute, see profile.css) */
 }
 
@@ -7053,6 +8188,10 @@ body[data-page-width='full'] .testimonials-section[data-testimonials-layout="scr
 }
 
 /* Set max-width based on page-width setting */
+body[data-page-width='narrow'] [data-home-content-width="respect_page_width"] {
+  max-width: 880px;
+}
+
 body[data-page-width='contained'] [data-home-content-width="respect_page_width"] {
   max-width: 1280px;
 }
@@ -7065,15 +8204,28 @@ body[data-page-width='full'] [data-home-content-width="respect_page_width"] {
   max-width: 1800px;
 }
 
-/* Home content sections — full width (default/no constraint) */
+/* Home content sections — full width, capped at --max-width (tokens.css)
+   rather than truly unconstrained — see the same note on
+   [data-page-content-width="full"] above. Currently unused: no live
+   template sets data-home-content-width (dangling, like
+   data-home-profile-width — PAGE-WIDTH-SYSTEM.md already flags that one).
+   Updated anyway for consistency if it's ever wired up. */
 [data-home-content-width="full"] {
   width: 100%;
-  max-width: none;
+  max-width: var(--max-width);
+  margin-inline: auto;
 }
 
 /* Home content sections pinned to an absolute width tier, independent of
    the site-wide page_width setting. See PAGE-WIDTH-SYSTEM.md "Overriding
    one section's width manually". */
+[data-home-content-width="narrow"] {
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+  max-width: 880px;
+}
+
 [data-home-content-width="contained"] {
   margin-left: auto;
   margin-right: auto;
@@ -7108,6 +8260,14 @@ body[data-page-width='full'] [data-home-content-width="respect_page_width"] {
   width: 100%;
 }
 
+/* narrow: a step BELOW contained (1280) — added 2026-08-05 alongside the
+   post-page Side-column layout, which needs a text measure narrower than
+   the contained tier. Same shape as every other tier here, no new
+   mechanism. */
+body[data-page-width='narrow'] [data-page-content-width="respect_page_width"] {
+  max-width: 880px;
+}
+
 body[data-page-width='contained'] [data-page-content-width="respect_page_width"] {
   max-width: 1280px;
 }
@@ -7120,10 +8280,30 @@ body[data-page-width='full'] [data-page-content-width="respect_page_width"] {
   max-width: 1800px;
 }
 
-/* Page content — full width (no constraint) */
+/* Page content — full width, but not UNBOUNDED: see --max-width
+   (tokens.css) — "full" means ignore the page_width setting, not "stretch
+   to the raw viewport edge" on ultra-wide monitors. margin-inline:auto
+   centers it — .page-image already had its own `margin:0 auto` so this is
+   a no-op there, but .page-body/.page-sections had no centering of their
+   own and would otherwise sit flush-left once capped instead of centered. */
 [data-page-content-width="full"] {
   width: 100%;
-  max-width: none;
+  max-width: var(--max-width);
+  margin-inline: auto;
+}
+
+/* .gh-canvas carries data-page-content-width too (post.hbs) but is exempt:
+   its internal named-line grid (--container, above) sizes the wide/main
+   zones on the assumption its OWN outer box spans the full viewport —
+   capping it here would double-constrain the grid AND stop kg-width-full
+   images from reaching the true screen edge, the same conflict the
+   .post .gh-canvas[data-page-content-width="respect_page_width"] override
+   above already solves for the respect_page_width case. Same fix, "full"
+   case: only actually reachable when page_content_width is explicitly set
+   to "full" in Admin (not the default), but the conflict is identical. */
+.gh-canvas[data-page-content-width="full"] {
+  max-width: 100vw;
+  margin: 0;
 }
 
 /* Page content — pinned to an absolute width tier, independent of the
@@ -7132,25 +8312,32 @@ body[data-page-width='full'] [data-page-content-width="respect_page_width"] {
    Unlike "respect_page_width", these never move if the global setting
    changes. Same 1400/1600 values as the site-wide "contained"/"wide"
    tiers, just applied unconditionally. */
+[data-page-content-width="narrow"] {
+
+  width: 100%;
+  max-width: 880px;
+}
+
 [data-page-content-width="contained"] {
-  margin-left: auto;
-  margin-right: auto;
+
   width: 100%;
   max-width: 1280px;
 }
 
 [data-page-content-width="wide"] {
-  margin-left: auto;
-  margin-right: auto;
+ 
   width: 100%;
   max-width: 1600px;
 }
 
 /* Footer — respect page width constraint */
 .gh-footer[data-footer-width="respect_page_width"] {
-  margin-left: auto;
-  margin-right: auto;
+  
   width: 100%;
+}
+
+body[data-page-width='narrow'] .gh-footer[data-footer-width="respect_page_width"] {
+  max-width: 880px;
 }
 
 body[data-page-width='contained'] .gh-footer[data-footer-width="respect_page_width"] {
@@ -7174,6 +8361,13 @@ body[data-page-width='full'] .gh-footer[data-footer-width="respect_page_width"] 
 /* Footer pinned to an absolute width tier, independent of the site-wide
    page_width setting. See PAGE-WIDTH-SYSTEM.md "Overriding one section's
    width manually". */
+.gh-footer[data-footer-width="narrow"] {
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+  max-width: 880px;
+}
+
 .gh-footer[data-footer-width="contained"] {
   margin-left: auto;
   margin-right: auto;
@@ -7441,8 +8635,10 @@ body[data-page-width='full'] .gh-footer[data-footer-width="respect_page_width"] 
 .mouse-tracking-tooltip {
   position: fixed;
   pointer-events: none;
-  background: var(--color-surface);
-  color: var(--color-on-surface-variant);
+  /* Fixed dark styling — same --tooltip-bg/--tooltip-text fix as
+     .nav-tooltip above, and for the same reason (see tokens.css). */
+  background: var(--tooltip-bg);
+  color: var(--tooltip-text);
   padding: 6px 12px;
   border-radius: 4px;
   font-size: calc(0.8rem * var(--type-scale-body, 1));
@@ -7547,10 +8743,9 @@ textarea::placeholder {
   opacity: 0;
 }
 
+
 .page-about-header {
-
-    flex-direction: row;
-
+  flex-direction: row;
 }
 
 /* .page-header's own gap (var(--space-md), above) is what puts space
@@ -7591,7 +8786,7 @@ textarea::placeholder {
 .page-excerpt {
   color: var(--color-on-surface-variant);
   margin: 0;
-  font-size: var(--text-size-h3);
+  font-size: var(--text-size-h4);
   line-height: var(--text-line-height-body);
 }
 
@@ -8215,9 +9410,10 @@ textarea::placeholder {
   }
 
   .statement-heading {
-    font-size: clamp(calc(2rem * var(--type-scale-heading, 1)), calc(10vw * var(--type-scale-heading, 1)), calc(3.5rem * var(--type-scale-heading, 1))) !important;
-    margin-bottom: 0 !important;
-    padding-bottom: 0 !important;
+    font-size: var(--text-size-h1) !important;
+    line-height: var(--text-line-height-h1) !important;
+
+
   }
 
   .statement-description {

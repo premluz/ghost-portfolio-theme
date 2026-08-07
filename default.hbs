@@ -86,8 +86,27 @@
     html[data-theme='light'] { background-color: #FAFAF8; }
     html[data-theme='dim'] { background-color: #1d1e1f; }
 
-    /* Hide preloader immediately — no blink on page load */
-    #preloader { display: none !important; }
+    /* #preloader { display: none !important; } REMOVED 2026-08-06 — it had
+       no lifting mechanism anywhere (unlike every other pre-hide veil in
+       this codebase — landing-pending/main-pending/curtain-restoring —
+       which are all scoped to an html class and explicitly removed by JS
+       once real content takes over). An ID selector + !important beats
+       .preloader's own `display: flex` (main.css) regardless of source
+       order, and nothing ever countered it: the ENTIRE preloader — wordmark,
+       dot bounce, burst sequence, and the indeterminate loading bar — has
+       been invisible on every load, full-run and skip-path alike. Confirmed
+       live: a fresh homepage load's #preloader computed to display:none the
+       whole time, before this fix.
+       It's also redundant, which is presumably why nobody had reason to add
+       the missing lift: main.css is a normal render-blocking <link> (loads
+       before <body> paints), so the raw unstyled section could never flash
+       regardless of this rule; and .preloader's own opacity:0 + 0.4s
+       preloaderFadeIn (main.css) already handles a clean no-flash reveal on
+       its own. The skip path still hides it correctly without this —
+       preloader.js sets a plain (non-!important) inline display:none there,
+       which now applies normally with the blocking !important gone; and
+       .preloader's own opacity:0 base state covers the moment before that
+       JS runs, same safety net a fresh/full-run load relies on. */
 
     /* Navigation visible immediately — no blink, no animation */
     .gh-navigation {
@@ -115,21 +134,30 @@
   {{#if @site.cover_image}}
   <link rel="preload" href="{{@site.cover_image}}" as="image" fetchpriority="high">
   {{/if}}
-  <link rel="preload" href="/content/images/prem-front-dark.png" as="image" fetchpriority="high">
-  <link rel="preload" href="/content/images/prem-front-light.png" as="image" fetchpriority="high">
+  {{!-- prem-front-dark.png / prem-front-light.png preloads removed 2026-07-25:
+        3.04 MB each (6.24 MB total) at fetchpriority="high", and NO live
+        template rendered them — the only remaining references were these two
+        tags. The partials that used to show them are in backup/, and
+        testimonials.hbs's copy is commented out. Because they were high
+        priority they also queued AHEAD of fonts/CSS/three.js, delaying first
+        paint on top of the wasted bytes. The PNGs are still on disk: if a
+        portrait is reintroduced, re-add a preload for the ONE theme variant
+        actually painted above the fold, not both. --}}
   
   {{!-- Preconnect to CDNs used by particle system --}}
   <link rel="preconnect" href="https://unpkg.com" crossorigin>
-  {{!-- Preload 3D shape files so they are in cache when JS requests them (lower priority than hero) --}}
-  <link rel="preload" href="/content/images/mobile.glb"  as="fetch" crossorigin>
-  <link rel="preload" href="/content/images/note.glb"    as="fetch" crossorigin>
-  {{!-- clapper.glb preload removed: file deleted from Ghost content (404). Re-add if re-uploaded. --}}
-  <link rel="preload" href="/content/images/diamond.glb" as="fetch" crossorigin>
-  <link rel="preload" href="/content/images/globe.glb"   as="fetch" crossorigin>
-  <link rel="preload" href="/content/images/game.glb"    as="fetch" crossorigin>
-  <link rel="preload" href="/content/images/email.glb"   as="fetch" crossorigin>
-  <link rel="preload" href="/content/images/camera.glb"  as="fetch" crossorigin>
-  <link rel="preload" href="/content/images/sim.glb"     as="fetch" crossorigin>
+  {{!-- 3D shape preloads removed 2026-07-25 (mobile / note / diamond / globe /
+        game / email / camera / sim .glb — ~2.0 MB, of which mobile.glb alone
+        was 1.47 MB). They were fetched eagerly in <head> on every load while
+        the hero shape is 'helix' (HERO_PARTICLE_MODE below) — procedurally
+        generated, needing no GLB at all. Every one of these is a morph target
+        for sections further down the page, so nothing above the fold waited
+        on them. They were also fetched a SECOND time by preloader.js's
+        GLB_FILES list (removed there too, same date).
+        Shapes now load on demand when a morph first requests them. If a GLB
+        ever becomes needed for the INITIAL shape, preload that one file here
+        — not the whole set. clapper.glb was already gone (404, deleted from
+        Ghost content). --}}
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&family=DM+Sans:ital,opsz,wght@0,9..40,100;0,9..40,200;0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;0,9..40,900;1,9..40,100;1,9..40,200;1,9..40,300;1,9..40,400&display=swap">
   {{!-- Bust aggressive caches using site updated timestamp --}}
   <link rel="stylesheet" href="{{asset "css/tokens.css"}}?v={{@site.updated_at}}">
@@ -144,6 +172,7 @@
   <link rel="stylesheet" href="{{asset "css/post-card-grid.css"}}?v={{@site.updated_at}}">
   <link rel="stylesheet" href="{{asset "css/post-cards-lab.css"}}?v={{@site.updated_at}}">
   <link rel="stylesheet" href="{{asset "css/profile.css"}}?v={{@site.updated_at}}">
+  <link rel="stylesheet" href="{{asset "css/glass-liquid.css"}}?v={{@site.updated_at}}">
   {{!-- operating-model-stacked.css unlinked 2026-07: index.hbs renders {{> operating-model}} (om3);
        the stacked partial + its css are kept on disk as the toggle-back alternative — re-add this link if re-enabling it:
        <link rel="stylesheet" href="{{asset "css/operating-model-stacked.css"}}?v={{@site.updated_at}}"> --}}
@@ -175,7 +204,17 @@
         --color-primary: #60A26B;
       {{/if}}
       */
-      --color-particles: #17516E; /* darkened from #2787B7 per explicit "make light mode more darker" request */
+      /* Light mode reads on a ~L*98 backdrop, so contrast comes from how far
+         BELOW the page the particle sits — the darker this is, the more each
+         unit of sprite alpha buys. Measured against dark mode as the target
+         (dark: mean deltaL of the hottest 1% = 22.4, share of pixels past a
+         2-deltaL JND = 2.28%): #17516E left light mode at 15.9 / 0.80% —
+         "barely visible". #082A3C plus the light glow-radius bump in
+         particle-morph.hbs lands 24.2 / 2.29%. Colour alone cannot close it
+         (see GLOW_RADIUS_LIGHT_MULT there) — the two are one tuning pair.
+         KEEP IN SYNC with PARTICLE_NORMAL.light AND PARTICLE_SHIFTED.dark in
+         scroll-scrub-anim.js, which both mirror this literal. */
+      --color-particles: #082A3C; /* was #17516E, itself darkened from #2787B7 */
     }
 
     :root[data-theme='dim'] {
@@ -196,9 +235,22 @@
       // check preloader.js uses for its own skip path (assets/js/preloader.js) —
       // keep both in sync if this logic changes. Replaces the old
       // localStorage 'preloader_seen' once-per-session flag.
+      //
+      // isReload override (2026-08-06) — see preloader.js's own copy of
+      // this comment for the full reasoning: document.referrer survives a
+      // reload unchanged, so it can't distinguish "refresh" from "reached
+      // this page via an internal link, at any point in this tab's past".
+      // Navigation Timing's `type` can, and overrides it here.
+      var isReload = false;
+      try {
+        var navEntry = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+        isReload = navEntry
+          ? navEntry.type === 'reload'
+          : !!(performance.navigation && performance.navigation.type === performance.navigation.TYPE_RELOAD);
+      } catch (e) {}
       var cameFromSameSite = false;
       try {
-        cameFromSameSite = !!document.referrer && new URL(document.referrer).origin === window.location.origin;
+        cameFromSameSite = !isReload && !!document.referrer && new URL(document.referrer).origin === window.location.origin;
       } catch (e) {}
       if (!cameFromSameSite) {
         document.documentElement.classList.add('preloading');
@@ -218,7 +270,19 @@
     (function () {
       try {
         var isHome = (location.pathname === '/' || location.pathname === '');
-        if (isHome && document.referrer && new URL(document.referrer).origin === location.origin) {
+        // Same isReload override as the preloading-class script above (and
+        // preloader.js) — a reload must always fall through to the full
+        // preloader treatment below, never the quick fade+slide entrance
+        // this branch drives, regardless of what document.referrer still
+        // carries from an earlier internal click in this tab's history.
+        var isReloadForLanding = false;
+        try {
+          var navEntry2 = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+          isReloadForLanding = navEntry2
+            ? navEntry2.type === 'reload'
+            : !!(performance.navigation && performance.navigation.type === performance.navigation.TYPE_RELOAD);
+        } catch (e2) {}
+        if (isHome && !isReloadForLanding && document.referrer && new URL(document.referrer).origin === location.origin) {
           document.documentElement.classList.add('landing-pending');
           // Failsafe — same 2.5s pattern as html.main-pending below, so a
           // stalled/never-firing runLandingAnimation() can't leave the
@@ -269,6 +333,48 @@
     })();
   </script>
   <script>
+    // TOOLTIP LANDING GUARD
+    //
+    // Nav tooltips are pure CSS :hover (main.css — `.nav-menu a:hover
+    // .nav-tooltip`, `.nav-icon-btn:hover .nav-tooltip`). Every in-site nav
+    // click is a REAL browser navigation (page-transition.js sets
+    // window.location.href), so the pointer is still physically over the
+    // same icon when the new page paints — :hover matches instantly and the
+    // tooltip re-appears with no mouse movement at all. From the visitor's
+    // side that reads as one tooltip shown twice: hover → see it → click →
+    // it vanishes with the old page → it comes back on the new one.
+    //
+    // Suppress tooltips until the pointer actually MOVES. Set before <body>
+    // exists (same reason as main-pending/nav-hop/curtain-restoring above)
+    // so the tooltip can never paint even for one frame; the first real
+    // mousemove clears it and normal hover behaviour resumes for the rest
+    // of the page's life.
+    //
+    // Deliberately unconditional — not gated on a same-site referrer. A
+    // fresh load with the cursor parked over the nav has exactly the same
+    // no-movement-yet problem, and the guard costs nothing when the cursor
+    // is elsewhere (the class is dropped on the visitor's first move).
+    (function () {
+      var d = document.documentElement;
+      d.classList.add('tooltips-suppressed');
+      function release() {
+        d.classList.remove('tooltips-suppressed');
+        window.removeEventListener('mousemove', release);
+        window.removeEventListener('pointermove', release);
+        window.removeEventListener('touchstart', release);
+        window.removeEventListener('keydown', release);
+      }
+      // pointermove covers mouse+pen; mousemove is the fallback for older
+      // engines. touchstart/keydown release it too so a touch or keyboard
+      // user is never left with tooltips permanently disabled (they'd
+      // otherwise never fire a move event at all).
+      window.addEventListener('pointermove', release, { passive: true });
+      window.addEventListener('mousemove', release, { passive: true });
+      window.addEventListener('touchstart', release, { passive: true });
+      window.addEventListener('keydown', release);
+    })();
+  </script>
+  <script>
     // CURTAIN-RETURN GUARD (moved here from a <body> script further down,
     // which ran well after the page's own main content — the hero/.home
     // markup — had already been parsed and painted. Adding
@@ -300,6 +406,34 @@
   </script>
 </head>
 <body class="{{body_class}}" data-page-width="{{@custom.page_width}}" data-card-style="{{@custom.card_style}}" data-typography-header="{{@custom.typography_style_header}}" data-typography-body="{{@custom.typography_style_body}}" data-type-size="{{@custom.type_size}}" data-type-size-headings="{{@custom.type_size_headings}}" data-contact-email="{{#if @site.email}}{{@site.email}}{{else}}przemek.luczak@gmail.com{{/if}}">
+  <!-- SVG refraction filter for the .glass-liquid module (assets/css/
+       glass-liquid.css) — dormant until <html> also carries the
+       glass-distort class (not added anywhere yet; opt in per-page/
+       site when ready to test the distorted variant). Zero visual/
+       paint cost while unused: a filter def with no element
+       referencing it renders nothing. position:absolute + 0×0 keeps
+       it out of layout without display:none, which some browsers
+       treat as "don't render referenced filters either." -->
+  <svg aria-hidden="true" focusable="false" style="position:absolute; width:0; height:0; overflow:hidden;">
+    <defs>
+      <filter id="glass-distortion" x="0%" y="0%" width="100%" height="100%" filterUnits="objectBoundingBox">
+        <feTurbulence type="fractalNoise" baseFrequency="0.004 0.009" numOctaves="1" seed="17" result="turbulence"></feTurbulence>
+        <feComponentTransfer in="turbulence" result="mapped">
+          <feFuncR type="gamma" amplitude="1" exponent="10" offset="0.5"></feFuncR>
+          <feFuncG type="gamma" amplitude="0" exponent="1" offset="0"></feFuncG>
+          <feFuncB type="gamma" amplitude="0" exponent="1" offset="0.5"></feFuncB>
+        </feComponentTransfer>
+        <feGaussianBlur in="turbulence" stdDeviation="3" result="softMap"></feGaussianBlur>
+        <feSpecularLighting in="softMap" surfaceScale="5" specularConstant="1" specularExponent="100" lighting-color="white" result="specLight">
+          <fePointLight x="-200" y="-200" z="300"></fePointLight>
+        </feSpecularLighting>
+        <feComposite in="specLight" operator="in" in2="SourceGraphic" result="specCut"></feComposite>
+        <feDisplacementMap in="SourceGraphic" in2="softMap" scale="120" xChannelSelector="R" yChannelSelector="G" result="displaced"></feDisplacementMap>
+        <feComposite in="displaced" in2="specCut" operator="over"></feComposite>
+      </filter>
+    </defs>
+  </svg>
+
   <!-- Fixed viewport backdrop — REQUIRED, do not remove (it went missing once
        and silently broke two things at once). It (1) paints the page-scoped
        palette shift: .page-backdrop in main.css blends var(--color-background)
@@ -310,8 +444,58 @@
        showed without it). -->
   <div id="page-backdrop" class="page-backdrop"></div>
 
-  <!-- Fixed background gradient layer (fades between colors as you scroll) 
+  <!-- Fixed background gradient layer (fades between colors as you scroll)
  <div id="page-gradient" class="page-gradient-bg"></div>-->
+
+  <!-- Soft gradient "aura" background — separate component from
+       #page-gradient above (gradient-layer.js's per-card crossfade,
+       scoped to .posts-tabs-section — untouched by this). Single element,
+       multiple radial-gradient layers stacked in one background-image
+       (softness comes from each gradient's own "transparent 50%" falloff,
+       no filter:blur() at all), animated by stepping background-position
+       through @keyframes — see main.css ".page-gradient-blobs" for the
+       implementation. Second attempt at this component: the first
+       (blurred, absolutely-positioned divs animated via transform) was
+       compositor-only and cheaper per frame; this one repaints the
+       gradient each frame instead, the direct trade for the richer,
+       more blended multi-color look this technique gives.
+       Colors: same data attribute as before, comma-separated, 3 hex
+       colors — 6-digit (opaque) or 8-digit #RRGGBBAA (built-in alpha)
+       both work, set directly as each radial-gradient's color stop.
+       Falls back to the trio below if ever emptied.
+       Invisible by default (main.css) — present on every page, but inert
+       until something calls window.pageGradientBlobs.show()/.hide()/
+       .setColors([...]), the tiny controller this script exposes. First
+       (and so far only) caller: assets/js/gradient-blobs-trigger.js,
+       loaded below — same "load site-wide, no-op if its target element
+       isn't on this page" pattern gradient-layer.js already uses, so a
+       future trigger for a different section is just another small
+       script, not a change here. 
+  <div id="page-gradient-blobs" class="page-gradient-blobs" aria-hidden="true"
+       data-blob-colors="#D16BA5,#86A8E7,#5FFBF1"></div>-->
+  <script>
+    (function () {
+      var el = document.getElementById('page-gradient-blobs');
+      if (!el) return;
+
+      function setColors(colors) {
+        ['--aura-1', '--aura-2', '--aura-3'].forEach(function (prop, i) {
+          if (colors[i]) el.style.setProperty(prop, colors[i]);
+        });
+      }
+
+      // Initial paint from the data attribute (fallback trio or a
+      // per-page override set directly on the element above).
+      setColors((el.getAttribute('data-blob-colors') || '')
+        .split(',').map(function (c) { return c.trim(); }).filter(Boolean));
+
+      window.pageGradientBlobs = {
+        show: function () { el.classList.add('is-visible'); },
+        hide: function () { el.classList.remove('is-visible'); },
+        setColors: setColors,
+      };
+    })();
+  </script>
 
   <!-- Initialize canvas dimensions on load - DISABLED -->
   <!-- <script>
@@ -328,20 +512,65 @@
     })();
   </script> -->
 
-  {{#if @custom.show_scroll_progress}}<div class="scroll-progress"></div>{{/if}}
+  {{!-- Nested .progress-bar-streak is always present (cheap, inert markup)
+        but only VISIBLE/animated while JS adds .is-loading (page-
+        transition.js) — the same shared "shooting laser" system
+        #preloader-progress-bar uses (main.css ".progress-bar-track"
+        section), reused here for regular page-to-page navigation, not just
+        the homepage's first load. Without .is-loading this renders exactly
+        as before: a plain div, JS-driven width (scroll-progress.js /
+        waitForHeroImages in main.js), untouched.
+        The streak is duplicated TWICE — .progress-bar-clip (crisp,
+        clipped) + .progress-bar-glow (blurred duplicate, stacked on top) —
+        same structure as #preloader-progress-bar (preloader.hbs); see
+        main.css's comment on those two classes. --}}
+  {{#if @custom.show_scroll_progress}}
+  <div class="scroll-progress progress-bar-track" id="scroll-progress">
+    <div class="progress-bar-clip">
+      <div class="progress-bar-streak"></div>
+    </div>
+    <div class="progress-bar-glow" aria-hidden="true">
+      <div class="progress-bar-streak"></div>
+    </div>
+  </div>
+  <script>
+    // Pre-paint continuity for the page-to-page loading bar: page-
+    // transition.js's armLoadingBar() sets sessionStorage 'ptBarStart' on
+    // the OUTGOING page right before the real browser navigation
+    // (window.location.href) tears down that JS context. Without this,
+    // the chase would only start once the INCOMING page's own scripts run
+    // (near the end of <body>) — visibly flashing off during the actual
+    // network gap and back on a beat later. Placed inline, immediately
+    // after .scroll-progress's own markup (not in <head>, where main-
+    // pending/landing-pending live) because it needs the element to
+    // already be parsed — synchronous <script> execution during HTML
+    // parsing means this still runs well before first paint in practice.
+    // Read (and cleared) again by page-transition.js's releaseLoadingBar()
+    // at the same point main-pending/landing-pending are removed; kept
+    // here too (not cleared) so a direct/external load — no transition in
+    // flight — simply finds nothing and does nothing.
+    (function () {
+      try {
+        if (!sessionStorage.getItem('ptBarStart')) return;
+        var bar = document.getElementById('scroll-progress');
+        if (bar) bar.classList.add('is-loading');
+      } catch (e) {}
+    })();
+  </script>
+  {{/if}}
 
   {{> navigation}}
 
 
-  <!-- GPU Particle System Canvas (matches old particle system z-index + blend mode) -->
+  <!-- GPU Particle System Canvas (matches old particle system z-index + blend mode) 
   <canvas id="gpu-canvas"
           style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; mix-blend-mode: screen;">
-  </canvas>
+  </canvas>-->
 
-  <!-- Hidden video element for webcam feed (gesture tracking) -->
+  <!-- Hidden video element for webcam feed (gesture tracking)
   <video id="gesture-video" playsinline
          style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;"></video>
-
+ -->
   <main>
     {{{body}}}
   </main>
@@ -511,26 +740,30 @@
   <script src="{{asset "js/managers/ResizeManager.js"}}"></script>
   <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
   <script>
-    // HERO PARTICLE OBJECT — the single switch. 'volatility' shows the
-    // ground-plane lattice and the helix never forms in the hero;
-    // 'helix' restores the original helix and the lattice doesn't mount.
-    // Read by particle-morph.hbs, scroll-scrub-anim.js, volatility-surface.js.
-    // 'helix' = the original DNA-style double-tube coil with the default
-    // bokeh/glow particle treatment — the hero as shipped.
-    // 'hero-helix' = the tilted halftone coil (built and registered, but not
-    // in use). Switching this one value is the whole change: the halftone
-    // choreography in particle-morph.hbs is gated on it, so nothing else
-    // needs touching.
-    window.HERO_PARTICLE_MODE = 'helix';
-    // Both arms used to return 'helix', so the switch above was inert and
-    // 'volatility' could never be selected despite being fully built and
-    // registered. No behaviour change at the current setting — this just
-    // makes the documented switch actually work.
+    // HERO PARTICLE OBJECT — the single switch, read by particle-morph.hbs,
+    // scroll-scrub-anim.js and volatility-surface.js. Set it to any shape in
+    // the VALID list in __heroShape() below; that one value is the whole
+    // change, since the choreography in particle-morph.hbs is gated on it.
+    // 'volatility' mounts the ground-plane lattice and no coil forms in the
+    // hero; the coil shapes don't mount the lattice.
+    window.HERO_PARTICLE_MODE = 'ribbon-dispersed';
+    // Resolver was previously unable to return anything but
+    // 'ribbon-dispersed': BOTH ternary arms were that literal, and the
+    // condition tested `m === 'ribbon-dispersed'` twice (never comparing
+    // against the other valid shapes), so HERO_PARTICLE_MODE was read and
+    // then discarded. It said 'helix' while the hero actually rendered
+    // ribbon-dispersed — the mode is now set to the shape that was really
+    // being used, and the switch below genuinely honours it.
     window.__heroShape = () => {
-      // 'hero-helix' = the tilted, tapering halftone coil (shape-definitions.js).
-      // 'helix' = the original DNA-style double tube. 'volatility' = ground plane.
+      // Valid hero shapes, all registered (shape-definitions.js /
+      // dispersed-variants.js):
+      //   'ribbon-dispersed' = the scattered ribbon — the hero as shipped.
+      //   'helix'            = original DNA-style double tube.
+      //   'hero-helix'       = tilted, tapering halftone coil.
+      //   'volatility'       = ground-plane lattice.
+      const VALID = ['ribbon-dispersed', 'helix', 'hero-helix', 'volatility'];
       const m = window.HERO_PARTICLE_MODE;
-      return (m === 'ribbon-dispersed' || m === 'ribbon-dispersed') ? m : 'ribbon-dispersed';
+      return VALID.includes(m) ? m : 'ribbon-dispersed';
     };
 
     // PARTICLE SCENARIOS — declarative section→behavior map. Every particle
@@ -548,16 +781,20 @@
       full: {
         'operating-model-exit': 'hide',
         testimonials: 'hide',
+        'lab-exit': 'hide',
       },
-      'hero-footer': {                // particles ONLY in hero + footer
-        'hero-exit': 'hide',
-        'operating-model': 'hide',
+      'hero-footer': {                // particles in hero, footer, Lab entrance + operating-model entrance
+        'hero-exit': 'hide', // re-enabled after comparing visible-'dots'/'terrain' live — back to fading out on exit
+        // 'operating-model' (the entrance key) intentionally absent — see
+        // PARTICLE-SCROLL-DIRECTOR.md's zone table: un-hides for that
+        // section's own sphere/triple-sphere/torus category-morph system.
         'operating-model-exit': 'hide',
         'helix-section': 'hide',
         profile: 'hide', 'profile-exit': 'hide',
         stats: 'hide',
         'work-grid': 'hide', 'work-cards': 'hide',
         //lab: 'hide',
+        'lab-exit': 'hide',
         testimonials: 'hide',
         'footer-exit': 'hide',
         // hero + footer absent → their built-in shapes (volatility/helix, grid)
@@ -767,7 +1004,33 @@
   <script src="{{asset "js/preloader.js"}}"></script>
   <script src="{{asset "js/intro.js"}}"></script>
   <script src="{{asset "js/gradient-layer.js"}}"></script>
+  <script src="{{asset "js/gradient-blobs-trigger.js"}}"></script>
   <script src="{{asset "js/background-layer.js"}}"></script>
+  {{!-- gradflow-page-bg.hbs's triggered="true" mode (see that partial's own
+        doc) — these two script tags were dropped from this file at some
+        point during later editing (found live: window.GradflowColorCrossfade
+        was undefined, and the canvas sat at opacity:1 the whole time with
+        nothing driving it). Restored; gradflow-color-crossfade.js must load
+        before gradflow-page-bg-trigger.js, which reads
+        window.GradflowColorCrossfade at init. --}}
+  <script src="{{asset "js/gradflow-color-crossfade.js"}}?v={{@site.updated_at}}"></script>
+  <script src="{{asset "js/gradflow-page-bg-trigger.js"}}?v={{@site.updated_at}}"></script>
+  {{!-- .invert-wrapper (main.css) auto-init for scroll-scrubbed mode — see
+        INVERSION.md. Forced (always-on) is the class's own CSS default
+        (--profile-shift: 1); adding data-invert-scroll to an instance
+        replaces that with a live scroll-driven value instead — an inline
+        style from bindShift's root.style.setProperty always outranks the
+        class rule for the same property, so no modifier class is needed to
+        switch modes. Same "no per-page JS" auto-init convention as
+        gradient-frame.js's [data-gradient-frame]. --}}
+  <script>
+    (function () {
+      if (!window.BackgroundLayer) return;
+      document.querySelectorAll('.invert-wrapper[data-invert-scroll]').forEach(function (el) {
+        window.BackgroundLayer.bindShift(el, '--profile-shift', { root: el, quantize: 0.05 });
+      });
+    })();
+  </script>
   <script src="{{asset "js/surface-effect-layer.js"}}?v={{@site.updated_at}}"></script>
   <script src="{{asset "js/scroll-scrub-anim.js"}}?v={{@site.updated_at}}"></script>
   <!-- DISABLED: Canvas gradient rendering (use CSS gradients instead) -->
@@ -808,6 +1071,13 @@
   <script src="{{asset "js/gradflow-shaders.js"}}"></script>
   <script src="{{asset "js/gradflow-background.js"}}"></script>
   <script src="{{asset "js/gradient-frame.js"}}"></script>
+
+  <!-- Reusable gradient-aura-frame component (CSS-only radial-gradient
+       wash wrapping any content, main.css ".gradient-aura-frame") — same
+       "loaded site-wide, opt in with markup alone" model as gradient-
+       frame.js above, cheaper (no WebGL) alternative for cases that don't
+       need gradient-frame's animated bands. -->
+  <script src="{{asset "js/gradient-aura-frame.js"}}"></script>
 
   <!-- Modular Animated Gradient Background System -->
   <script src="{{asset "js/gradient-distortion.js"}}"></script>
