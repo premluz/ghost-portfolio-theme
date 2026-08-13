@@ -1,0 +1,8 @@
+{{!< default}}
+
+<!-- default.hbs already includes {{> particle-morph}} once, globally,
+     outside <main> — see post-particle-morph.hbs for the full explanation
+     of why including it again here is a real bug (duplicate top-level
+     `let attempts` throws a SyntaxError that silently kills the whole
+     script, including the page-exclusion check). -->
+<div class="page-content"></div>

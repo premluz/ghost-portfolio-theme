@@ -1,0 +1,1168 @@
+<div id="particle-morph-demo" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; opacity: 1; pointer-events: none;">
+  <div id="particles" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></div>
+  {{!-- Covers the particle canvas until the system is ready, then fades
+        away — a flat solid-color div, not the canvas's own opacity. A
+        WebGL canvas that's actively re-rendering every frame is expensive
+        to ALSO animate opacity on (the browser has to composite an
+        alpha-blended, per-frame-changing layer); a plain div's opacity is
+        cheap regardless of what's happening underneath. See the fade-in
+        trigger further down this file for where this actually fades. --}}
+  <div id="particles-load-scrim" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; background: var(--color-background); opacity: 1;"></div>
+</div>
+<script>
+  // Failsafe — same principle as every other pre-paint veil on this site
+  // (landing-pending/main-pending/curtain-restoring, see LOADING.md): a
+  // veil must never depend solely on one path to clear it. This scrim is
+  // normally cleared either by the skip-path fade-in trigger further down
+  // this file, or by preloader.js's _runParticles() on a full run — if
+  // BOTH of those fail to fire for any reason (a stalled GLB/video fetch,
+  // a thrown error somewhere in the particle bootstrap chain), the scrim
+  // would otherwise sit at opacity:1 forever, permanently hiding the
+  // particles behind a solid color — strictly worse than having no scrim
+  // at all. Force-clear after 6s regardless of what else has or hasn't run.
+  setTimeout(function () {
+    var scrim = document.getElementById('particles-load-scrim');
+    if (scrim && getComputedStyle(scrim).opacity !== '0') {
+      if (window.gsap) window.gsap.to(scrim, { opacity: 0, duration: 0.4 });
+      else scrim.style.opacity = '0';
+    }
+  }, 6000);
+</script>
+
+<!-- Load modular particle system -->
+<script src="{{asset 'js/particle-state.js'}}"></script>
+<script src="{{asset 'js/shape-definitions.js'}}"></script>
+<script src="{{asset 'js/dispersed-variants.js'}}"></script>
+<script src="{{asset 'js/trigger-system.js'}}"></script>
+<script src="{{asset 'js/fade-controller.js'}}"></script>
+{{!-- Styles (motion + render treatment) must load BEFORE the animation loop:
+      the loop composes its vertex shader from this registry at construction.
+      Shapes say where particles rest; styles say how they move. --}}
+<script src="{{asset 'js/particle-style-definitions.js'}}"></script>
+{{!-- Continuous scroll-driven choreography. Inert until a timeline is set;
+      existing morphTo triggers are untouched. --}}
+<script src="{{asset 'js/particle-scroll-director.js'}}"></script>
+<script src="{{asset 'js/particle-animation-loop.js'}}"></script>
+<script src="{{asset 'js/particle-morph-system.js'}}?v={{@site.updated_at}}"></script>
+
+<script>
+console.log('[PARTICLE-MORPH] Script executing...');
+console.log('[PARTICLE-MORPH] GPU System:', !!window.gpuParticleSystem);
+console.log('[PARTICLE-MORPH] THREE:', !!window.THREE);
+
+function debug(msg) {
+  console.log(msg);
+}
+
+console.log('[PARTICLE-MORPH] Debug function ready');
+debug('[particle-morph] 🎬 Initializing modular particle system');
+debug('[particle-morph] THREE available: ' + !!window.THREE);
+debug('[particle-morph] ParticleMorphSystem available: ' + !!window.ParticleMorphSystem);
+
+// Particles only run on the home page. Skip on: individual post pages
+// (post-template), about, contact, and the /work/ index. page-about /
+// page-contact are real Ghost body classes for those page templates; the
+// /work/ index has no underlying page resource though (it's a custom
+// collection route — see routes.yaml), so body_class renders empty there
+// and it has to be matched by pathname instead. (Individual project pages
+// under /work/{slug}/ are post-template, already caught above.)
+const isPostPage = document.body.classList.contains('post-template');
+const isAboutPage = document.body.classList.contains('page-about');
+const isContactPage = document.body.classList.contains('page-contact');
+const isWorkIndexPage = /^\/work\/(page\/\d+\/)?$/.test(window.location.pathname);
+// prefers-reduced-motion (see device-capability.js) is an accessibility
+// setting, not a performance proxy — always respected regardless of
+// hardware, same as the page-type exclusions below. Unlike __lowEndDevice
+// (which still gets the hero's helix once, then tears down — see
+// setupCardTriggers() gating further down), reduced-motion skips the
+// particle system entirely: no motion at all, not even once.
+const isPostPageOrExcluded = isPostPage || isAboutPage || isContactPage || isWorkIndexPage || window.__prefersReducedMotion;
+if (isPostPageOrExcluded) {
+  debug('[particle-morph] ⏸️  Excluded page or prefers-reduced-motion detected — particles disabled');
+  // Hide particle container
+  const particleContainer = document.getElementById('particle-morph-demo');
+  if (particleContainer) {
+    particleContainer.style.display = 'none';
+  }
+  // Exit without initializing
+  // Don't throw error, just skip
+}
+
+let attempts = 0;
+const maxAttempts = 200; // 20 seconds at 100ms intervals
+
+// registerScrollTriggersOnGPU() (the GPU-backend trigger set) was deleted
+// here — confirmed 100% dead: gpu-particle-integration is commented out in
+// default.hbs, and this function's only call site (below) was itself
+// already commented out, so window.gpuParticleSystem is never created and
+// this never ran. Its intent now lives in particle-scroll-director.js's
+// zones (see setZone() calls below), which work against either backend via
+// __particleApply/system.morphTo — no GPU-specific trigger code is needed
+// if gpu-particle-integration is ever re-enabled.
+
+async function initParticleMorphModular() {
+  // Skip on post/about/contact/work pages — see isPostPageOrExcluded above
+  if (isPostPageOrExcluded) return;
+  attempts++;
+
+  debug('[particle-morph] Checking for GPU system... gpuParticleSystem=' + (!!window.gpuParticleSystem) + ' particleSystem=' + (!!window.particleSystem));
+
+  // The GPU system initializes asynchronously (after preloader:done + WebGPU
+  // adapter setup in gpu-particle-integration.hbs). Checking once at t=0
+  // always saw undefined, fell into the old THREE.js path, stalled waiting
+  // for window.THREE and never registered any triggers. Wait for it instead —
+  // but only if that include is actually present on the page. Without this
+  // check, commenting out the gpu-particle-integration partial in default.hbs
+  // (the supported way to switch to the old system) silently added a 15s
+  // delay before the old system ever started, every single load.
+  if (window.__gpuIntegrationPresent) {
+    let gpuWaitAttempts = 0;
+    while (!window.gpuParticleSystem && gpuWaitAttempts < 150) { // up to 15s
+      if (gpuWaitAttempts % 20 === 0) debug('[particle-morph] Waiting for GPU system... (' + (gpuWaitAttempts / 10) + 's)');
+      await new Promise(r => setTimeout(r, 100));
+      gpuWaitAttempts++;
+    }
+  } else {
+    debug('[particle-morph] gpu-particle-integration not present on this page — skipping GPU wait, going straight to old system');
+  }
+
+  // Use GPU system if present and actually supported (not the fallback shim)
+  const useGPUSystem = !!window.gpuParticleSystem && window.gpuParticleSystem.isSupported?.() !== false;
+  debug('[particle-morph] useGPUSystem=' + useGPUSystem + ', gpuParticleSystem=' + (!!window.gpuParticleSystem) + ', gpuIsSupported=' + (window.gpuParticleSystem?.isSupported?.()));
+  if (useGPUSystem) {
+    debug('[particle-morph] ✅ GPU system detected — skipping old THREE.js system, scroll triggers will use GPU');
+  } else {
+    debug('[particle-morph] No GPU system found, will initialize old THREE.js system');
+  }
+
+  // Skip old system dependencies if GPU system is available
+  if (!useGPUSystem) {
+    if (!window.THREE) {
+      if (attempts % 20 === 0) debug('[particle-morph] Waiting for THREE... (attempt ' + attempts + ')');
+      if (attempts < maxAttempts) {
+        setTimeout(initParticleMorphModular, 100);
+      } else {
+        debug('[particle-morph] ❌ THREE.js failed to load after ' + (maxAttempts * 100) + ' ms');
+      }
+      return;
+    }
+
+    if (!window.StateRegistry) {
+      if (attempts % 20 === 0) debug('[particle-morph] Waiting for StateRegistry... (attempt ' + attempts + ')');
+      if (attempts < maxAttempts) {
+        setTimeout(initParticleMorphModular, 100);
+      } else {
+        debug('[particle-morph] ❌ particle-state.js failed to load');
+      }
+      return;
+    }
+
+    if (!window.ShapeRegistry) {
+      if (attempts % 20 === 0) debug('[particle-morph] Waiting for ShapeRegistry... (attempt ' + attempts + ')');
+      if (attempts < maxAttempts) {
+        setTimeout(initParticleMorphModular, 100);
+      } else {
+        debug('[particle-morph] ❌ shape-definitions.js failed to load');
+      }
+      return;
+    }
+
+    if (!window.TriggerManager) {
+      if (attempts % 20 === 0) debug('[particle-morph] Waiting for TriggerManager... (attempt ' + attempts + ')');
+      if (attempts < maxAttempts) {
+        setTimeout(initParticleMorphModular, 100);
+      } else {
+        debug('[particle-morph] ❌ trigger-system.js failed to load');
+      }
+      return;
+    }
+
+    if (!window.FadeController) {
+      if (attempts % 20 === 0) debug('[particle-morph] Waiting for FadeController... (attempt ' + attempts + ')');
+      if (attempts < maxAttempts) {
+        setTimeout(initParticleMorphModular, 100);
+      } else {
+        debug('[particle-morph] ❌ fade-controller.js failed to load');
+      }
+      return;
+    }
+
+    if (!window.ParticleAnimationLoop) {
+      if (attempts % 20 === 0) debug('[particle-morph] Waiting for ParticleAnimationLoop... (attempt ' + attempts + ')');
+      if (attempts < maxAttempts) {
+        setTimeout(initParticleMorphModular, 100);
+      } else {
+        debug('[particle-morph] ❌ particle-animation-loop.js failed to load');
+      }
+      return;
+    }
+
+    if (!window.ParticleMorphSystem) {
+      if (attempts % 20 === 0) debug('[particle-morph] Waiting for ParticleMorphSystem... (attempt ' + attempts + ')');
+      if (attempts < maxAttempts) {
+        setTimeout(initParticleMorphModular, 100);
+      } else {
+        debug('[particle-morph] ❌ particle-morph-system.js failed to load');
+      }
+      return;
+    }
+  }
+
+  debug('[particle-morph] ✅ All modules ready');
+
+  // If GPU system is available, use it; otherwise create old THREE.js system
+  let system;
+
+  if (useGPUSystem) {
+    debug('[particle-morph] Using GPU system for scroll triggers');
+    system = window.gpuParticleSystem;
+    window.particleSystem = system; // Compatibility alias for card-animations/main.js
+    // (registerScrollTriggersOnGPU() call removed — see the deletion note above initParticleMorphModular())
+  } else {
+    debug('[particle-morph] Creating ParticleMorphSystem (old THREE.js system)...');
+
+    const container = document.getElementById('particles');
+    const demoDiv = document.getElementById('particle-morph-demo');
+
+    if (!container || !demoDiv) {
+      debug('[particle-morph] ❌ Missing DOM elements - container: ' + !!container + ' demoDiv: ' + !!demoDiv);
+      return;
+    }
+
+    try {
+      // Detect mobile by viewport width AND touch capability
+      const isMobile = window.innerWidth < 768 || window.matchMedia('(max-width: 768px)').matches;
+      // Low-end devices get a flat, much lower count regardless of
+      // mobile/desktop — with additive blending, overdraw (overlapping
+      // transparent points) is the actual cost, not point count alone, so
+      // a smaller/sparser field reads almost identically while cutting
+      // fill-rate substantially. Only ever matters for the hero's brief
+      // one-time helix formation (see setupHeroExitTeardown() below).
+      // DNA-Capital-density profile: MANY tiny particles beat fewer big
+      // ones on every GPU class — fill (pixels covered) is the real cost,
+      // and the finer sizeScale + per-state sizes keep total fill at or
+      // below the old 10k budget despite the higher counts.
+      // Low-end runs 8k (was 3k): after the DNA-Capital profile landed
+      // (bloom deleted, GPU morphs, tiny dots, dpr capped at 1 on low-end)
+      // the per-particle cost collapsed — count is vertex work, which even
+      // old iGPUs have plenty of; FILL was the killer and fill stays low.
+      const particleCount = window.__lowEndDevice ? 8000 : (isMobile ? 5000 : 16000);
+      debug(`[particle-morph] Window size: ${window.innerWidth}x${window.innerHeight}`);
+      debug(`[particle-morph] ${window.__lowEndDevice ? 'LOW-END' : (isMobile ? 'MOBILE' : 'DESKTOP')} mode - ${particleCount} particles`);
+
+      system = new window.ParticleMorphSystem(container, {
+        particleCount: particleCount,
+        morphDuration: 1500
+      });
+
+      // Wait for async initialization to complete
+      await system.initializeModules();
+      debug('[particle-morph] Modules initialized');
+
+      // Start with dispersed particles BEFORE registering observers so that any
+      // IntersectionObserver callbacks that fire immediately on observation (for
+      // elements already in the viewport) see a valid currentState and cannot
+      // trigger a morph until the user has actually scrolled past the hero.
+      system.start('dispersed');
+      debug('[particle-morph] ✅ System initialized and animating');
+
+      // Exposed here (not at the end of setupCardTriggers(), where it used
+      // to only happen after every other trigger was registered) so
+      // scroll-scrub-anim.js's hero helix-morph poll (which waits
+      // specifically for window.particleSystem.morphTo) can find it as
+      // early as possible — this must exist even on low-end devices, which
+      // skip setupCardTriggers() entirely below but still get the hero's
+      // one-time helix formation.
+      window.particleSystem = system;
+      window.particleMorphSystem = system;
+
+      // HERO ZONE — director-driven replacement for
+      // particle-animation-loop.js's old _updateHeroCollapseState()/
+      // _applyHeroExitVisuals() (continuous rotation/position/camera-zoom
+      // buildup, then a sphere-hide at the collapse threshold). Registered
+      // here (not in setupCardTriggers() further down) so it exists before
+      // the first scroll-driven frame and before Lab/footer's own setZone
+      // calls below — ordering among zones no longer matters functionally
+      // (see ownsPosition below), but this mirrors hero's logical priority.
+      if (window.particleScrollDirector && system.loop) {
+        const loop = system.loop;
+        const heroBaseCameraZ = loop.camera.position.z;
+        // Fraction of .hero's own height the whole exit buildup (and the
+        // collapse trigger) completes within, NOT 1.0 — see the deleted
+        // code's own comment history: a separate mechanism (main.js's
+        // initHeroFadeOut) sets .hero to display:none well before a full
+        // hero-height of scroll, so running the buildup across the full
+        // 0-1 range meant most of it played out already hidden.
+        const EXIT_SPAN = 0.65;
+        const TRAVEL_Y = 2.5;       // world units scrolled upward over the exit
+        const ZOOM_FACTOR = 0.72;   // camera distance at collapse, as a fraction of base
+        const EXTRA_ROTATION = 1.2; // radians of extra spin added over the exit
+
+        // Sample easeInQuad(t/EXIT_SPAN) at N points so linear keyframe
+        // interpolation reproduces the original continuous quadratic
+        // closely enough to be visually indistinguishable — the
+        // rate-limited chase (options.chase below) further smooths any
+        // residual faceting.
+        const ROTATION_SAMPLES = 9;
+        const heroKeyframes = Array.from({ length: ROTATION_SAMPLES + 1 }, (_, i) => {
+          const at = (i / ROTATION_SAMPLES) * EXIT_SPAN;
+          const frac = Math.pow(at / EXIT_SPAN, 2);
+          return { at, rotationYDelta: frac * EXTRA_ROTATION };
+        });
+        // First keyframe also carries the entrance shape/position origin;
+        // last carries the hide shape. Keys are optional per keyframe (see
+        // this file's own usage docs), so folding these onto the existing
+        // rotation samples — rather than separate keyframe objects at the
+        // same `at` — keeps one flat, readable timeline.
+        //
+        // 'terrain', not 'collapse' (a sphere) — restored to match the
+        // ORIGINAL production behavior (see backup/partials/
+        // particle-morph.hbs:814, kept for reference): "terrain, not
+        // dispersed: the volatility lattice flowing into the terrain
+        // relief reads as one continuous surface deforming" — the hero
+        // shape and terrain are both flowing ground-plane surfaces, so the
+        // hide reads as one shape continuing to deform rather than a hard
+        // cut to something unrelated. 'collapse' was this session's own
+        // interim choice; reverted here per explicit request. Only hero's
+        // own hide shape changes — testimonials/operating-model-exit keep
+        // 'collapse' (a separate, later, explicit decision unrelated to
+        // hero's original value). The 'lab' zone below no longer has an
+        // `at:0` shape claim mirroring this value (removed as part of the
+        // self-contained-sections work — see that zone's own comment) so
+        // there is nothing left here to track.
+        const heroBaseShape = window.__heroShape ? window.__heroShape() : 'helix';
+        heroKeyframes[0].position = [0, 0, 0];
+        heroKeyframes[0].shape = heroBaseShape;
+        heroKeyframes[0].shapeKey = 'hero';
+        // heroKeyframes[heroKeyframes.length - 1].shape = 'dots'; // ALTERNATE — tried live, compared against 'terrain' below, for the run into the Lab/post-tabs section
+        // 'terrain' ("surface" — see the comment above on why: the
+        // volatility lattice flowing into the terrain relief reads as one
+        // continuous surface deforming), back to the original shape after
+        // comparing against 'dots' live. Still paired with 'hero-exit':'hide'
+        // commented out in default.hbs's PARTICLE_SCENARIOS: with 'hide'
+        // disabled, __particleApply's target falls back to this
+        // builtinShape, so hero morphs into 'terrain' and STAYS VISIBLE,
+        // rather than fading out (the pre-dots-experiment behavior DID fade
+        // out at this same shape — see default.hbs's map for how to fully
+        // revert to that if wanted). shapeKey still inherits the zone
+        // default ('hero-exit') below, unaffected by the scenario-map change.
+        heroKeyframes[heroKeyframes.length - 1].shape = 'terrain';
+        // Captured (not hardcoded) so heroStillRelevant() below always
+        // matches whichever shape this line above actually sets — swapping
+        // 'dots'/'terrain'/anything else here no longer requires touching
+        // that check too.
+        const heroExitShape = heroKeyframes[heroKeyframes.length - 1].shape;
+
+        // Shared by ownsPosition and frame() below — true while hero's own
+        // shape (its base shape, or the 'terrain' ground plane it morphs
+        // into) is still current AND the layer isn't hidden by some OTHER
+        // trigger. Mirrors the deleted code's shapeHandedOff/
+        // __particleLayerHidden check exactly. Re-reads window.__heroShape()
+        // fresh each call (not the heroBaseShape captured above) to match
+        // the deleted code's own behavior of never caching it.
+        // 'dispersed' counts as hero's own: it is the landing cloud
+        // system.start('dispersed') puts up BEFORE the hero morph, not a
+        // hand-off to a later section. Without it here, hero declined
+        // position ownership for the whole pre-morph window, so no zone was
+        // the exclusive owner and Lab's clamped `at:0` keyframe
+        // (position:[0,-6,0], an absolute write — see its setZone below) was
+        // free to run: it is inside _zoneActive()'s 3-viewport margin while
+        // you are still on the hero. That zeroed the canvas offset seeded at
+        // particle creation, and the offset only reappeared once the morph
+        // made the hero shape current and this check finally passed — a
+        // one-frame sideways snap right after the shape finished forming.
+        const heroStillRelevant = () => {
+          const cur = loop.currentState;
+          const base = window.__heroShape ? window.__heroShape() : 'helix';
+          // nextState, not just currentState (2026-08-10). currentState only
+          // flips at morph COMPLETION (particle-animation-loop.js's
+          // _completeMorph: `this.currentState = this.nextState`), so for the
+          // whole ~400-500ms of a morph back INTO the hero, cur was still the
+          // footer's 'grid' — handedOff stayed true, hero refused position
+          // ownership, and the footer zone kept writing its own centred
+          // x:0 for every frame of that morph. The particles visibly formed
+          // the hero shape at the footer's position and only snapped left
+          // once the morph finished and this predicate finally passed: the
+          // reported footer -> hero jump.
+          //
+          // Treating "already morphing toward the hero base shape" as
+          // relevant hands position over at the START of the morph instead
+          // of the end, so the shape forms in the right place. This is the
+          // same failure the comment above describes for the pre-morph
+          // window — fixed there via ownsPosition, missed here because the
+          // predicate itself could not see an in-flight morph.
+          const becomingHero = loop.nextState && loop.nextState.id === base;
+          if (becomingHero) return !window.__particleLayerHidden;
+          const handedOff = cur && cur.id !== base && cur.id !== heroExitShape && cur.id !== 'dispersed';
+          return !(window.__particleLayerHidden || handedOff);
+        };
+
+        let heroFrameFrozen = null;
+        window.particleScrollDirector.setZone('hero', heroKeyframes, {
+          element: '.hero',
+          mode: 'scroll-through',
+          shapeKey: 'hero-exit',
+          morphMs: 400,
+          chase: { rotationYDelta: 0.05 },        // was particle-animation-loop.js's _heroExitRotationMaxDelta
+          continuous: { rotationYDelta: 0.0025 }, // was _heroExitOverscrollSpinRate
+          ownsPosition: heroStillRelevant,
+          // positionBase/cameraZ/fov are DOM/viewport measurements, not
+          // functions of `t` (canvas offset depends on live CSS custom
+          // properties; FOV on viewport width) — see particle-scroll-
+          // director.js's own doc on why these go through `frame()` rather
+          // than plain keyframe channels: returning null once no longer
+          // relevant is what lets some LATER section's own camera reset
+          // stick, instead of this zone re-asserting a stale zoomed value
+          // for as long as _zoneActive()'s generous margin keeps it live.
+          frame: (l, t) => {
+            if (!heroStillRelevant()) return null;
+            if (t < EXIT_SPAN) {
+              const off = l._getHeroCanvasOffset();
+              const frac = Math.min(1, t / EXIT_SPAN);
+              const zoomedZ = heroBaseCameraZ * ZOOM_FACTOR;
+              heroFrameFrozen = {
+                positionBase: [off.x, off.y + frac * TRAVEL_Y, 0],
+                cameraZ: heroBaseCameraZ + (zoomedZ - heroBaseCameraZ) * (frac * frac),
+                fov: l._getHeroZoomFov(window.innerWidth),
+              };
+            }
+            return heroFrameFrozen;
+          },
+        });
+      }
+
+      // On cached/refresh visits, reveal particles immediately — no observer
+      // needed. Fades the dedicated scrim (see its markup above), NOT
+      // system.fadeController — that's shared with every other particle
+      // transition on this page (scroll-triggered dissolve/assemble morphs,
+      // hero-exit, etc. — see dissolveAndAssemble() in particle-morph-
+      // system.js), so redirecting IT here would touch all of those too.
+      // 150ms (the old duration, animating the canvas's own opacity via
+      // fadeController) read as janky — likely the cost of animating
+      // opacity on a WebGL canvas that's simultaneously re-rendering every
+      // frame, on top of the particle system's own startup work. A flat
+      // div's opacity is cheap regardless; slower/eased here reads as a
+      // deliberate reveal instead of a rushed one.
+      if (!window.__preloaderRunning) {
+        const loadScrim = document.getElementById('particles-load-scrim');
+        if (loadScrim) {
+          if (window.gsap) {
+            gsap.to(loadScrim, { opacity: 0, duration: 0.6, ease: 'power2.out' });
+          } else {
+            loadScrim.style.opacity = '0';
+          }
+        }
+      }
+
+      // Initialize Lab wave binding (scroll-driven particle color gradient +
+      // orb deformation progress). A flat 50ms delay silently no-op'd here:
+      // window.BackgroundLayer (a separate <script src>) frequently isn't
+      // parsed/executed yet at 50ms on a cold load, and initLabWave() just
+      // returns early when it's missing — nothing ever retried, so the
+      // whole binding permanently never happened. Poll-and-retry instead
+      // (same pattern already used for the hero helix-on-load and the work
+      // page's dispersed-on-load fixes elsewhere in this codebase).
+      //
+      // Skipped entirely on low-end devices: its bindShift() binding attaches
+      // a plain window 'scroll' listener that calls getBoundingClientRect()
+      // on EVERY scroll event site-wide for the rest of the page's life,
+      // regardless of whether the Lab section is anywhere near the
+      // viewport — profiled under simulated old hardware as the single
+      // largest source of scroll-jank on the page, dwarfing the particle
+      // system itself. It would also never have any visible effect here
+      // anyway, since low-end devices already skip the trigger that morphs
+      // TO 'lab' in the first place (setupCardTriggers() isn't called).
+      if (!window.__lowEndDevice) {
+        // Was polling for BackgroundLayer.bindShift before calling this —
+        // left over from when the Lab wavefront was scroll-scrubbed. It
+        // became autonomous (a ping-pong in the loop's _rafCallbacks, see
+        // initLabWave) and stopped using bindShift entirely, so the gate was
+        // blocking on a dependency the function no longer has. It only ever
+        // reads BackgroundLayer.parseColorToRGB for the accent sample, which
+        // initLabWave already guards internally.
+        debug('[particle-morph] Calling system.initLabWave()');
+        system.initLabWave();
+
+      // (work-cards — the post-card grid just above Lab — is the one
+      // section-level particle trigger that's deliberately NOT a zone
+      // here. See main.js's initCardParticleMorphing() for why: its shape
+      // depends on "which sibling card is most visible," not a single
+      // section's own monotonic scroll progress.)
+
+      // LAB CHOREOGRAPHY — the sphere scrolls WITH its section.
+      //
+      // Every other particle behaviour on this page is positionally fixed:
+      // the shape sits at the centre of a fixed, full-viewport canvas and
+      // only its FORM changes as you scroll past. Here the object should
+      // instead travel like a piece of the page — entering from below as
+      // the Lab section does, riding up with it, leaving at the top.
+      //
+      // Bound to the .gradient-frame WRAPPER around the whole Lab island
+      // (posts-tabs-grid-lab.hbs — it wraps the "Explorations, AI
+      // experiments" statement heading AND #work-grid-lab together), not to
+      // #work-grid-lab itself, so the sphere starts arriving as soon as
+      // that heading's gradient band comes into view rather than waiting
+      // for the card grid below it — asked for explicitly: "should come in
+      // view much earlier, as soon as our gradient wrapper starts". Found
+      // via closest() from #work-grid-lab rather than a bare
+      // '.gradient-frame' selector since that class is reused elsewhere
+      // (profile.hbs) and querying it directly could grab the wrong one.
+      //
+      // Position AND shape — the old IntersectionObserver that used to own
+      // the morph to 'lab' (plus its ad hoc "scrolling up out of lab"
+      // re-hide patch) is removed below in the same change, per the
+      // director's own header comment about not running two shape-writers
+      // for the same section at once.
+      if (window.particleScrollDirector) {
+        const labSection = document.querySelector('#work-grid-lab');
+        const labWrapper = labSection && labSection.closest('.gradient-frame');
+        if (labWrapper) {
+          // World units: at camera z=8 / fov 75 the viewport is ~12.3 units
+          // tall, so half that (~6.1) is the bottom edge. The start
+          // keyframe sits just inside it (-6.0, not -7.0/off-screen) so the
+          // sphere is already visibly emerging at the bottom the moment the
+          // zone begins, per "should actually start at the bottom of the
+          // screen, not off screen". Y increases upward, and content moves
+          // up as you scroll down — hence negative (below) to positive
+          // (above).
+          //
+          // Two phases: rise into place (0-0.50, same pace as before), then
+          // a CONTINUOUS climb the rest of the way — no flat hold. A hold
+          // was tried here and explicitly rejected: it should keep
+          // scrolling up right until it's off-screen, not pause partway.
+          // The second-half climb covers 14 units (not 7) over the same
+          // 0.50 span, so it's moving at twice the original rate — faster
+          // throughout, not just at the end — and it's already well past
+          // the top edge (~6.1) before t=1.0, so the extra distance beyond
+          // that is travelled off-screen, not visible.
+          // Shape: self-contained entrance AND exit — no reference to any
+          // OTHER section's own shape choice, so Lab keeps working
+          // correctly regardless of what comes before or after it (sections
+          // may be reordered). Silent (no opinion) until t=0.05 — see
+          // _sampleShape()'s own doc on why a keyframe partway through a
+          // zone's range must NOT sit at t=0: an early claim here would
+          // hijack whatever an EARLIER section (hero, or anything else) is
+          // still legitimately showing, the exact bug this pattern already
+          // fixed for operating-model-exit/testimonials. t=0.05 ~roughly
+          // matches where the old observer's rootMargin-expanded trigger
+          // actually fired — retune if it turns out to matter visually.
+          // 'lab' is in ParticleMorphSystem.IMMEDIATE_SHAPES
+          // (particle-morph-system.js) — generated synchronously at init,
+          // no GLB-readiness wait needed (unlike this zone's own OLD
+          // observer, which carried one — verify this holds before
+          // trusting it fully).
+          //
+          // Own exit at t=0.6: hides into 'terrain' as Lab's own bottom
+          // approaches — the position curve above has the sphere scrolled
+          // off the top of the viewport by roughly t≈0.72 (interpolating
+          // where position.y crosses the ~6.1 top edge between the t=0.50
+          // and t=1.00 keyframes), so this lands while it's still on-screen
+          // enough to read as "hiding," not after it's already invisible
+          // off-screen — retune by watching it live if that's off. A
+          // dedicated 'lab-exit' scenario key (default.hbs, 'hide' in both
+          // PARTICLE_SCENARIOS maps) drives this, mirroring 'hero-exit'/
+          // 'footer-exit'/'profile-exit''s existing per-section-exit
+          // pattern — deliberately NOT the 'lab' key itself (which stays
+          // visible, never 'hide', so the entrance morph above always
+          // shows). Per-keyframe morphMs=400 (fast, "hide is never really
+          // seen") overrides the zone's own 800ms (chosen for the SLOW,
+          // dramatic entrance reveal — the two shape transitions want
+          // different speeds, not the same one).
+          // ownsPosition: without this, Lab and operating-model (both
+          // non-exclusive position writers otherwise) can be simultaneously
+          // _zoneActive — that check uses a generous 3-viewport margin, far
+          // wider than either section's own real on-screen range — and
+          // whichever zone is LAST in Map insertion order (operating-model,
+          // registered after this one) wins every such frame, verified live:
+          // it was overriding Lab's own position (posX stuck at 4, Lab's own
+          // 0 never showing) through Lab's whole first ~90% of its range.
+          // Fix: each zone only writes position while its OWN `_rawT` (the
+          // unclamped progress _zoneProgress() computes, mode:'enter''s
+          // formula: 0 exactly at entrance, 1 exactly at full exit) is
+          // genuinely within [0,1] — not just within the activity margin.
+          // Reads the PREVIOUS frame's _rawT (this predicate runs in apply()'s
+          // exclusiveOwner pass, before _zoneProgress() refreshes it for the
+          // current frame) — a one-frame lag, imperceptible against real
+          // scroll deltas, so not worth an extra getBoundingClientRect read
+          // to avoid.
+          //
+          // reverseExit: the forward exit above (t=0.6) only fires scrolling
+          // DOWN. Scrolling back UP out of Lab's own entrance (t<0.05) hits
+          // _sampleShape()'s silent-before-first-keyframe case — by design,
+          // so a first-time approach from above doesn't hijack hero's still-
+          // legitimate shape (see the entrance comment above) — but that
+          // means, with no explicit handling, backing out after genuinely
+          // having been inside Lab would just freeze whatever shape was last
+          // shown ('lab') forever instead of hiding it. reverseExit is the
+          // director's opt-in fix for exactly this (see its own doc in
+          // particle-scroll-director.js): same target as the forward exit
+          // ('terrain'/'lab-exit'/400ms), fired once, direction-aware.
+          window.particleScrollDirector.setZone('lab', [
+            { at: 0.00, position: [0, -6.0, 0] },
+            { at: 0.05, shape: 'lab' },
+            { at: 0.50, position: [0,  0.0, 0] },
+            { at: 0.60, shape: 'terrain', shapeKey: 'lab-exit', morphMs: 400 },
+            { at: 1.00, position: [0, 14.0, 0] },
+          ], {
+            element: labWrapper,
+            morphMs: 800,
+            ownsPosition: function () { return this._rawT >= 0 && this._rawT <= 1; },
+            reverseExit: { shape: 'terrain', shapeKey: 'lab-exit', morphMs: 400 },
+          });
+        }
+
+        // FOOTER CHOREOGRAPHY — same idea as Lab: the object rises with the
+        // page instead of sitting static. #footer is the very last element
+        // on every page (default.hbs), so it can never fully "scroll past"
+        // like Lab does — the page simply stops scrolling once its bottom
+        // reaches the viewport bottom. Verified live: at the true page
+        // bottom this zone's own progress lands around ~0.4, not 1.0 — so
+        // the resting keyframe is placed at 0.42 (not 1.00), which is where
+        // it actually settles once you can't scroll any further, per
+        // "when we reach the bottom scroll position, the object is in the
+        // bottom part of the screen" (not centred, not off the top).
+        const footerSection = document.getElementById('footer');
+        if (footerSection) {
+          // Shape keyframe added here (was a separate IntersectionObserver
+          // further down — see its own removal note): a SINGLE keyframe at
+          // t=0.08 (~matches the old >10%-visible threshold — retune if it
+          // turns out to matter visually), 'grid' (the interactive
+          // "technical drawing paper" lattice — particle-animation-loop.js),
+          // silent before that per _sampleShape()'s own doc (same pattern
+          // as operating-model-exit above) — NOT a second keyframe at t=0
+          // claiming 'dispersed'. That was tried first and reproduced a
+          // real bug: _zoneActive()'s generous 3-viewport margin makes this
+          // zone "active" — and t clamped to a real 0 — from FAR earlier
+          // than footer is actually visible (position keyframes want that
+          // early activity; shape does not), so an at:0 shape keyframe
+          // fired 'dispersed' while still deep in operating-model's own
+          // territory, hijacking the shape from whatever was legitimately
+          // showing there.
+          //
+          // reverseExit — WAS believed unnecessary ("testimonials'/
+          // operating-model-exit's own zones re-derive their shape from
+          // position every frame too, so scrolling back up into their
+          // range naturally reclaims their own shape on its own"). That
+          // reasoning missed that _checkZoneShape() also gates on THIS
+          // zone's own cached `zone.shape`, not just on what's currently
+          // displayed: with no reverseExit, scrolling away from footer
+          // never resets that cache, so a SECOND visit (scroll to footer →
+          // away → back to footer again) sampled 'grid' again but saw
+          // `sampled.shape === zone.shape` (still 'grid' from the first
+          // visit) and skipped re-applying — footer silently stayed
+          // whatever the intervening zones (testimonials, hero, ...) had
+          // last set, reproduced live exactly as reported: shows correctly
+          // once, not on the next approach. Same fix Lab already got
+          // above: hide into 'terrain' on the way out AND reset the
+          // cache, via the existing 'footer-exit': 'hide' scenario key
+          // (default.hbs's PARTICLE_SCENARIOS — already declared, just
+          // never actually fired by anything until now).
+          window.particleScrollDirector.setZone('footer', [
+            { at: 0.00, position: [0, -6.0, 0] },
+            { at: 0.08, shape: 'grid' },
+            { at: 0.42, position: [0, -2.5, 0] },
+          ], {
+            element: footerSection,
+            shapeKey: 'footer',
+            morphMs: 600,
+            reverseExit: { shape: 'terrain', shapeKey: 'footer-exit', morphMs: 400 },
+          });
+        }
+      }
+      }
+
+      // Refresh ScrollTrigger positions after DOM layout changes from particle system init
+      if (typeof ScrollTrigger !== 'undefined' && typeof ScrollTrigger.refresh === 'function') {
+        setTimeout(() => {
+          ScrollTrigger.refresh();
+          debug('[particle-morph] ScrollTrigger refreshed');
+        }, 100);
+      }
+    } catch (error) {
+      debug('[particle-morph] ❌ Old system init failed: ' + error.message);
+      return;
+    }
+  }
+
+  try {
+    // (setupHeroExitTeardown removed — see the LOW-END PROMOTION note below.)
+
+    // Setup trigger system with viewport-based morphing and reverse animation on scroll up
+    const setupCardTriggers = () => {
+      // (createViewportTrigger() and its only inputs — morphDuration,
+      // stateSequence, observerInitComplete — removed: it was defined to
+      // unify the observers below but never actually called by any of
+      // them; confirmed via grep, zero call sites.)
+
+      // Hero fade-in is handled directly after init (cached) or by preloader._runParticles() (first visit)
+
+      // A previous "Trigger 1: time-based, 200ms after preloader" here assumed
+      // this code only runs once the preloader has actually finished — true
+      // for the GPU path (gpu-particle-integration.hbs waits for
+      // preloader:done before creating that system), but NOT for this
+      // (legacy THREE.js) path: particle-morph.hbs's own init is scheduled via
+      // `setTimeout(initParticleMorphModular, localStorage.getItem('preloader_seen') ? 0 : 500)`
+      // near the bottom of this file, and preloader.js's IIFE sets
+      // `preloader_seen` in localStorage SYNCHRONOUSLY at its very top — before
+      // the preloader animation has even started, let alone finished (see
+      // COMMON_ISSUES.md). So `preloader_seen` already reads true here on
+      // EVERY visit, firing this code (and its 200ms timer) almost
+      // immediately on page load — while the preloader's burst+dispersed
+      // sequence (preloader.js _runParticles()) is often still mid-flight.
+      // The result: particles morph to helix within ~200ms of load, well
+      // before the intended "burst into dispersed, stay dispersed until hero
+      // actually reveals" sequencing — visually reading as "the burst goes
+      // straight to helix" instead of dispersed-then-helix. Removed rather
+      // than retimed: initHero()'s own delayedCall already ties the helix
+      // morph correctly to hero's actual entrance, making this redundant as
+      // well as wrong.
+
+      // (helix-section trigger removed — #helix/.positioning-slide-main only
+      // ever existed in image-stripe.hbs/statement-slide-logos.hbs, both
+      // commented out on index.hbs; the only OTHER include site is
+      // page-about.hbs, which particle-morph.hbs excludes entirely
+      // (isAboutPage). Confirmed dead on every page this script runs on.)
+
+      // Card particle morphing is triggered by card-animations.js IntersectionObserver
+      // Both card animation and particle morph happen from same observer
+      debug('[trigger-setup] Card morphing handled by card-animations.js (shared observer)');
+
+      // Particles morph to card shapes (driven by card observers in main.js) — no fade-out here
+
+      // (Profile → terrain trigger removed — .profile only exists on
+      // page-about.hbs/about.hbs, and particle-morph.hbs excludes About
+      // pages entirely (isAboutPage, see the top of this file) — this
+      // never actually ran on any page particle-morph.hbs initializes on.)
+
+      // Testimonials — director zone. Single shape keyframe at t=0.15
+      // (roughly matching the old IntersectionObserver's
+      // intersectionRatio>0.2 threshold — retune if it turns out to
+      // matter visually), left silent before that per _sampleShape()'s
+      // own doc (same pattern as operating-model-exit above). The old
+      // "don't fire while hero is still visible" guard is dropped:
+      // testimonials sits well after operating-model in page order, so by
+      // the time this zone's own t reaches 0.15, hero is never actually
+      // still visible — position-derived shape sampling makes that
+      // edge-case guard structurally unnecessary here.
+      const testimonialsSection = document.querySelector('[data-testimonials], .testimonials-section, #testimonials');
+      if (testimonialsSection) {
+        window.particleScrollDirector.setZone('testimonials', [
+          { at: 0.15, shape: 'collapse' },
+        ], { element: testimonialsSection, mode: 'enter', shapeKey: 'testimonials', morphMs: 600 });
+      }
+
+      // (Stats parallax trigger removed — stats-parallax.hbs, where
+      // #stats-scroll/.stats-parallax live, is not included on any page.
+      // Confirmed dead.)
+
+      // (Footer's shape trigger — now the shape keyframes on the 'footer'
+      // director zone, registered earlier alongside its position
+      // keyframes. See that setZone() call for the exact grid/dispersed
+      // timing.)
+
+      // helix-on-scroll-up is handled by the hero section's onLeaveBack trigger below
+
+      // ── Scroll-position triggers (ScrollTrigger) ────────────────────────────
+      // Guard: check window.ScrollTrigger (GSAP plugin) rather than gsap.plugins
+      // which may not be populated if registerPlugin was called before the plugin loaded.
+      //
+      // (A second 'helix-section' trigger — gated on the same #helix/
+      // .statement-slide-main element confirmed dead in Stage 1b — used to
+      // live here too. Same root cause, same conclusion: its own `if
+      // (helix)` guard meant it never actually registered on any live
+      // page. Removed alongside operating-model-exit's migration below.)
+      if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined' && typeof ScrollTrigger.getAll === 'function') {
+        const operatingModel = document.getElementById('operating-model');
+        const logosRibbon = document.getElementById('logos-ribbon');
+
+
+        // Operating model — director zone (renamed from 'operating-model-
+        // exit': it now owns the section's own position choreography too,
+        // not just its exit; shapeKey stays 'operating-model-exit'
+        // explicitly so the existing PARTICLE_SCENARIOS entry keeps
+        // resolving unchanged — zone `name` and `shapeKey` are independent).
+        //
+        // Shape: TWO keyframes — an entrance at t=0.02 and the exit at t=1
+        // (mode:'enter': 1 once the section's bottom clears the viewport
+        // top). The exit mirrors the old ScrollTrigger exactly (its
+        // onEnter/onLeaveBack were both empty, confirmed before removing
+        // them — only onLeave, fully scrolled past going down, ever did
+        // anything): 'collapse', unrelated to any neighboring section's
+        // shape (the whole point of making each section self-contained).
+        //
+        // The entrance is new, and necessary for self-containment: this
+        // zone used to have NO shape claim before t=1, relying entirely on
+        // whatever an EARLIER section left behind still being visible. That
+        // silently broke the instant Lab got its own exit (this same
+        // session, see the 'lab' zone above) — Lab's own `lab-exit`→'hide'
+        // now fires partway through Lab's OWN range and nothing was left to
+        // un-hide the layer again until footer, swallowing this entire
+        // section's visibility (verified live: position was updating in
+        // memory the whole time, genuinely invisible on screen because
+        // apply() — see particle-animation-loop.js's animate() — skips ALL
+        // position/rotation/shape writes while window.__particleLayerHidden
+        // is true). shapeKey: 'operating-model' (per-keyframe override, the
+        // zone's own default 'operating-model-exit' would wrongly reuse the
+        // EXIT's scenario entry here) — the EXISTING entrance scenario key,
+        // already 'hide' under the live 'hero-footer' PARTICLE_SCENARIO (by
+        // design — that scenario only ever shows hero/footer) and absent
+        // (→ visible) under 'full', so this correctly stays invisible in
+        // production while being verifiable under 'full'. 'sphere' matches
+        // operating-model.hbs's own first category (data-category=
+        // "products", data-morph-shape="sphere") so there's no visible
+        // mismatch before that section's own groupObserver's first
+        // morphTo() call overrides it milliseconds later. Silent before
+        // t=0.02, same _sampleShape() pattern as everywhere else in this
+        // file — an earlier t=0 claim would fire the instant _zoneActive()'s
+        // generous margin goes true, hijacking Lab's still-legitimate shape
+        // (the exact bug already fixed once for Lab's own old at:0 claim).
+        //
+        // Position: rises with the page like Lab/footer already do — same
+        // curve shape (-6 → 0 → 14), offset to the right (+4.0 world
+        // units — camera z=8/fov 75 puts the viewport half-width around
+        // ~7-9 depending on zoom, so this sits noticeably right of centre
+        // without running off the edge; retune by watching it live).
+        //
+        // Timing note: the director's mode:'enter' progress formula
+        // differs from the old GSAP 'bottom center+=800' offset string —
+        // expect the exact px where the exit fires to shift somewhat;
+        // retune the keyframe's `at` if that turns out to matter visually.
+        // ownsPosition — same fix as Lab's own zone above, same reason:
+        // without it this zone (registered AFTER Lab, so it wins ties as
+        // Map-iteration's last writer) was claiming position through
+        // essentially all of Lab's own range too, since _zoneActive()'s
+        // generous margin made both simultaneously "active" long before
+        // operating-model was genuinely on screen. See Lab's zone for the
+        // full rationale — kept short here to avoid duplicating it.
+        if (operatingModel) {
+          window.particleScrollDirector.setZone('operating-model', [
+            { at: 0.00, position: [4.0, -6.0, 0] },
+            { at: 0.02, shape: 'sphere', shapeKey: 'operating-model' },
+            { at: 0.50, position: [4.0,  0.0, 0] },
+            { at: 1.00, position: [4.0, 14.0, 0], shape: 'collapse' },
+          ], {
+            element: operatingModel,
+            mode: 'enter',
+            shapeKey: 'operating-model-exit',
+            morphMs: 400,
+            ownsPosition: function () { return this._rawT >= 0 && this._rawT <= 1; },
+          });
+        }
+
+        // Logos ribbon scroll trigger (800px offset) - pin text container while scrolling
+        if (logosRibbon) {
+          var logosRibbonOuter = logosRibbon.closest('.logos-ribbon-sticky-outer');
+          var textContainer = logosRibbonOuter ? logosRibbonOuter.querySelector('.positioning-container.pin-bottom-left') : null;
+
+          if (textContainer) {
+            // Animate in on enter
+            gsap.fromTo(textContainer, {
+              opacity: 0,
+              visibility: 'hidden',
+              filter: 'blur(8px)',
+              y: 20
+            }, {
+              opacity: 1,
+              visibility: 'visible',
+              filter: 'blur(0px)',
+              y: 0,
+              duration: 0.5,
+              ease: 'power2.out'
+            });
+
+            // Keep pinned while scrolling through logos-ribbon
+            gsap.to({}, {
+              scrollTrigger: {
+                trigger: logosRibbon,
+                start: 'top center+=800',
+                end: 'bottom center+=800',
+                pin: textContainer,
+                pinSpacing: false,
+                onEnter: function () {
+                  gsap.to(textContainer, {
+                    opacity: 1,
+                    visibility: 'visible',
+                    duration: 0.3
+                  });
+                  if (window.statementReveal) {
+                    window.statementReveal();
+                  }
+                },
+                onLeave: function () {
+                  gsap.to(textContainer, {
+                    opacity: 0,
+                    visibility: 'hidden',
+                    duration: 0.3
+                  });
+                },
+                onLeaveBack: function () {
+                  gsap.to(textContainer, {
+                    opacity: 0,
+                    visibility: 'hidden',
+                    duration: 0.3
+                  });
+                }
+              }
+            });
+          }
+        }
+
+        // (Hero-exit morph — now the 'hero' director zone registered near
+        // the top of initParticleMorphModular(), right after
+        // window.particleSystem is set. See COLLAPSE in
+        // shape-definitions.js for the collapse shape.)
+
+        // (work-grid trigger removed — #work-grid lives in
+        // posts-tabs-grid.hbs, a confirmed dead-code variant not included
+        // on the live homepage (posts-tabs.hbs is the live one). Dead.)
+
+        // (work-grid-lab's shape trigger — including the ad hoc
+        // "scrolling up out of lab → re-hide for work-cards" patch this
+        // comment block used to describe — is now the shape keyframes on
+        // the 'lab' director zone, registered earlier alongside its
+        // position keyframes. The patch's own bug (reverse-scroll-out-of-
+        // lab leaving the wrong shape showing, since work-cards' old
+        // ScrollTriggers were onEnter-only) is fixed structurally there:
+        // position-derived shape sampling re-evaluates every frame in
+        // BOTH scroll directions, so nothing special has to re-assert
+        // itself on the way back up.)
+
+        debug('[particle-morph] ScrollTriggers initialized');
+      } else {
+        debug('[particle-morph] ScrollTrigger not available (typeof: ' + typeof ScrollTrigger + ')');
+      }
+
+      if (!useGPUSystem) {
+        system.triggerManager.init((action) => system.handleTriggerAction(action));
+        // window.particleSystem/particleMorphSystem are exposed earlier now
+        // (right after system.start('dispersed')) — see that comment.
+      }
+    };
+
+    // LOW-END PROMOTION (2026-07-17): low-end devices now get the FULL
+    // particle journey — all section triggers, all morphs, glow included.
+    // The old tier (hero-only, then tear down; and the teardown crashed on
+    // a nonexistent system.dispose(), leaving the renderer running hidden)
+    // was designed around costs that no longer exist: bloom, CPU-side
+    // morph lerps and CSS drop-shadow filters are all gone, and the
+    // DNA-Capital fine-particle profile keeps fill low everywhere. The
+    // remaining low-end concession is dpr capped at 1 (particle-animation-
+    // loop.js) — the one big saving nobody can see.
+    setupCardTriggers();
+
+    // Expose for potential future use - but cards now handled by ScrollTrigger
+    // This prevents duplicate IntersectionObserver creation
+    window.reinitializeParticleTriggers = () => {
+      debug('[trigger-setup] Reinitialize called - cards handled by ScrollTrigger, skipping');
+    };
+
+    } catch (err) {
+      if (!useGPUSystem) {
+        debug('[particle-morph] ❌ Error during initialization: ' + err.message);
+        debug('[particle-morph] Stack: ' + err.stack);
+      }
+    }
+  }
+debug('[particle-morph] Starting initialization...');
+setTimeout(initParticleMorphModular, localStorage.getItem('preloader_seen') ? 0 : 500);
+
+// ── Inline theme patch (not cached — always fresh) ─────────────────────────
+// Fixes:
+// 1. Broken regex in cached generateParticleColors — inline canvas colour reader instead.
+// 2. EffectComposer race condition — async _initComposer() re-enables bloom after patch.
+//    Fixed with Object.defineProperty so the getter always respects current theme.
+// 3. mix-blend-mode:screen invisible on light backgrounds — normal + transparent renderer.
+(function installThemePatch() {
+  var sys = window.particleSystem;
+  if (!sys || !sys.loop || !sys.loop.particles) {
+    setTimeout(installThemePatch, 300);
+    return;
+  }
+
+  var loop = sys.loop;
+  var demo = document.getElementById('particle-morph-demo');
+
+  // ── Robust colour reader (canvas, works for hex/rgb/named) ──────────────
+  function readCSSColor(variable) {
+    var raw = getComputedStyle(document.documentElement).getPropertyValue(variable).trim();
+    // Fallback matches --color-particles' own DARK-theme value (#1D4551, default.hbs)
+    // rather than an arbitrary bright cyan (90,216,255) — this is the base colour
+    // generateColors() jitters/accents on top of, so a wrong value here isn't subtle:
+    // it repaints the whole sphere. If the CSS var ever genuinely reads empty (see
+    // particle-morph-system.js's generateParticleColors for the same reasoning), fail
+    // toward the theme's real colour instead of an off-brand flash.
+    if (!raw) return [29/255, 69/255, 81/255];
+    var cvs = document.createElement('canvas');
+    cvs.width = cvs.height = 1;
+    var ctx = cvs.getContext('2d');
+    ctx.fillStyle = raw;
+    ctx.fillRect(0, 0, 1, 1);
+    var d = ctx.getImageData(0, 0, 1, 1).data;
+    return [d[0]/255, d[1]/255, d[2]/255];
+  }
+
+  // Per-particle colour variance (DNA-Capital look): mostly the base
+  // --color-particles hex with slight brightness jitter, a scatter of
+  // violet and pink accents, and ~2% bright sparkles whose indices match
+  // the oversized dots in shape-definitions.js's helix lattice (identical
+  // index hash + threshold), so the big dots are the bright ones.
+  // Deterministic per index — applyTheme re-runs constantly (shift ticks,
+  // toggles) and the field must not shimmer between calls.
+  var ACCENT_A = [0.55, 0.49, 0.96];  // violet
+  var ACCENT_B = [0.88, 0.48, 0.69];  // pink
+  function hash01(i) {
+    var x = Math.sin(i * 127.1) * 43758.5453;
+    return x - Math.floor(x);
+  }
+  function generateColors(count) {
+    var c = readCSSColor('--color-particles');
+    var arr = new Float32Array(count * 3);
+    for (var i = 0; i < count; i++) {
+      var h = hash01(i);
+      var r = c[0], g = c[1], b = c[2];
+      if (h > 0.995) {
+        // sparkle: hot, pulled toward white (matches the oversized dots —
+        // threshold MUST equal the sizes threshold in shape-definitions.js)
+        var wm = 0.65;
+        r = r * 2.2 * (1 - wm) + wm; g = g * 2.2 * (1 - wm) + wm; b = b * 2.2 * (1 - wm) + wm;
+      } else if (h > 0.92) {
+        // pink accent, 55% blended into base
+        r = r * 0.45 + ACCENT_B[0] * 0.55; g = g * 0.45 + ACCENT_B[1] * 0.55; b = b * 0.45 + ACCENT_B[2] * 0.55;
+      } else if (h > 0.80) {
+        // violet accent
+        r = r * 0.45 + ACCENT_A[0] * 0.55; g = g * 0.45 + ACCENT_A[1] * 0.55; b = b * 0.45 + ACCENT_A[2] * 0.55;
+      } else {
+        // base with +-14% brightness jitter (second hash decorrelates)
+        var j = 0.86 + hash01(i + 31) * 0.28;
+        r *= j; g *= j; b *= j;
+      }
+      arr[i*3] = r; arr[i*3+1] = g; arr[i*3+2] = b;
+    }
+    return arr;
+  }
+
+  // ── SINGLE PIPELINE (2026-07-17): transparent canvas + normal element
+  // compositing, both themes, at every shift value. The old dual pipeline
+  // (opaque-black canvas + mix-blend-mode:screen in dark mode) existed
+  // solely so UnrealBloomPass had an opaque buffer to composite; bloom is
+  // gone (replaced by in-sprite glow in particle-animation-loop.js's
+  // fragment shader), so the 0.65 shift-threshold pipeline flip, the
+  // black-flash bridge frame, the composer interceptor getters and the
+  // canvas opacity dip that smoothed the flip are all obsolete and removed.
+  // Particles now render identically over any backdrop — dark, light, or
+  // mid-shift — and macOS rubber-band overscroll can never expose an opaque
+  // black buffer again (there isn't one).
+  // Per-theme glow trim: the in-sprite halo composites in OPPOSITE
+  // directions per theme — luminous glow over dark backgrounds, soft dark
+  // ink-bleed over light ones (same shader, the backdrop flips the read).
+  // 1.0 = light mode keeps the full halo; lower it (e.g. 0.5) if the
+  // bleed makes light-mode particles feel too heavy. Dark mode always
+  // runs the base strength. Live-tune:
+  //   window.particleSystem.updateColors() re-applies after edits here;
+  //   or set the uniform directly for a quick look.
+  //
+  // WHY STRENGTH DROPPED 1.5 -> 1.0 WHILE RADIUS WENT UP (2026-08-05):
+  // "light mode barely visible" measured out as a COVERAGE deficit, not a
+  // brightness one. Against dark mode as the target, light mode already
+  // matched on raw core contrast but lit only 0.80% of pixels past a
+  // 2-deltaL JND vs dark's 2.28% — the cores were fine, the halo/dust
+  // around them died against white. Strength alone cannot fix that: it
+  // drives the core's peak, and pushing it far enough to spread coverage
+  // blew the cores to deltaL 45-58 (target 22.4) while coverage stalled
+  // near 1.3%, because coverage is bounded by the halo's FOOTPRINT, not
+  // its intensity. Widening the radius spreads the same ink over more
+  // pixels, so strength could come back down to the base. Measured pairs
+  // (colour #082A3C, see --color-particles in default.hbs — the three
+  // knobs were tuned together and only make sense together):
+  //   strength 1.5, radius 2.8  -> core 25.9, coverage 1.05%   (old shape)
+  //   strength 2.0, radius 2.8  -> core 42.8, coverage 1.39%   (blown cores)
+  //   strength 1.0, radius 5.2  -> core 24.2, coverage 2.29%   (chosen)
+  // Dark mode is untouched by both multipliers (x1.0).
+  var GLOW_STRENGTH_LIGHT_MULT = 1.0;
+
+  // Light-mode halo footprint, as a multiple of the base GLOW_RADIUS
+  // (particle-animation-loop.js). 5.2 / 2.8 — see the measurements above.
+  // COST: sprite area scales with the square of this (setGlowRadius keeps
+  // uSpriteScale = radius * 2.12 in lockstep), so light mode pays ~3.4x the
+  // per-particle fill of dark mode. Deliberate and bounded: it multiplies
+  // whatever base radius this device got, and low-end devices start from a
+  // much smaller one (1.1 vs 2.8), so a low-end light sprite still ends up
+  // SMALLER than a normal dark-mode sprite is today — the weakest GPUs
+  // never see the full cost.
+  var GLOW_RADIUS_LIGHT_MULT = 5.2 / 2.8;
+
+  function applyTheme() {
+    var isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    var geo = loop.particles && loop.particles.geometry;
+
+    // Update colour buffer with correct count + working colour reader
+    if (geo && geo.attributes.position) {
+      var count  = geo.attributes.position.count;
+      var colors = generateColors(count);
+      if (geo.attributes.color && geo.attributes.color.array.length === colors.length) {
+        geo.attributes.color.array.set(colors);
+        geo.attributes.color.needsUpdate = true;
+      } else if (geo.attributes.color) {
+        geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        geo.attributes.color.needsUpdate = true;
+      }
+      console.log('[particle-theme-patch] color updated, isLight=' + isLight +
+                  ' count=' + count +
+                  ' sample=[' + Array.from(colors.slice(0, 3)).map(function(v){ return v.toFixed(3); }) + ']');
+    }
+
+    // Per-theme glow trim (see GLOW_STRENGTH_LIGHT_MULT above). Base
+    // strength is captured once so repeated applyTheme calls (every shift
+    // tick + theme toggles) can't compound the multiplier.
+    var u = loop.particles && loop.particles.material && loop.particles.material.uniforms;
+    if (u && u.uGlowStrength) {
+      if (loop.__baseGlowStrength === undefined) loop.__baseGlowStrength = u.uGlowStrength.value;
+      u.uGlowStrength.value = loop.__baseGlowStrength * (isLight ? GLOW_STRENGTH_LIGHT_MULT : 1.0);
+    }
+
+    // Halo footprint, same base-capture guard as the strength above (this
+    // runs on every palette-shift tick, so reading the LIVE radius as the
+    // base would compound the multiplier on the second call). setGlowRadius
+    // is what keeps uSpriteScale in lockstep — writing uGlowRadius alone
+    // just clips the halo at the old sprite bounds.
+    if (u && u.uGlowRadius && loop.setGlowRadius) {
+      if (loop.__baseGlowRadius === undefined) loop.__baseGlowRadius = u.uGlowRadius.value;
+      loop.setGlowRadius(loop.__baseGlowRadius * (isLight ? GLOW_RADIUS_LIGHT_MULT : 1.0));
+    }
+
+    // Defensive: enforce the single-pipeline invariants in case any other
+    // code (old cached JS, console experiments) flipped them.
+    loop.renderer.setClearColor(0x000000, 0);
+    if (demo) {
+      demo.style.mixBlendMode = 'normal';
+      demo.style.filter = 'none';
+      // Don't force the layer visible if a PARTICLE_SCENARIO has hidden it —
+      // this runs from updateColors() on EVERY palette-shift scroll frame
+      // (profile section), and unconditionally writing '1' here was
+      // silently undoing scenario 'hide' fades mid-page.
+      //
+      // Must test __particleHiding TOO, not just __particleLayerHidden.
+      // __particleLayerHidden only flips true from the hide TIMER, ~700ms
+      // after a fade is armed (default.hbs __particleApply), so for that
+      // whole window a fade is visibly in flight while the flag still reads
+      // false — and this line then stomps opacity back to '1' and cancels it.
+      //
+      // That is the "click Home, scroll immediately, hero's ground plane
+      // ('terrain', the surface) stays on screen" bug. Traced by trapping
+      // writes to this element's style.opacity: the hide wrote '0' at
+      // t=1513ms and applyTheme wrote '1' at t=1532ms, 19ms later. Land the
+      // same scroll after the theme patch has already run (t=1271ms vs a
+      // hide at t=1614ms) and the order reverses, which is exactly why it
+      // only reproduced when scrolling within ~400ms of landing.
+      //
+      // __particleHiding goes true synchronously the instant any hide is
+      // requested, so it covers the full fade window the other flag misses.
+      if (!window.__particleLayerHidden && !window.__particleHiding) demo.style.opacity = '1';
+    }
+  }
+
+  sys.updateColors = applyTheme;
+  applyTheme();
+  debug('[particle-morph] theme patch installed');
+}());
+</script>

@@ -1,0 +1,29 @@
+<section class="personal-section">
+  <header class="personal-header">
+    <h2 class="brand">Unusual things about me</h2>
+    <p class="section-description">that don't fit on a CV.</p>
+  </header>
+
+  <div class="personal-grid">
+    {{#get "posts" filter="tag:personal" limit="100" include="tags,authors,html"}}
+      {{#foreach posts}}
+        {{> personal-card}}
+      {{/foreach}}
+    {{/get}}
+    {{!-- Find all personal posts link hidden for now --}}
+    {{!--
+    {{#get "tags" filter="slug:personal"}}
+      {{#tags}}
+        <div class="find-out-more-card">
+          <a href="{{url}}" class="find-out-more-link">
+            <h3 class="find-out-more-text">Find all</h3>
+            <img src="{{asset "icons/arrow-right.svg"}}" alt="" class="find-out-more-icon">
+          </a>
+        </div>
+      {{/tags}}
+    {{/get}}
+    --}}
+ 
+  </div>
+ 
+</section>

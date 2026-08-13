@@ -1,0 +1,22 @@
+<article class="testimonial-card" data-testimonial-url="{{url}}" data-testimonial-title="{{title}}">
+  <div class="testimonial-content">
+    <!--<div class="testimonial-author">
+      <h3 class="testimonial-name">{{title}}</h3>
+    </div>-->
+    {{!-- Snippet from testimonialMeta (big text on home page) --}}
+        <div class="testimonial-title serif"></div>
+    <div class="testimonial-snippet"></div>
+    {{!-- Avatar + source row: populated from testimonialMeta.avatar (post
+          codeinjection_head, same fetch+regex mechanism as source below —
+          main.js's initTestimonialMetadata) — avatar empty/hidden until
+          then, same contract as .testimonial-source itself. --}}
+    <div class="testimonial-item">
+      <img class="testimonial-avatar" alt="" data-skip-reveal style="display: none;">
+      <div class="testimonial-source"></div>
+    </div>
+    {{!-- Fallback to excerpt if no snippet --}}
+    {{#if excerpt}}
+      <div class="testimonial-excerpt" style="display: none;">{{excerpt}}</div>
+    {{/if}}
+  </div>
+</article>

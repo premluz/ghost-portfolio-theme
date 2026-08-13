@@ -1,0 +1,72 @@
+{{!-- GRADFLOW FRAME — the scoped/wrap-your-own-content counterpart to
+      gradflow-page-bg.hbs (whole-page, viewport-fixed). Same WebGL mechanism
+      (assets/js/gradflow-background.js's initGradFlowBackground, same
+      gradflow-shaders.js), same config surface (color1/2/3, speed, scale,
+      type, noise) — only the HOST changes: instead of a position:fixed
+      full-viewport div, this wraps a single element the way
+      gradient-aura-frame does (see main.css's own "GRADIENT AURA FRAME"
+      doc), so the same page can carry a CSS gradient-aura frame on one
+      section and a real WebGL gradflow frame on another, both authored the
+      same way — a class + data-* attributes on the content's own wrapper.
+
+      Usage — wrap this partial's block around whatever content should sit
+      in front of the gradient:
+        {{> gradflow-frame}}
+          <div class="hero-container">...</div>
+        {{/gradflow-frame}}
+      This is a block partial ({{#> gradflow-frame}}...{{/gradflow-frame}}
+      at the call site) since, unlike gradflow-page-bg (a background with no
+      content of its own), a frame's whole point is to wrap something.
+
+      PER-INSTANCE CONFIG — identical params/defaults to gradflow-page-bg.hbs
+      (see that partial's own doc for the all-or-nothing color1r/g/b etc.
+      detection caveat, and the type/speed/noise notes — unchanged here):
+        {{#> gradflow-frame
+            color1r="120" color1g="38"  color1b="78"
+            color2r="49"  color2g="16"  color2b="96"
+            color3r="18"  color3g="18"  color3b="18"
+            speed="0.5" scale="1.1" noise="0.32" type="wave"}}
+          ...content...
+        {{/gradflow-frame}}
+      ⚠ TRAP inherited from that same all-or-nothing pattern: `noise`'s
+      fallback is keyed off color1r too ({{#if color1r}}{{noise}}{{else}}0),
+      not its own presence — passing any color override WITHOUT also
+      passing noise renders `noise: ,` (bare comma, no value), a JS syntax
+      error that silently kills this whole init script with no on-page
+      signal. Passing colors without noise → always add noise="0"
+      explicitly (or whatever value) alongside them. Confirmed live via
+      hero.hbs's own first use of this partial.
+
+      Multi-instance safe the same way gradient-aura-frame is: each call
+      gets its own canvas and its own initGradFlowBackground() mount, no
+      shared global or ID scheme. --}}
+<div class="gradflow-frame" aria-hidden="false">
+  <div class="gradflow-frame-bg" aria-hidden="true">
+    <canvas class="gradflow-frame-canvas"></canvas>
+  </div>
+  <div class="gradflow-frame-content">
+    {{> @partial-block }}
+  </div>
+  <script>
+    (function () {
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      var canvas = document.currentScript.closest('.gradflow-frame').querySelector('.gradflow-frame-canvas');
+      var attempts = 0;
+      (function tryInit() {
+        if (window.initGradFlowBackground) {
+          window.initGradFlowBackground(canvas, {
+            color1: { r: {{#if color1r}}{{color1r}}{{else}}212{{/if}}, g: {{#if color1r}}{{color1g}}{{else}}227{{/if}}, b: {{#if color1r}}{{color1b}}{{else}}254{{/if}} },
+            color2: { r: {{#if color1r}}{{color2r}}{{else}}249{{/if}}, g: {{#if color1r}}{{color2g}}{{else}}211{{/if}}, b: {{#if color1r}}{{color2b}}{{else}}224{{/if}} },
+            color3: { r: {{#if color1r}}{{color3r}}{{else}}250{{/if}}, g: {{#if color1r}}{{color3g}}{{else}}250{{/if}}, b: {{#if color1r}}{{color3b}}{{else}}248{{/if}} },
+            speed: {{#if color1r}}{{speed}}{{else}}0.6{{/if}},
+            scale: {{#if color1r}}{{scale}}{{else}}1.5{{/if}},
+            type: '{{#if type}}{{type}}{{else}}smoke{{/if}}',
+            noise: {{#if color1r}}{{noise}}{{else}}0{{/if}},
+          }).then(function (handle) { canvas.__gradflowHandle = handle; });
+        } else if (attempts++ < 100) {
+          setTimeout(tryInit, 100);
+        }
+      })();
+    })();
+  </script>
+</div>

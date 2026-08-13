@@ -1,0 +1,1157 @@
+/**
+ * THINKINGISFREE — DESIGN SYSTEM
+ * 3-tier token architecture: Primitives → Semantic → Component
+ * Theme variants: dark (default), light, dim
+ */
+
+/**
+ * RESPONSIVE BREAKPOINTS — Canonical set
+ * Media queries reference the values below. Note: CSS custom properties cannot
+ * be used in @media queries, so breakpoint values are hardcoded in each file.
+ * Canonical breakpoints (480 / 640 / 768 / 1024 / 1440) are the source of truth
+ * shared with JS (see CONSTANTS.js: BREAKPOINTS object).
+ *
+ * Component-specific exceptions (documented per-component):
+ * - 900px: operating-model-stacked resize-rebuild threshold (scroll-choreography sensitive)
+ * - 780px / 600px: modal and post-card-grid tuning (migrate opportunistically)
+ * - 960px: legacy grid breakpoint (phase out when touching tag.css/main.css)
+ * - 1025px: NOT a separate breakpoint—it's min-width: 1025px (complement of max-width: 1024px)
+ */
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* TIER 1: PRIMITIVES — Raw values, never used directly in components */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* PRIMITIVE COLORS — Using oklch() for perceptual uniformity */
+  /* ─────────────────────────────────────────────────────────────────────── */
+
+  /* Neutral palette — moss-based, gentle green undertone */
+  --primitive-neutral-0: oklch(100% 0 0);      /* white */
+  --primitive-neutral-50: oklch(97% 0.008 150);
+  --primitive-neutral-100: oklch(94% 0.016 150);
+  --primitive-neutral-200: oklch(90% 0.022 150);
+  --primitive-neutral-300: oklch(84% 0.03 150);
+  --primitive-neutral-400: oklch(72% 0.04 150);
+  --primitive-neutral-500: oklch(58% 0.05 150);
+  --primitive-neutral-600: oklch(46% 0.052 150);
+  --primitive-neutral-700: oklch(34% 0.045 150);
+  --primitive-neutral-800: oklch(24% 0.035 150);
+  --primitive-neutral-900: oklch(16% 0.025 150);
+  --primitive-neutral-950: oklch(9% 0.012 150);
+
+  /* Brand accent — forest green */
+  --primitive-brand-50: oklch(96% 0.04 142);
+  --primitive-brand-100: oklch(93% 0.08 142);
+  --primitive-brand-200: oklch(85% 0.12 142);
+  --primitive-brand-300: oklch(75% 0.15 142);
+  --primitive-brand-400: oklch(60% 0.18 142);
+  --primitive-brand-500: oklch(50% 0.2 142);   /* primary */
+  --primitive-brand-600: oklch(45% 0.19 142);
+  --primitive-brand-700: oklch(38% 0.17 142);
+  --primitive-brand-800: oklch(30% 0.14 142);
+  --primitive-brand-900: oklch(20% 0.1 142);
+
+  /* Accent secondary — teal/cyan */
+  --primitive-accent-50: oklch(96% 0.04 180);
+  --primitive-accent-100: oklch(93% 0.08 180);
+  --primitive-accent-200: oklch(85% 0.12 180);
+  --primitive-accent-300: oklch(75% 0.15 180);
+  --primitive-accent-400: oklch(60% 0.18 180);
+  --primitive-accent-500: oklch(50% 0.2 180);
+  --primitive-accent-600: oklch(45% 0.19 180);
+  --primitive-accent-700: oklch(38% 0.17 180);
+
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* UTILITY HUE PRIMITIVES — tags/cards/tooltips color system (2026-08-11)   */
+  /* Same 50-700 oklch() ramp shape as brand/accent above, one family per
+     hue. Reuses --primitive-accent-* as teal rather than duplicating it —
+     that family already sits at hue 180. Purple/pink/blue/amber are new;
+     "neutral" is deliberately NOT a hue ramp (chroma 0 throughout — see
+     --color-utility-neutral-* below, which points straight at the existing
+     --primitive-neutral-* family instead of adding a redundant 6th ramp). */
+  /* ─────────────────────────────────────────────────────────────────────── */
+
+  --primitive-purple-50: oklch(96% 0.03 300);
+  --primitive-purple-100: oklch(93% 0.06 300);
+  --primitive-purple-200: oklch(85% 0.10 300);
+  --primitive-purple-300: oklch(75% 0.14 300);
+  --primitive-purple-400: oklch(62% 0.19 300);
+  --primitive-purple-500: oklch(52% 0.22 300);
+  --primitive-purple-600: oklch(45% 0.20 300);
+  --primitive-purple-700: oklch(36% 0.17 300);
+
+  --primitive-pink-50: oklch(96% 0.03 350);
+  --primitive-pink-100: oklch(93% 0.06 350);
+  --primitive-pink-200: oklch(85% 0.10 350);
+  --primitive-pink-300: oklch(75% 0.15 350);
+  --primitive-pink-400: oklch(64% 0.20 350);
+  --primitive-pink-500: oklch(55% 0.22 350);
+  --primitive-pink-600: oklch(47% 0.20 350);
+  --primitive-pink-700: oklch(38% 0.17 350);
+
+  --primitive-blue-50: oklch(96% 0.03 250);
+  --primitive-blue-100: oklch(93% 0.05 250);
+  --primitive-blue-200: oklch(85% 0.09 250);
+  --primitive-blue-300: oklch(75% 0.13 250);
+  --primitive-blue-400: oklch(62% 0.17 250);
+  --primitive-blue-500: oklch(52% 0.19 250);
+  --primitive-blue-600: oklch(45% 0.17 250);
+  --primitive-blue-700: oklch(36% 0.14 250);
+
+  --primitive-amber-50: oklch(96% 0.04 75);
+  --primitive-amber-100: oklch(93% 0.08 75);
+  --primitive-amber-200: oklch(87% 0.13 75);
+  --primitive-amber-300: oklch(80% 0.16 75);
+  --primitive-amber-400: oklch(72% 0.18 75);
+  --primitive-amber-500: oklch(64% 0.19 75);
+  /* Amber's own oklch(45-55% chroma~0.19 h75) reads as muddy brown, not a
+     usable "vibrant/contrast" pair — amber is the one hue in this set whose
+     dark, high-chroma end falls outside sRGB gamut at this lightness, so
+     the naive ramp continuation clips to a desaturated brown instead of a
+     deep amber. 600/700 pull lightness down MORE than chroma, matching how
+     amber-on-dark-surfaces reads in every reference system (Radix, Tailwind
+     amber-700 included) — a deliberate deviation from the other four
+     families' pure lightness-and-chroma-together taper. */
+  --primitive-amber-600: oklch(52% 0.16 75);
+  --primitive-amber-700: oklch(40% 0.13 75);
+
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* PRIMITIVE TYPOGRAPHY */
+  /* ─────────────────────────────────────────────────────────────────────── */
+
+  --primitive-font-sans:  'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --primitive-font-serif: 'Crimson Pro', Georgia, 'Times New Roman', serif;
+  --primitive-font-mono:  'Courier New', monospace;
+
+
+  --primitive-line-height-very-tight: 0.8;
+  --primitive-line-height-tight: 1.1;
+  --primitive-line-height-normal: 1.8;
+  --primitive-line-height-relaxed: 2;
+
+
+  --primitive-letter-spacing-extra-tight: -0.1em;
+  --primitive-letter-spacing-tight: -0.01em;
+  --primitive-letter-spacing-normal: 0;
+  --primitive-letter-spacing-wide: 0.08em;
+
+
+
+  --primitive-font-weight-thin: 300;
+
+  --primitive-font-weight-normal: 400;
+  --primitive-font-weight-medium: 500;
+  --primitive-font-weight-semibold: 600;
+  --primitive-font-weight-bold: 700;
+  --primitive-font-weight-extrabold: 800;
+
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* PRIMITIVE SPACING — 4px base unit */
+  /* ─────────────────────────────────────────────────────────────────────── */
+
+  --primitive-space-0: 0;
+  --primitive-space-1: 0.25rem;  /* 4px */
+  --primitive-space-2: 0.5rem;   /* 8px */
+  --primitive-space-3: 0.75rem;  /* 12px */
+  --primitive-space-4: 1rem;     /* 16px */
+  --primitive-space-6: 1.5rem;   /* 24px */
+  --primitive-space-8: 2rem;     /* 32px */
+  --primitive-space-12: 3rem;    /* 48px */
+  --primitive-space-16: 4rem;    /* 64px */
+  --primitive-space-20: 5rem;    /* 80px */
+  --primitive-space-24: 6rem;    /* 96px */
+
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* PRIMITIVE BORDER RADIUS */
+  /* ─────────────────────────────────────────────────────────────────────── */
+
+  --primitive-radius-0: 0;
+  --primitive-radius-1: 0.25rem;  /* 4px */
+  --primitive-radius-2: 0.5rem;   /* 8px */
+  --primitive-radius-3: 0.75rem;  /* 12px */
+  --primitive-radius-4: 2rem;     /* 16px */
+  --primitive-radius-5: 3rem;     /* 24px */
+  --primitive-radius-6: 4rem;     /* 32px */
+  --primitive-radius-full: 9999px;
+
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* PRIMITIVE MOTION — Material 3 curves */
+  /* ─────────────────────────────────────────────────────────────────────── */
+
+  --primitive-duration-instant: 50ms;
+  --primitive-duration-fast: 150ms;
+  --primitive-duration-standard: 300ms;
+  --primitive-duration-slow: 500ms;
+  --primitive-duration-enter: 350ms;
+  --primitive-duration-exit: 200ms;
+
+  --primitive-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --primitive-ease-decelerate: cubic-bezier(0, 0, 0, 1);
+  --primitive-ease-accelerate: cubic-bezier(0.3, 0, 1, 1);
+  --primitive-ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* PRIMITIVE ELEVATION — typographic shadows */
+  /* ─────────────────────────────────────────────────────────────────────── */
+
+  --primitive-shadow-0: none;
+  --primitive-shadow-1: 0 1px 3px hsl(0 0% 0% / 0.08);
+  --primitive-shadow-2: 0 4px 16px hsl(0 0% 0% / 0.12);
+  --primitive-shadow-3: 0 8px 32px hsl(0 0% 0% / 0.16);
+  --primitive-shadow-4: 0 16px 48px hsl(0 0% 0% / 0.24);
+
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* PRIMITIVE Z-INDEX SCALE */
+  /* ─────────────────────────────────────────────────────────────────────── */
+
+  --primitive-z-hide: -1;
+  --primitive-z-base: 0;
+  --primitive-z-dropdown: 100;
+  --primitive-z-sticky: 500;
+  --primitive-z-fixed: 1000;
+  --primitive-z-modal-backdrop: 1100;
+  --primitive-z-modal: 1200;
+  --primitive-z-popover: 1300;
+  --primitive-z-tooltip: 1400;
+
+  /* ═════════════════════════════════════════════════════════════════════════ */
+  /* TIER 2: SEMANTIC TOKENS — Role-based, theme-aware */
+  /* Theme: DARK (default) */
+  /* ═════════════════════════════════════════════════════════════════════════ */
+
+  /* BACKGROUND & SURFACES — Warm darks, not pure black */
+  --color-background: var(--theme-dark-bg);
+  --color-surface: #202020;
+  --color-surface-variant: #242424;
+  --color-outline: #404040;
+  --color-outline-variant: #505050;
+
+  /* CONTENT ON SURFACES */
+  --color-on-surface: var(--primitive-neutral-0);
+  --color-on-surface-variant: var(--primitive-neutral-300);
+  --color-on-surface-subtle: var(--primitive-neutral-400);
+
+  /* TOOLTIP — deliberately theme-INVARIANT, unlike everything above. Frozen
+     copies of this block's own dark values, declared once here (outside
+     any [data-theme] scope) so they never flip. .nav-tooltip (main.css)
+     used to reference --color-surface/--color-on-surface-variant directly
+     — which flip to a near-white surface in [data-theme='light']
+     (#F5F4F1) — so the tooltip reverted to a light bubble in light mode
+     instead of staying the dark contextual popup it reads as everywhere
+     else. Bug report: 2026-08-06. */
+  --tooltip-bg: #202020;
+  --tooltip-text: var(--primitive-neutral-300);
+
+  /* ICON & INTERACTIVE COLORS */
+  --color-icon: var(--primitive-neutral-100);
+  --color-link: var(--color-primary);
+  /* Hover: primary mixed 75% with white for a lighter tint */
+  --color-link-hover: color-mix(in oklch, var(--color-primary) 75%, white);
+
+  /* BRAND & ACCENT */
+  /* --color-primary: var(--primitive-brand-500); */  /* revert: restore accent colour */
+  --color-primary: oklch(93% 0 0);  /* near-white for dark mode */
+  --color-on-primary: var(--primitive-neutral-950);
+  --color-primary-container: var(--primitive-brand-900);
+
+  --color-secondary: var(--primitive-accent-500);
+
+  /* PARTICLE SYSTEM COLOR — hero shape particles */
+  --color-particles: #5ad8ff;
+
+  /* SURFACE SYSTEM — 5 elevation levels */
+  --surface-0: var(--color-background);
+  --surface-1: #ffffff08;
+  --surface-2: #ffffff10;
+  --surface-3: #2a2a2a;
+  --surface-4: #303030;
+
+  /* color-surface-N aliases — used by components */
+  --color-surface-0: var(--surface-0);
+  --color-surface-1: color-mix(in srgb, var(--surface-1),
+    var(--surface-1-shift) calc(var(--profile-shift, 0) * 100%));
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-surface-4: var(--surface-4);
+
+  --surface-2-translucent: hsl(0 0% 22% / 0.6);
+  --surface-3-translucent: hsl(0 0% 26% / 0.65);
+  --surface-4-translucent: hsl(0 0% 30% / 0.7);
+
+  /* GLASS MORPHISM — reusable translucent surface tokens */
+  --glass-bg-base: rgba(255, 255, 255, 0.08);
+  --glass-bg-subtle: rgba(255, 255, 255, 0.06);
+  --glass-border: rgba(255, 255, 255, 0.16);
+  --glass-border-shift: rgba(0, 0, 0, 0.16);
+  --glass-border-subtle: rgba(255, 255, 255, 0.14);
+  --glass-border-thin: rgba(255, 255, 255, 0.02);
+  --glass-border-hover: rgba(255, 255, 255, 0.28);
+  --glass-backdrop: blur(20px) saturate(180%);
+  --glass-backdrop-subtle: blur(12px) saturate(160%);
+  --glass-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  --glass-shadow-pill: 0 4px 32px rgba(0, 0, 0, 0.28);
+  --glass-inset-light: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  --glass-inset-light-hover: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  --glass-inset-dark: inset 0 -1px 0 rgba(0, 0, 0, 0.12);
+  --glass-radius: var(--radius-md);
+
+  /* STATE LAYER */
+  --state-layer-color: var(--color-on-surface);
+  --state-hover-opacity: 0.08;
+
+  /* SCROLLBAR */
+  --scrollbar-thumb: var(--color-on-surface-subtle);
+  --scrollbar-thumb-hover: var(--primitive-neutral-400);
+
+  /* TYPOGRAPHY */
+  --font-family-body:  var(--primitive-font-sans);
+  --font-family-serif: var(--primitive-font-serif);
+  --font-family-mono:  var(--primitive-font-mono);
+
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* TYPOGRAPHY SIZE SCALE — Medium (default, balanced) */
+  /* ─────────────────────────────────────────────────────────────────────── */
+
+  /* ONE SCALE, ONE TRUTH (typography refactor, 2026-07-17): every size
+     primitive multiplies a scale axis — headings (display, h1-h6) multiply
+     --type-scale-heading, all body/UI tiers multiply --type-scale-body —
+     which is what the two Type Size admin settings control — a true size knob on ONE ramp, replacing the
+     three parallel hardcoded body[data-type-size] token sets that used to
+     silently shadow this cascade (that duplication is why "sm" rendered
+     the LARGEST editorial headings). The clamp values below are calibrated
+     to the pre-refactor LIVE rendering (admin was on 'sm'), so scale 1.0
+     reproduces the site pixel-for-pixel. */
+  --type-scale-heading: 1;
+  --type-scale-body: 1;
+  /* legacy single-axis alias — a few older calcs may still reference it */
+  --type-scale: var(--type-scale-body);
+
+  /* MOBILE FLOORS (2026-07-18): display/h1/h2 minimums lowered and h2's
+     slope relaxed so the fluid vw band reaches phone widths — previously
+     the floors (72px h1! 56px display) overrode the vw term below ~600px,
+     rendering way above industry mobile norms (h1 36-44, h2 26-32).
+     Everything ≥800px is numerically unchanged. */
+  --type-display-size: clamp(calc(2.75rem * var(--type-scale-heading)), calc(8vw * var(--type-scale-heading)), calc(7rem * var(--type-scale-heading)));
+  --type-h1-size: clamp(calc(2.5rem * var(--type-scale-heading)), calc(12vw * var(--type-scale-heading)), calc(8rem * var(--type-scale-heading)));
+  --type-h2-size: clamp(calc(2rem * var(--type-scale-heading)), calc(9vw * var(--type-scale-heading)), calc(5rem * var(--type-scale-heading)));
+  --type-h3-size: clamp(calc(1.775rem * var(--type-scale-heading)), calc(3.4vw * var(--type-scale-heading)), calc(2.8rem * var(--type-scale-heading)));
+  --type-h4-size: clamp(calc(1.125rem * var(--type-scale-heading)), calc(1.6vw * var(--type-scale-heading)), calc(2.2rem * var(--type-scale-heading)));
+  /* h3/h4's vw term (2.4vw/1.6vw, gentle) only overtakes their floor above
+     ~700-1050px — same "floor dominates too wide a range" shape as h1/
+     display above, but in the opposite direction: these floors are too
+     CLOSE to (or under, once --type-scale-heading goes compact/0.7) body
+     text size rather than too far above it. Bumped on mobile only, where
+     the floor is what actually renders; ≥768px numerically unchanged. */
+  --type-h5-size: clamp(calc(0.9rem * var(--type-scale-heading)), calc(1.4vw * var(--type-scale-heading)), calc(1.4rem * var(--type-scale-heading)));
+  --type-h6-size: clamp(calc(0.7875rem * var(--type-scale-heading)), calc(1.15vw * var(--type-scale-heading)), calc(1.1rem * var(--type-scale-heading)));
+  --type-body-lg-size: clamp(calc(1.125rem * var(--type-scale-body)), calc(1.5vw * var(--type-scale-body)), calc(1.375rem * var(--type-scale-body)));
+  --type-body-size: clamp(calc(0.9375rem * var(--type-scale-body)), calc(1rem * var(--type-scale-body)), calc(1rem * var(--type-scale-body)));
+  --type-body-sm-size: clamp(calc(0.775rem * var(--type-scale-body)), calc(0.85vw * var(--type-scale-body)), calc(0.8375rem * var(--type-scale-body)));
+  --type-label-size: clamp(calc(0.75rem * var(--type-scale-body)), calc(1vw * var(--type-scale-body)), calc(0.875rem * var(--type-scale-body)));
+  --type-label-sm-size: clamp(calc(0.6875rem * var(--type-scale-body)), calc(0.9vw * var(--type-scale-body)), calc(0.8125rem * var(--type-scale-body)));
+  --type-caption-size: clamp(calc(0.625rem * var(--type-scale-body)), calc(1.6vw * var(--type-scale-body)), calc(0.65rem * var(--type-scale-body)));
+  --type-overline-size: clamp(calc(0.625rem * var(--type-scale-body)), calc(0.8vw * var(--type-scale-body)), calc(0.65rem * var(--type-scale-body)));
+  --type-code-size: clamp(calc(0.875rem * var(--type-scale-body)), calc(1vw * var(--type-scale-body)), calc(1rem * var(--type-scale-body)));
+
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* TYPOGRAPHY SPACING SCALE — the ONLY spacing source (paired with the
+     size ramp; the old data-line-spacing settings and the never-activated
+     :root[data-type-space] variant blocks are deleted). Values below are
+     calibrated to the pre-refactor live rendering. */
+  /* ─────────────────────────────────────────────────────────────────────── */
+
+  --type-display-line-height: 1;     /* tightened 1.1 → 1 */
+  --type-display-letter-spacing: -0.02em;
+
+  --type-h1-line-height: 0.95;   /* tightened 1 → 0.95 (2026-07-18 tighten pass) */
+  --type-h1-letter-spacing: -0.02em;
+
+  --type-h2-line-height: 1.1;    /* tightened 1.4 → 1.1 — was the loose outlier */
+  --type-h2-letter-spacing: -0.01em;
+
+  --type-h3-line-height: 1.15;   /* tightened 1.2 → 1.15 */
+  --type-h3-letter-spacing: 0em;
+
+  --type-h4-line-height: 1;      /* live-calibrated */
+  --type-h4-letter-spacing: 0em;
+
+  --type-h5-line-height: 1.2;    /* tightened 1.3 → 1.2 */
+  --type-h5-letter-spacing: 0em;
+
+  --type-h6-line-height: 1.25;   /* tightened 1.35 → 1.25 */
+  --type-h6-letter-spacing: 0em;
+
+  --type-body-lg-line-height: 1.4;
+  --type-body-lg-letter-spacing: 0em;
+
+  --type-body-line-height: 1.6;  /* live-calibrated (old 'relaxed' setting) */
+  --type-body-\cing: 0em;
+
+  --type-body-sm-line-height: 1.3;
+  --type-body-sm-letter-spacing: 0em;
+
+  --type-label-line-height: 1.4;
+  --type-label-letter-spacing: 0.05em;
+  --type-label-weight: 600;
+
+  --type-label-sm-line-height: 1.35;
+  --type-label-sm-letter-spacing: 0.05em;
+  --type-label-sm-weight: 600;
+
+  --type-caption-line-height: 1.4;
+  --type-caption-letter-spacing: 0.25em;
+
+  --type-eyebrow-line-height: 1.4;
+   --type-eyebrow-letter-spacing: 0.5em;
+
+  --type-overline-line-height: 1.2;
+  --type-overline-letter-spacing: 0.1em;
+  --type-overline-weight: 700;
+  --type-overline-transform: uppercase;
+
+  /* Legacy aliases for backward compatibility */
+  --text-size-h1: var(--type-h1-size);
+  --text-size-h2: var(--type-h2-size);
+  --text-size-h3: var(--type-h3-size);
+  --text-size-h4: var(--type-h4-size);
+  --text-size-h5: var(--type-h5-size);
+  --text-size-body: var(--type-body-size);
+  --text-size-caption: var(--type-caption-size);
+  --text-size-eyebrow: var(--type-overline-size);
+
+  --text-line-height-h1: var(--type-h1-line-height);
+  --text-line-height-h2: var(--type-h2-line-height);
+  --text-line-height-h3: var(--type-h3-line-height);
+  --text-line-height-h4: var(--type-h4-line-height);
+  --text-line-height-body: var(--type-body-line-height);
+
+  --text-letter-spacing-h1: var(--type-h1-letter-spacing);
+  --text-letter-spacing-h2: var(--type-h2-letter-spacing);
+  --text-letter-spacing-body: var(--type-body-letter-spacing);
+  --text-letter-spacing-eyebrow: var(--type-eyebrow-letter-spacing);
+
+  /* Line spacing variants for header and body */
+
+  /* line-spacing settings removed: spacing is a property of the type
+     scale (each tier's --type-*-line-height), not an independent knob. */
+
+  --text-weight-h1: var(--primitive-font-weight-extrabold);
+  --text-weight-h2: var(--primitive-font-weight-bold);
+  --text-weight-body: var(--primitive-font-weight-normal);
+  --text-weight-label: var(--primitive-font-weight-semibold);
+
+  /* Shorthand aliases used by components */
+  --text-weight-thin: var(--primitive-font-weight-thin);
+  --text-weight-normal: var(--primitive-font-weight-normal);
+  --text-weight-medium: var(--primitive-font-weight-medium);
+  --text-weight-semibold: var(--primitive-font-weight-semibold);
+  --text-weight-bold: var(--primitive-font-weight-bold);
+  --text-weight-extrabold: var(--primitive-font-weight-extrabold);
+
+  /* Text size scale: sm for modern alias system */
+  --text-size-sm: var(--type-body-sm-size); /* was -body-, corrected to match live rendering */
+  /* Was referenced 4x (nav menu/text buttons) but never defined — the
+     var() failed silently and those elements inherited their size. */
+  --text-size-small: var(--type-body-sm-size);
+  /* :ROOT FALLBACKS for tokens that previously existed ONLY inside
+     body[data-type-size] blocks (or nowhere at all) — the same silent-
+     var() failure family as the --text-size-small bug above:
+     - h6 mirrors the data-type-size='sm' value (the live setting), so a
+       cleared/blank Type Size admin select no longer undefines it sitewide.
+     - xs was never defined in this file at all; pills (.tag,
+       .post-card-keyword, .profile-tag) were inheriting an accidental
+       ~10px. This is the intentional smallest step of the scale. */
+  --text-size-h6: var(--type-h6-size);
+  --text-size-xs: clamp(calc(0.7rem * var(--type-scale-body)), calc(0.8vw * var(--type-scale-body)), calc(0.8125rem * var(--type-scale-body)));
+  /* Shared "lede" style for section intro/description headings (was the
+     same clamp duplicated in main.css and posts-tabs-grid.css). */
+  --text-size-lede: clamp(calc(1.1rem * var(--type-scale-body)), calc(2.4vw * var(--type-scale-body)), calc(1.6rem * var(--type-scale-body)));
+
+  /* SPACING — t-shirt sizes */
+  --space-xs: clamp(0.25rem, 0.5vw, 0.5rem);
+  --space-sm: clamp(0.5rem, 1vw, 1rem);
+  --space-md: clamp(1rem, 2vw, 1.5rem);
+  --space-lg: clamp(1.5rem, 4vw, 3rem);
+  --space-xl: clamp(2rem, 8vw, 4rem);
+  --space-2xl: clamp(3rem, 12vw, 6rem);
+  --space-3xl: clamp(4rem, 16vw, 8rem);
+  --space-4xl: clamp(5rem, 18vw, 10rem);
+
+  --space-section: clamp(3rem, 8vw, 6rem);
+
+  /* PROSE FLOW — vertical rhythm for post body copy ONLY (.gh-content /
+     .post-content children). Deliberately FIXED steps, not clamp()/vw like
+     the --space-* scale above.
+
+     Why fixed: the t-shirt scale is viewport-interpolated, so two different
+     tokens land on two arbitrary intermediate values at any given width and
+     never repeat. Measured on a live post at 1440px, consecutive blocks were
+     separated by 15 distinct gaps (29, 31, 48, 55, 62, 67, 86, 96, 103, 118,
+     127, 143, 150, 158, 198) — a rhythm the eye reads as noise. Fixed steps
+     that are multiples of 8 give a small, repeating set instead.
+
+     vw-fluid spacing is still right for SECTION padding (--space-section
+     above), where the gap should breathe with the viewport. It is wrong for
+     prose, where the gap's job is to encode hierarchy consistently.
+
+     Scale: 8 / 16 / 24 / 40 / 64 / 96. Mobile values step down at ≤768px
+     (see the media query further down this file). */
+  --prose-flow-2xs: 0.5rem;   /*  8px — tight pairs (h5 + its list)      */
+  --prose-flow-xs: 1rem;      /* 16px — within a block group             */
+  --prose-flow-sm: 2rem;    /* 24px — default block-to-block           */
+  --prose-flow-md: 3rem;    /* 40px — around media/figures             */
+  --prose-flow-lg: 4rem;      /* 64px — before a new h2 section          */
+  --prose-flow-xl: 8rem;      /* 96px — major structural break (hr)      */
+
+  /* Primitive spacing aliases for hero tag pills */
+  --space-1: var(--primitive-space-1);
+  --space-3: var(--primitive-space-3);
+
+  /* CROSS-THEME PAGE PRIMITIVES — each theme's page background and primary
+     ink, defined ONCE and readable from BOTH themes. Two consumers each:
+     the theme's own --color-background/--color-on-surface, and the OPPOSITE
+     theme's --shift-bg/--shift-ink (the palette-flip targets). Before these
+     existed, the shift targets were hardcoded copies and silently drifted
+     when a theme background was retuned (dark mode's "light" reverse kept
+     showing the old bluish #F1F3F9 after light was retuned to #FAFAF8).
+     Retune page backgrounds HERE — and remember the anti-flash hexes in
+     default.hbs (+ theme.js fallback) are pre-CSS copies that must be
+     updated by hand alongside (see COMMON_ISSUES.md). */
+  --theme-light-bg: #FAFAF8;
+  --theme-light-ink: #1a1a1a;
+  --theme-dark-bg: #1d1c1d;
+  --theme-dark-ink: var(--primitive-neutral-0);
+
+  /* SHIFT PALETTE — targets for the reusable section palette-flip transition
+     (see profile.css "reversed-palette-on-entry" + background-layer.js).
+     A section scrubs --profile-shift 0→1 and its surfaces/text blend toward
+     these. They flip per theme so the shift always reads as the OPPOSITE of
+     the current theme (dark/dim sites shift to a light panel with dark ink,
+     light sites shift to a dark panel with light ink) — deliberately NOT
+     wired to the theme system itself: it's a scroll animation, the actual
+     theme (and its toggle) stays untouched. Reusable by any future section.
+     References the cross-theme primitives above so they can never drift
+     from the real theme backgrounds again. */
+  --shift-bg: var(--theme-light-bg);
+  --shift-ink: var(--theme-light-ink);
+
+  /* THEME-MIRROR ALIAS — always the opposite of the CURRENT theme, and
+     never overridden by a fixed-palette block (unlike --shift-bg, which a
+     gradient-frame in fixed mode redirects at :root while it is on screen).
+     gradient-frame.js resolves an invert frame's painted background from
+     THIS, not --shift-bg: that resolution happens in JS at init and on
+     theme-change only, so reading a token that another section may have
+     redirected meant a frame could paint itself with a NEIGHBOUR's fixed
+     colour depending purely on when the read happened to fire (reproduced:
+     toggling the theme while Lab was on screen repainted testimonials
+     purple). A frame that wants a fixed colour states it literally via
+     data-gradient-inner instead — see GRADIENT-FRAME-SYSTEM.md. */
+  --shift-bg-theme: var(--theme-light-bg);
+
+  /* SHIFT SURFACES — translucent fills (nav pill, keyword/badge glass) for
+     the shifted state. Derived from --shift-ink rather than hardcoded per
+     theme, so they automatically follow a gradient-frame in "fixed" mode,
+     which overrides --shift-ink at :root to an authored value that is NOT
+     the theme's mirror. Without these, a light-theme page scrolling into a
+     dark island kept its black-translucent surfaces and the nav pill and
+     badges simply vanished. */
+  --surface-1-shift: color-mix(in srgb, transparent, var(--shift-ink) 5%);
+  --glass-bg-shift: color-mix(in srgb, transparent, var(--shift-ink) 8%);
+  --glass-bg: color-mix(in srgb, var(--glass-bg-base),
+    var(--glass-bg-shift) calc(var(--profile-shift, 0) * 100%));
+
+  /* SHIFT ICON POLARITY — the nav icons are black-fill SVGs flipped with
+     filter:invert(). Their ramp used to be hardcoded per theme on the
+     assumption that the shift always lands on the theme's OPPOSITE, which
+     "fixed" mode breaks: in whichever theme already matches the authored
+     island, the icon inverted to the island's own colour and disappeared.
+     These say where the ramp ENDS, so JS can correct them for a fixed
+     palette (gradient-frame.js) while the defaults keep the profile
+     section's behaviour identical.
+       base  = value at --profile-shift 0 (the plain theme)
+       shift = value at --profile-shift 1 (the shifted panel)
+     invert 1 = white icon, 0 = black icon. */
+  --icon-invert-base: 1;   /* dark theme: white icon */
+  --icon-invert-shift: 0;  /* shifts to a light panel: black icon */
+  --icon-brightness-base: 1.2;
+  --icon-brightness-shift: 1;
+
+  /* GRADIENT TEXT (DNA-Capital-style headline fill) — consumed by the
+     .text-gradient utility in main.css (background-clip: text). Defaults to
+     a layered CSS gradient (zero network cost); to switch to an authored
+     image (small blurred WebP, ~400x300 is plenty), override per theme:
+       --gradient-text-image: url('/assets/images/title-gradient-dark.webp');
+     Both tokens are theme-scoped — override them in the light block below.
+     NOT wired to the palette shift: .text-gradient must never be used
+     inside the shift zone (see the utility's comment). */
+  --gradient-text-image: linear-gradient(100deg,#b9a7ff 28%,  #8fd8d2 74%, #6aa9ff 100%);
+  --gradient-text-fallback: var(--color-on-surface);
+
+  /* SHIFT SCOPE — where the palette-flip paints. Both are 0/1 multipliers
+     on --profile-shift, so switching modes is a token change, no JS:
+       --shift-scope-page:  blend the full-viewport #page-backdrop (main.css)
+                            — the whole page background shifts.
+       --shift-scope-panel: paint the section-scoped ::before panel
+                            (profile.css) — shift clipped to the section box,
+                            structurally can't tint neighbouring sections.
+     Text/nav/icon/particle blends follow --profile-shift regardless of scope.
+     Both on at once is harmless (panel matches backdrop, edge invisible). */
+  --shift-scope-page: 1;
+  --shift-scope-panel: 0;
+
+  /* LAYOUT */
+  /* The universal cap for "full-bleed" sections' CONTENT (not their
+     background — a full-bleed background stays its own separate full-
+     viewport element, see PAGE-WIDTH-SYSTEM.md's "full-bleed-with-
+     contained-header pattern"). Every `-width="full"` absolute value in
+     main.css (page-content-width, home-content-width, footer-width,
+     post-hero fullscreen, hero's own full default) used to resolve to
+     `max-width: none` — literally unconstrained, so content stretched to
+     the raw viewport edge on ultra-wide monitors. 1920px is the common
+     "widest normal desktop" reference width; + two content-paddings so
+     the padding a full-bleed section already carries doesn't eat into
+     that 1920px rather than sitting outside it. */
+  --max-width: calc(1920px + var(--content-padding) * 2);
+  --content-padding: clamp(1rem, 4vw, 4rem);
+
+  /* Content width — easily configurable by page_width setting */
+  --content-max-width-text: 800px;
+  --content-max-width-wide: 1000px;
+
+  /* RADIUS */
+  --radius-sm: var(--primitive-radius-2);
+  --radius-md: var(--primitive-radius-3);
+  --radius-lg: var(--primitive-radius-4);
+  --radius-xl: var(--primitive-radius-5);
+  --radius-2xl: var(--primitive-radius-6);
+  --radius-full: var(--primitive-radius-full);
+
+  /* MOTION */
+  --duration-fast: var(--primitive-duration-fast);
+  --duration-standard: var(--primitive-duration-standard);
+  --duration-enter: var(--primitive-duration-enter);
+  --duration-exit: var(--primitive-duration-exit);
+
+  --ease-standard: var(--primitive-ease-standard);
+  --ease-decelerate: var(--primitive-ease-decelerate);
+  --ease-accelerate: var(--primitive-ease-accelerate);
+  --ease-spring: var(--primitive-ease-spring);
+
+  /* ELEVATION */
+  --elevation-0: var(--primitive-shadow-0);
+  --elevation-1: var(--surface-1);
+  --elevation-2: var(--surface-2);
+  --elevation-3: var(--surface-3);
+  --elevation-4: var(--surface-4);
+
+  /* Z-INDEX */
+  --z-hide: var(--primitive-z-hide);
+  --z-base: var(--primitive-z-base);
+  --z-dropdown: var(--primitive-z-dropdown);
+  --z-sticky: var(--primitive-z-sticky);
+  --z-fixed: var(--primitive-z-fixed);
+  --z-modal-backdrop: var(--primitive-z-modal-backdrop);
+  --z-modal: var(--primitive-z-modal);
+  --z-popover: var(--primitive-z-popover);
+  --z-tooltip: var(--primitive-z-tooltip);
+
+  /* RGB CHANNEL VARIABLES — for rgba() usage in overlays */
+  --blackrgb: 0, 0, 0;
+  --whitergb: 255, 255, 255;
+
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* UTILITY COLORS — tags/cards/tooltips (2026-08-11), theme: DARK          */
+  /* One role set per hue (teal/purple/pink/blue/amber/neutral), consumed by */
+  /* component CSS via [data-color="teal"] etc. rather than a utility-class  */
+  /* layer — this codebase drives variants through data-* attributes         */
+  /* everywhere else (data-card-style, data-theme, data-posts-layout), so    */
+  /* this follows that instead of introducing a Tailwind-style bg-/text-     */
+  /* class family the rest of the CSS has no equivalent of.                  */
+  /*                                                                          */
+  /* Roles per hue (mirrors the reference spec's bg/text/border split):      */
+  /*   -subtle-bg      deep tinted card background                          */
+  /*   -vibrant-bg     high-saturation solid — buttons, active pills         */
+  /*   -hover-bg       hover state for a -subtle-bg container                */
+  /*   -vibrant-text   bright accent text — titles, key metrics             */
+  /*   -subtle-text    muted hue text — secondary copy on a -subtle-bg       */
+  /*   -contrast-text  readable foreground FOR TEXT SITTING ON -vibrant-bg   */
+  /*   -subtle-border  low-opacity tinted border (rgba, not oklch — an       */
+  /*                   alpha-carrying border needs to composite over         */
+  /*                   whatever's behind it, same reason --glass-border      */
+  /*                   above is rgba rather than a solid token)             */
+  /*   -vibrant-border high-visibility solid outline                        */
+  /*                                                                          */
+  /* -subtle-bg/-hover-bg/-subtle-border use color-mix() against the         */
+  /* hue's own 500 step so they inherit the SAME "deep tint on dark          */
+  /* surface" quality --color-surface-1/2 already have (see those tokens     */
+  /* above) rather than a hand-picked low-lightness oklch() that could       */
+  /* drift from the ramp's actual hue/chroma over time. */
+  --color-utility-teal-subtle-bg: color-mix(in oklch, var(--primitive-accent-500) 16%, var(--color-surface));
+  --color-utility-teal-hover-bg: color-mix(in oklch, var(--primitive-accent-500) 24%, var(--color-surface));
+  --color-utility-teal-vibrant-bg: var(--primitive-accent-400);
+  --color-utility-teal-vibrant-text: var(--primitive-accent-300);
+  --color-utility-teal-subtle-text: color-mix(in oklch, var(--primitive-accent-300) 65%, var(--color-on-surface-variant));
+  --color-utility-teal-contrast-text: var(--primitive-neutral-950);
+  --color-utility-teal-subtle-border: color-mix(in oklch, var(--primitive-accent-500) 40%, transparent);
+  --color-utility-teal-vibrant-border: var(--primitive-accent-400);
+
+  --color-utility-purple-subtle-bg: color-mix(in oklch, var(--primitive-purple-500) 16%, var(--color-surface));
+  --color-utility-purple-hover-bg: color-mix(in oklch, var(--primitive-purple-500) 24%, var(--color-surface));
+  --color-utility-purple-vibrant-bg: var(--primitive-purple-400);
+  --color-utility-purple-vibrant-text: var(--primitive-purple-300);
+  --color-utility-purple-subtle-text: color-mix(in oklch, var(--primitive-purple-300) 65%, var(--color-on-surface-variant));
+  --color-utility-purple-contrast-text: var(--primitive-neutral-950);
+  --color-utility-purple-subtle-border: color-mix(in oklch, var(--primitive-purple-500) 40%, transparent);
+  --color-utility-purple-vibrant-border: var(--primitive-purple-400);
+
+  --color-utility-pink-subtle-bg: color-mix(in oklch, var(--primitive-pink-500) 16%, var(--color-surface));
+  --color-utility-pink-hover-bg: color-mix(in oklch, var(--primitive-pink-500) 24%, var(--color-surface));
+  --color-utility-pink-vibrant-bg: var(--primitive-pink-400);
+  --color-utility-pink-vibrant-text: var(--primitive-pink-300);
+  --color-utility-pink-subtle-text: color-mix(in oklch, var(--primitive-pink-300) 65%, var(--color-on-surface-variant));
+  --color-utility-pink-contrast-text: var(--primitive-neutral-950);
+  --color-utility-pink-subtle-border: color-mix(in oklch, var(--primitive-pink-500) 40%, transparent);
+  --color-utility-pink-vibrant-border: var(--primitive-pink-400);
+
+  --color-utility-blue-subtle-bg: color-mix(in oklch, var(--primitive-blue-500) 16%, var(--color-surface));
+  --color-utility-blue-hover-bg: color-mix(in oklch, var(--primitive-blue-500) 24%, var(--color-surface));
+  --color-utility-blue-vibrant-bg: var(--primitive-blue-400);
+  --color-utility-blue-vibrant-text: var(--primitive-blue-300);
+  --color-utility-blue-subtle-text: color-mix(in oklch, var(--primitive-blue-300) 65%, var(--color-on-surface-variant));
+  --color-utility-blue-contrast-text: var(--primitive-neutral-950);
+  --color-utility-blue-subtle-border: color-mix(in oklch, var(--primitive-blue-500) 40%, transparent);
+  --color-utility-blue-vibrant-border: var(--primitive-blue-400);
+
+  --color-utility-amber-subtle-bg: color-mix(in oklch, var(--primitive-amber-500) 16%, var(--color-surface));
+  --color-utility-amber-hover-bg: color-mix(in oklch, var(--primitive-amber-500) 24%, var(--color-surface));
+  --color-utility-amber-vibrant-bg: var(--primitive-amber-400);
+  --color-utility-amber-vibrant-text: var(--primitive-amber-300);
+  --color-utility-amber-subtle-text: color-mix(in oklch, var(--primitive-amber-300) 65%, var(--color-on-surface-variant));
+  --color-utility-amber-contrast-text: var(--primitive-neutral-950);
+  --color-utility-amber-subtle-border: color-mix(in oklch, var(--primitive-amber-500) 40%, transparent);
+  --color-utility-amber-vibrant-border: var(--primitive-amber-400);
+
+  /* Neutral: chroma 0 throughout, points at --primitive-neutral-* directly
+     rather than adding a 6th oklch() ramp (see the primitives comment
+     above). Reads as the existing glass-pill look — this is what a card/
+     tag/tooltip gets when no color is set, so it must match what
+     .post-card-keyword/.tag-pill already look like today, not a new grey. */
+  --color-utility-neutral-subtle-bg: var(--glass-bg-subtle);
+  --color-utility-neutral-hover-bg: var(--glass-bg-base);
+  --color-utility-neutral-vibrant-bg: var(--primitive-neutral-300);
+  --color-utility-neutral-vibrant-text: var(--color-on-surface);
+  --color-utility-neutral-subtle-text: var(--color-on-surface-variant);
+  --color-utility-neutral-contrast-text: var(--primitive-neutral-950);
+  --color-utility-neutral-subtle-border: var(--glass-border);
+  --color-utility-neutral-vibrant-border: var(--primitive-neutral-300);
+
+  /* COMPONENT TOKENS — Tier 3 */
+  /* Navigation */
+  --nav-bg: rgba(24, 24, 24, 0.7);
+  --nav-backdrop-blur: 10px;
+  --nav-height: 60px;
+  /* Used by the nav's ::before frost-fade layers (both the desktop top bar
+     and the mobile bottom-docked one, main.css) — NOT --nav-bg's other
+     consumer (.sticky-nav::before, an unrelated post-page component). Was
+     a fixed gray (rgba(120,122,128,...)) — same value regardless of theme,
+     so it read as a visible mismatched "band" once the tint stopped being
+     scroll-gated and became always-visible against the hero. Tied to
+     --color-background instead: it's already theme-responsive (dark/light
+     both redefine it), so this reads as a soft veil of the page's own
+     background rather than a foreign-colored stripe, in both themes,
+     without needing its own separate per-theme override below. */
+  --nav-fade-tint: color-mix(in srgb, var(--color-background) 55%, transparent);
+  /* SHIFTED twin of the above — the endpoint the frost-fade blends toward
+     while a palette-shifted section owns the screen (gradient-frame invert,
+     .profile). Must keep the SAME STRUCTURE as --nav-fade-tint (the shifted
+     background at the same 55% alpha), not the raw opaque --shift-bg: the
+     blend interpolates alpha as well as hue, so an opaque endpoint made the
+     layer fade from a translucent veil at shift 0 into a fully opaque slab
+     at shift 1. That slab only "matches" where the backdrop happens to be
+     exactly the island's flat colour, and reads as a visible mismatched
+     band everywhere else (over the frame's own gradient bands, over
+     content) — the identical failure this token's own comment above
+     describes from when it was a fixed grey. Alpha now stays 0.55 across
+     the whole ramp; only the hue travels. Tied to --shift-bg so it follows
+     both the per-theme mirror AND a fixed-palette override for free. */
+  --nav-fade-tint-shift: color-mix(in srgb, var(--shift-bg) 55%, transparent);
+  /* --nav-gradient (a non-mirrored "to bottom" version of this) was removed
+     — the glass effect is bottom-anchored on every viewport width now (not
+     just mobile), so nothing uses the un-mirrored direction anymore. */
+  --nav-gradient-reversed: linear-gradient(
+    to top,
+    rgba(33, 36, 35, 0.85) 0%,
+    rgba(33, 36, 35, 0.5) 45%,
+    rgba(33, 36, 35, 0.28) 70%,
+    rgba(33, 36, 35, 0) 100%
+  );
+
+  /* Cards */
+  --card-bg: var(--surface-2);
+}
+
+/* Mobile heading scale (2026-08-04): a deliberate re-tier, not a bug fix —
+   h1 roughly doubled (was ~47px on a 390px phone under the vw term, now a
+   96px floor that dominates the whole ≤768px range), h2/h3 stepped up
+   proportionally, while h4/h5/h6 collapse DOWN toward body on purpose: h4
+   stays just above body (close, but never smaller — a heading rendering
+   under body size reads as broken hierarchy even if the gap is small), h5
+   is set to body exactly (not just a similar clamp — genuinely the same
+   token, so it always matches regardless of the body-size setting), h6
+   stays small, clearly below body.
+   h3 keeps clear separation from body throughout — that's the one boundary
+   that must never collapse. All floors here dominate the full ≤768px range
+   (verified against each one's own vw term at exactly 768px); ≥768px is
+   governed by the base clamp()s above, unchanged. */
+@media (max-width: 768px) {
+  :root {
+    --type-h1-size: clamp(calc(5.5rem * var(--type-scale-heading)), calc(10vw * var(--type-scale-heading)), calc(6rem * var(--type-scale-heading)));
+    --type-h2-size: clamp(calc(4rem * var(--type-scale-heading)), calc(8vw * var(--type-scale-heading)), calc(4rem * var(--type-scale-heading)));
+    --type-h3-size: clamp(calc(2.75rem * var(--type-scale-heading)), calc(2.4vw * var(--type-scale-heading)), calc(2.75rem * var(--type-scale-heading)));
+    --type-h4-size: clamp(calc(1.5rem * var(--type-scale-heading)), calc(1.6vw * var(--type-scale-heading)), calc(1.5rem * var(--type-scale-heading)));
+    --type-h5-size: var(--type-body-size);
+    --type-h6-size: clamp(calc(1.15rem * var(--type-scale-heading)), calc(1.15vw * var(--type-scale-heading)), calc(1.15rem * var(--type-scale-heading)));
+
+    /* Prose rhythm steps down on phones — same ladder, ~60-70% of desktop,
+       still all multiples of 8 so the repeating-gap property is preserved.
+       Kept in this existing ≤768px block rather than a new one so the
+       mobile type re-tier above and the spacing that goes with it stay
+       readable as one decision. */
+    --prose-flow-2xs: 0.5rem;   /*  8px */
+    --prose-flow-xs: 0.75rem;   /* 12px */
+    --prose-flow-sm: 1rem;      /* 16px */
+    --prose-flow-md: 1.5rem;    /* 24px */
+    --prose-flow-lg: 2.5rem;    /* 40px */
+    --prose-flow-xl: 3.5rem;    /* 56px */
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* PAGE WIDTH CONFIGURATION — Adjust content width tokens per page_width setting */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Wide mode — more spacious text and images */
+:root[data-page-width='wide'] {
+  --content-max-width-text: 780px;
+  --content-max-width-wide: 1100px;
+}
+
+/* Full mode — maximum width for both */
+:root[data-page-width='full'] {
+  --content-max-width-text: 850px;
+  --content-max-width-wide: 1800px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* THEME VARIANT: LIGHT */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+:root[data-theme='light'] {
+  /* GRADIENT TEXT — deeper stops so the fill holds contrast on light bg */
+  --gradient-text-image: linear-gradient(100deg, #1d5f8a 0%, #4b3f9e 30%, #1f2a44 55%, #16706a 78%, #1d5f8a 100%);
+
+  /* SHIFT PALETTE — light site shifts to the dark theme's palette (see the
+     cross-theme primitives in base :root — single source, can't drift). */
+  --shift-bg: var(--theme-dark-bg);
+  --shift-ink: var(--theme-dark-ink);
+  /* See the base :root declaration for why this alias exists. */
+  --shift-bg-theme: var(--theme-dark-bg);
+
+  /* Mirror of the base :root ramp — light theme starts on a black icon and
+     shifts to a white one. (--surface-1-shift/--glass-bg-shift need no
+     override: they are derived from --shift-ink, which flips just above.) */
+  --icon-invert-base: 0;
+  --icon-invert-shift: 1;
+  --icon-brightness-base: 1;
+  --icon-brightness-shift: 1.2;
+
+  /* BACKGROUND & SURFACES — Warm lights, not pure white */
+  --color-background: var(--theme-light-bg);
+  --color-surface: #F5F4F1;
+  --color-surface-variant: #dfe2e9;
+  --color-outline: #c5cad8;
+  --color-outline-variant: #b5bcc8;
+
+  /* CONTENT */
+  --color-on-surface: var(--theme-light-ink);
+  --color-on-surface-variant: #4a4a4a;
+  --color-on-surface-subtle: #6b7d7d;
+
+  /* Navigation */
+  --nav-bg: rgba(24, 24, 24, 0.8);
+
+  /* ICON & INTERACTIVE COLORS */
+  --color-icon: var(--primitive-neutral-800);
+  --color-link: var(--color-primary);
+  /* Hover: primary mixed 75% with black for a darker shade in light mode */
+  --color-link-hover: color-mix(in oklch, var(--color-primary) 75%, black);
+
+  /* BRAND */
+  /* --color-primary: var(--primitive-brand-600); */  /* revert: restore accent colour */
+  --color-primary: oklch(12% 0 0);  /* near-black for light mode */
+  --color-on-primary: var(--primitive-neutral-0);
+  --color-primary-container: var(--primitive-brand-100);
+
+  --color-secondary: var(--primitive-accent-600);
+
+  /* SURFACES */
+  --surface-0: var(--color-background);
+  --surface-1: #00000010;
+  --surface-2: #00000012;
+  --surface-3: #d5d9e0;
+  --surface-4: #cbcfd6;
+
+  /* color-surface-N aliases */
+  --color-surface-0: var(--surface-0);
+  --color-surface-1: color-mix(in srgb, var(--surface-1),
+    var(--surface-1-shift) calc(var(--profile-shift, 0) * 100%));
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-surface-4: var(--surface-4);
+
+  --surface-2-translucent: rgba(223, 226, 233, 0.6);
+  --surface-3-translucent: rgba(213, 217, 224, 0.65);
+  --surface-4-translucent: rgba(203, 207, 214, 0.7);
+
+  /* GLASS MORPHISM — light theme overrides */
+  --glass-bg-base: rgba(0, 0, 0, 0.08);
+  --glass-bg-subtle: rgba(0, 0, 0, 0.06);
+  --glass-border: rgba(0, 0, 0, 0.16);
+  --glass-border-shift: rgba(255, 255, 255, 0.16);
+  --glass-border-subtle: rgba(0, 0, 0, 0.14);
+  --glass-border-thin: rgba(0, 0, 0, 0.10);
+  --glass-border-hover: rgba(0, 0, 0, 0.28);
+  --glass-inset-light: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  --glass-inset-light-hover: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  --glass-inset-dark: inset 0 -1px 0 rgba(0, 0, 0, 0.08);
+  --glass-shadow: 0 4px 30px rgba(0, 0, 0, 0.08);
+  --glass-shadow-pill: 0 4px 32px rgba(0, 0, 0, 0.12);
+
+  /* STATE */
+  --state-layer-color: var(--color-on-surface);
+  --state-hover-opacity: 0.08;
+
+  /* SCROLLBAR — darker on light mode */
+  --scrollbar-thumb: #6a6a6a;
+  --scrollbar-thumb-hover: #3a3a3a;
+
+  /* ELEVATION — lighter shadows */
+  --elevation-0: var(--primitive-shadow-0);
+  --elevation-1: 0 1px 3px hsl(0 0% 0% / 0.04);
+  --elevation-2: 0 4px 16px hsl(0 0% 0% / 0.08);
+  --elevation-3: 0 8px 32px hsl(0 0% 0% / 0.12);
+  --elevation-4: 0 16px 48px hsl(0 0% 0% / 0.16);
+
+  /* RGB CHANNEL VARIABLES — for rgba() usage in overlays */
+  --blackrgb: 0, 0, 0;
+  --whitergb: 255, 255, 255;
+
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* UTILITY COLORS — tags/cards/tooltips (2026-08-11), theme: LIGHT         */
+  /* Same role set as the dark-theme block above (tokens.css base :root) —   */
+  /* see that block for the full role doc. Two things flip per the          */
+  /* reference spec's own "Light Mode" behavior section, not just a         */
+  /* mechanical color-mix() re-target:                                      */
+  /*   - vibrant-bg/-text step DOWN the ramp (400→600/700): the same        */
+  /*     step-400 value that pops on a dark surface is too low-contrast     */
+  /*     against white — a deeper, more saturated tone is what stays        */
+  /*     "vibrant" AND readable on light backgrounds.                      */
+  /*   - subtle-bg goes from a color-mix() tint toward the dark surface     */
+  /*     to a color-mix() tint toward WHITE (via --color-surface, which     */
+  /*     is already near-white here) — same mechanism, just inherits the    */
+  /*     theme's own surface color automatically rather than needing a      */
+  /*     hand-authored pastel per hue. */
+  --color-utility-teal-subtle-bg: color-mix(in oklch, var(--primitive-accent-500) 10%, var(--color-surface));
+  --color-utility-teal-hover-bg: color-mix(in oklch, var(--primitive-accent-500) 16%, var(--color-surface));
+  --color-utility-teal-vibrant-bg: var(--primitive-accent-600);
+  --color-utility-teal-vibrant-text: var(--primitive-accent-700);
+  --color-utility-teal-subtle-text: color-mix(in oklch, var(--primitive-accent-700) 60%, var(--color-on-surface-variant));
+  --color-utility-teal-contrast-text: var(--primitive-neutral-0);
+  --color-utility-teal-subtle-border: color-mix(in oklch, var(--primitive-accent-600) 30%, transparent);
+  --color-utility-teal-vibrant-border: var(--primitive-accent-600);
+
+  --color-utility-purple-subtle-bg: color-mix(in oklch, var(--primitive-purple-500) 10%, var(--color-surface));
+  --color-utility-purple-hover-bg: color-mix(in oklch, var(--primitive-purple-500) 16%, var(--color-surface));
+  --color-utility-purple-vibrant-bg: var(--primitive-purple-600);
+  --color-utility-purple-vibrant-text: var(--primitive-purple-700);
+  --color-utility-purple-subtle-text: color-mix(in oklch, var(--primitive-purple-700) 60%, var(--color-on-surface-variant));
+  --color-utility-purple-contrast-text: var(--primitive-neutral-0);
+  --color-utility-purple-subtle-border: color-mix(in oklch, var(--primitive-purple-600) 30%, transparent);
+  --color-utility-purple-vibrant-border: var(--primitive-purple-600);
+
+  --color-utility-pink-subtle-bg: color-mix(in oklch, var(--primitive-pink-500) 10%, var(--color-surface));
+  --color-utility-pink-hover-bg: color-mix(in oklch, var(--primitive-pink-500) 16%, var(--color-surface));
+  --color-utility-pink-vibrant-bg: var(--primitive-pink-600);
+  --color-utility-pink-vibrant-text: var(--primitive-pink-700);
+  --color-utility-pink-subtle-text: color-mix(in oklch, var(--primitive-pink-700) 60%, var(--color-on-surface-variant));
+  --color-utility-pink-contrast-text: var(--primitive-neutral-0);
+  --color-utility-pink-subtle-border: color-mix(in oklch, var(--primitive-pink-600) 30%, transparent);
+  --color-utility-pink-vibrant-border: var(--primitive-pink-600);
+
+  --color-utility-blue-subtle-bg: color-mix(in oklch, var(--primitive-blue-500) 10%, var(--color-surface));
+  --color-utility-blue-hover-bg: color-mix(in oklch, var(--primitive-blue-500) 16%, var(--color-surface));
+  --color-utility-blue-vibrant-bg: var(--primitive-blue-600);
+  --color-utility-blue-vibrant-text: var(--primitive-blue-700);
+  --color-utility-blue-subtle-text: color-mix(in oklch, var(--primitive-blue-700) 60%, var(--color-on-surface-variant));
+  --color-utility-blue-contrast-text: var(--primitive-neutral-0);
+  --color-utility-blue-subtle-border: color-mix(in oklch, var(--primitive-blue-600) 30%, transparent);
+  --color-utility-blue-vibrant-border: var(--primitive-blue-600);
+
+  --color-utility-amber-subtle-bg: color-mix(in oklch, var(--primitive-amber-500) 12%, var(--color-surface));
+  --color-utility-amber-hover-bg: color-mix(in oklch, var(--primitive-amber-500) 18%, var(--color-surface));
+  --color-utility-amber-vibrant-bg: var(--primitive-amber-600);
+  --color-utility-amber-vibrant-text: var(--primitive-amber-700);
+  --color-utility-amber-subtle-text: color-mix(in oklch, var(--primitive-amber-700) 60%, var(--color-on-surface-variant));
+  --color-utility-amber-contrast-text: var(--primitive-neutral-0);
+  --color-utility-amber-subtle-border: color-mix(in oklch, var(--primitive-amber-600) 30%, transparent);
+  --color-utility-amber-vibrant-border: var(--primitive-amber-600);
+
+  /* Neutral: same "match the existing glass pill" intent as the dark block
+     — --glass-bg-subtle/--glass-border already flip to their light-mode
+     rgba(0,0,0,…) values via the theme override above, so no separate
+     redeclaration is needed here; only vibrant/contrast, which reference
+     --primitive-neutral-* directly, need a light-appropriate re-pick
+     (light mode's readable "ink" end of the neutral ramp is the OPPOSITE
+     of dark mode's, same as --color-on-surface flips above). */
+  --color-utility-neutral-vibrant-bg: var(--primitive-neutral-700);
+  --color-utility-neutral-vibrant-text: var(--color-on-surface);
+  --color-utility-neutral-contrast-text: var(--primitive-neutral-0);
+  --color-utility-neutral-vibrant-border: var(--primitive-neutral-700);
+
+  /* COMPONENT TOKENS — Tier 3 */
+  /* Navigation */
+  --nav-bg: rgba(245, 244, 241, 0.9);
+  --nav-backdrop-blur: 10px;
+  --nav-height: 60px;
+  /* --nav-fade-tint no longer needs a light-theme override — the base
+     :root definition (tokens.css) is tied to --color-background, which
+     this block already redefines below, so it resolves correctly here
+     automatically. */
+  /* --nav-gradient removed — see the dark-theme comment (base :root,
+     tokens.css) for why; the glass effect is bottom-anchored everywhere now. */
+  --nav-gradient-reversed: linear-gradient(to top, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.04) 55%, rgba(255, 255, 255, 0.02) 80%, rgba(255, 255, 255, 0) 100%);
+
+  /* Cards */
+  --card-bg: var(--surface-2);
+
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* THEME VARIANT: DIM (mid-tone, like Twitter dim mode) */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+:root[data-theme='dim'] {
+  /* BACKGROUND & SURFACES — Mid-tone grays */
+  --color-background: #1d1e1f;
+  --color-surface: #323232;
+  --color-surface-variant: #3d3d3d;
+  --color-outline: #505050;
+  --color-outline-variant: #4a4a4a;
+
+  /* CONTENT */
+  --color-on-surface: #f5f5f5;
+  --color-on-surface-variant: #d0d0d0;
+  --color-on-surface-subtle: #868686;
+
+  /* Navigation */
+  --nav-bg: rgba(24, 24, 24, 0.7);
+
+  /* ICON & INTERACTIVE COLORS */
+  --color-icon: oklch(95% 0 0);
+  --color-link: var(--color-primary);
+  /* Hover: primary mixed 75% with white for a lighter tint in dim mode */
+  --color-link-hover: color-mix(in oklch, var(--color-primary) 5%, white);
+
+  /* BRAND */
+  /* --color-primary: var(--primitive-brand-400); */  /* revert: restore accent colour */
+  --color-primary: oklch(88% 0 0);  /* near-white for dim mode */
+  --color-on-primary: var(--primitive-neutral-950);
+  --color-primary-container: var(--primitive-brand-800);
+
+  --color-secondary: var(--primitive-accent-400);
+
+  /* SURFACES */
+  --surface-0: var(--color-background);
+  --surface-1: #222222;
+  --surface-2: #242424;
+  --surface-3: #474747;
+  --surface-4: #505050;
+
+  /* color-surface-N aliases */
+  --color-surface-0: var(--surface-0);
+  --color-surface-1: color-mix(in srgb, var(--surface-1),
+    var(--surface-1-shift) calc(var(--profile-shift, 0) * 100%));
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-surface-4: var(--surface-4);
+
+  --surface-2-translucent: rgba(61, 61, 61, 0.6);
+  --surface-3-translucent: rgba(71, 71, 71, 0.65);
+  --surface-4-translucent: rgba(80, 80, 80, 0.7);
+
+  /* STATE */
+  --state-hover-opacity: 0.1;
+
+  /* SCROLLBAR */
+  --scrollbar-thumb: var(--color-on-surface-subtle);
+  --scrollbar-thumb-hover: var(--primitive-neutral-300);
+
+  /* RGB CHANNEL VARIABLES — for rgba() usage in overlays */
+  --blackrgb: 0, 0, 0;
+  --whitergb: 255, 255, 255;
+
+  /* COMPONENT TOKENS — Tier 3 */
+  /* Navigation */
+  --nav-bg: rgba(24, 24, 24, 0.6);
+  --nav-backdrop-blur: 10px;
+  --nav-height: 60px;
+
+  /* Cards */
+  --card-bg: var(--surface-2);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* TYPE SIZE SCALING — Ghost admin "Type size" → --type-scale multiplier      */
+/* One ramp (see the size primitives), honestly labeled. Legacy sm/md/lg      */
+/* mappings kept so a not-yet-resaved admin value renders correctly:          */
+/* legacy 'sm' WAS the live look, so it maps to 1.                            */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+/* :root:has(...) — NOT body[...]: var() inside a custom property resolves
+   at the element where that property is DECLARED. The size primitives are
+   declared at :root, so --type-scale must change at :root too; an override
+   on <body> (where Ghost renders the attribute) would be invisible to
+   them. Browsers without :has() get scale 1 = the standard look. */
+/* Type size (body & UI text) */
+:root:has(body[data-type-size='compact'])  { --type-scale-body: 0.92; }
+:root:has(body[data-type-size='standard']) { --type-scale-body: 1; }
+:root:has(body[data-type-size='large'])    { --type-scale-body: 1.12; }
+/* Type size (headings) — separate axis, same multipliers */
+/* Wider steps than the body axis on purpose: at display sizes a ±8%
+   change is imperceptible — headings need visibly distinct tiers. */
+:root:has(body[data-type-size-headings='compact'])  { --type-scale-heading: 0.7; }
+:root:has(body[data-type-size-headings='standard']) { --type-scale-heading: 1; }
+:root:has(body[data-type-size-headings='large'])    { --type-scale-heading: 1.15; }
+/* legacy single-axis values (pre-split, meant "everything") */
+:root:has(body[data-type-size='sm']) { --type-scale-body: 1;    --type-scale-heading: 1; }
+:root:has(body[data-type-size='md']) { --type-scale-body: 1.06; --type-scale-heading: 1.06; }
+:root:has(body[data-type-size='lg']) { --type-scale-body: 1.12; --type-scale-heading: 1.12; }
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* FONT FAMILY UTILITIES                                                      */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Apply to any element: <p class="serif">, <h2 class="sans">, etc.
+   Inherits down — safe to put on section containers.                         */
+
+.serif,
+[class*="serif"] .serif-children {
+  font-family: var(--font-family-serif);
+}
+
+.sans {
+  font-family: var(--font-family-body);
+}

@@ -1,0 +1,12 @@
+{{!< default}}
+
+<!-- default.hbs already includes {{> particle-morph}} once, globally,
+     outside <main> — this file used to include it a second time here,
+     which meant every post using this template loaded the whole particle
+     system's script twice. Two copies of the same inline <script> both
+     declaring top-level `let attempts` throws a SyntaxError (classic
+     <script> tags share one global lexical scope), which silently crashed
+     the ENTIRE script — including the post/about/contact/work exclusion
+     check at the top of particle-morph.hbs, so particles never actually
+     hid on any post using this template. -->
+<div class="page-content"></div>

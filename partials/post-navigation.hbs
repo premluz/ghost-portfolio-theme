@@ -1,0 +1,139 @@
+{{!-- POST PAGE: Show prev (newer) + next (older) chronologically, cycling
+      at either end. Both links carry data-transition (curtain effect, same
+      as any other in-site link) AND rel="prev"/"next" — page-transition.js
+      specifically checks that rel to skip overwriting sessionStorage's
+      postOrigin for these two, since they're a lateral move between posts,
+      not a fresh entry point; the close button should still return to
+      whichever listing page you originally opened a post from, no matter
+      how many prev/next hops happened in between.
+
+      MANUAL OVERRIDE: a post's own codeinjection_head can set
+      projectMeta.nextPostSlug / .prevPostSlug (same projectMeta/
+      projectMetaArray object every post already uses for its card/detail
+      fields — see post.hbs's displayProjectMetadata()) to pin either
+      direction to a specific post instead of the default chronological-
+      in-tag order below. Independent per direction: set only one and the
+      other still falls back to chronological. Blank/absent (the default
+      for every post that doesn't set it) — unchanged, original behaviour. --}}
+{{!-- No {{#post}} wrapper — this partial is only ever {{> post-navigation}}'d
+      from inside post.hbs's own already-active {{#post}} block. Ghost's
+      {{#post}} context helper doesn't re-resolve correctly when nested
+      inside a partial included from within an active post context (it fell
+      through to {{else}} every time, silently rendering the old dead
+      homepage stub below instead) — this file no longer needs to ask "are
+      we in a post," it already knows. --}}
+  <section class="post-navigation" data-post-id="{{id}}" data-published-at="{{published_at}}" data-post-tags="{{#foreach tags}}{{slug}}{{#unless @last}},{{/unless}}{{/foreach}}"></section>
+  <script>
+    (function() {
+      const nav = document.querySelector('.post-navigation[data-post-id]');
+      if (!nav) return;
+
+      const currentId = nav.dataset.postId;
+      const currentDate = new Date(nav.dataset.publishedAt);
+      const tagsStr = nav.dataset.postTags;
+      const tags = tagsStr.split(',').map(t => t.trim()).filter(Boolean);
+      const categoryTag = tags.find(t => t !== 'work') || 'featured';
+
+      console.log('[post-nav] Current:', currentId, 'Date:', currentDate, 'Category:', categoryTag);
+
+      // Manual override slugs (see doc comment above) — read the same
+      // projectMeta/projectMetaArray object the post's own codeinjection_head
+      // already sets, before this partial's own <script> runs (head renders
+      // first). Independent per direction: either can be blank/absent.
+      let manualMeta = null;
+      if (window.projectMetaArray && Array.isArray(window.projectMetaArray) && window.projectMetaArray.length > 0) {
+        manualMeta = window.projectMetaArray[0];
+      } else if (window.projectMeta && Object.keys(window.projectMeta).length > 0) {
+        manualMeta = window.projectMeta;
+      }
+      const nextPostSlug = manualMeta && manualMeta.nextPostSlug ? manualMeta.nextPostSlug.trim() : '';
+      const prevPostSlug = manualMeta && manualMeta.prevPostSlug ? manualMeta.prevPostSlug.trim() : '';
+      console.log('[post-nav] Manual overrides — next:', nextPostSlug || '(none)', 'prev:', prevPostSlug || '(none)');
+
+      const key = window.ghostContentKey || '53c1eef4fff835def4f59619d6';
+      const fields = 'id,title,url,feature_image,published_at,reading_time,html';
+
+      // Fetch featured posts (for the chronological fallback) and any
+      // manually-overridden slugs in parallel — one Promise.all so a slow
+      // override fetch can't block the fallback data the other direction
+      // may still need.
+      const fetchBySlug = (slug) => {
+        if (!slug) return Promise.resolve(null);
+        return fetch(`/ghost/api/content/posts/?key=${key}&filter=slug:${encodeURIComponent(slug)}&fields=${fields}&limit=1`)
+          .then(r => r.json())
+          .then(d => (d.posts && d.posts[0]) || null)
+          .catch(e => { console.error('[post-nav] override fetch failed for slug', slug, e); return null; });
+      };
+
+      const apiUrl = `/ghost/api/content/posts/?key=${key}&filter=tag:${categoryTag}&fields=${fields}&order=published_at%20desc&limit=100`;
+
+      Promise.all([
+        fetch(apiUrl).then(r => r.json()).then(d => d.posts || []),
+        fetchBySlug(nextPostSlug),
+        fetchBySlug(prevPostSlug),
+      ])
+        .then(([posts, nextOverride, prevOverride]) => {
+          console.log('[post-nav] Found', posts.length, 'posts with tag', categoryTag);
+
+          // Posts array is sorted newest-first. Older posts than current sit
+          // AFTER it in the array; newer posts sit BEFORE it.
+          const olderPosts = posts.filter(p => new Date(p.published_at) < currentDate && p.id !== currentId);
+          const newerPosts = posts.filter(p => new Date(p.published_at) > currentDate && p.id !== currentId);
+          console.log('[post-nav] Older posts:', olderPosts.length, 'Newer posts:', newerPosts.length);
+
+          // NEXT = the closest older post (first of olderPosts, since the
+          // array is newest-first — the first "older" match is the nearest
+          // one chronologically), cycling to the overall newest if current
+          // is already the oldest. Manual override wins when set and the
+          // fetch actually resolved a post (a bad/typo'd slug falls back to
+          // chronological rather than silently rendering nothing).
+          const nextPost = nextOverride || (olderPosts.length > 0 ? olderPosts[0] : posts[0]);
+          // PREV = the closest newer post (LAST of newerPosts — newerPosts
+          // is still newest-first, so its last entry is the one nearest to
+          // current going forward in time), cycling to the overall oldest
+          // if current is already the newest. Same override precedence.
+          const prevPost = prevOverride || (newerPosts.length > 0 ? newerPosts[newerPosts.length - 1] : posts[posts.length - 1]);
+
+          const readingTimeFor = (post) => {
+            let readingTime = post.reading_time;
+            if (!readingTime && post.html) {
+              const text = post.html.replace(/<[^>]*>/g, '');
+              const wordCount = text.split(/\s+/).filter(w => w.length > 0).length;
+              readingTime = Math.max(1, Math.round(wordCount / 200));
+            }
+            return readingTime;
+          };
+
+          const cardHTML = (post, rel, label) => {
+            if (!post) return '';
+            return `
+              <a href="${post.url}" rel="${rel}" data-transition class="post-nav-card">
+                <div class="post-nav-inner">
+                  ${post.feature_image ? `<div class="post-nav-image-container"><img src="${post.feature_image}" alt="${post.title}" class="post-nav-image"></div>` : ''}
+                  <div class="post-nav-item-content">
+                    <p class="post-nav-eyebrow">${label}</p>
+                    <h3 class="post-nav-title">${post.title}</h3>
+                  </div>
+                </div>
+              </a>
+            `;
+          };
+
+          const html = `
+            <div class="post-nav-section">
+              ${cardHTML(prevPost, 'prev', 'PREVIOUS')}
+              ${cardHTML(nextPost, 'next', 'NEXT UP')}
+            </div>
+          `;
+          nav.innerHTML = html;
+
+          // Same data powers the top-nav prev/next arrows (navigation.hbs)
+          // — one Content API call serves both, no separate fetch there.
+          const navPrev = document.querySelector('.nav-post-prev');
+          const navNext = document.querySelector('.nav-post-next');
+          if (navPrev && prevPost) navPrev.href = prevPost.url;
+          if (navNext && nextPost) navNext.href = nextPost.url;
+        })
+        .catch(e => console.error('[post-nav]', e));
+    })();
+  </script>

@@ -1,0 +1,460 @@
+/**
+ * POSTS-TABS-GRID-LAB — 3-column grid for experimental projects
+ * Uses post-card-grid component with metadata population via posts-tabs-grid.js
+ */
+
+/* The gradient bands wrapping this section come from the reusable
+   .gradient-frame component (gradient-frame.css/.js) — the bespoke
+   absolutely-positioned canvas slots that used to live here are gone;
+   they overlaid the content and clipped at the section edge. */
+
+/* Requested stack: page-level gradflow background (lowest) < this solid
+   #201D23 backdrop < particle canvas < section content. .gradient-frame
+   itself can't provide this — it's position:relative;z-index:2 so its OWN
+   content renders above particles, and a stacking context is atomic: every
+   descendant (including a background layer) inherits the context's global
+   rank against things outside it, so nothing inside .gradient-frame can
+   ever paint below something the frame itself already out-ranks. This
+   wrapper has no z-index of its own (doesn't create a stacking context),
+   so the backdrop div below and .gradient-frame each rank independently:
+   backdrop at z-index:0 (ties gradflow-page-bg, wins on later DOM order —
+   same mechanism that partial uses against #page-backdrop), frame
+   unchanged at z-index:2. */
+.lab-particle-backdrop-wrap {
+  position: relative;
+}
+
+/* Hand-kept duplicate of data-gradient-inner on the .gradient-frame in
+   posts-tabs-grid-lab.hbs — change one, change the other. Can't reference
+   --gradient-frame-inner directly: that custom property is set on the
+   .gradient-frame element itself (gradient-frame.js), and this div is a
+   SIBLING of it, not a descendant, so it doesn't inherit it.
+   top/bottom insets (not inset:0) are deliberate: the two bands' own
+   fade-outer edge (gradient-frame.css) blends toward whatever is BEHIND
+   the frame — covering the band zones here would repaint that edge's
+   target color, undoing the smooth blend into gradflow-page-bg the fade
+   was built for. Same --gradient-frame-edge-height custom property the
+   bands themselves size from, so this only ever covers the true middle
+   zone, in sync automatically if that height ever changes. */
+.lab-particle-backdrop {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--gradient-frame-edge-height, 480px);
+  bottom: var(--gradient-frame-edge-height, 480px);
+  z-index: 0;
+  background: #201D23;
+  pointer-events: none;
+}
+
+/* ── FIXED PALETTE for the Lab island — NAV/CHROME HALF ──────────────
+   The island itself is NOT painted from here: its background and bands come
+   from data-gradient-inner="#1E1825" on the frame (posts-tabs-grid-lab.hbs).
+   This block exists only for the page chrome that sits OUTSIDE the frame —
+   above all the position:fixed nav, which no subtree rule can reach — so it
+   retints to match the island rather than the theme's usual mirror.
+   ⚠ The hex below is a hand-kept duplicate of data-gradient-inner in the
+   partial. Change one, change the other.
+
+   Scoped to data-active-gradient-frame='lab' (set by gradient-frame.js's
+   bindShift onProgress, via this frame's data-gradient-shift-key='lab'),
+   NOT :root:has(#work-grid-lab). The :has() version checked "does
+   #work-grid-lab exist anywhere in the DOM", true on the whole homepage
+   regardless of scroll position — so it permanently hijacked --shift-bg for
+   ANY other section's shift on the same page, breaking testimonials' invert
+   (it got Lab's fixed purple instead of the theme's true opposite
+   background, even scrolled nowhere near Lab). The attribute only applies
+   while Lab's OWN shift is active. tokens.css loads before this file
+   (default.hbs), so plain source order — not an artificially boosted :has()
+   specificity — is enough to outrank both theme blocks there.
+
+   NOTE --shift-bg here is deliberately NOT what the frame paints with
+   (that is --shift-bg-theme, which this block cannot redirect — see
+   tokens.css). Redirecting the token the frame also painted from is exactly
+   what made Lab render white until a theme toggle repainted it.
+   Only these four are needed: --surface-1-shift and --glass-bg-shift are
+   derived from --shift-ink (tokens.css), so the nav pill and badge fills
+   follow automatically. */
+:root[data-active-gradient-frame='lab'] {
+  --shift-bg: #1E1825;
+  --shift-ink: #ffffff;
+  /* White icons on the island, in both themes — the ramp endpoint the nav
+     icons' invert() filter interpolates toward (see tokens.css). */
+  --icon-invert-shift: 1;
+  --icon-brightness-shift: 1.2;
+}
+
+.posts-tabs-grid-lab-section {
+  width: 100%;
+  padding: var(--space-2xl) 0;
+  margin: 0;
+  position: relative;
+  z-index: 2;  /* above #particle-morph-demo / #gpu-canvas (z-index: 1) */
+}
+
+.posts-tabs-grid-lab-wrapper {
+  max-width: 100%;
+  padding: 0 var(--content-padding);
+  margin: 0 auto;
+}
+
+/* ── Grid Layout (3 columns) ────────────────────────────────────── */
+
+.posts-grid-lab-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-3xl);
+  width: 100%;
+}
+
+/* ── Grid Card — inherits from post-card-grid.css ──────────────── */
+
+.posts-grid-lab-cards .grid-card {
+  padding: 0;
+  position: relative;
+  overflow: hidden;
+  /* Lab cards are informational only — no case-study page behind them,
+     so unlike the regular work grid this isn't conditional on disableLink
+     meta: always non-interactive. */
+  cursor: default;
+}
+
+.posts-grid-lab-cards .grid-card.grid-card-disabled {
+  cursor: default;
+}
+
+.posts-grid-lab-cards .grid-card-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
+
+/* Was unconditional on every .grid-card-link regardless of disabled state —
+   this section fetches real posts (posts-tabs-grid-lab.hbs's {{#get}}) and
+   not all of them set disable-link, so that blocked click AND hover (the
+   mouse-tracking tooltip, main.js's initTooltipSystem, needs real
+   mouseenter/mouseleave — pointer-events:none stops the browser from
+   hit-testing the element at all) on cards that ARE meant to link out.
+   Scoped to .grid-card-disabled only, matching how posts-tabs-grid.js
+   applies this same rule at runtime (inline style, disableLink branch) —
+   .grid-card-disabled is set by that same branch. Blocks the click
+   entirely (no data-transition page navigation, no :active/pressed
+   feedback) — not just the cursor. cursor: default is set explicitly too
+   since pointer-events: none alone leaves the <a>'s own computed cursor at
+   the browser's link default. */
+.posts-grid-lab-cards .grid-card-disabled .grid-card-link {
+  pointer-events: none;
+  cursor: default;
+}
+
+.posts-grid-lab-cards .grid-card-image {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+
+}
+
+.posts-grid-lab-cards .grid-card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.5s ease;
+}
+
+.posts-grid-lab-cards .grid-card-image video {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.posts-grid-lab-cards .grid-card-content {
+  padding: 24px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.posts-grid-lab-cards .grid-card-category {
+  font-size: var(--type-caption-size);
+  color: var(--color-on-surface-variant);
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  flex: 1;
+}
+
+.posts-grid-lab-cards .grid-card-line1 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.posts-grid-lab-cards .grid-card-description {
+  display: block;
+  /* No font-size here on purpose: the generic .grid-card-description rule
+     (posts-tabs-grid.css) sets it with !important on the body axis — a
+     local declaration is dead code that only misleads. Body-tier leading,
+     not body-sm: this is multi-line description copy. */
+  line-height: var(--type-body-line-height);
+  color: var(--color-on-surface-variant);
+  margin: 0;
+}
+
+.posts-grid-lab-cards .grid-card-description:empty {
+  display: none;
+}
+
+.posts-grid-lab-cards .grid-card-logo {
+  height: 32px;
+  width: auto;
+  flex-shrink: 0;
+  display: none;
+}
+
+/* Pre-existing bug, fixed here: the global .grid-card-logo[src]{display:block}
+   rule (posts-tabs-grid.css) has the SAME specificity as the display:none
+   above (2 classes vs 2 classes+not-counted-attribute... actually 1 class+1
+   attribute — both (0,2,0)), and this file loads after posts-tabs-grid.css,
+   so the tie went to display:none — Lab-grid logos never showed even with
+   a real src. This selector (2 classes + 1 attribute = (0,3,0)) outranks
+   both, regardless of load order. */
+.posts-grid-lab-cards .grid-card-logo[src] {
+  display: block;
+}
+
+.posts-grid-lab-cards .grid-card-line2 {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.posts-grid-lab-cards .grid-card-bullets {
+  list-style: disc;
+  padding-left: 20px;
+  margin: 0;
+  font-size: var(--type-body-sm-size);
+  color: var(--color-on-surface);
+  flex: 1;
+}
+
+.posts-grid-lab-cards .grid-card-bullets li {
+  margin-bottom: 8px;
+}
+
+.posts-grid-lab-cards .grid-card-testimonial-container {
+  display: none;
+  font-size: var(--type-body-sm-size);
+  color: var(--color-on-surface-variant);
+  line-height: 1.5;
+}
+
+/* No local margin here anymore — was 0 0 8px 0, fighting the shared,
+   since-updated .post-card-testimonial rule (main.css: margin: var(--space-sm) 0)
+   that posts-tabs' own list mode relies on with no override at all. Letting
+   it inherit is what keeps this section's spacing in step with posts-tabs. */
+.posts-grid-lab-cards .grid-card-testimonial {
+  font-style: italic;
+}
+
+/* Same story — was margin: 0, fighting .post-card-endorser's
+   margin: 0 0 var(--space-sm) 0 (main.css). */
+.posts-grid-lab-cards .grid-card-endorser {
+  font-weight: 500;
+}
+
+/* ── List Layout ──────────────────────────────────────────────── */
+/* Mirrors the posts-tabs list layout; only grid and list are supported
+   here, so carousel/stacked values fall back to the default grid.      */
+
+.posts-tabs-grid-lab-section[data-posts-layout='list'] .posts-grid-lab-cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 5vh;
+}
+
+.posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card {
+  display: flex;
+  flex-direction: row;
+  gap: var(--space-lg);
+  width: 100%;
+  overflow: visible;
+  min-width: 0;
+  margin-bottom: var(--space-2xl);
+  margin-top: var(--space-lg) !important;
+}
+
+.posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-link {
+  display: flex;
+  flex-direction: row;
+  /* 4rem — matches posts-tabs' own list mode (post-card-grid.css), which
+     in turn matches the grid layout's large single-row card exactly. With
+     flex:1 1 66%/34% on image/content (below), the gap's size — not just
+     the 66/34 ratio — determines how much flex-shrink eats off the image's
+     nominal basis; matching the gap is what makes the final pixel sizes
+     match, not the ratio alone. (Was --space-2xl/96px, chosen in an
+     earlier pass to match posts-tabs' OWN list mode before that mode's
+     gap was, in turn, updated to this same 4rem to match the grid
+     reference — keeping both in step.) */
+  gap: 4rem;
+  width: 100%;
+  min-width: 0;
+  /* stretch (the flex default), not center: .grid-card-content needs to
+     be as tall as .grid-card-image's row height for its own
+     justify-content:flex-end (below) to have room to push content down
+     to the image's bottom edge — center-aligning here shrink-wraps
+     .grid-card-content to its own content height instead, leaving
+     flex-end nothing to do. .grid-card-image's height still comes from
+     its own aspect-ratio regardless of this value. */
+  align-items: stretch;
+}
+
+.posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-image {
+  /* 66/34 split — matches posts-tabs' own list mode (post-card-grid.css),
+     which in turn matches its grid layout's large single-row card. Was
+     flex:0.9 (paired with content's 0.7, summing 1.6 not 1 — image
+     actually got 0.9/1.6 = 56.25% of the row, visibly smaller than the
+     large grid-mode image this is meant to match). */
+  flex: 1 1 66%;
+  width: 66%;
+  aspect-ratio: 16 / 10;
+  margin-bottom: 0;
+  order: 1;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-image img,
+.posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-image video {
+  object-fit: contain;
+}
+
+.posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-content {
+  /* Paired with .grid-card-image's 66% above — was flex:0.7 */
+  flex: 1 1 34%;
+  width: 34%;
+  display: flex;
+  flex-direction: column;
+  /* flex-end, not center: content should sit at the bottom of the row,
+     its last line flush with the image's bottom edge — matches the same
+     fix on .post-card-content in post-card-grid.css. */
+  justify-content: flex-end;
+  min-width: 0;
+  order: 0;
+  overflow-wrap: break-word;
+  padding: 0;
+}
+
+.posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-description {
+  display: none;
+}
+
+/* .grid-card-category's own flex:1 (base rule, unscoped to layout mode —
+   this section's grid-mode cards want the category to grow and push
+   title/keywords toward the card's bottom) leaks into list mode too, where
+   it fights the flex-end bottom-alignment above: the category grew to fill
+   the ENTIRE column's free space, making its own box ~327px tall for a
+   one-line label and pushing the real content (category text top-anchored
+   in that oversized box, then title/keywords right after it) noticeably
+   higher than the image's bottom edge instead of flush with it. Reset to
+   non-growing here, matching .post-card-category (post-card-grid.css) —
+   the reference this was supposed to match already has no flex value at
+   all. */
+.posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-category {
+  flex: none;
+}
+
+/* Tablet — collapse list to column */
+@media (max-width: 1024px) {
+  .posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card {
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
+  .posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-link {
+    flex-direction: column;
+    gap: var(--space-lg);
+  }
+
+  .posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-image {
+    flex: 0 0 auto;
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    border-radius: var(--radius-sm);
+    order: -1;
+  }
+
+  .posts-tabs-grid-lab-section[data-posts-layout='list'] .grid-card-content {
+    /* Desktop's flex:1 1 34%/width:34% (same file, above) sizes the row's
+       MAIN axis at that breakpoint's flex-direction:row — once .grid-card
+       switches to flex-direction:column just above, that same percentage
+       silently starts constraining the CROSS axis (now horizontal) instead,
+       squeezing the whole content column to 34% of the card's width
+       underneath a full-width image: title wrapping across 5 lines,
+       keyword pills each barely fitting one per row. post-card-grid.css's
+       own list-mode mobile collapse resets this exact case
+       (.post-card-content { width:100% } at max-width:960px) — grid-card
+       never got the equivalent reset. */
+    width: 100%;
+    flex: none;
+    order: 1;
+  }
+}
+
+/* Mobile — match posts-tabs list spacing */
+@media (max-width: 768px) {
+  .posts-tabs-grid-lab-section[data-posts-layout='list'] .posts-grid-lab-cards {
+    gap: 100px;
+  }
+}
+
+/* ── Responsive ─────────────────────────────────────────────────── */
+
+@media (max-width: 1024px) {
+  .posts-tabs-grid-lab-section {
+    padding: 120px 0;
+  }
+
+  .posts-grid-lab-cards {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 3rem;
+  }
+}
+
+@media (min-width: 1025px) and (max-width: 1440px) {
+  .posts-grid-lab-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .posts-tabs-grid-lab-section {
+    padding: 80px 0;
+  }
+
+  .posts-grid-lab-cards {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+
+  .posts-grid-lab-cards .grid-card-content {
+    padding: 16px 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .posts-tabs-grid-lab-section {
+    padding: 60px 0;
+  }
+
+  .posts-tabs-grid-lab-wrapper {
+    padding: 0 var(--content-padding);
+  }
+}

@@ -1,0 +1,568 @@
+{{!< default}}
+
+{{!-- Sticky Section Navigation (outside article for proper positioning) 
+<nav class="sticky-nav" data-auto-generate="true" data-content-selector=".gh-content" data-heading-selector="h2" aria-label="Post sections"></nav>
+--}}
+{{#post}}
+
+
+<article class="post" data-post-hero="contained" data-post-id="{{id}}" data-post-tags="{{#foreach tags}}{{slug}}{{#unless @last}},{{/unless}}{{/foreach}}">
+  {{!-- .post-header-layout is the two-column row: .post-project-summary
+        (col 1) beside .post-header (col 2 — EVERYTHING else: title/
+        category/excerpt/meta, the feature image, and the logomark all
+        stack normally inside it). This replaces an earlier attempt
+        (.post-header-row) that put the summary INSIDE .post-header
+        alongside just the title block, with the image forced below
+        spanning full width — that read as the summary sitting next to
+        the title only, not next to the whole header. .logomark-container
+        lives here too (not inside .post-header): its CSS positions it
+        with `right: calc((100% - 1280px) / 2 + ...)`, which assumes 100%
+        = the full page-width column: correct when its containing block
+        is .post-header-layout (this element), wrong (narrower) if it
+        were .post-header, now a flex:1 child sharing the row with the
+        260px sidebar. --}}
+  {{!-- .post-layout is the page-level grid. On desktop it's two columns —
+        .post-side (the role/context summary) on the left, spanning BOTH
+        rows of the right column (header on top, body content below), so
+        the side rail runs alongside the whole article rather than just
+        the header. On mobile it collapses to one column ordered
+        header → side → content (the side sits BETWEEN them). DOM order is
+        header-first so the H1 stays the first heading for a11y/SEO; the
+        grid areas do the repositioning, not source order. --}}
+  <div class="post-layout">
+    {{!-- Header area. Keeps the .post-header-layout class: it's still the
+          logomark's positioning parent (its `right: calc(...)` math and
+          main.js's calculateLandingPosition() both resolve against this
+          element) and still what initPostHeaderAnimation() animates. --}}
+    <div class="post-header-layout">
+      <header class="post-header">
+      <div class="container">
+        <div class="post-header-content">
+          {{!-- Project category from projectMeta --}}
+          <p class="post-category text-eyebrow" id="project-category"></p>
+          <h1 class="post-title">{{title}}</h1>
+          {{!-- Project client name --}}
+          <!--<p class="post-client" id="project-client"></p>-->
+          {{!-- Project result --}}
+        <!--  <div class="post-result" id="project-result"></div>-->
+          {{#if custom_excerpt}}
+            <p class="post-excerpt">{{custom_excerpt}}</p>
+          {{/if}}
+
+          <div class="post-meta">
+            <!--<time datetime="{{date format="YYYY-MM-DD"}}">{{date format="MMM DD, YYYY"}}</time>-->
+            {{!-- Keywords pills from projectMeta --}}
+            <div class="post-keywords" id="post-keywords"></div>
+           <!-- {{#if reading_time}}
+              <span class="reading-time">{{reading_time}}</span>
+            {{/if}}-->
+          </div>
+        </div>
+      </div>
+
+
+      {{#if feature_image}}
+        <figure class="post-image mb0">
+          {{!-- Video vs image, decided server-side via the same internal
+                #video tag post-card.hbs uses. NOTE: {{#has tag="hash-video"}}
+                (the slugified form, "stock Ghost helper" convention
+                documented in post-card.hbs) does NOT match on this install —
+                verified live via a temporary debug block: {{#has
+                tag="hash-video"}} = false even with the tag confirmed
+                attached ({{#foreach tags visibility="all"}} showed it),
+                while {{#has tag="#video"}} (the literal tag NAME, hash
+                included) = true. Using the literal name here; post-card.hbs
+                carries the same pre-existing bug, tracked separately. File
+                must be named after the post's own slug, same convention as
+                the card grid. Unlike the grid version, this plays
+                immediately (autoplay) rather than via an
+                IntersectionObserver: the hero is above the fold on load,
+                there's no "wait until scrolled into view" case here. 
+          {{#has tag="#video"}}
+            <video autoplay muted loop playsinline data-skip-reveal>
+              <source src="/content/images/videos/{{slug}}.mp4" type="video/mp4">
+            </video>
+          {{else}}
+            <img src="{{feature_image}}" alt="{{title}}" loading="lazy" data-skip-reveal>
+          {{/has}}--}}
+          <img src="{{feature_image}}" alt="{{title}}" loading="lazy" data-skip-reveal>
+
+        </figure>
+      {{/if}}
+      </header>
+
+      {{!-- Project logomark container --}}
+      <div class="logomark-container" id="logomark-container">
+        <img class="logomark-image" id="logomark-image" alt="Project logo" />
+        {{!-- Populated from meta.client (client name, not a date — class/id
+              still say "date" from an earlier version of this), revealed
+              letter-by-letter only once the logomark's drop/bounce (main.js
+              animateLogomarkDrop) has actually finished — see the
+              logomarkDropComplete listener below, not a fixed delay guess. --}}
+        <p class="logomark-date" id="logomark-date"></p>
+      </div>
+    </div>
+
+    {{!-- Role/contributions summary placement — TWO mutually exclusive
+          wrappers for the SAME .post-project-summary markup below; comment
+          out one, uncomment the other to switch layouts site-wide.
+
+          .post-side (default, active): real .post-layout grid participant
+          (grid-area: side), reserves its own 260px column spanning the
+          header AND body content rows on desktop. See .post-layout in
+          main.css for the grid-template-areas this depends on.
+
+          .post-summary-band (alternate, see below): still a .post-layout
+          grid participant (also grid-area: side — the two are never both
+          present, so no collision), but a :not(:has(...)) exclusion on
+          .post-layout.has-side (main.css) stops it from being pulled into
+          the 260px side column: it stays full-width, single-column,
+          stacked between header and content. Left edge lines up with the
+          header via .post-layout's own padding (no independent inset), the
+          same left-anchoring outcome .gh-canvas's zone system gives the
+          body content (see the 2026-08-06 decision in that file), reached
+          here by simpler means since this element isn't part of that zone
+          system. Its own CSS switches .role-overview from a vertical stack
+          to a horizontal row via [data-summary-layout="band"] on this
+          wrapper — .role-overview/.role-overview-block themselves are
+          unchanged, so displayProjectMetadata() (script below) needs no
+          changes either way; it only ever targets ids/classes untouched by
+          this choice. --}}
+    <!--
+     <div class="post-side">
+      <div class="post-project-summary" id="post-project-summary">
+       <div class="role-overview">
+          <div class="role-overview-block" data-field="context">
+            <span class="text-eyebrow">Project</span>
+            <div class="post-project-context" id="post-project-context"></div>
+          </div>
+          <div class="role-overview-block" data-field="date">
+            <span class="text-eyebrow">Timeline</span>
+            <div class="post-project-date" id="post-project-date"></div>
+          </div>
+          <div class="role-overview-block" data-field="role">
+            <span class="text-eyebrow">My Role</span>
+            <div class="post-project-role" id="post-project-role"></div>
+          </div>
+          <div class="role-overview-block" data-field="team">
+            <span class="text-eyebrow">Design Team</span>
+            <div class="post-project-team" id="post-project-team"></div>
+          </div>
+          <div class="role-overview-block" data-field="contributions">
+            <span class="text-eyebrow">What I owned</span>
+            <div class="post-project-contributions" id="post-project-contributions"></div>
+          </div>
+        </div>
+      </div>
+    </div>-->
+
+  
+ <!--
+     <div class="post-summary-band mt0 pt0" data-summary-layout="band">
+      {{!-- Role/contributions summary from projectMeta (post code
+            injection) — dedicated .role-overview classes. Hidden by
+            default (main.css); displayProjectMetadata() below reveals it
+            only once real field data actually exists. --}}
+      <div class="post-project-summary" id="post-project-summary">
+        {{!-- data-field on each block: on mobile, main.css places these into
+              an explicit 2-column grid (col 1: role/team/contributions, col
+              2: date/context) independent of this DOM order — DOM order
+              itself is the desktop reading order (date first, team right
+              after role). --}}
+
+<div class="content-grid mt-prose-flow-lg" data-cols="1" data-card="container">
+  <div class="content-grid-item">
+       <div class="role-overview">
+          <div class="role-overview-block" data-field="context">
+            <span class="text-eyebrow">Project</span>
+            <div class="post-project-context" id="post-project-context"></div>
+          </div>
+          <div class="role-overview-block" data-field="date">
+            <span class="text-eyebrow">Timeline</span>
+            <div class="post-project-date" id="post-project-date"></div>
+          </div>
+          <div class="role-overview-block" data-field="role">
+            <span class="text-eyebrow">My Role</span>
+            <div class="post-project-role" id="post-project-role"></div>
+          </div>
+          <div class="role-overview-block" data-field="team">
+            <span class="text-eyebrow">Design Team</span>
+            <div class="post-project-team" id="post-project-team"></div>
+          </div>
+          <div class="role-overview-block" data-field="contributions">
+            <span class="text-eyebrow">What I owned</span>
+            <div class="post-project-contributions" id="post-project-contributions"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+      </div></div> 
+-->
+
+    {{!-- Body content — grid-area "content", i.e. under the header and
+          beside the side rail. --}}
+    <div class="post-body-area" data-page-hero="contained" >
+      {{!-- Table of Contents --}}
+      <aside class="post-toc" aria-label="Table of contents">
+        <button class="post-toc-toggle" aria-expanded="false" aria-controls="post-toc-list">
+          <span class="post-toc-icon">☰</span>
+        </button>
+        <nav class="post-toc-nav" id="post-toc-list" aria-hidden="true">
+          <ul class="post-toc-list"></ul>
+        </nav>
+      </aside>
+
+      <div class="gh-canvas" data-page-content-width="contained">
+        <div class="gh-content">
+          {{content}}
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+
+  <footer class="post-footer">
+  </footer>
+
+  {{!-- {{> post-navigation}} — commented out per request --}}
+</article>
+
+
+{{!-- Project metadata display script (runs after content) --}}
+<script>
+  function displayProjectMetadata() {
+    // Support both projectMeta (object) and projectMetaArray (array)
+    let meta = null;
+
+    if (window.projectMetaArray && Array.isArray(window.projectMetaArray) && window.projectMetaArray.length > 0) {
+      meta = window.projectMetaArray[0];
+      console.log('[metadata] Using projectMetaArray[0]:', meta);
+    } else if (window.projectMeta && Object.keys(window.projectMeta).length > 0) {
+      meta = window.projectMeta;
+      console.log('[metadata] Using projectMeta:', meta);
+    }
+
+    if (!meta || Object.keys(meta).length === 0) {
+      console.log('[metadata] No projectMeta/projectMetaArray configured.');
+      return;
+    }
+
+    if (meta.projectCategory) {
+      const categoryEl = document.getElementById('project-category');
+      if (categoryEl) {
+        categoryEl.textContent = meta.projectCategory;
+        categoryEl.style.display = 'block';
+        console.log('[metadata] Set projectCategory:', meta.projectCategory);
+      }
+    }
+
+    if (meta.client) {
+      const clientEl = document.getElementById('project-client');
+      if (clientEl) {
+        clientEl.textContent = meta.client;
+        console.log('[metadata] Set client:', meta.client);
+      }
+    }
+
+    if (meta.result) {
+      const resultEl = document.getElementById('project-result');
+      if (resultEl) {
+        resultEl.innerHTML = meta.result;
+        console.log('[metadata] Set result:', meta.result);
+      }
+    }
+
+    // Semicolon-separated values each render as their own <p> — same
+    // convention as meta.cardKeywords elsewhere (main.js), just paragraphs
+    // instead of pill spans since these read as short statements, not tags.
+    // Commas are left as normal text within a part (not a delimiter).
+    const renderCommaListAsParagraphs = (container, value) => {
+      const parts = value.split(';').map(v => v.trim()).filter(v => v.length > 0);
+      container.innerHTML = parts.map(part => `<p>${part}</p>`).join('');
+      return parts.length > 0;
+    };
+
+    const summaryEl = document.getElementById('post-project-summary');
+    let hasSummaryContent = false;
+
+    // Each field's .role-overview-block (the value element's own parent —
+    // see post.hbs markup) is hidden entirely when that field has no data,
+    // rather than rendering an empty block with just its eyebrow label and
+    // nothing under it. date reuses meta.date — the same field the
+    // logomark's own date reveal (tryRevealLogomarkDate, below) already
+    // reads — rather than a second, separate date field a post's code
+    // injection would have to duplicate.
+    const roleOverviewFields = [
+      ['date', 'post-project-date'],
+      ['role', 'post-project-role'],
+      ['team', 'post-project-team'],
+      ['contributions', 'post-project-contributions'],
+      ['context', 'post-project-context'],
+    ];
+
+    roleOverviewFields.forEach(([key, elId]) => {
+      const el = document.getElementById(elId);
+      if (!el) return;
+      const block = el.closest('.role-overview-block');
+      const value = meta[key];
+      const hasContent = value ? renderCommaListAsParagraphs(el, value) : false;
+      if (hasContent) {
+        hasSummaryContent = true;
+        if (block) block.style.display = '';
+        console.log('[metadata] Set ' + key + ':', value);
+      } else if (block) {
+        block.style.display = 'none';
+      }
+    });
+
+    if (summaryEl && hasSummaryContent) {
+      summaryEl.style.display = 'block';
+      // Gates .post-layout's desktop two-column grid (main.css) — without
+      // this the side rail's 260px column is reserved even on posts with
+      // no projectMeta at all, pushing the content off-centre.
+      document.querySelector('.post-layout')?.classList.add('has-side');
+      console.log('[metadata] Made post-project-summary visible');
+
+      // Stagger fade-in for the role-overview-block children — same shape
+      // as every other reveal on this site (opacity + y + scale + blur, see
+      // SCROLL_REVEAL_CONFIG.card.default), just triggered immediately on
+      // data arrival rather than a scroll observer: this section sits in
+      // the post header, already in view the moment it's populated.
+      const roleBlocks = summaryEl.querySelectorAll('.role-overview-block');
+      const revealRoleBlocks = () => {
+        if (!roleBlocks.length) return;
+        const cfg = window.SCROLL_REVEAL_CONFIG.card.default;
+        gsap.set(roleBlocks, { opacity: 0, y: cfg.yOffset, scale: cfg.scale.start });
+        gsap.to(roleBlocks, {
+          opacity: 1,
+          y: 0,
+          scale: cfg.scale.end,
+          filter: `blur(${cfg.blur.end}px)`,
+          duration: cfg.duration,
+          ease: cfg.ease,
+          stagger: cfg.staggerDelay,
+        });
+      };
+      if (window.gsap && window.SCROLL_REVEAL_CONFIG) {
+        revealRoleBlocks();
+      } else {
+        // GSAP loads via a <script> tag further down the page than this
+        // inline block (default.hbs: {{{body}}} at line 346, GSAP at 401)
+        // — when metadata resolves synchronously (codeinjection_head
+        // embeds it directly, so waitForMeta's first check already
+        // succeeds), this runs before that tag has executed. Poll briefly
+        // rather than falling straight through to no animation at all.
+        // gsapWaitAttempts (not attempts/metaWaitAttempts) — see the
+        // comment on metaWaitAttempts below re: shared top-level scope.
+        let gsapWaitAttempts = 0;
+        const waitForGsap = () => {
+          if (window.gsap && window.SCROLL_REVEAL_CONFIG) { revealRoleBlocks(); return; }
+          gsapWaitAttempts++;
+          if (gsapWaitAttempts < 50) setTimeout(waitForGsap, 50);
+          else roleBlocks.forEach((b) => { b.style.opacity = '1'; });
+        };
+        waitForGsap();
+      }
+    }
+
+    const containerEl = document.getElementById('logomark-container');
+    const logomarkEl = document.getElementById('logomark-image');
+
+    if (meta.logomark && logomarkEl) {
+      // Handle relative paths by constructing full URL
+      let logomarkUrl = meta.logomark;
+      if (logomarkUrl.startsWith('/')) {
+        logomarkUrl = window.location.origin + logomarkUrl;
+      }
+      logomarkEl.src = logomarkUrl;
+      console.log('[metadata] Set logomark:', logomarkUrl);
+    }
+
+    // Handle accentColor (both camelCase and kebab-case)
+    const accentColor = meta.accentColor || meta['accent-color'];
+    if (accentColor && containerEl) {
+      containerEl.style.backgroundColor = accentColor;
+      console.log('[metadata] Set accentColor:', accentColor);
+    }
+
+    // Make container visible if either logomark or color is set
+    if (containerEl && (meta.logomark || accentColor)) {
+      containerEl.style.visibility = 'visible';
+      containerEl.style.opacity = '1';
+      console.log('[metadata] Made logomark container visible');
+    }
+
+    // Client name under the logomark (was meta.date — the role-overview
+    // sidebar already shows the timeline, so date there was redundant;
+    // client name isn't shown anywhere else). Element id/class/function
+    // names below still say "date" (logomark-date, tryRevealLogomarkDate)
+    // — left as-is rather than a wider rename sweep, since nothing about
+    // the reveal mechanism itself changed, only which meta field feeds it.
+    // Text is set now, but NOT revealed yet — kept invisible until the
+    // logomarkDropComplete event (dispatched by main.js's
+    // animateLogomarkDrop() when its bounce timeline actually finishes),
+    // not a fixed delay guess that could fire before/after the real drop.
+    if (meta.client) {
+      const dateEl = document.getElementById('logomark-date');
+      if (dateEl) {
+        dateEl.dataset.pendingText = meta.client;
+        console.log('[metadata] Queued client for reveal after logomark drop:', meta.client);
+        tryRevealLogomarkDate(); // in case the drop already finished before metadata arrived
+      }
+    }
+
+    // Handle disable-link (both camelCase and kebab-case)
+    const disableLink = meta.disableLink || meta['disable-link'];
+    if (disableLink === true) {
+      // On post detail pages, we can't disable the entire post
+      // Instead, this would be used on post cards/homepage
+      console.log('[metadata] disable-link flag set (applies to post cards, not detail page)');
+    }
+  }
+
+  // Letter-by-letter reveal for the date under the logomark — gated on
+  // BOTH conditions being true (meta.date having arrived AND the drop
+  // animation having actually finished), whichever order they happen to
+  // resolve in; either side calls this and it only fires once both are met.
+  // Declared here, BEFORE waitForMeta()'s invocation below: if
+  // window.projectMeta is already set by the time this script runs,
+  // waitForMeta() calls displayProjectMetadata() synchronously, which calls
+  // tryRevealLogomarkDate() — referencing logomarkDropDone before it was
+  // declared threw "Cannot access before initialization" and silently
+  // aborted the rest of this script's execution, including the
+  // logomarkDropComplete listener below ever getting registered at all.
+  let logomarkDropDone = false;
+  function tryRevealLogomarkDate() {
+    const dateEl = document.getElementById('logomark-date');
+    if (!dateEl || !logomarkDropDone) return;
+    if (!dateEl.dataset.pendingText || dateEl.dataset.revealed === 'true') return;
+    dateEl.dataset.revealed = 'true';
+
+    const text = dateEl.dataset.pendingText;
+    dateEl.innerHTML = '';
+    const chars = Array.from(text).map((ch) => {
+      const span = document.createElement('span');
+      span.className = 'char';
+      // Spaces get their own span too (so layout/spacing is correct) but
+      // start fully visible — there's no glyph to fade in, and skipping
+      // the span entirely was the exact bug that ran words together
+      // elsewhere on this site (scroll-scrub-anim.js's splitText()).
+      span.style.opacity = ch.trim() ? '0' : '1';
+      span.textContent = ch;
+      dateEl.appendChild(span);
+      return span;
+    });
+
+    if (window.gsap) {
+      gsap.to(chars, { opacity: 1, duration: 0.05, stagger: 0.03, ease: 'power1.out' });
+    } else {
+      chars.forEach((c) => { c.style.opacity = '1'; });
+    }
+  }
+
+  // Wait for projectMeta or projectMetaArray to be defined (set in post code injection)
+  // Named metaWaitAttempts (not attempts) — plain classic <script> tags share
+  // one global lexical scope for let/const, and particle-morph.hbs (included
+  // globally by default.hbs) declares its own top-level `let attempts` for an
+  // unrelated retry loop. Two scripts on the same page both declaring
+  // `let attempts` throws a SyntaxError that silently kills BOTH scripts
+  // entirely, including particle-morph's post-page exclusion check.
+  let metaWaitAttempts = 0;
+  const waitForMeta = () => {
+    const hasProjectMeta = window.projectMeta && Object.keys(window.projectMeta).length > 0;
+    const hasProjectMetaArray = window.projectMetaArray && Array.isArray(window.projectMetaArray) && window.projectMetaArray.length > 0;
+
+    if (hasProjectMeta || hasProjectMetaArray) {
+      displayProjectMetadata();
+      return;
+    }
+    metaWaitAttempts++;
+    if (metaWaitAttempts < 50) {
+      setTimeout(waitForMeta, 50);
+    }
+  };
+  waitForMeta();
+
+  // Dispatched by main.js's animateLogomarkDrop() when its bounce timeline
+  // actually completes — same cross-script event pattern already used for
+  // heroEntranceDone, rather than guessing a fixed delay that could fire
+  // before/after the real drop finishes.
+  document.addEventListener('logomarkDropComplete', () => {
+    logomarkDropDone = true;
+    tryRevealLogomarkDate();
+  });
+</script>
+
+{{!-- Testimonial metadata display script (runs after content) --}}
+<script>
+  function displayTestimonialMetadata() {
+    // testimonialMeta should be set via post codeinjection_head in Ghost admin
+    if (!window.testimonialMeta || Object.keys(window.testimonialMeta).length === 0) {
+      console.log('[testimonial] No testimonialMeta configured. Add a script to post codeinjection_head in Ghost admin.');
+      return;
+    }
+
+    const meta = window.testimonialMeta;
+    console.log('[testimonial] Found testimonialMeta:', meta);
+
+    // Display snippet on testimonial detail page if available
+    if (meta.snippet) {
+      const snippetEl = document.getElementById('testimonial-snippet');
+      if (snippetEl) {
+        snippetEl.textContent = meta.snippet;
+        snippetEl.style.display = 'block';
+        console.log('[testimonial] Set snippet:', meta.snippet);
+      }
+    }
+
+    // Display source on testimonial detail page if available. innerHTML,
+    // not textContent: source can carry a <br /> (e.g. "Name,<br />Title
+    // at Company") — textContent would render that tag as literal text.
+    if (meta.source) {
+      const sourceEl = document.getElementById('testimonial-source');
+      if (sourceEl) {
+        sourceEl.innerHTML = meta.source;
+        sourceEl.style.display = 'block';
+        console.log('[testimonial] Set source:', meta.source);
+      }
+    }
+
+    // Display short on testimonial detail page if available
+    if (meta.short) {
+      const shortEl = document.getElementById('testimonial-short');
+      if (shortEl) {
+        shortEl.textContent = meta.short;
+        shortEl.style.display = 'block';
+        console.log('[testimonial] Set short:', meta.short);
+      }
+    }
+
+    // Display full on testimonial detail page if available
+    if (meta.full) {
+      const fullEl = document.getElementById('testimonial-full');
+      if (fullEl) {
+        fullEl.innerHTML = meta.full;
+        fullEl.style.display = 'block';
+        console.log('[testimonial] Set full:', meta.full);
+      }
+    }
+  }
+
+  // Wait for testimonialMeta to be defined (set in post code injection)
+  let testimonialAttempts = 0;
+  const waitForTestimonialMeta = () => {
+    if (window.testimonialMeta && Object.keys(window.testimonialMeta).length > 0) {
+      displayTestimonialMetadata();
+      return;
+    }
+    testimonialAttempts++;
+    if (testimonialAttempts < 50) {
+      setTimeout(waitForTestimonialMeta, 50);
+    }
+  };
+  waitForTestimonialMeta();
+</script>
+
+{{/post}}

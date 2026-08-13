@@ -1,0 +1,47 @@
+{{!--
+  WORK-PROJECTS SECTION
+  Experimental/smaller work only — the featured set now lives exclusively
+  in about-projects.hbs's varied grid; this section used to ALSO show the
+  same tag:featured posts in its own "Real products..." block above this
+  one, duplicating that content back-to-back on the Work page. Removed
+  that block, leaving just the experimental listing, on a 3-per-row grid
+  (see .posts-grid-cards in posts-tabs-grid.css).
+
+  NOTE: deliberately does NOT filter on featured:true (Ghost's native
+  "feature this post" toggle) — that flag curates the HOMEPAGE teaser
+  (posts-tabs.hbs/posts-tabs-grid.hbs), a handpicked subset. tag:experimental
+  is a separate custom tag, unrelated to the featured:true flag despite the
+  name overlap.
+--}}
+<section class="statement-slide" style="min-height: 10vh; margin-top: 24px; margin-bottom: 20vh;">
+  <div class="statement-container">
+    <h2 class="statement-heading">The Lab</h2>
+    <h5 class="statement-description">Pitches, smaller projects, and explorations.</h5>
+  </div>
+</section>
+
+<section class="work-projects-section">
+  <div class="container">
+
+    
+    <div class="posts-grid-cards">
+      {{#get "posts" filter="tag:hash-work+tag:experimental" limit="100" include="tags,authors"}}
+        {{#foreach posts}}
+          {{> post-card-grid first=@first}}
+        {{/foreach}}
+      {{/get}}
+    </div>
+
+  </div>
+</section>
+
+{{!-- posts-tabs-grid.js populates .grid-card-category/-title/-testimonial/
+      etc. per card via a per-post metadata fetch. No <script> tag here —
+      work-projects.hbs is only ever rendered from work.hbs, always right
+      after about-projects.hbs, whose own script tag already covers this
+      page. A second copy here executed the whole file twice (repeated
+      <script src> tags aren't deduped by the browser), which broke the
+      first grid-card's eager metadata fetch that page-transition.js's
+      landing-animation gate depends on — see posts-tabs-grid.js's own
+      window.__postsTabsGridInitialized guard for the full explanation. --}}
+

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256">
+  <defs>
+    <filter id="noise">
+      <feTurbulence baseFrequency="0.95" numOctaves="5" result="noise" seed="2" type="fractalNoise" />
+      <feColorMatrix in="noise" type="saturate" values="0" />
+      <feComponentTransfer in="noise">
+        <feFuncA type="linear" slope="0.12" />
+      </feComponentTransfer>
+    </filter>
+  </defs>
+  <rect width="256" height="256" fill="#000" filter="url(#noise)" />
+</svg>

@@ -1,0 +1,99 @@
+{{!-- --card-gradient mirrors data-gradient-css into a custom property —
+      needed by the cinematic layout's gradient scrim
+      (.post-card-image::before, post-card-grid.css), which is a
+      pseudo-element and so can't be targeted by an attribute selector for
+      its background-image the way a real element could. post-and-cards.js
+      sets the same property for cards whose gradient arrives via the async
+      metadata fetch instead of this server-side custom field. --}}
+<article class="post-card" data-post-url="{{url}}"{{#if tags}} data-tag-slugs="{{#foreach tags}}{{slug}} {{/foreach}}"{{/if}}{{#if custom.gradientCss}} data-gradient-css="{{custom.gradientCss}}" style="--card-gradient: {{custom.gradientCss}};"{{/if}}{{#if custom.cardId}} data-cardid="{{custom.cardId}}"{{else}} data-cardid="{{slug}}"{{/if}}>
+  <a href="{{url}}" class="post-card-link" data-transition>
+    {{!-- Inner wrapper that scales on hover, while link stays stable --}}
+    <div class="post-card-inner">
+
+
+      <div class="post-card-content" data-card-reveal="default" data-item-index="1">
+        <h3 class="post-card-title mb-0" data-default-title="{{longTitle}}">{{longTitle}}</h3>
+        {{!-- Result stat (from projectMeta.result, codeinjection_head) —
+              e.g. "NPS −33 → +62". SAME field post.hbs's own
+              #project-result reads on the detail page (not a separate
+              card-only field) — a post that already sets "result" for its
+              detail page shows it on the card too, no extra authoring.
+              Empty until post-and-cards.js's applyCardMeta() populates
+              it, same contract as every other meta-driven field on this
+              card (title/keywords/testimonial are all empty in the
+              server-rendered markup too). Was a commented-out
+              .post-card-result div here previously (see git history) —
+              this replaces that with a real, wired-up h4. --}}
+        <h4 class="post-card-result"></h4>
+        {{!-- Project client name --}}
+      <!--<p class="text-eyebrow">Key contributions</p>-->
+        {{!-- Card description (from projectMeta) - only shows as separate section before card --}}
+      <!-- <div class="post-card-description"></div>-->
+
+        <div class="post-card-meta">
+          <!-- <time datetime="{{date format="YYYY-MM-DD"}}">{{date format="MMM DD, YYYY"}}</time>-->
+          {{!-- Keywords pills (from projectMeta cardKeywords) --}}
+         <div class="post-card-keywords"></div>
+          <!--{{#if @custom.show_reading_time}}
+            {{#if reading_time}}
+              <span class="reading-time">{{reading_time}}</span>
+            {{/if}}
+          {{/if}}-->
+        </div>
+        {{!-- Project result --}}
+       <!--<div class="post-card-result"></div>-->
+
+        {{#if custom_excerpt}}
+       <!--  <p class="post-card-excerpt">{{custom_excerpt}}</p>-->
+        {{else}}
+      <!--    <p class="post-card-excerpt">{{excerpt words="30"}}</p>-->
+        {{/if}}
+
+        {{!-- Testimonial quote (from projectMeta) --}}
+        <p class="post-card-testimonial"></p>
+        <p class="post-card-endorser"></p>
+
+      </div>
+            {{#if feature_image}}
+        <div class="post-card-image" data-card-reveal="default" data-item-index="0">
+          {{!-- loading="lazy" was unconditional, including on the first
+                card — always above the fold, so deferring it just delays
+                the network fetch with no benefit. posts-tabs.hbs now
+                passes first=@first through the {{#foreach}}. --}}
+          {{!-- data-skip-reveal: .post-card-image is no longer part of
+                card-scroll-reveal.js's system at all (page-level entrance
+                only — see post-card-grid.css), but the generic per-<img>
+                reveal (same file) has no exclusion for this container and
+                would otherwise still fade this image in independently,
+                same bug as the container used to have. --}}
+          <div class="card-media-skeleton"></div>
+          {{!-- Video vs image is decided HERE, server-side, via an internal
+                #video tag, no custom code — {{#has tag=...}} is a stock
+                Ghost helper. Uses the literal tag NAME ("#video"), not the
+                slugified form ("hash-video"): that slugified form is the
+                commonly-documented convention but does NOT match on this
+                install — verified live (2026-08-05) via a temporary debug
+                block on post.hbs: {{#has tag="hash-video"}} was false even
+                with the tag confirmed attached via {{#foreach tags
+                visibility="all"}}, while {{#has tag="#video"}} was true.
+                Mutually exclusive: a card either has the tag and gets a
+                video, or doesn't and gets its image — never both, so
+                there's no dual-layer fade-video-in-over-image anymore
+                (post-and-cards.js used to build the <video> via JS from a
+                codeinjection_head-embedded meta.video field for this same
+                reason; that field has no server-side access, so it could
+                only ever produce a JS-injected overlay). Video file must be
+                named after the post's own slug — there's no per-post
+                filename field with this approach, just the tag. --}}
+          {{#has tag="#video"}}
+            <video class="post-card-video" muted loop playsinline data-skip-reveal>
+              <source src="/content/images/videos/{{slug}}.mp4" type="video/mp4">
+            </video>
+          {{else}}
+            <img src="{{feature_image}}" alt="{{title}}" {{#unless first}}loading="lazy" {{/unless}}data-skip-reveal>
+          {{/has}}
+        </div>
+      {{/if}}
+    </div>
+  </a>
+</article>

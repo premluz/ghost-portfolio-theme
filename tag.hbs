@@ -1,0 +1,35 @@
+{{!< default}}
+{{#tag}}
+<section class="tag-archive">
+  <div class="container">
+    <div class="text-center" style="padding: var(--space-section) 0;">
+      <h1>{{name}}</h1>
+      {{#if description}}
+        <p class="tag-description">{{description}}</p>
+      {{/if}}
+    </div>
+  </div>
+</section>
+{{/tag}}
+
+<div class="posts-grid">
+  <div class="container">
+    {{#foreach posts}}
+      {{> post-card}}
+    {{/foreach}}
+  </div>
+</div>
+
+{{#if pagination.next}}
+  <div class="pagination">
+    <div class="container text-center">
+      {{#if pagination.prev}}
+        <a href="{{pagination.prev}}" class="pagination-link">← Previous</a>
+      {{/if}}
+      <span class="pagination-info">Page {{pagination.page}} of {{pagination.pages}}</span>
+      {{#if pagination.next}}
+        <a href="{{pagination.next}}" class="pagination-link">Next →</a>
+      {{/if}}
+    </div>
+  </div>
+{{/if}}

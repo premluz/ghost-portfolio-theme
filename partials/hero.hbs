@@ -1,0 +1,153 @@
+{{!--
+  HERO SECTION
+  Mirrors the React reference component at reference/src/components/sections/Hero.tsx.
+  Custom fields (set in Ghost Admin › Design):
+    @custom.hero_name        — top label, e.g. "Hello, I'm Prem."
+    @custom.hero_title       — main headline
+    @custom.hero_description — supporting paragraph
+  Portrait image: theme-responsive, hardcoded paths
+    Dark mode: /content/images/prem-back-dark.png
+    Light mode: /content/images/prem-back-light.png (switched via JavaScript)
+--}}
+
+{{!-- Was gradient-aura-frame (CSS radial-gradient aura) directly on .hero;
+      swapped to gradflow-frame (assets/js/gradflow-background.js's real
+      WebGL gradient, same mechanism as gradflow-page-bg.hbs — see
+      partials/gradflow-frame.hbs's own doc for the config surface). Unlike
+      gradient-aura-frame, gradflow-frame is a BLOCK partial (it wraps
+      content rather than being a class applied to an existing element), so
+      .hero-bg is now nested inside it instead of the frame living on
+      .hero itself. .hero keeps position:relative regardless (pre-existing,
+      unrelated to either frame). data-gradient-config/-start-color/etc.
+      below are dead — gradient-morph-system.js is commented out in
+      default.hbs — kept as-is, unrelated to this swap. --}}
+      
+<section class="hero {{#if @site.cover_image}}has-cover{{else}}no-cover{{/if}}" data-section-id="hero" data-home-hero-width="{{@custom.home_hero_width}}" data-hero-background="{{@custom.home_hero_background}}"
+  data-gradient-config="hero"
+  data-gradient-start-color="#0f172a"
+  data-gradient-end-color="#1e3a5f"
+  data-gradient-angle="135"
+  data-gradient-distortion-speed="1.0"
+  data-gradient-distortion-intensity="0.3"
+  data-gradient-distortion-complexity="4"
+  data-gradient-morph-speed="0.6">
+ 
+  <div class="hero-bg">
+    <div class="hero-container">
+
+      {{!-- LEFT: text content --}}
+      <div class="hero-content">
+
+        {{!-- Top label — "Hello, I'm Prem." --}}
+        <p class="hero-intro text-eyebrow" id="hero-intro">
+          {{#if @custom.hero_name}}{{{@custom.hero_name}}}{{else}}Name{{/if}}
+        </p>
+
+        {{!-- Main headline --}}
+        <h1 class="hero-headline serif" id="hero-headline" data-animate="word">
+          {{#if @custom.hero_title}}{{{@custom.hero_title}}}{{else}}Your Title Here{{/if}}
+        </h1>
+
+        {{!-- Avatar + description on one row. The <p> keeps its own class AND
+              id untouched inside this wrapper: .hero-description is targeted
+              by name in scroll-scrub-anim.js (both the entrance reveal and
+              the scroll-exit slide-down) and in main.js, so wrapping is the
+              safe way to add a sibling — moving or renaming it would silently
+              break those animations. --}}
+        <div class="hero-description-row">
+          {{!-- data-transition matches every other in-site link (page-
+                transition.js), so this gets the same animated navigation as
+                the nav's own About entry rather than a hard page jump. --}}
+          <a href="{{@site.url}}/about" class="hero-avatar" data-transition aria-label="About me">
+            <img src="/content/images/avatars/prem.jpg"
+                 alt="" width="80" height="80" loading="eager" fetchpriority="high" draggable="false">
+            {{!-- Reuses .nav-tooltip verbatim (main.css): it is already
+                  position:absolute against its hovered parent, already
+                  theme-invariant, and already carries the 200ms fade — so
+                  the hero avatar and the nav icons show an identical
+                  tooltip instead of a second near-duplicate style. --}}
+            <span class="nav-tooltip">About me</span>
+          </a>
+
+          <p class="hero-description" id="hero-description">
+            {{#if @custom.hero_description}}{{{@custom.hero_description}}}{{else}}Your description here.{{/if}}
+          </p>
+
+        </div>
+
+     <!--<div class="hero-tags" id="hero-tags">
+          <span class="tag">Reasearch</span>
+          <span class="tag">Concept</span>
+          <span class="tag">Execution</span>
+        </div>
+  -->
+
+
+        {{!-- Tag pills/bullets
+        {{#if @custom.hero_bullet_1}}
+        <div class="hero-tags" id="hero-tags">
+          <span class="tag">{{@custom.hero_bullet_1}}</span>
+          {{#if @custom.hero_bullet_2}}<span class="tag">{{@custom.hero_bullet_2}}</span>{{/if}}
+          {{#if @custom.hero_bullet_3}}<span class="tag">{{@custom.hero_bullet_3}}</span>{{/if}}
+          {{#if @custom.hero_bullet_4}}<span class="tag">{{@custom.hero_bullet_4}}</span>{{/if}}
+        </div>
+        {{/if}}--}}
+
+        {{!-- Hero metrics row — 3 stat blocks (value + two-line uppercase
+              label), added 2026-08-10 per design reference. Hardcoded per
+              explicit request (no @custom field convention exists yet for
+              this data — see hero_name/hero_title/hero_description above
+              for the pattern this WOULD follow if that changes). Value
+              uses <br> for the "-33 → +66" case, which needs to stay on
+              one line while the row itself may still wrap at narrow
+              widths — a single text node with a space would let the browser
+              break mid-value there instead of only between stat blocks. --}}
+        <div class="hero-stats" id="hero-stats">
+          <div class="hero-stat">
+            <div class="hero-stat-value">5M</div>
+            <div class="hero-stat-label text-eyebrow">Assets tokenised<br>on-chain</div>
+          </div>
+          <div class="hero-stat">
+            <div class="hero-stat-value">$40M</div>
+            <div class="hero-stat-label text-eyebrow">Total volume initial 5 months</div>
+          </div>
+          <div class="hero-stat">
+            <div class="hero-stat-value">-33 &rarr; +62</div>
+            <div class="hero-stat-label text-eyebrow">NPS score</div>
+          </div>
+        </div>
+
+      </div>{{!-- /.hero-content --}}
+
+    </div>{{!-- /.hero-container --}}
+
+    {{!-- RIGHT: image — inside hero-bg so it respects background --}}
+    <div class="hero-image-wrapper" id="hero-image-wrapper">
+   
+      {{#if @site.cover_image}}
+        <img
+          src="{{@site.cover_image}}"
+          alt="{{@site.title}}"
+          class="hero-image hero-image-main"
+          loading="eager"
+          fetchpriority="high"
+        >
+      {{/if}}
+
+      {{!-- Portrait image (theme-responsive) 
+      <img
+        src=""
+        alt="{{@site.title}}"
+        class="hero-image hero-image-blink"
+        id="hero-portrait"
+        data-dark-src="/content/images/prem-front-dark.png"
+        data-light-src="/content/images/prem-front-light.png"
+        loading="eager"
+        fetchpriority="high"
+      >--}}
+    </div>
+  </div>{{!-- /.hero-bg --}}
+
+</section>{{!-- /.hero --}}
+
+{{!-- Animation handled by unified scroll-scrub-anim.js via data-animate attribute --}}

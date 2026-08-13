@@ -1,0 +1,3991 @@
+/**
+ * THINKINGISFREE — Main JS
+ * Navigation, theme toggle, scroll progress
+ */
+
+console.log('main.js file loaded');
+
+// ═══════════════════════════════════════════════════════════════
+// GLOBAL GSAP SETUP - Register ScrollTrigger for all scripts
+// ═══════════════════════════════════════════════════════════════
+if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') {
+  gsap.registerPlugin(ScrollTrigger);
+  console.log('[main] ✅ ScrollTrigger registered globally');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// GHOST CONTENT API HELPER
+// ═══════════════════════════════════════════════════════════════
+// Resolves the correct Content API key at runtime:
+//   1. window.ghostContentKey — injected via Ghost Admin > Code Injection (production)
+//   2. Hardcoded localhost dev key as fallback
+// Usage in Ghost Admin > Site Header Code Injection:
+//   <script>window.ghostContentKey = 'YOUR_PRODUCTION_CONTENT_API_KEY';</script>
+// ───────────────────────────────────────────────────────────────
+const GHOST_LOCAL_CONTENT_KEY = '53c1eef4fff835def4f59619d6';
+
+function getGhostContentKey() {
+  return (window.ghostContentKey && window.ghostContentKey.trim())
+    ? window.ghostContentKey.trim()
+    : GHOST_LOCAL_CONTENT_KEY;
+}
+
+/**
+ * Fetch posts for a given tag slug using the Ghost Content API.
+ * Tries /ghost/api/content/posts/ (current API, key required) first.
+ * Returns a Promise that resolves to an array of post objects, or [].
+ *
+ * @param {string} tagSlug  - The tag slug to filter by
+ * @param {string} fields   - Comma-separated fields to request (default: 'id,url,title')
+ * @returns {Promise<Array>}
+ */
+function fetchPostsByTag(tagSlug, fields = 'id,url,title') {
+  const key = getGhostContentKey();
+  const url = `/ghost/api/content/posts/?key=${key}&filter=tag:${encodeURIComponent(tagSlug)}&fields=${fields}&order=published_at%20desc&limit=100`;
+  console.log('[ghostApi] Fetching posts for tag:', tagSlug, 'key:', key.slice(0, 8) + '...');
+  return fetch(url)
+    .then(res => {
+      if (!res.ok) {
+        throw new Error(`Ghost API ${res.status} for tag:${tagSlug}`);
+      }
+      return res.json();
+    })
+    .then(data => {
+      const posts = data.posts || [];
+      console.log('[ghostApi] Fetched', posts.length, 'posts for tag:', tagSlug);
+      return posts;
+    })
+    .catch(err => {
+      console.error('[ghostApi] Failed:', err.message);
+      return [];
+    });
+}
+
+// Prevent browser from auto-restoring scroll position from history state
+if (history && typeof history.scrollRestoration !== 'undefined') {
+  history.scrollRestoration = 'manual';
+}
+
+// Lock scroll on page load to prevent unwanted scroll-to-hash behavior
+let scrollLocked = false;
+const lockScroll = () => {
+  scrollLocked = true;
+  window.scrollTo(0, 0);
+};
+
+// Prevent scroll immediately
+lockScroll();
+// Also block scroll events for 500ms after page load
+window.addEventListener('scroll', (e) => {
+  if (scrollLocked) {
+    window.scrollTo(0, 0);
+  }
+}, { passive: false });
+
+// Unlock after 500ms (enough time for page to fully load)
+setTimeout(() => {
+  scrollLocked = false;
+  console.log('[scroll] Scroll unlocked');
+
+  // After unlock, scroll to hash if present (from external navigation)
+  if (window.location.hash) {
+    const hash = window.location.hash;
+    const id = hash.slice(1);
+    console.log('[scroll] Hash found:', hash, '| Looking for element:', id);
+
+    const element = document.getElementById(id);
+    if (element) {
+      console.log('[scroll] Element found, scrolling to:', id);
+      // Use a small delay to ensure scroll lock is fully released
+      setTimeout(() => {
+        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 50);
+    } else {
+      console.log('[scroll] Element not found for id:', id);
+    }
+  } else {
+    console.log('[scroll] No hash in URL');
+  }
+}, 500);
+
+// Handle hash changes (menu clicks, navigation)
+window.addEventListener('hashchange', () => {
+  const hash = window.location.hash;
+  console.log('[scroll] hashchange event, hash:', hash);
+
+  if (hash) {
+    // Wait a bit for DOM to settle before scrolling
+    setTimeout(() => {
+      const id = hash.slice(1);
+      const element = document.getElementById(id);
+      console.log('[scroll] Looking for element:', id, '| Found:', !!element);
+
+      if (element) {
+        console.log('[scroll] hashchange - scrolling to:', id);
+        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// SCROLL-BASED ANIMATION CONFIG
+// ═══════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════
+// HEADING ANIMATION CONFIG
+// Controls scroll-triggered heading animations (initHeadingAnimations).
+// data-animate and data-blur attributes on individual elements override
+// these defaults per-instance.
+// ═══════════════════════════════════════════════════════════════
+const HEADING_ANIM_CONFIG = {
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // BLUR EFFECT
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  defaultBlur: 8,  // Initial blur in pixels. HIGHER = blurrier start (0-20px range)
+                   // 0 = no blur, 8 = moderate, 15+ = very blurry
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ANIMATION TYPE DEFAULTS (per heading level)
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  defaults: {
+    h1: 'letter',   // Letter-by-letter (slow, deliberate)
+    h2: 'letter',   // Letter-by-letter
+    h3: 'word',     // Word-by-word (faster)
+    h4: 'fade',     // Simple fade (fastest)
+    // Override per-instance: add data-animate="letter"|"word"|"fade" to any element
+  },
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // LETTER-BY-LETTER ANIMATION (h1, h2)
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  letter: {
+    charDuration: 0.14,      // Duration PER CHARACTER in seconds
+                             // 0.10 = faster (1.4s for 14 chars)
+                             // 0.20 = slower (2.8s for 14 chars)
+                             // Try: 0.10-0.12 for snappy, 0.16-0.20 for slow
+    ease: 'power1.out',      // Easing function: smooth deceleration
+                             // Try: power2.out (even smoother), power0.5.out (gentler)
+    spreadMin: 0.10,         // Min stagger for long text (tighter spacing)
+    spreadMax: 0.22,         // Max stagger for short text (wider spacing)
+                             // Prevents single-word h1 from taking forever
+    blurDuration: 0.7,       // How long blur clears (seconds) in parallel with letters
+                             // Usually 60% of total animation time
+  },
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // WORD-BY-WORD ANIMATION (h3)
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  word: {
+    duration: 0.25,          // Total animation time (seconds) for ALL words
+                             // 0.40 = fast (snappy), 0.55 = natural, 0.80 = cinematic
+    stagger: 0.015,           // Delay (seconds) between each word entering
+                             // 0.04 = rapid stagger, 0.06 = natural, 0.12 = dramatic
+    ease: 'cubic-bezier(0.16, 0.84, 0.44, 1)',  // Easing (bouncy/energetic)
+                             // Try: power2.out (smooth), elastic.out (bouncy)
+    yOffset: 0,              // No vertical offset; blur does the reveal work
+  },
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // FADE ANIMATION (h4+, fallback)
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  fade: {
+    duration: 0.6,           // Fade duration (seconds)
+                             // 0.4 = quick, 0.6 = natural, 1.0 = slow/cinematic
+    ease: 'power2.out',      // Easing: smooth deceleration
+  },
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // SCROLL TRIGGER (IntersectionObserver)
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  observer: {
+    // THRESHOLD: What % of element must be visible to trigger animation?
+    // 0.1  = top 10% visible (earliest trigger)
+    // 0.25 = top 25% visible (medium)
+    // 0.5  = halfway visible (late trigger)
+    // HIGHER threshold = waits longer / LOWER = triggers earlier
+    threshold: 0.25,
+
+    // ROOTMARGIN: Distance to trigger before reaching element
+    // Format: 'top right bottom left' (CSS margin style)
+    // 0px 0px -120px 0px = trigger 120px BEFORE hitting element
+    // NEGATIVE = earlier trigger (more buffer), POSITIVE = later trigger
+    // -80px  = trigger 80px earlier (aggressive)
+    // -120px = trigger 120px earlier (current, balanced)
+    // -200px = trigger 200px earlier (very early)
+    // 0px    = trigger at exact viewport edge (no buffer)
+    rootMargin: '0px 0px -120px 0px',
+  },
+};
+
+// Comprehensive scroll reveal configuration
+const SCROLL_REVEAL_CONFIG = {
+  // IMAGE REVEAL (simple, single config)
+  image: {
+    enabled: true,
+    duration: 0.64,
+    ease: 'power2.out',
+    scale: { start: 0.97, end: 1 },
+    blur: { start: 0, end: 0 },
+    fade: true,
+  },
+  // CARD REVEAL VARIANTS
+  card: {
+    // Default: slide up + fade + scale + unblur
+    default: {
+      enabled: true,
+      duration: 0.48,
+      ease: 'power2.out',
+      scale: { start: 0.97, end: 1 },
+      yOffset: 16,
+      blur: { start: 0, end: 0 },
+      fade: true,
+      staggerDelay: 0.1,
+    },
+
+    // Scale-focus: zoom down into place (already positioned)
+    // Blur & opacity resolve early, scale continues slowly
+    'scale-focus': {
+      enabled: true,
+      duration: 0.6,
+      ease: 'power2.out',
+      scale: { start: 1.3, end: 1 },      // Zoom IN then down to 1x
+      yOffset: 0,                         // No y-offset, already positioned
+      blur: { start: 0, end: 0 },
+      blurDuration: 0.1,                  // Blur clears EARLY (0.1s)
+      fade: true,
+      fadeDuration: 0.1,                  // Opacity clears EARLY (0.1s)
+      staggerDelay: 0.1,
+      // Scale continues for full duration (0.6s) while blur/fade are done
+    },
+  },
+  container: {
+    enabled: true,
+    duration: 0.4,
+    ease: 'power2.out',
+    yOffset: 20,
+    fade: true,
+  },
+  scrollTrigger: {
+    blurEnabled: false,  // Blur disabled — cards handled by card-animations.js
+  }
+};
+
+// Keep old config for backward compatibility
+const CARD_REVEAL_CONFIG = SCROLL_REVEAL_CONFIG.card;
+
+// ═══════════════════════════════════════════════════════════════
+// SCROLL REVEAL ANIMATIONS TOGGLE — Set to false to disable all
+// ═══════════════════════════════════════════════════════════════
+const SCROLL_REVEAL_ENABLED = false;  // Set to true to enable heading/card scroll reveal
+
+// ═══════════════════════════════════════════════════════════════
+// UTILITIES — Conditional rendering, validation helpers
+// ═══════════════════════════════════════════════════════════════
+
+function isEmptyValue(val) {
+  return val === null || val === undefined || val === '' || val === '{{.*}}';
+}
+
+function toggleElementIfEmpty(selector, shouldHide = true) {
+  const el = document.querySelector(selector);
+  if (el) {
+    const isEmpty = isEmptyValue(el.textContent?.trim());
+    if (isEmpty && shouldHide) {
+      el.style.display = 'none';
+    }
+  }
+}
+
+function hideEmptyMetadata() {
+  // Hide reading time if empty
+  document.querySelectorAll('.reading-time').forEach(el => {
+    if (isEmptyValue(el.textContent?.trim())) {
+      el.style.display = 'none';
+    }
+  });
+
+  // Hide other metadata elements if empty
+  document.querySelectorAll('[data-metadata]').forEach(el => {
+    if (isEmptyValue(el.textContent?.trim())) {
+      el.style.display = 'none';
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// H1 CHARACTER ANIMATION HELPERS
+// ═══════════════════════════════════════════════════════════════
+
+function computeTextSpread(charCount, minSpread, maxSpread) {
+  const t = Math.min(Math.max((charCount - 5) / 45, 0), 1);
+  return minSpread + t * (maxSpread - minSpread);
+}
+
+function initTitleReveal(selector, timeline = null) {
+  const titleEl = document.querySelector(selector);
+  if (!titleEl) return;
+
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (prefersReducedMotion) {
+    titleEl.style.opacity = '1';
+    return;
+  }
+
+  if (typeof gsap === 'undefined') {
+    titleEl.style.opacity = '1';
+    return;
+  }
+
+  // If a timeline is provided, use reusable function with it
+  if (timeline) {
+    animateH1LetterByLetter(titleEl, timeline, 0.15);
+    return;
+  }
+
+  // Otherwise, create standalone timeline for post pages
+  requestAnimationFrame(() => {
+    try {
+      const standalone = gsap.timeline();
+      animateH1LetterByLetter(titleEl, standalone, 0);
+    } catch (err) {
+      console.warn('[initTitleReveal] Error:', err);
+      titleEl.style.opacity = '1';
+    }
+  });
+}
+
+function replaceHyphensWithNonBreaking() {
+  // Replace regular hyphens with non-breaking hyphens (U+2011) in text elements
+  // This prevents hyphenated words from breaking across lines during animation
+  // Run immediately and again on a delay to catch dynamic content
+  const applyReplacement = () => {
+    const heroDesc = document.getElementById('hero-description');
+    if (heroDesc && heroDesc.textContent) {
+      heroDesc.textContent = heroDesc.textContent.replace(/-/g, '‑');
+    }
+  };
+
+  applyReplacement();
+  // Also run after a short delay in case content loads late
+  setTimeout(applyReplacement, 50);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// REUSABLE ANIMATIONS
+// ═══════════════════════════════════════════════════════════════
+
+function animateImageEntrance(imageEl, timeline, ease, startTime = 0, duration = 0.8) {
+  if (!imageEl || !timeline) return;
+
+  // Fade entrance only: fade from 0 → 1 (no zoom)
+  gsap.set(imageEl, {
+    opacity: 0,
+    visibility: 'visible'
+  });
+
+  timeline.to(imageEl, {
+    opacity: 1,
+    duration: duration,
+    ease: ease
+  }, startTime);
+}
+
+/**
+ * Letter-by-letter entrance animation for a heading element.
+ * Splits text into individual character spans and staggers their opacity
+ * from 0 → 1. Optionally unblurs the heading container in parallel.
+ *
+ * @param {Element}       h1El      - The heading element to animate
+ * @param {GSAPTimeline}  timeline  - GSAP timeline to add tweens to
+ * @param {number}        startTime - Timeline insert position (seconds)
+ * @param {number|null}   blurPx    - Starting blur in px (null = no blur)
+ */
+function animateH1LetterByLetter(h1El, timeline, startTime = 0.15, blurPx = null) {
+  // console.log('[h1-anim] Called with h1El:', h1El, 'timeline:', !!timeline, 'startTime:', startTime);
+
+  if (!h1El || !timeline) {
+    console.warn('[h1-anim] Missing h1El or timeline, returning');
+    if (h1El) gsap.set(h1El, { opacity: 1, visibility: 'visible' });
+    return;
+  }
+
+  if (h1El.dataset.lettersAnimated === 'true') {
+    console.warn('[h1-anim] Already animated, skipping');
+    return;
+  }
+
+  try {
+    // Make parent visible immediately
+    gsap.set(h1El, { opacity: 1, visibility: 'visible' });
+
+    const text = h1El.textContent;
+    if (!text || text.trim().length === 0) {
+      console.warn('[h1-anim] No text content found');
+      return;
+    }
+
+    // console.log('[h1-anim] ✓ Text found:', text.substring(0, 40), 'Length:', text.length);
+
+    // Clear the h1 and manually create letter spans
+    h1El.innerHTML = '';
+    const letters = [];
+
+    for (let char of text) {
+      const span = document.createElement('span');
+      span.className = 'char';
+      span.textContent = char;
+      h1El.appendChild(span);
+      letters.push(span);
+    }
+
+    // console.log('[h1-anim] ✓ Created', letters.length, 'letter spans manually');
+
+    if (letters.length > 0) {
+      // Set all letters invisible initially
+      gsap.set(letters, { opacity: 0 });
+
+      // Optional blur on the container — unblurs in parallel with letter reveal
+      if (blurPx != null && blurPx > 0) {
+        gsap.set(h1El, { filter: `blur(${blurPx}px)` });
+        const blurCfg = HEADING_ANIM_CONFIG.letter;
+        timeline.to(h1El, {
+          filter: 'blur(0px)',
+          duration: blurCfg.blurDuration,
+          ease: 'power2.out',
+        }, startTime);
+      }
+
+      // Calculate dynamic stagger based on character count
+      // Fewer chars = more spread (0.22s), more chars = less spread (0.10s)
+      const cfg = HEADING_ANIM_CONFIG.letter;
+      const charCount = letters.length;
+      const spread = cfg.spreadMax - ((charCount - 1) / 100) * (cfg.spreadMax - cfg.spreadMin);
+      const stagger = spread / Math.max(1, charCount - 1);
+
+      // Animate each letter to full opacity
+      timeline.to(letters, {
+        opacity: 1,
+        duration: cfg.charDuration,
+        ease: cfg.ease,
+        stagger: stagger
+      }, startTime);
+
+      // console.log('[h1-anim] ✅ Animation: 0.14s/char, stagger:', stagger.toFixed(3), 's');
+    }
+
+    h1El.dataset.lettersAnimated = 'true';
+  } catch (err) {
+    console.error('[h1-anim] ERROR:', err.message);
+    gsap.set(h1El, { opacity: 1, visibility: 'visible' });
+  }
+}
+
+// initStatementHeadingAnimation() — replaced by initHeadingAnimations()
+
+function initStatsScroll() {
+  const section = document.getElementById('stats-scroll');
+  if (!section || typeof gsap === 'undefined') return;
+
+  const ticker = section.querySelector('.stats-ticker');
+  if (!ticker) return;
+
+  try {
+    const firstChild = ticker.firstElementChild;
+    if (firstChild) {
+      const itemWidth = firstChild.offsetWidth;
+      const totalItems = ticker.querySelectorAll('.stat-item').length;
+      const totalWidth = itemWidth * totalItems;
+      const contentWidth = totalWidth / 2;
+
+      gsap.fromTo(
+        ticker,
+        { x: 0 },
+        {
+          x: -contentWidth,
+          ease: 'none',
+          scrollTrigger: {
+            trigger: section,
+            start: 'top bottom',
+            end: 'bottom top-=200',
+            scrub: false,
+            markers: false,
+            immediateRender: false,
+          }
+        }
+      );
+    }
+  } catch (err) {
+    console.error('[stats-scroll] ERROR:', err.message);
+  }
+}
+
+function initHeroFadeOut() {
+  const heroBg = document.querySelector('.hero-bg');
+  if (!heroBg) return;
+
+  // Fade completes after scrolling this many pixels
+  const fadeDistance = window.innerHeight * 0.6;
+
+  function updateOpacity() {
+    const scrollY = window.scrollY;
+    const opacity = Math.max(0, 1 - scrollY / fadeDistance);
+    heroBg.style.opacity = opacity;
+  }
+
+  // Set initial state and attach listener
+  updateOpacity();
+  window.addEventListener('scroll', updateOpacity, { passive: true });
+}
+
+function initHeroTitleReveal() {
+  // Animate hero container blur/scale (H1 animation is handled by initHero())
+  const heroContent = document.querySelector('.hero-content');
+
+  if (heroContent && typeof gsap !== 'undefined') {
+    gsap.fromTo(
+      heroContent,
+      {
+        filter: 'blur(4px)',
+        transform: 'scale(0.98)',
+      },
+      {
+        filter: 'blur(0px)',
+        transform: 'scale(1)',
+        duration: 0.6,
+        ease: 'power2.in',
+      }
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// THEME TOGGLE
+// ═══════════════════════════════════════════════════════════════
+
+function initThemeToggle() {
+  const themeToggle = document.querySelector('.theme-toggle');
+  if (!themeToggle) return;
+
+  const sunIcon = themeToggle.querySelector('.theme-icon-sun');
+  const moonIcon = themeToggle.querySelector('.theme-icon-moon');
+  const html = document.documentElement;
+  const STORAGE_KEY = 'theme-preference';
+  const AUTO = 'auto';
+  const DARK = 'dark';
+  const LIGHT = 'light';
+
+  function getSavedTheme() {
+    return localStorage.getItem(STORAGE_KEY) || AUTO;
+  }
+
+  function getSystemTheme() {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? DARK : LIGHT;
+  }
+
+  function getActiveTheme(savedTheme) {
+    // If saved theme is "auto", return the system preference
+    if (savedTheme === AUTO) {
+      return getSystemTheme();
+    }
+    return savedTheme;
+  }
+
+  // Update icon visibility based on theme
+  function updateThemeIcon() {
+    const currentTheme = getActiveTheme(localStorage.getItem(STORAGE_KEY) || AUTO);
+    if (currentTheme === LIGHT) {
+      // Light mode: show moon (to switch to dark)
+      sunIcon.style.display = 'none';
+      moonIcon.style.display = 'inline';
+    } else {
+      // Dark mode: show sun (to switch to light)
+      sunIcon.style.display = 'inline';
+      moonIcon.style.display = 'none';
+    }
+  }
+
+  // Apply theme to DOM
+  function setTheme(theme) {
+    const activeTheme = getActiveTheme(theme);
+    if (activeTheme === LIGHT) {
+      html.setAttribute('data-theme', LIGHT);
+    } else {
+      html.removeAttribute('data-theme');
+    }
+    localStorage.setItem(STORAGE_KEY, theme);
+    updateThemeIcon();
+  }
+
+  // Initialize icon visibility on load
+  updateThemeIcon();
+
+  // Theme already applied in default.hbs, just handle clicks
+  themeToggle.addEventListener('click', () => {
+    const currentTheme = getActiveTheme(localStorage.getItem(STORAGE_KEY) || AUTO);
+    // Simple toggle: Dark ↔ Light (user-facing button only has 2 options)
+    const newTheme = currentTheme === DARK ? LIGHT : DARK;
+    setTheme(newTheme);
+  });
+
+  // Pin Ghost Portal iframes to light color-scheme (always, regardless of page theme)
+  // and apply transparent background to prevent flash.
+  function pinPortalIframes() {
+    const iframes = document.querySelectorAll([
+      'iframe[data-ghost-portal]',
+      'iframe[src*="#/portal"]',
+      'iframe[src*="ghost.io"]',
+      '#ghost-portal-root iframe',
+    ].join(', '));
+
+    iframes.forEach(iframe => {
+      iframe.style.setProperty('color-scheme', 'light', 'important');
+      iframe.style.background = 'transparent';
+    });
+  }
+
+  // Run once on init
+  pinPortalIframes();
+
+  // Watch for new iframes and pin them, with fade-in to prevent flash
+  const iframeObserver = new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      const addedFrames = [...mutation.addedNodes].filter(
+        n => n.nodeType === 1 && (n.tagName === 'IFRAME' || n.querySelector?.('iframe'))
+      );
+      if (addedFrames.length > 0) {
+        // Find all new iframes in added nodes
+        const newIframes = [];
+        addedFrames.forEach(node => {
+          if (node.tagName === 'IFRAME') {
+            newIframes.push(node);
+          } else {
+            newIframes.push(...node.querySelectorAll('iframe'));
+          }
+        });
+
+        // Hide, pin to light, and fade in
+        newIframes.forEach(iframe => {
+          iframe.style.visibility = 'hidden';
+          iframe.style.opacity = '0';
+          pinPortalIframes();
+          setTimeout(() => {
+            iframe.style.visibility = 'visible';
+            iframe.style.opacity = '1';
+            iframe.style.transition = 'opacity 0.2s ease-out';
+          }, 50);
+        });
+        break;
+      }
+    }
+  });
+
+  iframeObserver.observe(document.body, { childList: true, subtree: true });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// NAVIGATION SCROLL HIDE/SHOW
+// ═══════════════════════════════════════════════════════════════
+
+function initNavScrollBehavior() {
+  const nav = document.querySelector('nav');
+  if (!nav) return;
+
+  let lastScrollY = 0;
+  let isNavHovered = false;
+  let lastAnchorClickTime = 0;
+
+  // Track hover state
+  nav.addEventListener('mouseenter', () => {
+    isNavHovered = true;
+    nav.classList.remove('nav-hidden');
+  });
+
+  nav.addEventListener('mouseleave', () => {
+    isNavHovered = false;
+  });
+
+  // Handle nav links (both anchors and homepage navigation)
+  const navLinks = nav.querySelectorAll('a');
+  navLinks.forEach(link => {
+    link.addEventListener('click', (e) => {
+      const href = link.getAttribute('href');
+
+      // Handle anchor links to homepage sections
+      if (href && href.startsWith('#')) {
+        // Check if we're NOT on the homepage
+        const isHomepage = document.body.classList.contains('home') || window.location.pathname === '/' || window.location.pathname.endsWith('/index.html');
+
+        if (!isHomepage) {
+          // We're on a different page (like post page), navigate to homepage with deferred anchor scroll
+          e.preventDefault();
+          lastAnchorClickTime = Date.now();
+          nav.classList.remove('nav-hidden');
+
+          // Store anchor ID in sessionStorage so homepage can scroll to it after loading
+          sessionStorage.setItem('scrollToAnchor', href.substring(1)); // Remove the # prefix
+
+          // Navigate to homepage (without hash - hash would jump immediately)
+          window.location.href = window.location.origin + '/';
+        } else {
+          // Already on homepage, just track the click
+          lastAnchorClickTime = Date.now();
+          nav.classList.remove('nav-hidden');
+        }
+      }
+    });
+  });
+
+  // On homepage, check if we need to scroll to a deferred anchor
+  if (document.body.classList.contains('home')) {
+    const anchorId = sessionStorage.getItem('scrollToAnchor');
+    if (anchorId) {
+      // Clear the stored anchor
+      sessionStorage.removeItem('scrollToAnchor');
+
+      // Scroll to the anchor smoothly after a small delay (let page settle)
+      setTimeout(() => {
+        const element = document.getElementById(anchorId);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          lastAnchorClickTime = Date.now(); // Track that we just scrolled
+        }
+      }, 100);
+    }
+  }
+
+  document.addEventListener('scroll', () => {
+    const currentScrollY = window.scrollY;
+    const timeSinceAnchorClick = Date.now() - lastAnchorClickTime;
+
+    // Don't hide nav if:
+    // 1. User is hovering over the nav
+    // 2. An anchor click happened recently (within 1 second)
+    const shouldPreventHide = isNavHovered || timeSinceAnchorClick < 1000;
+
+    if (currentScrollY > lastScrollY && !shouldPreventHide) {
+      nav.classList.add('nav-hidden');
+    } else if (currentScrollY <= lastScrollY || shouldPreventHide) {
+      nav.classList.remove('nav-hidden');
+    }
+
+    lastScrollY = currentScrollY;
+  }, { passive: true });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CUSTOM SCROLLBAR THUMB POSITION
+// ═══════════════════════════════════════════════════════════════
+
+function initCustomScrollbar() {
+  // The native scrollbar is hidden via CSS (scrollbar-width: none /
+  // ::-webkit-scrollbar { display: none }). We drive the custom scrollbar
+  // thumb (rendered as html::before) by updating two CSS custom properties:
+  //   --scroll-thumb-top    (0–100, percentage position along the track)
+  //   --scroll-thumb-height (0–100, percentage of track height)
+  //
+  // Because the custom bar is a fixed element that's ALWAYS visible, Ghost
+  // Portal's overflow:hidden on <html> cannot cause a layout width jump —
+  // there is no native scrollbar to disappear.
+
+  const html = document.documentElement;
+
+  function updateThumb() {
+    const scrollTop = window.scrollY;
+    const scrollHeight = html.scrollHeight;
+    const clientHeight = html.clientHeight;
+    const scrollable = scrollHeight - clientHeight;
+
+    if (scrollable <= 0) {
+      // Page fits in viewport — hide thumb by giving it 0 height
+      html.style.setProperty('--scroll-thumb-height', '0');
+      return;
+    }
+
+    // Thumb height is proportional to the viewport/content ratio (min 8%)
+    const thumbHeightPct = Math.max(8, (clientHeight / scrollHeight) * 100);
+    // Thumb top: maps scroll position to available track space
+    const trackSpace = 100 - thumbHeightPct;
+    const thumbTopPct = (scrollTop / scrollable) * trackSpace;
+
+    html.style.setProperty('--scroll-thumb-top', thumbTopPct.toFixed(2));
+    html.style.setProperty('--scroll-thumb-height', thumbHeightPct.toFixed(2));
+  }
+
+  // Initial paint
+  updateThumb();
+
+  // Update on scroll and resize
+  window.addEventListener('scroll', updateThumb, { passive: true });
+  window.addEventListener('resize', updateThumb, { passive: true });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DRAG-TO-SCROLL FOR STICKY NAV & TOC
+// ═══════════════════════════════════════════════════════════════
+
+function initScrollbarHover() {
+  const scrollableElements = document.querySelectorAll('.sticky-nav, .post-toc-nav');
+
+  scrollableElements.forEach(el => {
+    el.addEventListener('mouseenter', () => {
+      el.classList.add('scrollbar-visible');
+    });
+
+    el.addEventListener('mouseleave', () => {
+      el.classList.remove('scrollbar-visible');
+    });
+  });
+}
+
+function initDragToScroll() {
+  const scrollableElements = document.querySelectorAll('.sticky-nav, .post-toc-nav');
+  let activeElement = null;
+  let isDown = false;
+  let startX = 0;
+  let scrollLeft = 0;
+
+  // Single document-level mouseup handler (prevents accumulating listeners)
+  const handleDocumentMouseUp = () => {
+    if (activeElement) {
+      isDown = false;
+      activeElement.style.cursor = 'grab';
+      activeElement = null;
+    }
+  };
+
+  // Add document listener only once
+  if (scrollableElements.length > 0) {
+    document.removeEventListener('mouseup', handleDocumentMouseUp);
+    document.addEventListener('mouseup', handleDocumentMouseUp);
+  }
+
+  scrollableElements.forEach(el => {
+    el.addEventListener('mousedown', (e) => {
+      isDown = true;
+      activeElement = el;
+      startX = e.pageX - el.offsetLeft;
+      scrollLeft = el.scrollLeft;
+      el.style.cursor = 'grabbing';
+    });
+
+    el.addEventListener('mousemove', (e) => {
+      if (!isDown || activeElement !== el) return;
+      e.preventDefault();
+      const x = e.pageX - el.offsetLeft;
+      const walk = (x - startX) * 1;
+      el.scrollLeft = scrollLeft - walk;
+    });
+
+    el.addEventListener('mouseleave', () => {
+      if (!isDown) {
+        el.style.cursor = 'grab';
+      }
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MOBILE MENU TOGGLE
+// ═══════════════════════════════════════════════════════════════
+
+function initMobileMenu() {
+  const hamburger = document.querySelector('.hamburger');
+  const navMenuMobile = document.querySelector('.nav-menu-mobile');
+  if (!hamburger || !navMenuMobile) return;
+
+  const mobileLinks = navMenuMobile.querySelectorAll('a');
+
+  // Toggle menu
+  hamburger.addEventListener('click', () => {
+    hamburger.classList.toggle('active');
+    navMenuMobile.classList.toggle('active');
+    hamburger.setAttribute('aria-expanded', hamburger.classList.contains('active'));
+  });
+
+  // Close menu when link is clicked
+  mobileLinks.forEach(link => {
+    link.addEventListener('click', () => {
+      hamburger.classList.remove('active');
+      navMenuMobile.classList.remove('active');
+      hamburger.setAttribute('aria-expanded', 'false');
+    });
+  });
+
+  // Close menu on Escape
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && navMenuMobile.classList.contains('active')) {
+      hamburger.classList.remove('active');
+      navMenuMobile.classList.remove('active');
+      hamburger.setAttribute('aria-expanded', 'false');
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// WAIT FOR H1 CONTENT — Ensure headline text is rendered
+// ═══════════════════════════════════════════════════════════════
+
+function waitForH1Content(selector = '.hero-headline') {
+  return new Promise((resolve) => {
+    const h1 = document.querySelector(selector);
+    if (!h1) {
+      resolve();
+      return;
+    }
+
+    // Check if h1 already has text
+    if (h1.textContent?.trim()) {
+      resolve();
+      return;
+    }
+
+    // Poll for text content (up to 3 seconds, check every 50ms)
+    let checks = 0;
+    const maxChecks = 60; // 60 checks × 50ms = 3 seconds
+    const checkInterval = setInterval(() => {
+      checks++;
+      if (h1.textContent?.trim() || checks >= maxChecks) {
+        clearInterval(checkInterval);
+        resolve();
+      }
+    }, 50);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// IMAGE PRELOAD — Wait for hero images, show progress via scroll bar
+// ═══════════════════════════════════════════════════════════════
+
+function waitForHeroImages() {
+  return new Promise((resolve) => {
+    const progressBar = document.querySelector('.scroll-progress');
+    const heroWrapper = document.querySelector('.hero-image-wrapper');
+
+    // Show progress bar during load
+    if (progressBar) {
+      progressBar.style.width = '5%';
+      progressBar.style.opacity = '1';
+    }
+
+    if (!heroWrapper) {
+      completePageLoad(progressBar);
+      resolve();
+      return;
+    }
+
+    const images = heroWrapper.querySelectorAll('img');
+    if (images.length === 0) {
+      completePageLoad(progressBar);
+      resolve();
+      return;
+    }
+
+    let loadedCount = 0;
+    const totalCount = images.length;
+
+    const checkComplete = () => {
+      if (loadedCount === totalCount) {
+        completePageLoad(progressBar);
+        resolve();
+      }
+    };
+
+    images.forEach((img, idx) => {
+      // Simulate progress: animate bar as images load
+      const progressStep = 30 + (idx * 30); // 30%, 60%, 90%
+      const onLoad = () => {
+        if (progressBar) progressBar.style.width = progressStep + '%';
+        loadedCount++;
+        checkComplete();
+      };
+
+      if (img.complete) {
+        onLoad();
+      } else {
+        img.addEventListener('load', onLoad, { once: true });
+        img.addEventListener('error', onLoad, { once: true });
+      }
+    });
+
+    // Timeout: proceed after 3.5s even if images don't load
+    setTimeout(() => {
+      if (loadedCount < totalCount) {
+        completePageLoad(progressBar);
+        resolve();
+      }
+    }, 3500);
+  });
+}
+
+function completePageLoad(progressBar) {
+  if (progressBar) {
+    progressBar.style.width = '100%';
+    // Hide after brief delay
+    setTimeout(() => {
+      progressBar.style.opacity = '0';
+    }, 300);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SCROLL PROGRESS BAR
+// ═══════════════════════════════════════════════════════════════
+
+function initScrollProgress() {
+  const progressBar = document.querySelector('.scroll-progress');
+  if (!progressBar) {
+    return;
+  }
+
+  // Show progress bar immediately (visible during preload)
+  progressBar.style.opacity = '1';
+
+  document.addEventListener('scroll', () => {
+    // Ensure bar is visible during scroll
+    progressBar.style.opacity = '1';
+
+    // Calculate scroll percentage
+    const windowHeight = document.documentElement.scrollHeight - window.innerHeight;
+    const scrolled = (window.scrollY / windowHeight) * 100;
+    progressBar.style.width = scrolled + '%';
+  }, { passive: true });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// HERO SECTION — GSAP + SplitType entrance animation
+// Mirrors reference/src/components/sections/Hero.tsx
+//
+// Timeline (seconds):
+//   0.00 — intro label (words, 0.5s, stagger 0.03)
+//   0.15 — headline    (words, 0.7s, stagger 0.07)
+//   0.35 — description (0.6s)
+//   0.50 — tags        (scale+fade, 0.5s, stagger 0.05)
+//   0.00 — image       (blur 34px → 0, parallel, 1.4s)
+//
+// Scroll exit: as user scrolls past the hero the image blurs and
+// fades out — this mirrors the scroll handler in Hero.tsx.
+// ═══════════════════════════════════════════════════════════════
+
+function initHero() {
+  console.log('[DEBUG initHero] Starting...');
+  const heroEl = document.querySelector('.hero[data-section-id="hero"]');
+  if (!heroEl) {
+    console.warn('[DEBUG initHero] Hero section not found');
+    return;
+  }
+
+  console.log('[DEBUG initHero] Starting animation timeline');
+
+  // Guard: if GSAP or SplitType are not available (CDN failure etc.) reveal
+  // everything immediately so the page is still readable.
+  if (typeof gsap === 'undefined') {
+    console.warn('[initHero] GSAP not loaded, revealing elements immediately');
+    ['.hero-intro', '.hero-headline', '.hero-description', '.hero-image-wrapper']
+      .forEach(sel => {
+        const el = heroEl.querySelector(sel);
+        if (el) el.style.opacity = '1';
+      });
+    heroEl.querySelectorAll('.hero-tags .tag').forEach(el => { el.style.opacity = '1'; });
+    return;
+  }
+
+  // Match post header ease: cubic-bezier(0.2, 0, 0, 1) for snappy, front-loaded motion
+  const ease = 'cubic-bezier(0.2, 0, 0, 1)';
+
+  // ── Build entrance timeline ──────────────────────────────────
+  const tl = gsap.timeline({ delay: 0 });
+
+  // 0. Hero container — fade in + blur → unblur (no scale to prevent movement)
+  const heroContent = heroEl.querySelector('.hero-content');
+  if (heroContent) {
+    tl.fromTo(heroContent, {
+      opacity: 0,
+      filter: 'blur(4px)',
+    }, {
+      opacity: 1,
+      filter: 'blur(0px)',
+      duration: 0.8,
+      ease: 'power2.out',
+    }, 0);
+  }
+
+  // 1. Intro label — split into words then stagger in
+  const introEl = heroEl.querySelector('.hero-intro');
+  if (introEl && typeof SplitType !== 'undefined') {
+    const split = new SplitType(introEl, { types: 'words' });
+    // CRITICAL: make parent visible immediately — GSAP will animate the
+    // child word spans. If the parent stays at opacity:0 (CSS initial state),
+    // the word animations are invisible even when they reach opacity:1.
+    gsap.set(introEl, { opacity: 1, visibility: 'visible' });
+    gsap.set(split.words, { opacity: 0, y: 12 });
+    tl.to(split.words, {
+      opacity: 1,
+      y: 0,
+      duration: 0.5,
+      ease,
+      stagger: 0.03,
+    }, 0);
+  } else if (introEl) {
+    // SplitType unavailable — animate the whole element
+    gsap.set(introEl, { opacity: 0, y: 12, visibility: 'hidden' });
+    tl.to(introEl, { opacity: 1, visibility: 'visible', y: 0, duration: 0.5, ease }, 0);
+  }
+
+  // 2. Headline — letter-by-letter animation (delayed to 0.25s)
+  const headlineEl = heroEl.querySelector('.hero-headline');
+  if (headlineEl) {
+    console.log('[H1-headline] Element found, text:', headlineEl.textContent.substring(0, 30));
+    animateH1LetterByLetter(headlineEl, tl, 0.1);
+  } else {
+    console.warn('[H1-headline] NOT FOUND!');
+  }
+
+  // 3. Description paragraph — letter-by-letter animation (starts at 0.35s)
+  const descEl = heroEl.querySelector('.hero-description');
+  if (descEl) {
+    console.log('[description] Element found, text:', descEl.textContent.substring(0, 30));
+    gsap.set(descEl, { opacity: 0, visibility: 'visible' });
+    animateH1LetterByLetter(descEl, tl, 0.15);
+  }
+
+  // 4. Tag pills — scale + fade with stagger (moved earlier to 0.2s)
+  const tagsContainer = heroEl.querySelector('.hero-tags');
+  if (tagsContainer) {
+    const tags = tagsContainer.querySelectorAll('.tag');
+    gsap.set(tags, { opacity: 0, scale: 0.9, y: 8 });
+    tl.to(tags, {
+      opacity: 1,
+      scale: 1,
+      y: 0,
+      duration: 0.5,
+      ease,
+      stagger: 0.05,
+    }, 0.2);
+  }
+
+  // 5. Hero background — fade in + blur clearing
+  const heroBg = heroEl.querySelector('.hero-bg');
+  if (heroBg) {
+    tl.fromTo(heroBg, {
+      opacity: 0,
+      filter: 'blur(4px)',
+    }, {
+      opacity: 1,
+      filter: 'blur(0px)',
+      duration: 0.8,
+      ease: 'power2.out',
+    }, 0);
+  }
+
+  // 6. Hero image entrance — zoom + fade (reusable image entrance animation)
+  const imageWrapper = heroEl.querySelector('.hero-image-wrapper');
+  if (imageWrapper) {
+    animateImageEntrance(imageWrapper, tl, ease, 0, 0.8);
+  }
+
+  // Mark when entrance animation completes (2 seconds before blink starts)
+  const totalDuration = tl.duration();
+  tl.eventCallback('onComplete', () => {
+    heroEl.setAttribute('data-hero-entrance-done', 'true');
+    // Always dispatch heroEntranceDone after hero animation — logomark and
+    // other listeners depend on it regardless of whether hero_image is set.
+    setTimeout(() => {
+      const entranceEvent = new CustomEvent('heroEntranceDone');
+      heroEl.dispatchEvent(entranceEvent);
+    }, 2000);
+  });
+
+
+  console.log('[DEBUG initHero] ✅ Complete. Timeline duration:', tl.duration(), 'Paused?', tl.paused());
+}
+
+// ═══════════════════════════════════════════════════════════════
+// POST HEADER ENTRANCE ANIMATION
+// Same pattern as hero: blur/scale on container + h1 letter animation
+// ═══════════════════════════════════════════════════════════════
+
+function initPostHeaderAnimation() {
+  if (typeof gsap === 'undefined') return;
+
+  const postHeader = document.querySelector('.post-header');
+  const pageHeader = document.querySelector('.page-header');
+  const headerEl = postHeader || pageHeader;
+  if (!headerEl) return;
+
+  // Skip animation on homepage hero (page-header reused there via partials)
+  if (headerEl.closest('.home')) return;
+
+  const runHeaderAnimation = () => {
+    const ease = 'cubic-bezier(0.2, 0, 0, 1)';
+
+    // Set initial state immediately to prevent pre-animation flash
+    gsap.set(headerEl, { opacity: 0, filter: 'blur(4px)' });
+
+    const tl = gsap.timeline({ delay: 0 });
+
+    tl.to(headerEl, {
+      opacity: 1,
+      filter: 'blur(0px)',
+      duration: 0.8,
+      ease: 'power2.out',
+    }, 0);
+
+    const postTitle = headerEl.querySelector('.post-title, .page-title');
+    if (postTitle) {
+      animateH1LetterByLetter(postTitle, tl, 0);
+    }
+
+    const heroImage = headerEl.querySelector('.post-image img, .post-image-wrapper img, .page-image img');
+    if (heroImage) {
+      // Set initial state immediately to prevent pre-animation flash
+      gsap.set(heroImage, { transform: 'scale(0.95)', opacity: 0 });
+
+      tl.to(heroImage, {
+        transform: 'scale(1)',
+        opacity: 1,
+        duration: 0.8,
+        ease: 'power2.out',
+      }, 0);
+    }
+
+    // Animate page-body on about/contact pages
+    const pageBody = headerEl.closest('.page')?.querySelector('.page-body');
+    if (pageBody) {
+      gsap.set(pageBody, { opacity: 0, filter: 'blur(4px)' });
+      tl.to(pageBody, {
+        opacity: 1,
+        filter: 'blur(0px)',
+        duration: 0.8,
+        ease: 'power2.out',
+      }, 0.2);  // Stagger slightly after header
+    }
+  };
+
+  const overlay = document.querySelector('.page-transition-overlay');
+  if (overlay) {
+    let started = false;
+    const startOnce = () => {
+      if (started) return;
+      started = true;
+      runHeaderAnimation();
+    };
+
+    const handleOverlayAnimation = (event) => {
+      if (event.animationName === 'pageTransitionExit') {
+        overlay.removeEventListener('animationend', handleOverlayAnimation);
+        startOnce();
+      }
+    };
+
+    overlay.addEventListener('animationend', handleOverlayAnimation);
+
+    // Fallback in case animation already ended before listener attached
+    setTimeout(startOnce, 400);
+    return;
+  }
+
+  runHeaderAnimation();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PAGE TITLE ANIMATION (About/Contact pages)
+// H1 letter-by-letter reveal without header blur (avoids pre-animation)
+// ═══════════════════════════════════════════════════════════════
+
+function initPageTitleAnimation() {
+  if (typeof gsap === 'undefined') return;
+
+  const pageTitle = document.querySelector('.page-title');
+  if (!pageTitle) return;
+
+  // Skip on homepage
+  if (pageTitle.closest('.home')) return;
+
+  // Use standalone timeline for page titles
+  requestAnimationFrame(() => {
+    try {
+      const standalone = gsap.timeline();
+      animateH1LetterByLetter(pageTitle, standalone, 0);
+    } catch (err) {
+      console.warn('[pageTitle] Error:', err);
+      pageTitle.style.opacity = '1';
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PAGE BODY ENTRANCE ANIMATION
+// Fade + blur reveal for page content (about, contact pages)
+// ═══════════════════════════════════════════════════════════════
+
+function initPageBodyAnimation() {
+  if (typeof gsap === 'undefined') return;
+
+  const pageBody = document.querySelector('.page-body');
+  if (!pageBody) return;
+
+  // Skip on homepage
+  if (pageBody.closest('.home')) return;
+
+  const runPageBodyAnimation = () => {
+    gsap.fromTo(pageBody, {
+      opacity: 0,
+      filter: 'blur(4px)',
+    }, {
+      opacity: 1,
+      filter: 'blur(0px)',
+      duration: 0.8,
+      ease: 'power2.out',
+    });
+  };
+
+  const overlay = document.querySelector('.page-transition-overlay');
+  if (overlay) {
+    let started = false;
+    const startOnce = () => {
+      if (started) return;
+      started = true;
+      runPageBodyAnimation();
+    };
+
+    const handleOverlayAnimation = (event) => {
+      if (event.animationName === 'pageTransitionExit') {
+        overlay.removeEventListener('animationend', handleOverlayAnimation);
+        startOnce();
+      }
+    };
+
+    overlay.addEventListener('animationend', handleOverlayAnimation);
+    setTimeout(startOnce, 400);
+    return;
+  }
+
+  runPageBodyAnimation();
+}
+
+// ═════════════════════════════════════════════════════════════════
+// CAROUSEL
+// ═════════════════════════════════════════════════════════════════
+// HERO BLINK ANIMATION (EYE BLINK ON SCROLL)
+// ═════════════════════════════════════════════════════════════════
+
+function initHeroBlink() {
+  if (typeof gsap === 'undefined') return;
+
+  const blinkOverlay = document.getElementById('hero-blink-overlay');
+  console.log('[initHeroBlink] Blink overlay:', blinkOverlay ? '✅ FOUND' : '❌ NOT FOUND');
+  if (!blinkOverlay) {
+    console.warn('[initHeroBlink] Check: @custom.hero_image set in Ghost Admin?');
+    return;
+  }
+
+  const heroEl = document.querySelector('.hero[data-section-id="hero"]');
+  if (!heroEl) return;
+
+  // Only on desktop
+  if (window.innerWidth <= 768) {
+    console.log('[initHeroBlink] Mobile detected, disabled');
+    return;
+  }
+
+  console.log('[initHeroBlink] ✅ Setting up blink animation');
+
+  let isBlinkLocked = false;
+
+  // Blink animation: eye closes and opens (0.3s total)
+  function playBlink(source = 'auto') {
+    console.log('[initHeroBlink] Playing blink animation (', source, ')');
+    const blinkTl = gsap.timeline();
+
+    // Eye closes (0-0.15s)
+    blinkTl.to(blinkOverlay, {
+      opacity: 1,
+      duration: 0.15,
+      ease: 'power2.inOut',
+    }, 0);
+
+    // Eye opens (0.15-0.3s)
+    blinkTl.to(blinkOverlay, {
+      opacity: 0,
+      duration: 0.15,
+      ease: 'power2.inOut',
+    }, 0.15);
+
+    // Lock hover triggers for 2 seconds after blink completes
+    blinkTl.eventCallback('onComplete', () => {
+      isBlinkLocked = true;
+      console.log('[initHeroBlink] Hover locked for 2s');
+      setTimeout(() => {
+        isBlinkLocked = false;
+        console.log('[initHeroBlink] Hover unlocked');
+      }, 2000);
+    });
+  }
+
+  // Trigger 1: Automatically 2 seconds after entrance animation completes
+  heroEl.addEventListener('heroEntranceDone', () => {
+    console.log('[initHeroBlink] Auto-trigger: 2s after entrance animation');
+    playBlink('auto');
+  });
+
+  // Trigger 2: On hover of hero section (with lock)
+  heroEl.addEventListener('mouseenter', () => {
+    if (!isBlinkLocked) {
+      console.log('[initHeroBlink] Hover-trigger (unlocked)');
+      playBlink('hover');
+    } else {
+      console.log('[initHeroBlink] Hover-trigger blocked (locked)');
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// STACKED CARDS LAYOUT
+// ═══════════════════════════════════════════════════════════════
+// Each card scrolls into view, sticks at the top, and the next
+// card arriving from below gradually scales/pushes the previous
+// one back in Z space (depth). Uses GSAP ScrollTrigger scrub.
+// ═══════════════════════════════════════════════════════════════
+
+function initStackedCards() {
+  if (typeof gsap === 'undefined' || typeof ScrollTrigger === 'undefined') return;
+
+  const allStackedGrids = document.querySelectorAll('[data-posts-layout="stacked"]');
+  if (!allStackedGrids.length) return;
+
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  allStackedGrids.forEach(postsGrid => initSingleStackedGrid(postsGrid, prefersReducedMotion));
+}
+
+function initSingleStackedGrid(postsGrid, prefersReducedMotion) {
+  // Skip grids inside inactive tabs — they're position:absolute with no layout height
+  const tabContent = postsGrid.closest('.posts-tabs-content');
+  if (tabContent && !tabContent.classList.contains('active')) {
+    console.log('[stacked] skipping inactive tab grid');
+    return;
+  }
+
+  const track = postsGrid.querySelector('.carousel-track');
+  if (!track) { console.warn('[stacked] no .carousel-track found'); return; }
+
+  // Skip if already initialized
+  if (track.dataset.stackedInit) {
+    console.log('[stacked] already initialized, skipping');
+    return;
+  }
+  track.dataset.stackedInit = '1';
+
+  // Ghost pre-filters each track — use all cards directly, no display filter needed
+  const cards = Array.from(track.querySelectorAll('.post-card'));
+  console.log('[stacked] found', cards.length, 'cards in', tabContent?.className);
+  if (cards.length === 0) return;
+
+  // ── Fantasma-style: cards are sticky via CSS margin-bottom, no JS wrapper ──
+  // Each card sticks at STICKY_TOP. The margin-bottom creates scroll space.
+  // JS only handles the scale/depth animation as next card scrolls in.
+
+  const STICKY_TOP_RATIO = 0.20; // matches CSS top: 20vh
+  const SCALE_MAX  = 0.06;  // subtle scale reduction per card
+  const MAX_Y      = -20;   // px upward drift per card
+
+  if (prefersReducedMotion) return;
+
+  // Cache natural (pre-transform) absolute document tops for each card.
+  // BCR of a transformed card includes the transform offset, creating a
+  // feedback loop: card[j]'s translateY shifts its BCR.top → inflates p for
+  // card[i] → more compression → oscillation / jank. Caching natural tops
+  // and using pure scroll math eliminates this entirely.
+  let cardNaturalTops = [];
+  let trackNaturalBottom = 0;
+
+  function cacheTops() {
+    const saved = cards.map(c => c.style.transform);
+    cards.forEach(c => { c.style.transform = ''; });
+    void track.offsetHeight; // force reflow so BCR reflects cleared transforms
+    const sy = window.scrollY;
+    cardNaturalTops = cards.map(c => c.getBoundingClientRect().top + sy);
+    trackNaturalBottom = track.getBoundingClientRect().bottom + sy; // includes padding-bottom
+    cards.forEach((c, i) => { c.style.transform = saved[i]; });
+  }
+
+  function updateCards() {
+    const vh        = window.innerHeight;
+    const stickyTop = Math.round(vh * STICKY_TOP_RATIO);
+    const scrollY   = window.scrollY;
+
+    // Clear transforms only when the TRACK's natural bottom has scrolled past stickyTop.
+    // Using the track's full bottom (including padding-bottom) means we wait until the
+    // entire section — including the group-animation buffer — has actually scrolled past.
+    const lastNatTop = cardNaturalTops[cards.length - 1];
+    if (trackNaturalBottom > 0 && trackNaturalBottom - scrollY < stickyTop) {
+      cards.forEach(c => { c.style.transform = ''; c.style.opacity = ''; });
+      return;
+    }
+
+    // Group animation: once the last card locks, ALL cards (including the topmost)
+    // sink together over the padding-bottom scroll space before section releases.
+    // groupP = 0 while cards are still approaching; 0→1 over 60vh after last locks.
+    const allLockedScrollY = lastNatTop !== undefined ? lastNatTop - stickyTop : Infinity;
+    const groupRange       = Math.round(vh * 0.60);
+    const groupP           = Math.max(0, Math.min(1, (scrollY - allLockedScrollY) / groupRange));
+    const groupScale       = SCALE_MAX * 0.5 * groupP;
+    const groupY           = MAX_Y * 0.5 * groupP;
+
+    cards.forEach((card, i) => {
+      // Last card: only participates in the group animation (nothing stacks above it).
+      if (i === cards.length - 1) {
+        if (groupP > 0.001) {
+          card.style.transform = `translateY(${groupY}px) scale(${1 - groupScale})`;
+        } else {
+          card.style.transform = '';
+        }
+        card.style.opacity = '';
+        return;
+      }
+
+      // Pure scroll math — no BCR reads, no feedback loop.
+      // Linear p: proportional to scroll position, no amplification, no jumps.
+      let nextP      = 0;
+      let totalDepth = 0;
+      for (let j = i + 1; j < cards.length; j++) {
+        const natTop = cardNaturalTops[j];
+        if (natTop === undefined) continue;
+        const naturalViewTop = natTop - scrollY;
+        const viewTop = Math.max(stickyTop, naturalViewTop);
+        const p = Math.min(1, Math.max(0, (vh - viewTop) / (vh - stickyTop)));
+        if (j === i + 1) nextP = p;
+        totalDepth += p;
+      }
+
+      if (totalDepth < 0.001 && groupP < 0.001) {
+        card.style.transform = '';
+        card.style.opacity   = '';
+        return;
+      }
+
+      const d     = Math.min(cards.length - 1 - i, totalDepth);
+      const scale = 1 - SCALE_MAX * d - groupScale; // individual depth + group
+      const y     = MAX_Y * d + groupY;             // individual depth + group
+
+      // Per-card fade: triggered by card[i+2]'s approach (NOT card[i+1]).
+      let fadeP = 0;
+      const fadeIdx = i + 2;
+      if (fadeIdx < cards.length && cardNaturalTops[fadeIdx] !== undefined) {
+        const fNatTop = cardNaturalTops[fadeIdx];
+        const fViewTop = Math.max(stickyTop, fNatTop - scrollY);
+        fadeP = Math.min(1, Math.max(0, (vh - fViewTop) / (vh - stickyTop)));
+      }
+      const fadeT   = Math.max(0, (fadeP - 0.97) / 0.08);
+      const opacity = 1 - fadeT;
+
+      card.style.transform = `translateY(${y}px) scale(${scale})`;
+      card.style.opacity   = fadeT > 0 ? String(opacity) : '';
+    });
+  }
+
+  // RAF throttle
+  let rafPending = false;
+  function onScroll() {
+    if (!rafPending) {
+      rafPending = true;
+      requestAnimationFrame(() => { rafPending = false; updateCards(); });
+    }
+  }
+
+  // Cache natural tops, then start animation
+  requestAnimationFrame(() => {
+    cacheTops();
+    updateCards();
+  });
+
+  // Re-cache after images load (lazy images change card heights)
+  window.addEventListener('load', () => requestAnimationFrame(() => {
+    cacheTops();
+    updateCards();
+  }));
+
+  // Re-cache on resize (viewport changes affect sticky positions)
+  window.addEventListener('resize', () => requestAnimationFrame(() => {
+    cacheTops();
+    updateCards();
+  }), { passive: true });
+
+  window.addEventListener('scroll', onScroll, { passive: true });
+
+  console.log('[initStackedCards] Initialized', cards.length, 'cards (fantasma pattern)');
+}
+
+// ═══════════════════════════════════════════════════════════════
+
+function initCarousel() {
+  const postsGrid = document.querySelector('[data-posts-layout="carousel"]');
+  if (!postsGrid) return;
+
+  const track = postsGrid.querySelector('.carousel-track');
+  const prevBtn = postsGrid.querySelector('.carousel-prev');
+  const nextBtn = postsGrid.querySelector('.carousel-next');
+  const cards = track.querySelectorAll('.post-card');
+
+  if (!track || !prevBtn || !nextBtn || cards.length === 0) return;
+
+  const cardWidth = cards[0].offsetWidth;
+  const gap = parseInt(getComputedStyle(track).gap);
+  const scrollAmount = cardWidth + gap;
+
+  // Arrow navigation
+  prevBtn.addEventListener('click', () => {
+    track.scrollBy({
+      left: -scrollAmount,
+      behavior: 'smooth'
+    });
+  });
+
+  nextBtn.addEventListener('click', () => {
+    track.scrollBy({
+      left: scrollAmount,
+      behavior: 'smooth'
+    });
+  });
+
+  // Drag to scroll
+  let isDown = false;
+  let startX;
+  let scrollLeft;
+
+  track.addEventListener('mousedown', (e) => {
+    isDown = true;
+    track.style.cursor = 'grabbing';
+    startX = e.pageX - track.offsetLeft;
+    scrollLeft = track.scrollLeft;
+  });
+
+  track.addEventListener('mouseleave', () => {
+    isDown = false;
+    track.style.cursor = 'grab';
+  });
+
+  track.addEventListener('mouseup', () => {
+    isDown = false;
+    track.style.cursor = 'grab';
+  });
+
+  track.addEventListener('mousemove', (e) => {
+    if (!isDown) return;
+    e.preventDefault();
+    const x = e.pageX - track.offsetLeft;
+    const walk = (x - startX) * 2;
+    track.scrollLeft = scrollLeft - walk;
+  });
+
+  // Update arrow visibility on scroll
+  function updateArrows() {
+    const atStart = track.scrollLeft <= gap;
+    const atEnd = track.scrollLeft >= track.scrollWidth - track.clientWidth - gap;
+
+    prevBtn.style.opacity = atStart ? '0.3' : '1';
+    prevBtn.style.pointerEvents = atStart ? 'none' : 'auto';
+    nextBtn.style.opacity = atEnd ? '0.3' : '1';
+    nextBtn.style.pointerEvents = atEnd ? 'none' : 'auto';
+  }
+
+  track.addEventListener('scroll', updateArrows, { passive: true });
+  window.addEventListener('resize', updateArrows);
+  track.style.cursor = 'grab';
+  updateArrows();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// POSTS TABS
+// ═══════════════════════════════════════════════════════════════
+
+function initPostsTabs() {
+  const tabsSection = document.querySelector('.posts-tabs-section');
+  if (!tabsSection) return;
+
+  const tabButtons = tabsSection.querySelectorAll('.posts-tab');
+  const tabContents = tabsSection.querySelectorAll('.posts-tabs-content');
+  const description = tabsSection.querySelector('.posts-tabs-description');
+
+  const descriptions = {
+    featured: 'Real products, real constraints, real impact.',
+    experimental: 'Pitches, smaller projects, and explorations.'
+  };
+
+  function filterCardsByTab(tabName) {
+    // Ghost queries already pre-filter each track correctly:
+    //   featured track:     featured:true+tag:hash-work
+    //   experimental track: featured:false+tag:hash-work
+    // No JS card-level filtering needed — just ensure all cards are visible.
+    tabContents.forEach(content => {
+      content.querySelectorAll('.post-card').forEach(card => {
+        card.style.display = '';
+      });
+    });
+    console.log(`[tabs] switched to ${tabName}`);
+  }
+
+  /**
+   * Reveals items already visible in viewport when a tab becomes active.
+   * For each item in viewport, we directly update its inline styles to the
+   * final animation state (no GSAP set to avoid layout issues), then mark
+   * it so ScrollTrigger animations skip re-animating it.
+   */
+  function revealItemsInViewport(tabContent) {
+    if (typeof gsap === 'undefined') return;
+
+    const viewportHeight = window.innerHeight;
+    const viewportTop = window.scrollY;
+    const viewportBottom = viewportTop + viewportHeight;
+
+    // Helper to check if element is in current viewport
+    function isElementInViewport(el) {
+      const rect = el.getBoundingClientRect();
+      return rect.top < viewportHeight && rect.bottom > 0;
+    }
+
+    // Get all animated items in the tab
+    const cards = tabContent.querySelectorAll('.post-card');
+    // Exclude card images (handled by card-animations.js)
+    const images = tabContent.querySelectorAll('img:not([data-skip-reveal]):not(.post-card-image img)');
+
+    // Reveal cards that are in viewport
+    cards.forEach(card => {
+      if (card.hasAttribute('data-already-revealed')) return;
+      // Skip stacked layout — GSAP handles transforms, inline styles break animation
+      if (card.closest('[data-posts-layout="stacked"]')) return;
+      // Skip cards in posts section (handled by card-animations.js ScrollTrigger)
+      if (card.closest('.posts-tabs-section')) return;
+
+      if (isElementInViewport(card)) {
+        // Item is visible — jump to final state using inline CSS
+        // Apply to both the card and any img inside it
+        card.style.opacity = '1';
+        card.style.transform = 'translateY(0px) scale(1)';
+        card.style.filter = 'blur(0px)';
+        card.setAttribute('data-already-revealed', 'true');
+
+        // Also clear any images inside the card
+        const innerImg = card.querySelector('img');
+        if (innerImg && !innerImg.hasAttribute('data-already-revealed')) {
+          innerImg.style.opacity = '1';
+          innerImg.style.transform = 'scale(1)';
+          innerImg.style.filter = 'blur(0px)';
+          innerImg.setAttribute('data-already-revealed', 'true');
+        }
+      }
+    });
+
+    // Reveal standalone images that are in viewport
+    images.forEach(img => {
+      if (img.hasAttribute('data-already-revealed')) return;
+      if (img.closest('.post-card')) return; // Skip images inside cards (handled above)
+
+      if (isElementInViewport(img)) {
+        img.style.opacity = '1';
+        img.style.transform = 'scale(1)';
+        img.style.filter = 'blur(0px)';
+        img.setAttribute('data-already-revealed', 'true');
+      }
+    });
+
+    // Refresh ScrollTrigger to recalculate positions for hidden items
+    if (typeof ScrollTrigger !== 'undefined') {
+      ScrollTrigger.refresh();
+    }
+  }
+
+  tabButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      const tabName = button.getAttribute('data-tab');
+      if (!tabName) return;
+
+      // Find current active content
+      const currentActive = tabsSection.querySelector('.posts-tabs-content.active');
+      const newActive = tabsSection.querySelector(`.posts-tabs-content[data-tab="${tabName}"]`);
+
+      // Skip if already active
+      if (currentActive === newActive) return;
+
+      // Update active tab button
+      tabButtons.forEach(btn => btn.classList.remove('active'));
+      button.classList.add('active');
+
+      // Update description and filter cards BEFORE animation
+      if (description) {
+        description.textContent = descriptions[tabName] || '';
+      }
+      tabsSection.setAttribute('data-active-tab', tabName);
+      filterCardsByTab(tabName);
+
+      // Instant tab switch (no animations)
+      // New cards appear in final position (not animated from off-screen)
+      // because post-card scroll-reveal animations are DISABLED
+      tabContents.forEach(content => content.classList.remove('active'));
+      newActive.classList.add('active');
+
+      // Reveal items already in viewport (for other card types)
+      revealItemsInViewport(newActive);
+
+      // Force header to remain at final size during tab switch
+      const tabsHeader = tabsSection.querySelector('[data-sequence-animate]');
+      if (tabsHeader) {
+        // Kill any existing animations on this header
+        gsap.killTweensOf(tabsHeader);
+        // Force scale to 1 and keep it there
+        gsap.set(tabsHeader, { scale: 1, overwrite: 'auto' });
+      }
+
+      // Don't jump scroll when switching tabs — keep scroll position stable
+
+      // Force gradient to first card of new tab
+      if (window.gradientManager && window.gradientManager.setFirstCardGradient) {
+        window.gradientManager.setFirstCardGradient();
+      }
+
+      // Update container height to match active content
+      const tabsContainer = tabsSection.querySelector('.posts-tabs-container');
+      if (tabsContainer && newActive) {
+        const updateHeight = () => {
+          const contentHeight = newActive.offsetHeight;
+          tabsContainer.style.minHeight = contentHeight + 'px';
+        };
+        // Update immediately and after carousel init
+        updateHeight();
+        setTimeout(updateHeight, 200);
+      }
+
+      // Reinitialize carousel if needed
+      setTimeout(() => {
+        if (window.initCarousel) {
+          initCarousel();
+        }
+      }, 150);
+
+      // Re-init stacked cards for newly active tab (was skipped at load if inactive)
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const newGrid = newActive.querySelector('[data-posts-layout="stacked"]');
+        const noMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (newGrid) initSingleStackedGrid(newGrid, noMotion);
+      }));
+
+      // Re-run letter animation on first card's statement-heading in the new tab
+      setTimeout(() => {
+        const firstCard = newActive.querySelector('.post-card');
+        if (!firstCard) return;
+        const heading = firstCard.querySelector('.statement-heading');
+        if (!heading) return;
+        // Always reset so animation replays on every tab change
+        heading.dataset.lettersAnimated = 'false';
+        gsap.killTweensOf(heading);
+        const chars = heading.querySelectorAll('.char');
+        if (chars.length > 0) {
+          gsap.killTweensOf(chars);
+          gsap.set(chars, { opacity: 0 });
+        }
+        gsap.set(heading, { opacity: 1, filter: 'none' });
+        _revealHeadingLetter(heading, HEADING_ANIM_CONFIG.defaultBlur, () => {});
+      }, 100);
+
+      // Re-initialize card animations for new tab
+      if (window.CardAnimations) {
+        setTimeout(() => {
+          // Kill all existing card animation timelines to prevent conflicts
+          gsap.globalTimeline.getChildren().forEach(tl => {
+            if (tl.vars && tl.vars.id && tl.vars.id.includes('card')) {
+              tl.kill();
+            }
+          });
+          // Create new animations for active tab
+          new window.CardAnimations();
+          console.log('[tabs] Re-initialized card animations for tab');
+
+          // Re-initialize particle triggers for new cards
+          if (window.reinitializeParticleTriggers) {
+            window.reinitializeParticleTriggers();
+            console.log('[tabs] Re-initialized particle triggers for tab');
+          }
+        }, 200);
+      }
+    });
+  });
+
+
+  // Apply initial filter on page load so the default "featured" tab
+  // only shows posts actually tagged "featured".
+  const initialTab = tabsSection.getAttribute('data-active-tab') || 'featured';
+  filterCardsByTab(initialTab);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TABLE OF CONTENTS
+// ═══════════════════════════════════════════════════════════════
+
+function initTableOfContents() {
+  console.log('initTableOfContents() function called');
+  const tocContainer = document.querySelector('.post-toc-list');
+  const tocNav = document.querySelector('.post-toc-nav');
+  const contentArea = document.querySelector('.gh-content');
+
+  console.log('TOC elements found:', { tocContainer, tocNav, contentArea });
+  if (!tocContainer || !contentArea) {
+    console.log('Missing required elements, returning early');
+    return;
+  }
+
+  // Generate slug from text
+  function generateSlug(text) {
+    return 'toc-' + text
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-');
+  }
+
+  // Create and insert controls (prev/next arrows only - Start is a regular TOC item)
+  function createControls() {
+    const controlsDiv = document.createElement('div');
+    controlsDiv.className = 'post-toc-controls';
+
+    // Get version parameter from existing theme icons for cache busting
+    const themeIcon = document.querySelector('.theme-icon-sun');
+    let versionParam = '';
+    if (themeIcon && themeIcon.src) {
+      const match = themeIcon.src.match(/\?v=[^&]+/);
+      if (match) versionParam = match[0];
+    }
+
+    // Prev button with icon
+    const prevBtn = document.createElement('button');
+    prevBtn.className = 'post-toc-nav-btn post-toc-nav-prev';
+    prevBtn.setAttribute('aria-label', 'Previous project');
+    prevBtn.style.display = 'flex';
+    prevBtn.style.visibility = 'visible';
+    prevBtn.style.opacity = '1';
+
+    const prevImg = document.createElement('img');
+    prevImg.src = '/assets/icons/arrow-left.svg' + versionParam;
+    prevImg.alt = 'Previous';
+    prevBtn.appendChild(prevImg);
+
+    const prevTooltip = document.createElement('span');
+    prevTooltip.className = 'post-toc-tooltip';
+    prevTooltip.textContent = 'Previous project';
+    prevBtn.appendChild(prevTooltip);
+
+    try {
+      prevBtn.addEventListener('click', async () => {
+      const article = document.querySelector('article.post');
+      const currentId = article ? article.getAttribute('data-post-id') : null;
+      const tagsStr = article ? article.getAttribute('data-post-tags') : null;
+
+      if (currentId && tagsStr) {
+        // Extract type tag: first public tag after filtering internal (hash-*)
+        const tags = tagsStr
+          .split(',')
+          .map(t => t.trim())
+          .filter(t => t && !t.startsWith('hash-'));
+
+        const tagSlug = tags.length > 0 ? tags[0] : null;
+
+        console.log('Prev navigation:', { currentId, tagsStr, allTags: tags, selectedTag: tagSlug });
+
+        if (!tagSlug) {
+          console.log('No category tag found, falling back to default navigation');
+          const prevLink = document.querySelector('a.post-nav-prev');
+          if (prevLink && prevLink.offsetParent !== null) {
+            prevLink.click();
+          }
+          return;
+        }
+
+        try {
+          const posts = await fetchPostsByTag(tagSlug);
+
+          console.log('Posts returned:', posts.map(p => ({ id: p.id, title: p.title, url: p.url })));
+
+          const currentIndex = posts.findIndex(p => p.id === currentId);
+          console.log('Current index:', currentIndex);
+          if (currentIndex >= 0) {
+            const prevIndex = currentIndex === 0 ? posts.length - 1 : currentIndex - 1;
+            console.log('Going to prev index:', prevIndex, posts[prevIndex]);
+            window.location.href = posts[prevIndex].url;
+          }
+        } catch (e) {
+          console.log('Tag navigation unavailable', e);
+        }
+      } else {
+        const prevLink = document.querySelector('a.post-nav-prev');
+        if (prevLink && prevLink.offsetParent !== null) {
+          prevLink.click();
+        }
+      }
+      });
+    } catch (e) {
+      console.error('Error setting up prev button listener:', e);
+    }
+
+    // Next button with icon
+    const nextBtn = document.createElement('button');
+    nextBtn.className = 'post-toc-nav-btn post-toc-nav-next';
+    nextBtn.setAttribute('aria-label', 'Next project');
+    // Force visibility with inline styles
+    nextBtn.style.display = 'flex';
+    nextBtn.style.visibility = 'visible';
+    nextBtn.style.opacity = '1';
+
+    const nextImg = document.createElement('img');
+    nextImg.src = '/assets/icons/arrow-right.svg' + versionParam;
+    nextImg.alt = 'Next';
+    nextBtn.appendChild(nextImg);
+
+    const nextTooltip = document.createElement('span');
+    nextTooltip.className = 'post-toc-tooltip';
+    nextTooltip.textContent = 'Next project';
+    nextBtn.appendChild(nextTooltip);
+
+    try {
+      nextBtn.addEventListener('click', async () => {
+      const article = document.querySelector('article.post');
+      const currentId = article ? article.getAttribute('data-post-id') : null;
+      const tagsStr = article ? article.getAttribute('data-post-tags') : null;
+
+      if (currentId && tagsStr) {
+        // Extract type tag: first public tag after filtering internal (hash-*)
+        const tags = tagsStr
+          .split(',')
+          .map(t => t.trim())
+          .filter(t => t && !t.startsWith('hash-'));
+
+        const tagSlug = tags.length > 0 ? tags[0] : null;
+
+        console.log('Next navigation:', { currentId, tagsStr, allTags: tags, selectedTag: tagSlug });
+
+        if (!tagSlug) {
+          console.log('No category tag found, falling back to default navigation');
+          const nextLink = document.querySelector('a.post-nav-next');
+          if (nextLink && nextLink.offsetParent !== null) {
+            nextLink.click();
+          }
+          return;
+        }
+
+        try {
+          const posts = await fetchPostsByTag(tagSlug);
+
+          console.log('Posts returned:', posts.map(p => ({ id: p.id, title: p.title, url: p.url })));
+
+          const currentIndex = posts.findIndex(p => p.id === currentId);
+          console.log('Current index:', currentIndex);
+          if (currentIndex >= 0) {
+            const nextIndex = currentIndex === posts.length - 1 ? 0 : currentIndex + 1;
+            console.log('Going to next index:', nextIndex, posts[nextIndex]);
+            window.location.href = posts[nextIndex].url;
+          }
+        } catch (e) {
+          console.log('Tag navigation unavailable', e);
+        }
+      } else {
+        const nextLink = document.querySelector('a.post-nav-next');
+        if (nextLink && nextLink.offsetParent !== null) {
+          nextLink.click();
+        }
+      }
+      });
+    } catch (e) {
+      console.error('Error setting up next button listener:', e);
+    }
+
+    console.log('Appending prev button...');
+    controlsDiv.appendChild(prevBtn);
+    console.log('Prev button appended, controls children:', controlsDiv.children.length);
+
+    console.log('Appending next button...');
+    controlsDiv.appendChild(nextBtn);
+    console.log('Next button appended, controls children:', controlsDiv.children.length);
+
+    console.log('Controls created:', {
+      prevBtn,
+      nextBtn,
+      controlsDiv,
+      childCount: controlsDiv.children.length,
+      prevDisplay: window.getComputedStyle(prevBtn).display,
+      nextDisplay: window.getComputedStyle(nextBtn).display
+    });
+
+    return controlsDiv;
+  }
+
+  // Controls will be inserted into list after it's created (after Start item)
+
+  // Add "Start" as a regular TOC item at the beginning of the list
+  function addStartItem() {
+    const startLi = document.createElement('li');
+    startLi.className = 'post-toc-item post-toc-item-start';
+
+    const startLink = document.createElement('a');
+    startLink.href = '#start';
+    startLink.className = 'post-toc-link';
+    startLink.textContent = 'Start';
+
+    startLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      updateActiveHeader(null); // Mark Start as active
+    });
+
+    startLi.appendChild(startLink);
+    tocContainer.appendChild(startLi);  // Append instead of insertBefore
+  }
+
+  // Insert controls as first item (wrap in li for valid HTML structure)
+  const controls = createControls();
+  const controlsLi = document.createElement('li');
+  controlsLi.className = 'post-toc-controls-item';
+  controlsLi.appendChild(controls);
+  tocContainer.appendChild(controlsLi);
+
+  // Add "Start" as second item
+  addStartItem();
+
+  // Parse headers and build TOC (only h2)
+  const headers = contentArea.querySelectorAll('h2');
+  if (headers.length === 0) {
+    // Add test items if no headers found
+    const testLi = document.createElement('li');
+    testLi.className = 'post-toc-item';
+    const testLink = document.createElement('a');
+    testLink.href = '#';
+    testLink.className = 'post-toc-link';
+    testLink.textContent = 'Test';
+    testLi.appendChild(testLink);
+    tocContainer.appendChild(testLi);
+
+    const testLi2 = document.createElement('li');
+    testLi2.className = 'post-toc-item post-toc-item--h3';
+    const testLink2 = document.createElement('a');
+    testLink2.href = '#';
+    testLink2.className = 'post-toc-link';
+    testLink2.textContent = 'Sub';
+    testLi2.appendChild(testLink2);
+    tocContainer.appendChild(testLi2);
+    return;
+  }
+
+  headers.forEach(header => {
+    // Assign id if missing
+    if (!header.id) {
+      header.id = generateSlug(header.textContent);
+    }
+
+    // Create TOC item
+    const li = document.createElement('li');
+    li.className = 'post-toc-item';
+
+    const link = document.createElement('a');
+    link.href = `#${header.id}`;
+    link.className = 'post-toc-link';
+    link.textContent = header.textContent;
+
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      header.scrollIntoView({ behavior: 'smooth' });
+      updateActiveHeader(header);
+    });
+
+    li.appendChild(link);
+    tocContainer.appendChild(li);
+  });
+
+  // Track scroll position to show Start as active when at top
+  function trackScrollPosition() {
+    const scrollTop = window.scrollY;
+
+    if (scrollTop < 100) {
+      // At the top — activate Start item
+      updateActiveHeader(null);
+    }
+  }
+
+  // Intersection Observer for active header tracking
+  const observerOptions = {
+    rootMargin: '-100px 0px -66% 0px'
+  };
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        updateActiveHeader(entry.target);
+      }
+    });
+  }, observerOptions);
+
+  headers.forEach(header => observer.observe(header));
+
+  // Track scroll for Start item activation
+  document.addEventListener('scroll', trackScrollPosition, { passive: true });
+
+  function updateActiveHeader(activeHeader) {
+    // Remove active class from all items
+    document.querySelectorAll('.post-toc-item--active').forEach(item => {
+      item.classList.remove('post-toc-item--active');
+    });
+
+    // If activeHeader is null, activate Start item
+    if (activeHeader === null) {
+      const startItem = tocContainer.querySelector('.post-toc-item-start');
+      if (startItem) {
+        startItem.classList.add('post-toc-item--active');
+      }
+    } else {
+      // Add active class to corresponding TOC item
+      const activeItem = tocContainer.querySelector(
+        `a[href="#${activeHeader.id}"]`
+      )?.closest('.post-toc-item');
+
+      if (activeItem) {
+        activeItem.classList.add('post-toc-item--active');
+        // Note: no scrollIntoView() here — the TOC is position:fixed so there
+        // is nothing to scroll within it, and calling scrollIntoView() on a
+        // fixed-position descendant can trigger unexpected page scroll.
+      }
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PAGE TRANSITIONS
+// ═══════════════════════════════════════════════════════════════
+
+function initPageTransitions() {
+  // Reset scroll to top only on homepage to prevent layout shifts during page load
+  // On post pages, let browser restore saved scroll position from history
+  const isPostPage = document.body.classList.contains('post');
+
+  if (!isPostPage && window.scrollY !== 0) {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }
+
+  // Create overlay for page transitions (safe — doesn't affect fixed positioning)
+  const overlay = document.createElement('div');
+  overlay.className = 'page-transition-overlay';
+  document.body.appendChild(overlay);
+
+  let isTransitioning = false;
+
+  // Animate in on page load
+  requestAnimationFrame(() => {
+    overlay.classList.remove('page-transition-enter');
+    overlay.classList.add('page-transition-exit');
+  });
+
+  // Handle link clicks for exit animation
+  document.addEventListener('click', (e) => {
+    const link = e.target.closest('a');
+    if (!link) return;
+
+    const rawHref = link.getAttribute('href');
+    if (!rawHref) return;
+
+    // Normalize same-origin absolute URLs so they behave like relative paths
+    let href = rawHref;
+    if (rawHref.startsWith(window.location.origin)) {
+      href = rawHref.slice(window.location.origin.length) || '/';
+    }
+
+    const isExternal = rawHref.startsWith('http') && !rawHref.startsWith(window.location.origin);
+    const isHashLink = href.startsWith('#');
+    const isMailto = rawHref.startsWith('mailto:');
+    const opensInNewTab = link.target === '_blank';
+
+    // Skip if it's external, hash link, mailto link, or button-like element
+    if (isExternal || isHashLink || isMailto || opensInNewTab) return;
+
+    // Skip if it's within modals or special containers
+    if (link.closest('.gh-portal, .search-modal, .subscribe-modal')) return;
+
+    if (isTransitioning) return;
+    isTransitioning = true;
+
+    e.preventDefault();
+
+    // Show overlay for exit animation
+    overlay.classList.remove('page-transition-exit');
+    overlay.classList.add('page-transition-enter');
+
+    const destination = isExternal ? rawHref : href;
+
+    // Navigate after animation
+    setTimeout(() => {
+      window.location.href = destination;
+    }, 200);
+  });
+
+  // Reset overlay when page is restored from back/forward cache
+  window.addEventListener('pageshow', (e) => {
+    if (e.persisted) {
+      // Page was restored from cache (back button) — restore overlay to visible state
+      // Browser handles scroll restoration automatically
+      isTransitioning = false;
+      overlay.classList.remove('page-transition-enter');
+      overlay.classList.add('page-transition-exit');
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// POST NAVIGATION FILTERING
+// ═══════════════════════════════════════════════════════════════
+
+function initPostNavigation() {
+  // Post navigation now uses Ghost's native {{#get}} helper in post-navigation.hbs
+  // No JavaScript needed — fully server-side rendered
+}
+
+// ═══════════════════════════════════════════════════════════════
+// POST NAV CONTROLS — Header navigation arrows (only on post pages)
+// ═══════════════════════════════════════════════════════════════
+
+function initPostNavControls() {
+  const article = document.querySelector('article.post');
+  if (!article) {
+    // Not a post page, hide nav controls
+    const controls = document.querySelector('.nav-post-controls');
+    if (controls) controls.style.display = 'none';
+    return;
+  }
+
+  const navControls = document.querySelector('.nav-post-controls');
+  if (!navControls) return;
+
+  // Show controls on post pages
+  navControls.style.display = 'flex';
+
+  const currentId = article.getAttribute('data-post-id');
+  const tagsStr = article.getAttribute('data-post-tags');
+
+  if (!currentId || !tagsStr) {
+    console.log('[postNavControls] Missing post data');
+    return;
+  }
+
+  // Extract first public tag (skip hash-*)
+  const tags = tagsStr.split(',').map(t => t.trim()).filter(t => t && !t.startsWith('hash-'));
+  const publicTag = tags.length > 0 ? tags[0] : null;
+
+  if (!publicTag) {
+    console.log('[postNavControls] No public tag found');
+    return;
+  }
+
+  // Fetch posts in same tag to determine prev/next
+  fetchPostsByTag(publicTag)
+    .then(posts => {
+      const currentIndex = posts.findIndex(p => p.id === currentId);
+
+      if (currentIndex < 0) {
+        console.log('[postNavControls] Current post not found');
+        return;
+      }
+
+      // Get prev and next posts (cycling)
+      const prevIndex = currentIndex === 0 ? posts.length - 1 : currentIndex - 1;
+      const nextIndex = currentIndex === posts.length - 1 ? 0 : currentIndex + 1;
+
+      const prevPost = posts[prevIndex];
+      const nextPost = posts[nextIndex];
+
+      // Set up prev button click handler
+      const prevBtn = navControls.querySelector('.nav-post-prev');
+      if (prevBtn && prevPost) {
+        prevBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          window.location.href = prevPost.url;
+        });
+        prevBtn.href = prevPost.url;
+      }
+
+      // Set up next button click handler
+      const nextBtn = navControls.querySelector('.nav-post-next');
+      if (nextBtn && nextPost) {
+        nextBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          window.location.href = nextPost.url;
+        });
+        nextBtn.href = nextPost.url;
+      }
+
+      console.log('[postNavControls] ✓ Prev/Next posts set:', {
+        prev: prevPost?.url,
+        next: nextPost?.url
+      });
+    })
+    .catch(err => {
+      console.log('[postNavControls] Error fetching posts:', err.message);
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PROJECT META — Handle post-injected configuration
+// ═══════════════════════════════════════════════════════════════
+
+function initProjectMeta() {
+  // Poll for window.projectMeta since it may not be available yet on DOMContentLoaded
+  let attempts = 0;
+  const maxAttempts = 50; // 2.5 seconds at 50ms intervals
+
+  const checkAndApplyMeta = () => {
+    if (window.projectMeta && Object.keys(window.projectMeta).length > 0) {
+      console.log('[projectMeta] ✓ Config loaded:', window.projectMeta);
+      applyProjectMeta(window.projectMeta);
+      return true;
+    }
+
+    attempts++;
+    if (attempts >= maxAttempts) {
+      console.log('[projectMeta] ⚠️  No projectMeta found after polling');
+      return false;
+    }
+
+    setTimeout(checkAndApplyMeta, 50);
+    return false;
+  };
+
+  checkAndApplyMeta();
+}
+
+function applyProjectMeta(meta) {
+  if (!meta) return;
+
+  // Apply cardKeywords as pills on post page (in post-meta)
+  if (meta.cardKeywords) {
+    const postKeywordsEl = document.getElementById('post-keywords');
+    if (postKeywordsEl) {
+      // Parse comma-separated keywords
+      const keywords = meta.cardKeywords
+        .split(',')
+        .map(k => k.trim())
+        .filter(k => k.length > 0);
+
+      // Create pills
+      postKeywordsEl.innerHTML = keywords.map(keyword =>
+        `<span class="post-keyword">${keyword}</span>`
+      ).join('');
+
+      console.log('[projectMeta] ✓ Applied', keywords.length, 'keywords to post page');
+    }
+  }
+
+  // If link is disabled, prevent post navigation card clicks
+  if (meta['disable-link'] === true) {
+    // Disable post navigation card
+    const navCard = document.querySelector('.post-nav-card');
+    const navSection = document.querySelector('.post-navigation');
+
+    if (navCard) {
+      navCard.style.pointerEvents = 'none';
+      navCard.setAttribute('data-tooltip', 'No case study');
+      navCard.classList.add('card-disabled');
+      console.log('[projectMeta] ✓ Disabled .post-nav-card');
+    }
+
+    if (navSection) {
+      navSection.style.pointerEvents = 'none';
+      console.log('[projectMeta] ✓ Disabled .post-navigation');
+    }
+
+    // Also disable any links within post-navigation
+    document.querySelectorAll('.post-navigation a').forEach(link => {
+      link.style.pointerEvents = 'none';
+      link.setAttribute('data-tooltip', 'No case study');
+    });
+
+    console.log('[projectMeta] ✓ Post navigation disabled successfully');
+  }
+
+  // Hide logomark container if no logomark provided
+  if (!meta.logomark || meta.logomark === '' || meta.logomark.includes('{{')) {
+    const logomarkBox = document.getElementById('logomark-container');
+    if (logomarkBox) {
+      logomarkBox.style.display = 'none';
+      console.log('[projectMeta] Logomark hidden (empty)');
+    }
+  }
+
+  // Hide project metadata sections if empty
+  ['client', 'result', 'longTitle', 'accentColor'].forEach(field => {
+    const value = meta[field];
+    if (!value || value === '' || (typeof value === 'string' && value.includes('{{')) ) {
+      const selector = `[data-project-${field}]`;
+      document.querySelectorAll(selector).forEach(el => {
+        el.style.display = 'none';
+      });
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// HEADING ANIMATION SYSTEM
+// Unified scroll-triggered animation for all h1–h4 headings.
+//
+// Default behaviour by tag level (see HEADING_ANIM_CONFIG.defaults):
+//   h1, h2 → letter-by-letter  (slow, character stagger)
+//   h3      → word-by-word      (medium, word stagger)
+//   h4+     → fade only         (simple opacity reveal)
+//
+// All modes start blurred (default 8px) and unblur as they reveal.
+//
+// Per-instance overrides via data attributes:
+//   data-animate="letter"  — force letter animation
+//   data-animate="word"    — force word animation
+//   data-animate="fade"    — force fade-only
+//   data-animate="none"    — disable animation entirely
+//   data-blur="12"         — custom starting blur in px (overrides default 8)
+//
+// Exclusions: elements inside .post-header, .page-header, .hero, and
+// elements marked with data-skip-animation="true" are left untouched.
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Word-by-word scroll reveal with blur unblur.
+ * Animates words in when element enters viewport; resets on exit via observer.
+ *
+ * @param {Element}  heading   - The heading element
+ * @param {Map}      splitMap  - Pre-built word split map (heading → SplitType result)
+ * @param {number}   blurPx    - Starting blur in px
+ * @param {Function} unobserve - Callback (not used; kept for signature compatibility)
+ */
+function _revealHeadingByWord(heading, splitMap, wordTlMap, blurPx, unobserve) {
+  const split = splitMap.get(heading);
+  if (!split) {
+    console.warn('[word-anim] No split found for heading:', heading.textContent?.slice(0, 30));
+    return;
+  }
+
+  // Kill any in-progress timeline (reverse or forward) for this heading
+  const activeTl = wordTlMap.get(heading);
+  if (activeTl) { activeTl.kill(); wordTlMap.delete(heading); }
+  gsap.killTweensOf(heading);
+
+  const cfg = HEADING_ANIM_CONFIG.word;
+  heading.style.willChange = 'opacity, transform, filter';
+
+  // Fallback: if SplitType produced no words, animate whole heading
+  if (split.fallback || !split.words) {
+    gsap.to(heading, {
+      opacity: 1,
+      filter: 'blur(0px)',
+      duration: cfg.duration,
+      ease: cfg.ease,
+      onComplete: () => {
+        heading.style.willChange = 'auto';
+      },
+    });
+  } else {
+    // Make container visible now that words are hidden
+    gsap.set(heading, { opacity: 1 });
+
+    // Unblur the container in parallel with the word stagger
+    if (blurPx > 0) {
+      gsap.to(heading, {
+        filter: 'blur(0px)',
+        duration: cfg.duration * 0.8,
+        ease: 'power2.out',
+      });
+    }
+
+    // Use a timeline so onComplete fires exactly once (not once-per-word like bare stagger)
+    const revealTl = gsap.timeline({
+      onComplete: () => {
+        wordTlMap.delete(heading);
+        gsap.set(split.words, { clearProps: 'transform' });
+        heading.style.willChange = 'auto';
+      },
+    });
+    revealTl.to(split.words, {
+      opacity: 1,
+      y: 0,
+      duration: cfg.duration,
+      stagger: cfg.stagger,
+      ease: cfg.ease,
+    });
+    wordTlMap.set(heading, revealTl);
+  }
+}
+
+/**
+ * Letter-by-letter scroll reveal with blur unblur.
+ * Builds char spans inside the heading, then staggers opacity.
+ *
+ * @param {Element}  heading   - The heading element
+ * @param {number}   blurPx    - Starting blur in px
+ * @param {Function} unobserve - Call to stop observing the heading
+ */
+function _revealHeadingByLetter(heading, blurPx, unobserve) {
+  if (heading.dataset.lettersAnimated === 'true') return;
+
+  const text = heading.textContent;
+  if (!text || !text.trim()) return;
+
+  heading.style.willChange = 'opacity, filter';
+
+  // Build character spans
+  heading.innerHTML = '';
+  const letters = [];
+  for (const char of text) {
+    const span = document.createElement('span');
+    span.className = 'char';
+    span.textContent = char;
+    heading.appendChild(span);
+    letters.push(span);
+  }
+
+  gsap.set(letters, { opacity: 0 });
+  gsap.set(heading, { opacity: 1 }); // Make container visible now that letter spans are hidden
+
+  const tl = gsap.timeline({
+    onComplete: () => {
+      heading.style.willChange = 'auto';
+      heading.dataset.lettersAnimated = 'true';
+    }
+  });
+
+  // Blur clears in parallel
+  if (blurPx > 0) {
+    const blurDur = HEADING_ANIM_CONFIG.letter.blurDuration;
+    tl.to(heading, { filter: 'blur(0px)', duration: blurDur, ease: 'power2.out' }, 0);
+  }
+
+  // Dynamic stagger: fewer chars = wider spread, more chars = tighter
+  const cfg = HEADING_ANIM_CONFIG.letter;
+  const charCount = letters.length;
+  const spread = cfg.spreadMax - ((charCount - 1) / 100) * (cfg.spreadMax - cfg.spreadMin);
+  const stagger = spread / Math.max(1, charCount - 1);
+
+  tl.to(letters, {
+    opacity: 1,
+    duration: cfg.charDuration,
+    ease: cfg.ease,
+    stagger: stagger,
+  }, 0);
+}
+
+/**
+ * Simple fade + unblur reveal.
+ * Resets when heading leaves viewport via observer.
+ *
+ * @param {Element}  heading   - The heading element
+ * @param {number}   blurPx    - Starting blur in px
+ * @param {Function} unobserve - Callback (not used; kept for signature compatibility)
+ */
+function _revealHeadingFade(heading, blurPx, unobserve) {
+  const cfg = HEADING_ANIM_CONFIG.fade;
+  heading.style.willChange = 'opacity, filter';
+
+  gsap.to(heading, {
+    opacity: 1,
+    filter: 'blur(0px)',
+    duration: cfg.duration,
+    ease: cfg.ease,
+    onComplete: () => { heading.style.willChange = 'auto'; },
+  });
+}
+
+/**
+ * Main orchestrator: discovers all h1–h4 on the page (excluding
+ * headers/hero), applies initial hidden state, then wires up a
+ * single IntersectionObserver that fires the right animation per heading.
+ */
+function initHeadingAnimations() {
+  if (typeof gsap === 'undefined') return;
+
+  // Skip while preloader is still animating
+  const preloader = document.querySelector('.preloader');
+  if (preloader && !preloader.classList.contains('loaded')) {
+    // console.log('[heading-animations] Skipped: preloader still active');
+    return;
+  }
+  // console.log('[heading-animations] Running heading animations');
+
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (prefersReducedMotion) return;
+
+  // Collect all candidate text elements: headings (h1-h4) + any element with data-animate
+  const headings = document.querySelectorAll('h1, h2, h3, h4');
+  const customAnimated = document.querySelectorAll('[data-animate="letter"], [data-animate="word"], [data-animate="fade"]');
+  const allCandidates = new Set([...headings, ...customAnimated]);
+
+  const candidates = Array.from(allCandidates).filter(el => {
+    // Skip elements inside hero and post/page headers (those have their own entrance animations)
+    if (el.closest('.hero')) return false;
+    if (el.closest('.post-header')) return false;
+    if (el.closest('.page-header')) return false;
+    if (el.closest('.preloader')) return false;
+    // Skip preloader heading elements
+    if (el.classList.contains('preloader-heading') ||
+        el.classList.contains('preloader-greeting') ||
+        el.classList.contains('preloader-welcome')) return false;
+    // Skip post card titles — text is set dynamically via metadata and SplitType drops spaces
+    if (el.classList.contains('post-card-title')) return false;
+    // Honour explicit opt-out
+    if (el.dataset.skipAnimation === 'true') return false;
+    if (el.dataset.animate === 'none') return false;
+    return true;
+  });
+
+  if (candidates.length === 0) return;
+
+  const cfg = HEADING_ANIM_CONFIG;
+  const hasSplitType = typeof SplitType !== 'undefined';
+
+  // Determine animation mode for each element
+  // Returns 'letter' | 'word' | 'fade'
+  function resolveMode(el) {
+    const override = el.dataset.animate;
+    if (override === 'letter') return 'letter';
+    if (override === 'word')   return 'word';
+    if (override === 'fade')   return 'fade';
+    // Fall back to tag-level default (h1/h2→letter, h3→word, others→fade)
+    const tag = el.tagName.toLowerCase();
+    return cfg.defaults[tag] || 'fade';
+  }
+
+  // Resolve blur amount: data-blur attribute overrides default
+  function resolveBlur(heading) {
+    const attr = heading.dataset.blur;
+    if (attr !== undefined) return parseFloat(attr) || 0;
+    return cfg.defaultBlur;
+  }
+
+  // Pre-split word-animated headings BEFORE observer fires (avoids layout jank)
+  const splitMap = new Map();
+
+  // Track active word-animation timelines so they can be killed cleanly (not just child tweens)
+  const wordTlMap = new Map();
+
+  candidates.forEach(heading => {
+    const mode  = resolveMode(heading);
+    const blurPx = resolveBlur(heading);
+
+    // Set initial invisible state
+    if (mode === 'letter') {
+      // Heading starts invisible (opacity 0); will be revealed once letter spans are created
+      gsap.set(heading, {
+        opacity: 0,
+        filter: blurPx > 0 ? `blur(${blurPx}px)` : 'none',
+      });
+    } else if (mode === 'word') {
+      if (hasSplitType) {
+        const split = new SplitType(heading, { types: 'words' });
+        if (!split || !split.words || split.words.length === 0) {
+          // SplitType failed — mark as fallback
+          splitMap.set(heading, { fallback: true });
+          gsap.set(heading, {
+            opacity: 0,
+            filter: blurPx > 0 ? `blur(${blurPx}px)` : 'none',
+          });
+        } else {
+          splitMap.set(heading, split);
+          // Words hidden; heading starts invisible until animation fires
+          gsap.set(split.words, { opacity: 0, y: cfg.word.yOffset, clearProps: 'transform' });
+          gsap.set(heading, {
+            opacity: 0,
+            filter: blurPx > 0 ? `blur(${blurPx}px)` : 'none',
+          });
+        }
+      } else {
+        // No SplitType — degrade to fade
+        splitMap.set(heading, { fallback: true });
+        gsap.set(heading, {
+          opacity: 0,
+          filter: blurPx > 0 ? `blur(${blurPx}px)` : 'none',
+        });
+      }
+    } else {
+      // fade
+      gsap.set(heading, {
+        opacity: 0,
+      });
+    }
+  });
+
+  // Reset function: reverse animation smoothly when scrolling out of view
+  function resetHeading(heading, mode, blurPx, wordTlMap) {
+    gsap.killTweensOf(heading);
+
+    if (mode === 'letter') {
+      const chars = heading.querySelectorAll('.char');
+      gsap.killTweensOf(chars);
+
+      const cfg = HEADING_ANIM_CONFIG.letter;
+      const charCount = chars.length;
+      const spread = cfg.spreadMax - ((charCount - 1) / 100) * (cfg.spreadMax - cfg.spreadMin);
+      const stagger = spread / Math.max(1, charCount - 1);
+
+      // Reverse the blur
+      if (blurPx > 0) {
+        gsap.to(heading, {
+          filter: `blur(${blurPx}px)`,
+          duration: cfg.blurDuration,
+          ease: 'power2.in',
+        });
+      }
+
+      // Reverse the letter stagger (reverse order)
+      gsap.to(chars, {
+        opacity: 0,
+        duration: cfg.charDuration,
+        ease: cfg.ease,
+        stagger: -stagger,
+        onComplete: () => {
+          heading.dataset.lettersAnimated = 'false';
+        }
+      });
+    } else if (mode === 'word') {
+      const split = splitMap.get(heading);
+
+      if (split && split.words && !split.fallback) {
+        // Kill any active forward/reverse timeline for this heading
+        const activeTl = wordTlMap.get(heading);
+        if (activeTl) { activeTl.kill(); wordTlMap.delete(heading); }
+        gsap.killTweensOf(heading);
+
+        const cfg = HEADING_ANIM_CONFIG.word;
+
+        // Reverse words (reverse stagger), then hide heading on complete
+        // Use a timeline so onComplete fires exactly once (not once-per-word like bare stagger)
+        // Re-blur heading in parallel (mirrors letter mode)
+        if (blurPx > 0) {
+          gsap.to(heading, {
+            filter: `blur(${blurPx}px)`,
+            duration: cfg.duration,
+            ease: 'power2.in',
+          });
+        }
+
+        // Reverse words (reverse stagger), then hide heading on complete
+        // Use a timeline so onComplete fires exactly once (not once-per-word like bare stagger)
+        const reverseTl = gsap.timeline({
+          onComplete: () => {
+            wordTlMap.delete(heading);
+            // Clear transform, keep opacity: 0 as the canonical initial state
+            gsap.set(split.words, { opacity: 0, clearProps: 'transform' });
+            gsap.set(heading, {
+              opacity: 0,
+              filter: blurPx > 0 ? `blur(${blurPx}px)` : 'none',
+            });
+          },
+        });
+        reverseTl.to(split.words, {
+          opacity: 0,
+          y: cfg.yOffset,
+          duration: cfg.duration,
+          stagger: -cfg.stagger,
+          ease: cfg.ease,
+        });
+        wordTlMap.set(heading, reverseTl);
+      } else {
+        // Fallback: simple fade
+        const cfg = HEADING_ANIM_CONFIG.fade;
+        gsap.to(heading, {
+          opacity: 0,
+          filter: blurPx > 0 ? `blur(${blurPx}px)` : 'none',
+          duration: cfg.duration,
+          ease: cfg.ease,
+        });
+      }
+    } else {
+      // fade: reverse the opacity
+      const cfg = HEADING_ANIM_CONFIG.fade;
+      gsap.to(heading, {
+        opacity: 0,
+        filter: blurPx > 0 ? `blur(${blurPx}px)` : 'none',
+        duration: cfg.duration,
+        ease: 'power2.in',
+      });
+    }
+  }
+
+  // Track scroll direction
+  let lastScrollY = window.scrollY;
+  let isScrollingDown = true;
+
+  const scrollListener = () => {
+    const currentScrollY = window.scrollY;
+    isScrollingDown = currentScrollY > lastScrollY;
+    lastScrollY = currentScrollY;
+  };
+
+  window.addEventListener('scroll', scrollListener, { passive: true });
+
+  // Track revealed state for headings (same pattern as images/cards)
+  const revealedHeadings = new WeakSet();
+
+  // Single shared observer for all headings
+  // Same logic as image reveals:
+  // - On enter: if scrolling DOWN + bottom-half + not revealed → animate reveal + mark revealed
+  // - On exit: if scrolling UP + was revealed → animate reverse + unmark revealed
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      const heading  = entry.target;
+      const mode     = resolveMode(heading);
+      const blurPx   = resolveBlur(heading);
+      const noop = () => {};
+
+      // Determine if element is in bottom half of viewport
+      const rect = heading.getBoundingClientRect();
+      const elementCenter = rect.top + rect.height / 2;
+      const viewportCenter = window.innerHeight / 2;
+      const isInBottomHalf = elementCenter > viewportCenter;
+      const isRevealed = revealedHeadings.has(heading);
+
+      if (entry.isIntersecting) {
+        // Only animate if scrolling DOWN and element is in bottom half and NOT already revealed
+        if (isScrollingDown && isInBottomHalf && !isRevealed) {
+          if (mode === 'letter') {
+            _revealHeadingByLetter(heading, blurPx, noop);
+          } else if (mode === 'word') {
+            _revealHeadingByWord(heading, splitMap, wordTlMap, blurPx, noop);
+          } else {
+            _revealHeadingFade(heading, blurPx, noop);
+          }
+          revealedHeadings.add(heading);
+        }
+      } else {
+        // Only reverse if scrolling UP and was previously revealed
+        if (!isScrollingDown && isRevealed) {
+          resetHeading(heading, mode, blurPx, wordTlMap);
+          revealedHeadings.delete(heading);
+        }
+      }
+    });
+  }, {
+    threshold: cfg.observer.threshold,
+    rootMargin: cfg.observer.rootMargin,
+  });
+
+  candidates.forEach(h => observer.observe(h));
+
+  console.log('[initHeadingAnimations] Watching', candidates.length, 'headings');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SCROLL REVEAL — Cards & Images (scroll-triggered with blur)
+// Uses ScrollTrigger for smooth scrubbing to scroll position
+// ═══════════════════════════════════════════════════════════════
+
+function initCardScrollReveal() {
+  if (typeof gsap === 'undefined' || typeof ScrollTrigger === 'undefined') return;
+
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (prefersReducedMotion) return;
+
+  // ── Images — blur + scale + fade reveal ────────────────────────────────
+  const images = document.querySelectorAll('img');
+  const revealImages = Array.from(images).filter(img => {
+    // Reusable pattern: exclude elements with data-skip-reveal attribute
+    if (img.hasAttribute('data-skip-reveal')) return false;
+
+    // Exclude hero images on home and post pages
+    if (img.closest('.hero')) return false;              // Homepage hero
+    // Exclude post-navigation (next up component)
+    if (img.closest('.post-navigation')) return false;   // Next up section
+    // Exclude logos scroll (handled by custom infinite scroll animation)
+    if (img.closest('.logos-scroll-container')) return false;  // Logos scroll
+    // Exclude first post-image (feature/hero image on post pages)
+    const postContainer = img.closest('.post-content');
+    if (postContainer) {
+      const firstPostImage = postContainer.querySelector('.post-image img');
+      if (img === firstPostImage) return false;          // Skip first post image
+    }
+    // Never animate nav elements — logo and theme icons must stay stable
+    if (img.closest('.gh-navigation')) return false;
+    if (img.closest('nav')) return false;
+    // Exclude stacked layout — cards start fully visible
+    if (img.closest('[data-posts-layout="stacked"]')) return false;
+    return true;
+  });
+
+  // Track scroll direction
+  let lastScrollY = window.scrollY;
+  let isScrollingDown = true;
+
+  const scrollListener = () => {
+    const currentScrollY = window.scrollY;
+    isScrollingDown = currentScrollY > lastScrollY;
+    lastScrollY = currentScrollY;
+  };
+
+  window.addEventListener('scroll', scrollListener, { passive: true });
+
+  // Track revealed state separately (not via data attributes)
+  const revealedImages = new WeakSet();
+
+  // Use IntersectionObserver for images with directional scroll logic
+  const imgCfg = SCROLL_REVEAL_CONFIG.image;
+  const imageObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      const img = entry.target;
+
+      // Check if entering from bottom half
+      const rect = img.getBoundingClientRect();
+      const elementCenter = rect.top + rect.height / 2;
+      const isInBottomHalf = elementCenter > window.innerHeight / 2;
+      const isRevealed = revealedImages.has(img);
+
+      if (entry.isIntersecting) {
+        // Only reveal if scrolling DOWN and entering from bottom
+        if (isScrollingDown && isInBottomHalf && !isRevealed) {
+          gsap.to(img, {
+            opacity: 1,
+            scale: imgCfg.scale.end,
+            filter: `blur(${imgCfg.blur.end}px)`,
+            duration: imgCfg.duration,
+            ease: imgCfg.ease,
+          });
+          revealedImages.add(img);
+        }
+      } else {
+        // Only blur if scrolling UP and was revealed
+        if (!isScrollingDown && isRevealed) {
+          gsap.to(img, {
+            opacity: 0,
+            scale: imgCfg.scale.start,
+            filter: `blur(${imgCfg.blur.start}px)`,
+            duration: imgCfg.duration,
+            ease: 'power2.in',
+          });
+          revealedImages.delete(img);
+        }
+      }
+    });
+  }, {
+    threshold: 0.1,
+    rootMargin: '0px 0px -120px 0px',
+  });
+
+  revealImages.forEach(img => {
+    // Set initial state
+    gsap.set(img, {
+      opacity: 0,
+      scale: imgCfg.scale.start,
+      filter: `blur(${imgCfg.blur.start}px)`,
+    });
+    imageObserver.observe(img);
+  });
+
+  // ── Cards — fade + y-offset + blur reveal ──────────────────────────────
+  // Exclude post-cards in posts section (handled by card-animations.js)
+  const cards = document.querySelectorAll(
+    '.testimonial-card, .about-card, .personal-card'
+  );
+
+  const animatedCards = Array.from(cards).filter(card => {
+    // Exclude cards in post-navigation (next up component)
+    if (card.closest('.post-navigation')) return false;
+    // Exclude cards in experimental tab
+    if (card.closest('.posts-tabs-content-experimental')) return false;
+    // Exclude stacked layout — handled by initStackedCards
+    if (card.closest('[data-posts-layout="stacked"]')) return false;
+    // Exclude testimonial cards in scroll mode (handled by initTestimonialsScroll)
+    const testimonialGrid = card.closest('[data-testimonials-layout="scroll"]');
+    if (testimonialGrid) return false;
+    // Exclude post-cards in posts section (handled by card-animations.js)
+    if (card.closest('.posts-tabs-section')) return false;
+    return true;
+  });
+
+  // Cards use directional scroll logic (all browsers)
+  const revealedCards = new WeakSet();
+
+  // Set initial hidden state for non-post cards (post-cards handled by card-animations.js)
+  animatedCards.forEach(card => {
+    const variantName = card.dataset.cardReveal || 'default';
+    const cardCfg = SCROLL_REVEAL_CONFIG.card[variantName] || SCROLL_REVEAL_CONFIG.card.default;
+
+    gsap.set(card, {
+      opacity: 0,
+      y: cardCfg.yOffset,
+      scale: cardCfg.scale.start,
+      // Blur removed — post-cards handled by card-animations.js
+    });
+  });
+
+  const cardObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      const card = entry.target;
+
+      // Get variant (default to 'default')
+      const variantName = card.dataset.cardReveal || 'default';
+      const cardCfg = SCROLL_REVEAL_CONFIG.card[variantName] || SCROLL_REVEAL_CONFIG.card.default;
+
+      // Check if entering from bottom half
+      const rect = card.getBoundingClientRect();
+      const elementCenter = rect.top + rect.height / 2;
+      const isInBottomHalf = elementCenter > window.innerHeight / 2;
+      const isRevealed = revealedCards.has(card);
+
+      if (entry.isIntersecting) {
+        // Only reveal if scrolling DOWN and entering from bottom
+        if (isScrollingDown && isInBottomHalf && !isRevealed) {
+          // For scale-focus variant: blur/opacity quick, scale continues
+          if (variantName === 'scale-focus') {
+            const tl = gsap.timeline();
+            // Blur + opacity: quick, finish early
+            tl.to(card, {
+              opacity: 1,
+              filter: `blur(${cardCfg.blur.end}px)`,
+              duration: cardCfg.blurDuration,
+              ease: 'power2.out',
+            }, 0);
+            // Scale: slower, full duration (runs in parallel)
+            tl.to(card, {
+              scale: cardCfg.scale.end,
+              duration: cardCfg.duration,
+              ease: cardCfg.ease,
+            }, 0);
+          } else {
+            // Default variant: all properties animate together
+            gsap.to(card, {
+              opacity: 1,
+              y: 0,
+              scale: cardCfg.scale.end,
+              filter: `blur(${cardCfg.blur.end}px)`,
+              duration: cardCfg.duration,
+              ease: cardCfg.ease,
+            });
+          }
+          revealedCards.add(card);
+        }
+      } else {
+        // Only blur if scrolling UP and was revealed
+        if (!isScrollingDown && isRevealed) {
+          gsap.to(card, {
+            opacity: 0,
+            y: cardCfg.yOffset,
+            scale: cardCfg.scale.start,
+            filter: `blur(${cardCfg.blur.start}px)`,
+            duration: cardCfg.duration,
+            ease: 'power2.in',
+          });
+          revealedCards.delete(card);
+        }
+      }
+    });
+  }, { threshold: 0.1, rootMargin: '0px 0px -120px 0px' });
+
+  animatedCards.forEach(card => cardObserver.observe(card));
+
+  // Mobile: Animate posts-tabs-section with directional scroll logic
+  if (window.innerWidth <= 768) {
+    const tabsSection = document.querySelector('.posts-tabs-section');
+    if (tabsSection) {
+      const revealedTabs = new WeakSet();
+
+      // Set initial state
+      gsap.set(tabsSection, {
+        opacity: 0,
+        filter: 'blur(24px)',
+      });
+
+      const tabsObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          const rect = entry.target.getBoundingClientRect();
+          const elementCenter = rect.top + rect.height / 2;
+          const isInBottomHalf = elementCenter > window.innerHeight / 2;
+          const isRevealed = revealedTabs.has(tabsSection);
+
+          if (entry.isIntersecting) {
+            // Only reveal if scrolling DOWN and entering from bottom
+            if (isScrollingDown && isInBottomHalf && !isRevealed) {
+              gsap.to(tabsSection, {
+                opacity: 1,
+                filter: 'blur(0px)',
+                duration: 0.6,
+                ease: 'power2.out',
+              });
+              revealedTabs.add(tabsSection);
+            }
+          } else {
+            // Only blur if scrolling UP and was revealed
+            if (!isScrollingDown && isRevealed) {
+              gsap.to(tabsSection, {
+                opacity: 0,
+                filter: 'blur(24px)',
+                duration: 0.6,
+                ease: 'power2.in',
+              });
+              revealedTabs.delete(tabsSection);
+            }
+          }
+        });
+      }, { threshold: 0.1, rootMargin: '0px 0px -120px 0px' });
+
+      tabsObserver.observe(tabsSection);
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// LOGOMARK DROP ANIMATION
+// ═══════════════════════════════════════════════════════════════
+
+function initLogomarkAnimation() {
+  if (typeof gsap === 'undefined') return;
+
+  const logomarkEl = document.getElementById('logomark-container');
+  if (!logomarkEl) {
+    console.log('[logomark] No logomark-container element found');
+    return;
+  }
+
+  console.log('[logomark] Logomark container found, initializing animation');
+
+  // Respect prefers-reduced-motion
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (prefersReducedMotion) {
+    console.log('[logomark] Prefers reduced motion — showing immediately');
+    logomarkEl.style.visibility = 'visible';
+    logomarkEl.style.opacity = '1';
+    return;
+  }
+
+  // Calculate landing position based on excerpt position
+  let landingY = 220; // fallback
+
+  function calculateLandingY() {
+    const excerptEl = document.querySelector('.post-excerpt');
+    if (excerptEl && logomarkEl.parentElement) {
+      const postHeader = logomarkEl.parentElement;
+      const excerptRect = excerptEl.getBoundingClientRect();
+      const headerRect = postHeader.getBoundingClientRect();
+
+      // Calculate excerpt bottom position relative to header
+      const calculated = excerptRect.bottom - headerRect.top + 20; // 20px padding below excerpt
+      console.log(`[logomark] Calculated landing Y: ${calculated}`);
+      return calculated;
+    }
+    return landingY;
+  }
+
+  const heroEl = document.querySelector('.hero[data-section-id="hero"]');
+
+  if (!heroEl) {
+    // No hero — run the full bounce drop with a short delay so the page has rendered
+    console.log('[logomark] No hero element found — running drop animation directly');
+    setTimeout(() => {
+      landingY = calculateLandingY();
+      animateLogomarkDrop();
+    }, 500);
+    return;
+  }
+
+  console.log('[logomark] Hero element found — waiting for heroEntranceDone event');
+
+  let eventFired = false;
+
+  // Listen for hero entrance completion
+  const handleLogomarkTrigger = () => {
+    console.log('[logomark] heroEntranceDone event fired — starting animation');
+    eventFired = true;
+    setTimeout(() => {
+      landingY = calculateLandingY();
+      animateLogomarkDrop();
+    }, 500);
+    heroEl.removeEventListener('heroEntranceDone', handleLogomarkTrigger);
+  };
+
+  heroEl.addEventListener('heroEntranceDone', handleLogomarkTrigger);
+
+  // Fallback: if event doesn't fire after 2s, animate anyway
+  setTimeout(() => {
+    if (!eventFired) {
+      console.log('[logomark] heroEntranceDone event did not fire — using fallback animation');
+      setTimeout(() => {
+        landingY = calculateLandingY();
+        animateLogomarkDrop();
+      }, 500);
+    }
+  }, 2000);
+
+  function animateLogomarkDrop() {
+    console.log('[logomark] Starting drop animation');
+    const tl = gsap.timeline();
+
+    // Set initial state
+    tl.set(logomarkEl, {
+      y: 0,
+      visibility: 'visible',
+      opacity: 1
+    }, 0);
+
+    // Phase 1: Gravity fall (315ms)
+    tl.to(logomarkEl, {
+      y: landingY,
+      duration: 0.315,
+      ease: 'power1.in'
+    });
+
+    // Phase 2: First bounce up (112.5ms)
+    tl.to(logomarkEl, {
+      y: landingY - 24,
+      duration: 0.1125,
+      ease: 'power2.out'
+    });
+
+    // Phase 3: First bounce down (105ms)
+    tl.to(logomarkEl, {
+      y: landingY,
+      duration: 0.105,
+      ease: 'power2.out'
+    });
+
+    // Phase 4: Second bounce up (82.5ms)
+    tl.to(logomarkEl, {
+      y: landingY - 9,
+      duration: 0.0825,
+      ease: 'power2.out'
+    });
+
+    // Phase 5: Second bounce down (67.5ms)
+    tl.to(logomarkEl, {
+      y: landingY,
+      duration: 0.0675,
+      ease: 'power2.out'
+    });
+
+    // Phase 6: Hold at rest (67.5ms)
+    tl.to(logomarkEl, {
+      y: landingY,
+      duration: 0.0675
+    });
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FETCH METADATA FROM POST PAGES (codeinjection_head)
+// ═══════════════════════════════════════════════════════════════
+
+function initPostCardMetadata() {
+  // Only run on listing/homepage pages (not on post detail pages)
+  if (document.querySelector('article.post')) {
+    // console.log('[metadata] Post detail page — skipping card metadata fetch');
+    return;
+  }
+
+  // Get all post-card elements on the page
+  const postCards = document.querySelectorAll('.post-card');
+  if (!postCards.length) {
+    // console.log('[metadata] No post-cards found on page');
+    return;
+  }
+
+  // console.log(`[metadata] Found ${postCards.length} post-cards — fetching metadata from post pages`);
+
+  // Initialize projectMetaArray for storing fetched metadata
+  if (!window.projectMetaArray) {
+    window.projectMetaArray = [];
+    console.log('[metadata] ✅ Initialized window.projectMetaArray');
+  }
+
+  // Track metadata loading completion
+  let loadedCount = 0;
+  const totalCards = postCards.length;
+
+  // Fetch metadata for each post by visiting its page and extracting window.projectMeta
+  postCards.forEach(card => {
+    const link = card.querySelector('.post-card-link');
+    const postUrl = link?.getAttribute('href');
+
+    if (!postUrl) {
+      // console.log('[metadata] Post card has no URL');
+      loadedCount++;
+      if (loadedCount === totalCards) {
+        reInitializeCardAnimations();
+      }
+      return;
+    }
+
+    // Fetch the post page HTML
+    fetch(postUrl)
+      .then(res => res.text())
+      .then(html => {
+        // Extract window.projectMeta or window.projectMetaArray from the HTML
+        let metaMatch = html.match(/window\.projectMeta\s*=\s*(\{[\s\S]*?\});/);
+
+        // If not found, try the array push format
+        if (!metaMatch) {
+          metaMatch = html.match(/window\.projectMetaArray\.push\(\s*(\{[\s\S]*?\})\s*\)/);
+        }
+
+        if (!metaMatch) {
+          // console.log(`[metadata] No projectMeta found in ${postUrl}`);
+          loadedCount++;
+          if (loadedCount === totalCards) {
+            reInitializeCardAnimations();
+          }
+          return;
+        }
+
+        try {
+          // Parse the projectMeta object
+          const metaStr = metaMatch[1];
+          const meta = eval(`(${metaStr})`);
+
+          // Apply project category (above title, no margin)
+          if (meta.projectCategory) {
+            let categoryEl = card.querySelector('.post-card-category');
+            if (!categoryEl) {
+              const titleEl = card.querySelector('.post-card-title');
+              if (titleEl && titleEl.parentElement) {
+                categoryEl = document.createElement('p');
+                categoryEl.className = 'post-card-category';
+                titleEl.parentElement.insertBefore(categoryEl, titleEl);
+              }
+            }
+            if (categoryEl) {
+              categoryEl.textContent = meta.projectCategory;
+              // console.log(`[metadata] ✓ Applied projectCategory to card`);
+            }
+          }
+
+          // Apply long title
+          if (meta.longTitle) {
+            const titleEl = card.querySelector('.post-card-title');
+            if (titleEl) {
+              console.log('[metadata] longTitle from meta:', meta.longTitle);
+              titleEl.textContent = meta.longTitle;
+            }
+          }
+
+          // Apply client
+          if (meta.client) {
+            const clientEl = card.querySelector('.post-card-client');
+            if (clientEl) {
+              clientEl.textContent = meta.client;
+              // console.log(`[metadata] ✓ Applied client to card`);
+            }
+          }
+
+          // cardDescription: don't show in card content, only as statement section
+          if (meta.cardDescription) {
+            // Create statement slide BEFORE the card in carousel
+            const statementSlide = document.createElement('section');
+            statementSlide.className = 'statement-slide card-description-statement';
+            statementSlide.innerHTML = `
+              <div class="statement-container">
+                <h2 class="statement-heading">${meta.cardDescription}</h2>
+              </div>
+            `;
+            // Insert statement slide BEFORE the card in the carousel
+            card.parentElement.insertBefore(statementSlide, card);
+            // console.log(`[metadata] ✓ Created statement slide before card`);
+          }
+
+          // Apply description bullets
+          if (meta.descBullet1 || meta.descBullet2 || meta.descBullet3) {
+            let bulletsEl = card.querySelector('.post-card-bullets');
+            if (!bulletsEl) {
+              const descEl = card.querySelector('.post-card-description');
+              if (descEl && descEl.parentElement) {
+                bulletsEl = document.createElement('ul');
+                bulletsEl.className = 'post-card-bullets';
+                descEl.parentElement.insertBefore(bulletsEl, descEl.nextElementSibling);
+              }
+            }
+            if (bulletsEl) {
+              bulletsEl.innerHTML = '';
+              [meta.descBullet1, meta.descBullet2, meta.descBullet3].forEach(bullet => {
+                if (bullet) {
+                  const li = document.createElement('li');
+                  li.textContent = bullet;
+                  bulletsEl.appendChild(li);
+                }
+              });
+              // console.log(`[metadata] ✓ Applied description bullets to card`);
+            }
+          }
+
+          /* Apply result
+          if (meta.result) {
+            const resultEl = card.querySelector('.post-card-result');
+            if (resultEl) {
+              resultEl.innerHTML = meta.result;
+              // console.log(`[metadata] ✓ Applied result to card`);
+            }
+          } */
+
+          // Apply cardKeywords as pills
+          if (meta.cardKeywords) {
+            const keywordsEl = card.querySelector('.post-card-keywords');
+            if (keywordsEl) {
+              // Parse comma-separated keywords
+              const keywords = meta.cardKeywords
+                .split(',')
+                .map(k => k.trim())
+                .filter(k => k.length > 0);
+
+              // Create pills
+              keywordsEl.innerHTML = keywords.map(keyword =>
+                `<span class="post-card-keyword">${keyword}</span>`
+              ).join('');
+
+              // console.log(`[metadata] ✓ Applied ${keywords.length} keywords to card`);
+            }
+          }
+
+          // Apply video (replaces feature image)
+          if (meta.video) {
+            const imageEl = card.querySelector('.post-card-image');
+            if (imageEl) {
+              // Replace image with looping video (no autoplay - controlled by IntersectionObserver)
+              imageEl.innerHTML = `
+                <video muted loop playsinline style="width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-sm);">
+                  <source src="/content/images/videos/${meta.video}" type="video/mp4">
+                </video>
+              `;
+              const video = imageEl.querySelector('video');
+              if (video) {
+                // IntersectionObserver to play only when in viewport
+                const videoObserver = new IntersectionObserver((entries) => {
+                  entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                      video.play();
+                    } else {
+                      video.pause();
+                    }
+                  });
+                }, { threshold: 0.5 }); // 50% visible triggers play
+
+                videoObserver.observe(video);
+              }
+              // console.log(`[metadata] ✓ Applied video to card (viewport-controlled): ${meta.video}`);
+            }
+          }
+
+          // Apply cardId for particle trigger matching
+          if (meta.cardId) {
+            card.setAttribute('data-cardid', meta.cardId);
+            console.log(`[metadata] ✓ Applied cardId to card: ${meta.cardId}`);
+          }
+
+          // Apply accent color
+          if (meta.accentColor) {
+            card.style.setProperty('--card-accent-color', meta.accentColor);
+            // console.log(`[metadata] ✓ Applied accent color to card`);
+          }
+
+          // Apply gradient CSS - DISABLED
+          if (meta.gradientCss) {
+            card.setAttribute('data-gradient-css', meta.gradientCss);
+            // Gradient display disabled - gradients hidden
+            // Uncomment below to re-enable gradient rendering
+            /*
+            const style = document.createElement('style');
+            style.textContent = `
+              [data-cardid="${meta.cardId}"]::before {
+                background: ${meta.gradientCss} !important;
+                opacity: 1 !important;
+              }
+            `;
+            document.head.appendChild(style);
+            */
+          }
+
+          // Handle disable-link
+          if (meta.disableLink === true || meta['disable-link'] === true) {
+            if (link) {
+              link.style.pointerEvents = 'none';
+              link.setAttribute('data-tooltip', 'No case study');
+              card.classList.add('card-disabled');
+              // console.log(`[metadata] ✓ Disabled card link`);
+            }
+          }
+
+          // Push metadata to projectMetaArray for particle trigger matching
+          if (window.projectMetaArray && Array.isArray(window.projectMetaArray)) {
+            window.projectMetaArray.push(meta);
+            console.log(`[metadata] ✓ Added to projectMetaArray: ${meta.cardId || meta.title}`);
+          }
+
+          // Increment counter after successful metadata processing
+          loadedCount++;
+          if (loadedCount === totalCards) {
+            reInitializeCardAnimations();
+          }
+        } catch (e) {
+          // console.log(`[metadata] Error parsing projectMeta from ${postUrl}:`, e);
+          // Increment counter even on parse error
+          loadedCount++;
+          if (loadedCount === totalCards) {
+            reInitializeCardAnimations();
+          }
+        }
+      })
+      .catch(err => {
+        // console.log(`[metadata] Error fetching ${postUrl}:`, err);
+        // Increment counter even on fetch error so we eventually re-initialize
+        loadedCount++;
+        if (loadedCount === totalCards) {
+          reInitializeCardAnimations();
+        }
+      });
+  });
+
+  // Re-initialize card animations after all metadata and statement slides are loaded
+  function reInitializeCardAnimations() {
+    console.log('[metadata] ✅ All metadata loaded — projectMetaArray ready with', window.projectMetaArray?.length || 0, 'items');
+
+    // Use setTimeout to ensure DOM is fully updated
+    setTimeout(() => {
+      if (window.gsap && window.ScrollTrigger) {
+        // Register plugin first to ensure methods are available
+        gsap.registerPlugin(ScrollTrigger);
+        // Verify registration worked before using methods
+        if (typeof ScrollTrigger.getAll === 'function') {
+          // Kill ONLY card-related ScrollTriggers (by trigger element)
+          const postCards = document.querySelectorAll('.post-card');
+          postCards.forEach(card => {
+            const triggers = ScrollTrigger.getAll().filter(t => t.trigger === card);
+            triggers.forEach(t => t.kill());
+          });
+        }
+      }
+
+      if (window.CardAnimations) {
+        // Re-initialize with statement slides now in place
+        new window.CardAnimations();
+        // console.log('[metadata] ✓ Card animations re-initialized with statement slides');
+      }
+
+      // Re-initialize heading animations for statement slide h2s
+      if (typeof initHeadingAnimations === 'function') {
+        initHeadingAnimations();
+        // console.log('[metadata] ✓ Heading animations re-initialized for statement slides');
+      }
+    }, 150);
+  }
+
+  // Fallback timeout in case some cards fail silently
+  setTimeout(() => {
+    if (loadedCount < totalCards) {
+      // console.log(`[metadata] Metadata load timeout — loaded ${loadedCount}/${totalCards}, re-initializing anyway`);
+      reInitializeCardAnimations();
+    }
+  }, 8000);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TESTIMONIAL META — Handle testimonial metadata
+// ═══════════════════════════════════════════════════════════════
+
+function initTestimonialMetadata() {
+  const testimonialCards = document.querySelectorAll('.testimonial-card');
+  if (testimonialCards.length === 0) return;
+
+  console.log(`[testimonial] Found ${testimonialCards.length} testimonial cards — fetching metadata`);
+
+  // Fetch metadata for each testimonial by visiting its page and extracting window.testimonialMeta
+  testimonialCards.forEach(card => {
+    const url = card.dataset.testimonialUrl;
+
+    if (!url) {
+      console.log('[testimonial] Card has no URL');
+      return;
+    }
+
+    // Fetch the testimonial post page HTML
+    fetch(url)
+      .then(res => res.text())
+      .then(html => {
+        // Extract window.testimonialMeta from the HTML
+        const metaMatch = html.match(/window\.testimonialMeta\s*=\s*(\{[\s\S]*?\});/);
+        if (!metaMatch) {
+          console.log(`[testimonial] No testimonialMeta found in ${url}`);
+          return;
+        }
+
+        try {
+          // Parse the testimonialMeta object
+          const metaStr = metaMatch[1];
+          const meta = eval(`(${metaStr})`);
+
+          // Apply snippet (big text on home page)
+          if (meta.snippet) {
+            const snippetEl = card.querySelector('.testimonial-snippet');
+            if (snippetEl) {
+              // Create h3 with word animation instead of plain text
+              const h2 = document.createElement('h2');
+              h2.className = 'testimonial-snippet-text';
+              h2.textContent = meta.snippet;
+              h2.setAttribute('data-animate', 'word');
+              snippetEl.innerHTML = ''; // Clear the div
+              snippetEl.appendChild(h2);
+              console.log(`[testimonial] ✓ Applied snippet to card`);
+              // Re-trigger heading animations for dynamically added h3
+              if (typeof initHeadingAnimations === 'function') {
+                initHeadingAnimations();
+              }
+            }
+          } else {
+            // Fallback to excerpt if no snippet
+            const excerptEl = card.querySelector('.testimonial-excerpt');
+            const snippetEl = card.querySelector('.testimonial-snippet');
+            if (excerptEl && snippetEl) {
+              // Create h3 with word animation instead of plain text
+              const h3 = document.createElement('h3');
+              h3.className = 'testimonial-snippet-text';
+              h3.textContent = excerptEl.textContent;
+              h3.setAttribute('data-animate', 'word');
+              snippetEl.innerHTML = ''; // Clear the div
+              snippetEl.appendChild(h3);
+              console.log(`[testimonial] ✓ Applied excerpt as fallback snippet`);
+              // Re-trigger heading animations for dynamically added h3
+              if (typeof initHeadingAnimations === 'function') {
+                initHeadingAnimations();
+              }
+            }
+          }
+
+          // Apply source (regular text underneath)
+          if (meta.source) {
+            const sourceEl = card.querySelector('.testimonial-source');
+            if (sourceEl) {
+              sourceEl.textContent = meta.source;
+              console.log(`[testimonial] ✓ Applied source to card`);
+            }
+          }
+
+          // Apply short version
+          if (meta.short) {
+            const shortEl = card.querySelector('.testimonial-short');
+            if (shortEl) {
+              shortEl.textContent = meta.short;
+              shortEl.style.display = 'block';
+              console.log(`[testimonial] ✓ Applied short to card`);
+            }
+          }
+
+          // Apply full version
+          if (meta.full) {
+            const fullEl = card.querySelector('.testimonial-full');
+            if (fullEl) {
+              fullEl.innerHTML = meta.full;
+              fullEl.style.display = 'block';
+              console.log(`[testimonial] ✓ Applied full to card`);
+            }
+          }
+        } catch (e) {
+          console.log(`[testimonial] Error parsing testimonialMeta from ${url}:`, e);
+        }
+      })
+      .catch(err => {
+        console.log(`[testimonial] Error fetching ${url}:`, err);
+      });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MOUSE-TRACKING TOOLTIP SYSTEM
+// ═══════════════════════════════════════════════════════════════
+
+function initTooltipSystem() {
+  // Create tooltip container
+  const tooltip = document.createElement('div');
+  tooltip.className = 'mouse-tracking-tooltip';
+  tooltip.style.display = 'none';
+  document.body.appendChild(tooltip);
+
+  let currentTooltipText = null;
+
+  function showTooltip(text, x, y) {
+    tooltip.textContent = text;
+    tooltip.style.left = `${x}px`;
+    tooltip.style.top = `${y + 12}px`;
+    tooltip.style.display = 'block';
+    currentTooltipText = text;
+  }
+
+  function hideTooltip() {
+    tooltip.style.display = 'none';
+    currentTooltipText = null;
+  }
+
+  function updateTooltipPosition(x, y) {
+    if (currentTooltipText) {
+      tooltip.style.left = `${x}px`;
+      tooltip.style.top = `${y + 12}px`;
+    }
+  }
+
+  // Attach handlers to elements with data-tooltip
+  document.addEventListener('mouseenter', (e) => {
+    if (e.target instanceof Element) {
+      const target = e.target.closest('[data-tooltip]');
+      if (target) {
+        const text = target.getAttribute('data-tooltip');
+        showTooltip(text, e.clientX, e.clientY);
+      }
+    }
+  }, true);
+
+  document.addEventListener('mousemove', (e) => {
+    if (currentTooltipText) {
+      updateTooltipPosition(e.clientX, e.clientY);
+    }
+  });
+
+  document.addEventListener('mouseleave', (e) => {
+    if (e.target instanceof Element) {
+      const target = e.target.closest('[data-tooltip]');
+      if (target) {
+        hideTooltip();
+      }
+    }
+  }, true);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TESTIMONIALS HORIZONTAL SCROLL LOCK
+// ═══════════════════════════════════════════════════════════════
+
+function initTestimonialsHorizontalScroll() {
+  const grid = document.querySelector('[data-testimonials-scroll="horizontal"]');
+  if (!grid) return;
+
+  if (typeof gsap === 'undefined' || typeof ScrollTrigger === 'undefined') {
+    console.warn('[testimonials-scroll] GSAP or ScrollTrigger not loaded');
+    return;
+  }
+
+  const cards = grid.querySelectorAll('.testimonial-card');
+  if (cards.length === 0) return;
+
+  console.log('[testimonials-scroll] Setting up sticky horizontal scroll for', cards.length, 'cards');
+
+  const section = grid.closest('.testimonials-section');
+
+  // Calculate total scrollable distance based on card count
+  const cardWidth = window.innerWidth - (2 * 16);
+  const gap = 32;
+  const totalScrollWidth = (cards.length * (cardWidth + gap)) - window.innerWidth;
+
+  console.log('[testimonials-scroll] Total scroll:', totalScrollWidth, 'px');
+
+  // Pin section and tie horizontal movement to scroll
+  gsap.fromTo(grid,
+    { x: 0 },
+    {
+      x: -totalScrollWidth,
+      ease: 'none',
+      scrollTrigger: {
+        trigger: section,
+        start: 'top top',         // Pin when section reaches top
+        end: `+=${totalScrollWidth + window.innerHeight}`,  // Unpin after scroll distance
+        scrub: 0,                 // Direct scroll coupling
+        pin: true,                // Pin section to viewport
+        markers: false,
+        onEnter: () => {
+          console.log('[testimonials-scroll] ✅ Sticky scroll active');
+        },
+        onLeave: () => {
+          console.log('[testimonials-scroll] ✅ Sticky scroll complete');
+        }
+      }
+    }
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// INITIALIZE ALL
+// ═══════════════════════════════════════════════════════════════
+
+document.addEventListener('DOMContentLoaded', async () => {
+  console.log('DOMContentLoaded event fired');
+  initTooltipSystem();
+  // initPageTransitions();  // Disabled: page transition overlay fade
+  initThemeToggle();
+  initNavScrollBehavior();
+  initMobileMenu();
+  initScrollProgress();
+  initCustomScrollbar();
+  initScrollbarHover();
+  // initDragToScroll(); // Disabled
+  initProjectMeta();
+  replaceHyphensWithNonBreaking();
+  initPostCardMetadata();
+  initTestimonialMetadata();
+  initTestimonialModal();
+  initCarousel();
+  initPostsTabs();
+  // Stacked cards must init AFTER tabs so display:none filtering is done
+  // and ScrollTrigger calculates positions against the correct visible layout
+  requestAnimationFrame(() => requestAnimationFrame(() => initStackedCards()));
+  initTableOfContents();
+  initPostNavigation();
+  initPostNavControls();
+  // initHeroTitleReveal moved into initHero() for synchronized timeline
+  hideEmptyMetadata();
+  // Letter/word/fade reveals always run (immediately, no scroll trigger)
+  initHeadingAnimations();
+  // Card/image scroll reveals (with blur/fade) — can be disabled via SCROLL_REVEAL_ENABLED
+  if (SCROLL_REVEAL_ENABLED) {
+    initCardScrollReveal();
+  }
+  initTestimonialsHorizontalScroll();
+  initStatsScroll();
+  initHeroFadeOut();
+
+  // Wait for hero images and h1 text before starting hero animation
+  await Promise.all([
+    waitForHeroImages(),
+    waitForH1Content('.hero-headline'),
+    waitForH1Content('.post-title, .page-title'),
+  ]);
+
+  initHero();
+  initPostHeaderAnimation();  // Animates both .post-header and .page-header with blur + h1 letter reveal
+  // initPageBodyAnimation();  // Disabled: causes double animation on about/contact
+  initHeroBlink();
+  initLogomarkAnimation();
+  initGalleryModals();
+
+  // ═══════════════════════════════════════════════════════════════
+  // PARTICLE MORPHING ON CARD ENTRY (simple IntersectionObserver)
+  // ═══════════════════════════════════════════════════════════════
+  (function initCardParticleMorphing() {
+    function setupCardObservers() {
+      if (!window.particleSystem) {
+        setTimeout(setupCardObservers, 100);
+        return;
+      }
+
+      const cards = document.querySelectorAll('.post-card');
+      console.log('[card-morph] Setting up observers for', cards.length, 'cards');
+
+      cards.forEach((card) => {
+        const cardId = card.dataset.cardid;
+        if (!cardId) {
+          console.log('[card-morph] Card missing data-cardid, skipping');
+          return;
+        }
+
+        const observer = new IntersectionObserver((entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              console.log('[card-morph] Card entered:', cardId);
+              window.particleSystem.morphTo(cardId, 500);
+            }
+          });
+        }, { threshold: 0.3 });
+
+        observer.observe(card);
+      });
+    }
+
+    setupCardObservers();
+  })();
+
+});

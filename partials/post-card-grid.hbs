@@ -1,0 +1,51 @@
+<article class="grid-card" data-post-url="{{url}}"{{#if tags}} data-tag-slugs="{{#foreach tags}}{{slug}} {{/foreach}}"{{/if}}>
+  <a href="{{url}}" class="grid-card-link" data-transition>
+    {{#if feature_image}}
+      {{!-- loading="lazy" unconditionally used to defer even the FIRST
+            card's image — always above the fold, guaranteed immediately
+            visible with no scrolling, so deferring it only means the
+            network fetch starts later than it needs to. On a fresh page
+            navigation (nav-link click, no cached response from a prior
+            visit) that shows up as the surrounding text/testimonial
+            already visible while this card's image area sits blank for a
+            beat, then pops in once the deferred fetch finally finishes —
+            callers now pass `first=@first` through the {{#foreach}} so
+            only cards after the first one lazy-load. --}}
+      <div class="grid-card-image">
+        {{!-- Shimmer placeholder shown until posts-tabs-grid.js's
+              loadCardMeta resolves this card's text metadata — the image/
+              video below stays opacity:0 (see posts-tabs-grid.css) until
+              then. Video-vs-image itself is no longer part of that fetch:
+              decided here, server-side, same #video internal tag as
+              post-card.hbs (see that partial's own comment on why —
+              literal tag NAME "#video", not the slugified "hash-video"). --}}
+        <div class="card-media-skeleton"></div>
+        {{#has tag="#video"}}
+          <video class="grid-card-image-fallback" muted loop playsinline data-skip-reveal>
+            <source src="/content/images/videos/{{slug}}.mp4" type="video/mp4">
+          </video>
+        {{else}}
+          <img src="{{feature_image}}" alt="{{title}}" {{#unless first}}loading="lazy" {{/unless}}data-skip-reveal class="grid-card-image-fallback">
+        {{/has}}
+      </div>
+    {{/if}}
+    {{!-- Same card details as .post-card (post-card.hbs): category,
+          title, keywords, testimonial, endorser — no logo, no separate
+          description/result fields. Was category+logo side by side,
+          a "description" field standing in for a title, a result stat,
+          and testimonial/endorser/bullets commented out entirely. --}}
+    <div class="grid-card-content">
+      <div class="grid-card-category post-card-category"></div>
+      <h3 class="grid-card-title post-card-title"></h3>
+      {{!-- Result stat (projectMeta.result — same field post.hbs's own
+            detail-page #project-result reads) — see post-card.hbs's own
+            comment on this field; dual-classed like every other field
+            here so post-card-grid.css's .post-card-result rule (shared
+            with post-card.hbs) styles both without a second copy. --}}
+      <h4 class="grid-card-result post-card-result"></h4>
+      <div class="grid-card-keywords post-card-keywords"></div>
+      <p class="grid-card-testimonial post-card-testimonial serif"></p>
+      <p class="grid-card-endorser post-card-endorser"></p>
+    </div>
+  </a>
+</article>

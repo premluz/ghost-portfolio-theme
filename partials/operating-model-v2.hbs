@@ -1,0 +1,271 @@
+{{!--
+  OPERATING MODEL V2 — Evidence Carousel
+
+  Three categories (Products, Systems, Teams) with evidence carousels
+  Scroll-driven experience: heading transitions at category boundaries
+  Particle morphing: sphere → triple-sphere → torus
+
+  Card modes:
+  - screenshot: image only
+  - video: mp4 video
+  - text: custom formatted text
+  - metric: reuse stats-parallax card styling
+--}}
+
+<section class="operating-model-v2" id="operating-model-v2">
+  <div class="om-stage">
+
+    {{!-- PRODUCTS CATEGORY --}}
+    <div class="om-category" data-category="products" data-morph-shape="sphere">
+      <div class="om-header">
+        <h2 class="om-heading">Products</h2>
+        <p class="om-description">Building products people understand, trust and adopt.</p>
+      </div>
+
+      <div class="om-carousel">
+        <div class="om-carousel-track">
+          {{!-- Card 1: Screenshot --}}
+           {{!-- Card 1: Metric --}}
+
+
+          {{!-- Card 2: Metric --}}
+          <div class="om-card om-card-metric glass">
+            <div class="metric-content">
+              <span class="metric-eyebrow">Diamonds on blockchain</span>
+              <span class="metric-value">5M</span>
+            </div>
+          </div>
+
+          {{!-- Card 2: Metric --}}
+          <div class="om-card om-card-metric glass">
+            <div class="metric-content">
+              <span class="metric-eyebrow">Connected IoT devices</span>
+              <span class="metric-value">240M</span>
+            </div>
+          </div>
+
+    
+          {{!-- Card 2: Metric --}}
+          <div class="om-card om-card-metric glass">
+            <div class="metric-content">
+              <span class="metric-eyebrow">Supported regions</span>
+              <span class="metric-value">180+</span>
+            </div>
+          </div>
+    
+        </div>
+      </div>
+    </div>
+
+    {{!-- SYSTEMS CATEGORY --}}
+    <div class="om-category" data-category="systems" data-morph-shape="triple-sphere">
+      <div class="om-header">
+        <h2 class="om-heading">Systems</h2>
+        <p class="om-description">Reducing complexity through design systems, workflows and scalable architecture.</p>
+      </div>
+
+      <div class="om-carousel">
+        <div class="om-carousel-track">
+
+          {{!-- Card 3: Text --}}
+
+          {{!-- Card 1: Metric --}}
+          <div class="om-card om-card-metric">
+            <div class="metric-content">
+              <span class="metric-eyebrow">Design Systems</span>
+              <span class="metric-value">0→1
+              </span>
+            </div>
+          </div>
+
+          {{!-- Card 1: Metric --}}
+          <div class="om-card om-card-metric">
+            <div class="metric-content">
+              <span class="metric-eyebrow">Architecture simplified</span>
+              <span class="metric-value">10→3</span>
+            </div>
+          </div>
+
+                {{!-- Card 1: Metric --}}
+          <div class="om-card om-card-metric">
+            <div class="metric-content">
+              <span class="metric-eyebrow">Systems consolidated</span>
+              <span class="metric-value">3→1</span>
+            </div>
+          </div>
+
+
+        </div>
+      </div>
+    </div>
+
+    {{!-- TEAMS CATEGORY --}}
+    <div class="om-category" data-category="teams" data-morph-shape="torus">
+      <div class="om-header">
+        <h2 class="om-heading">Teams</h2>
+        <p class="om-description">Building alignment, improving efficiency and accelerating delivery.</p>
+      </div>
+
+      <div class="om-carousel">
+        <div class="om-carousel-track">
+          {{!-- Card 1: Text --}}
+          {{!-- Card 2: Metric --}}
+          <div class="om-card om-card-metric">
+            <div class="metric-content">
+              <span class="metric-eyebrow">Founding designer</span>
+              <span class="metric-value">0→1
+              </span>
+            </div>
+          </div>
+
+          {{!-- Card 2: Metric --}}
+          <div class="om-card om-card-metric">
+            <div class="metric-content">
+              <span class="metric-eyebrow">Design team scaled</span>
+              <span class="metric-value">1→5
+              </span>
+            </div>
+          </div>
+
+          {{!-- Card 1: Metric --}}
+          <div class="om-card om-card-metric">
+            <div class="metric-content">
+              <span class="metric-eyebrow">Dev velocity</span>
+              <span class="metric-value">2x</span>
+            </div>
+          </div>
+
+
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<script>
+(function() {
+  'use strict';
+
+  function initOperatingModelV2() {
+    if (typeof gsap === 'undefined' || typeof ScrollTrigger === 'undefined') {
+      setTimeout(initOperatingModelV2, 50);
+      return;
+    }
+
+    const section = document.getElementById('operating-model-v2');
+    if (!section) return;
+
+    const stage   = section.querySelector('.om-stage');
+    const cats    = Array.from(section.querySelectorAll('.om-category'));
+    const headers = cats.map(c => c.querySelector('.om-header'));
+    const tracks  = cats.map(c => c.querySelector('.om-carousel-track'));
+
+    if (!stage || !cats.length) return;
+
+    const VW = window.innerWidth;
+    const VH = window.innerHeight;
+
+    // ── CONFIG ──────────────────────────────────────────────────────────────
+    const CARD_W    = VW * 0.40;   // matches CSS flex: 0 0 40vw
+    const CARD_GAP  = 40;
+    const CARDS     = 4;
+    const INITIAL_X  = VW * 0.8;                          // 80vw — carousel starts off-screen right
+    const PRE_END_X  = INITIAL_X * 0.55;                   // track position when pre-pin completes
+    const PRE_END_HX = '20vw';                             // header x when pre-pin completes
+    const OFF_X      = -(CARDS * (CARD_W + CARD_GAP));     // carousel exits completely off-screen left
+
+    const N           = cats.length;           // 3
+    const scrollPerCat = VH * 2.5;             // px of scroll per category
+    const totalScroll  = scrollPerCat * N;
+
+    // Normalised timeline: each category owns exactly 1/N of [0..1]
+    const dur = 1 / N;
+
+    // ── INITIAL STATE ────────────────────────────────────────────────────────
+    cats.forEach((cat, i) => {
+      gsap.set(cat,       { opacity: i === 0 ? 1 : 0, pointerEvents: i === 0 ? 'auto' : 'none' });
+      gsap.set(headers[i], { opacity: 1, x: '60vw', y: 0 });
+      gsap.set(tracks[i],  { x: INITIAL_X });
+    });
+
+    // ── MASTER TIMELINE ──────────────────────────────────────────────────────
+    const tl = gsap.timeline({ paused: true });
+
+    cats.forEach((cat, i) => {
+      const tS = i * dur;          // category timeline start  (0, 0.333, 0.666)
+      const morphShape = cat.getAttribute('data-morph-shape');
+
+      // ── Category cross-fade ──
+      if (i > 0) {
+        const prevCat = cats[i - 1];
+        const prevH   = headers[i - 1];
+        // Previous header exits to the left (last 10% of previous category)
+        tl.to(prevH,   { x: '-25vw', duration: dur * 0.10, ease: 'power2.in' }, tS - dur * 0.10);
+        // Swap category visibility
+        tl.to(prevCat, { opacity: 0, pointerEvents: 'none', duration: dur * 0.05 }, tS);
+        tl.set(cat,    { opacity: 1, pointerEvents: 'auto' }, tS + dur * 0.02);
+      }
+
+      // ── Header: cat 0 continues from pre-pin end; cat 1+ start fresh off-screen ──
+      tl.fromTo(headers[i],
+        { x: i === 0 ? PRE_END_HX : '60vw' },
+        { x: 0, duration: dur * 0.25, ease: 'power2.out' },
+        tS + (i === 0 ? 0 : dur * 0.04)
+      );
+
+      // ── Carousel: cat 0 continues from pre-pin; all exit off-screen left ──
+      tl.fromTo(tracks[i],
+        { x: i === 0 ? PRE_END_X : INITIAL_X },
+        { x: OFF_X, duration: dur, ease: 'none' },
+        tS
+      );
+
+      // ── Particle morph ──
+      tl.call(() => {
+        window.particleSystem?.morphTo?.(morphShape, 400);
+      }, null, tS + dur * 0.03);
+    });
+
+    // ── PRE-PIN: section scrolls into viewport → carousel + header already moving ─
+    // FROM states exactly match main tl's cat-0 FROM states → zero snap at pin point
+    const preTl = gsap.timeline({ paused: true });
+    preTl
+      .fromTo(tracks[0],  { x: INITIAL_X },  { x: PRE_END_X,  ease: 'none',        duration: 1   }, 0)
+      .fromTo(headers[0], { x: '60vw' },     { x: PRE_END_HX, ease: 'power1.out',  duration: 0.8 }, 0);
+
+    ScrollTrigger.create({
+      trigger: section,
+      start: 'top 90%',
+      end:   'top top',
+      scrub: 1,
+      animation: preTl
+    });
+
+    // ── PINNED SCROLL ────────────────────────────────────────────────────────
+    ScrollTrigger.create({
+      id: 'om-v2',
+      trigger: stage,
+      start: 'top top',
+      end:   `+=${totalScroll}`,
+      pin: true,
+      pinSpacing: true,
+      scrub: 1,
+      animation: tl
+    });
+
+    // ── RESIZE ───────────────────────────────────────────────────────────────
+    let resizeTimeout;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => ScrollTrigger.refresh(), 250);
+    });
+
+    console.log('[om-v2] init — totalScroll:', totalScroll, 'PRE_END_X:', PRE_END_X, 'OFF_X:', OFF_X);
+  }
+
+  if (document.readyState === 'complete') initOperatingModelV2();
+  else window.addEventListener('load', initOperatingModelV2, { once: true });
+
+})();
+</script>

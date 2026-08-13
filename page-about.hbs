@@ -1,0 +1,81 @@
+{{!< default}}
+{{#page}}
+{{!-- .post + data-post-hero, .post-header/.post-title/.post-excerpt/.post-image
+     combo classes, and .gh-canvas (in place of the old plain .page-body div)
+     all reuse page.hbs's already-correct width system verbatim — same
+     classes, zero new CSS. Previously this page had its own one-off
+     .page-header (flat padding, no page-width cap) and a .page-body>.gh-content
+     with no .gh-canvas ancestor at all, so .gh-content's `grid-template-
+     columns: inherit` had no real named-line grid to inherit from and its
+     children's `grid-column: wide-start/wide-end` was a no-op — meaning the
+     body text had no width cap either, not just the hero. See
+     PAGE-WIDTH-SYSTEM.md. --}}
+{{!-- gradflow-page-bg: whole-page fixed 'smoke' background (see that
+      partial's own doc) — sibling of .page-about-post's own <section>, NOT
+      nested inside it, so its z-index:0 competes globally against
+      #page-backdrop/particles instead of being trapped inside .page's own
+      z-index:2 stacking context. Replaces an earlier, now-abandoned
+      .page-about-hero-wrap attempt that scoped the same smoke background to
+      just the header+logos-ribbon area (see git history) — this covers the
+      whole page instead, with every section painting on top of it. --}}
+  {{!-- gradient-aura-frame: the modern version of the abandoned
+        .page-about-hero-wrap attempt mentioned above — same scope (header
+        + logos-ribbon only, not the whole page like gradflow-page-bg),
+        now via the reusable CSS component (main.css ".gradient-aura-
+        frame", assets/js/gradient-aura-frame.js) instead of a one-off
+        canvas. Colors/size/speed are instance-level params on this one
+        div; a second frame elsewhere on the page (or another page
+        entirely) can pass its own without touching this one. --}}
+
+<section class="page page-about post" data-post-hero="{{@custom.page_hero_width}}" data-page-id="{{id}}">
+
+  <header class="post-header page-header page-about-header">
+
+    <div class="container" >
+      <h1 class="post-title page-title serif">{{title}}</h1>
+      {{#if custom_excerpt}}
+        <p class="post-excerpt page-excerpt">{{custom_excerpt}}</p>
+      {{else if excerpt}}
+        <p class="post-excerpt page-excerpt">{{excerpt}}</p>
+      {{/if}}
+
+    </div>
+
+    {{!-- Inside <header>, not a sibling after it — matching post.hbs exactly
+          (page.hbs puts this figure after </header> instead, which is itself
+          a latent version of the same bug this fixes). initPostHeaderAnimation
+          in main.js (the only thing that reveals .post-image img, whose base
+          CSS starts it at opacity:0) does `headerEl.querySelector('.post-image
+          img, ...')` — a descendant search. As a sibling, that query finds
+          nothing and the reveal never fires, leaving the image permanently
+          invisible once it carries the .post-image class (and its opacity:0
+          initial state) needed for the width-system fix above. --}}
+    {{#if feature_image}}
+      <figure class="post-image page-image">
+        <img src="{{feature_image}}" alt="{{title}}" loading="lazy" data-skip-reveal>
+      </figure>
+    {{/if}}
+
+  </header>
+
+  {{> logos-ribbon}}
+   {{> operating-model}}
+
+
+ {{> profile}}
+
+
+{{!--
+
+  <div class="gh-canvas" data-page-content-width="contained">
+    <div class="gh-content">
+      {{content}}
+    </div>
+  </div>
+
+  <div class="page-sections" data-page-content-width="contained">
+     {{> personal}}
+  </div>--}}
+</section>
+  
+{{/page}}

@@ -1,0 +1,291 @@
+/* ═════════════════════════════════════════════════════════════════ */
+/* OPERATING MODEL STACKED — Evidence Carousel with Accumulating Headers */
+/* Headers remain visible and stack horizontally as you scroll          */
+/* ═════════════════════════════════════════════════════════════════ */
+
+.operating-model-stacked {
+  width: 100%;
+  position: relative;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.om-stage {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* ── HEADERS ROW (Accumulates Headers) ──────────────────────────── */
+
+.om-headers-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  gap: var(--space-2xl, 40px);
+  padding: var(--space-xl, 32px) var(--content-padding, 48px);
+  overflow: visible;  /* Don't clip headers */
+  align-items: flex-start;
+  will-change: transform;
+  background: transparent;
+  max-height: 300px;
+  min-height: 200px;
+  z-index: 100;  /* Stay above all carousel elements */
+  pointer-events: auto;  /* Allow interaction */
+}
+
+/* ── HEADER SLOT (Individual Header Container) ──────────────────── */
+
+.om-header-slot {
+  flex-shrink: 0;
+  min-width: max-content;
+  padding-bottom: var(--space-lg);
+  padding-right: var(--space-2xl);
+  opacity: 0;
+  transform: translateX(100vw);
+  will-change: opacity, transform;
+}
+
+.om-header-slot[data-category="products"] {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.om-header-slot h2 {
+  font-size: var(--text-size-h2);
+  line-height: var(--text-line-height-h1);
+  letter-spacing: var(--text-letter-spacing-h1);
+  font-weight: var(--text-weight-extrabold, 800);
+  color: var(--color-on-surface);
+  margin: var(--space-xl) 0 var(--space-md) 0;
+  opacity: 1;
+  filter: none;
+  display: block;
+  min-width: max-content;
+}
+
+.om-header-slot p {
+  font-size: var(--text-size-h5, 1rem);
+  line-height: var(--text-line-height-body, 1.8);
+  color: var(--color-on-surface-variant);
+  margin: 0;
+  max-width: 400px;
+  opacity: 1;
+  filter: none;
+}
+
+/* ── CATEGORY CONTAINER ────────────────────────────────────────── */
+
+.om-category {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 1;
+  will-change: opacity, pointer-events;
+  padding-top: 300px; /* Space for stacked headers */
+}
+
+.om-category[data-category="products"] {
+  z-index: 3;
+}
+
+.om-category[data-category="systems"] {
+  z-index: 2;
+}
+
+.om-category[data-category="teams"] {
+  z-index: 1;
+}
+
+/* ── CARDS CONTAINER (Static, Centered) ────────────────────────── */
+
+.om-carousel {
+  flex: 1;
+  overflow: visible;
+  position: relative;
+  width: 100%;
+  margin-top: var(--space-2xl);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--content-padding);
+}
+
+.om-carousel-track {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 40px;
+  width: 100%;
+  max-width: 90vw;
+  will-change: opacity;
+}
+
+/* ── CARD STYLES ───────────────────────────────────────────────── */
+
+/* Scoped to .operating-model-stacked (unlike most of this file — see note
+   at the top of the file) because .om-card is NOT exclusive to this dead
+   section: operating-model.hbs (the live v3 system) shares the same class
+   on its cards. Unscoped, this rule's opacity:0/translateX(100vw) leaked
+   into the live cards too — they'd get force-hidden by this file's CSS
+   regardless of what card-scroll-reveal.js (which actually owns their
+   reveal animation) set via GSAP, since GSAP's inline style and a plain
+   CSS class rule don't reliably agree on which wins for every property. */
+.operating-model-stacked .om-card {
+  height: 45vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: var(--glass-radius);
+  opacity: 0;
+  transform: translateX(100vw);
+  will-change: opacity, transform;
+}
+
+.metric-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  text-align: center;
+}
+
+.metric-eyebrow {
+  font-size: var(--text-size-caption, 0.875rem);
+  font-weight: 600;
+  color: var(--color-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  opacity: 0.8;
+}
+
+.metric-value {
+  font-size: var(--text-size-h1);
+  font-weight: 800;
+  color: var(--color-on-surface);
+  line-height: 1;
+}
+
+/* Screenshot Mode */
+.om-card-screenshot {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.om-card-screenshot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--radius-lg);
+}
+
+/* Video Mode */
+.om-card-video {
+  background: #000;
+  border: none;
+  box-shadow: none;
+}
+
+.om-card-video video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--radius-lg);
+}
+
+/* Text Mode */
+.om-card-text {
+  padding: var(--space-2xl);
+}
+
+.text-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  height: 100%;
+  justify-content: center;
+}
+
+/* ── RESPONSIVE ───────────────────────────────────────────────── */
+
+@media (max-width: 1024px) {
+  .om-headers-row {
+    padding: var(--space-lg) var(--content-padding);
+    max-height: 250px;
+  }
+
+  .om-header-slot h2 {
+    font-size: var(--text-size-h4, 1.5rem);
+  }
+
+  .om-category {
+    padding-top: 250px;
+  }
+
+  .om-carousel-track {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .om-card {
+    height: 40vh;
+  }
+
+  .metric-value {
+    /* Mobile metrics are the visual hero of each card — the old
+       clamp bottomed out at 1.5rem (~24px), reading as body text.
+       12vw ≈ 45px on a 375px screen. (Shared by om3 + stacked.) */
+    font-size: clamp(calc(2.5rem * var(--type-scale-heading, 1)), calc(12vw * var(--type-scale-heading, 1)), calc(4.5rem * var(--type-scale-heading, 1)));
+  }
+}
+
+@media (max-width: 640px) {
+  .om-headers-row {
+    flex-direction: column;
+    max-height: none;
+    padding: var(--space-md) var(--content-padding);
+    gap: var(--space-lg);
+  }
+
+  .om-header-slot {
+    min-width: 100%;
+  }
+
+  .om-header-slot h2 {
+    font-size: var(--text-size-h3); /* fluid — was fixed 1.25rem */
+  }
+
+  /* Readable floor for the metric label on small screens (caption token
+     bottoms out at 10px). Shared by om3 + stacked via .metric-eyebrow. */
+  .metric-eyebrow {
+    font-size: clamp(calc(0.75rem * var(--type-scale-body, 1)), calc(3.2vw * var(--type-scale-body, 1)), calc(0.875rem * var(--type-scale-body, 1)));
+  }
+
+  .om-header-slot p {
+    max-width: 100%;
+    font-size: var(--type-body-sm-size); /* fluid — was fixed 0.875rem */
+  }
+
+  .om-category {
+    padding-top: auto;
+  }
+
+  .om-carousel-track {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .om-card {
+    height: 50vh;
+  }
+}

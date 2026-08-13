@@ -1,0 +1,199 @@
+{{!-- Progressive (variable) blur for the mobile bottom-docked nav — see
+      main.css's .nav-progressive-blur rules. A single CSS layer can only
+      fade a CONSTANT blur radius's opacity (::before/::after in main.css do
+      that, for the color tint) — it can't make the blur radius itself
+      increase continuously. These 5 stacked layers fake that: each one
+      blurs a different, increasing amount and is masked to a different
+      band, so painted together they read as one smooth, continuously
+      strengthening blur toward the bar instead of a flat blurred sheet
+      fading in and out. Desktop-inert (display:none until the same
+      max-width:768px breakpoint everything else here is scoped to).
+      aria-hidden + no pointer-events: purely decorative.
+
+      NESTED INSIDE <nav> again (2026-08-09). It had been moved out to a
+      sibling earlier the same day, but only as a consequence of
+      .gh-navigation carrying isolation:isolate at the time: a -1 child of
+      an isolated <nav> stopped meaning "behind the page" and started
+      meaning "behind its sibling .nav-wrapper", reordering the glass pane
+      in front of the blur pane. That isolation (and the other two nav
+      compositing promotions) has since been removed — see the
+      .gh-navigation and .nav-progressive-blur comments in main.css — so
+      the reason for un-nesting is gone with it, and the 2026-08-07
+      snapshot this nav is being restored to (bacl_thinkingisfree/) has it
+      nested here. Nesting also restores z-index:-1's original meaning:
+      inside <nav>'s own z-index:10001 group it paints behind the pill but
+      still above the page, which is what makes the blur work at all. --}}
+<nav class="gh-navigation" data-nav-layout="{{@custom.nav_layout}}" data-nav-hide-mode="stagger">
+  <div class="nav-progressive-blur" aria-hidden="true">
+    <div class="nav-blur-layer nav-blur-layer-1"></div>
+    <div class="nav-blur-layer nav-blur-layer-2"></div>
+    <div class="nav-blur-layer nav-blur-layer-3"></div>
+    <div class="nav-blur-layer nav-blur-layer-4"></div>
+    <div class="nav-blur-layer nav-blur-layer-5"></div>
+  </div>
+  <div class="nav-wrapper glass-liquid">
+    <!-- Logo -->
+    <div class="logoandnavwrapper">
+     <!-- <a href="{{@site.url}}" data-transition class="nav-logo"  style="margin-bottom:0;">
+
+       {{!-- Split into individual letters so the minimize/expand animation
+             (main.css, keyed off .nav-hidden — see "LOGO MINIMIZE/EXPAND")
+             can fade+blur each one in/out on its own stagger delay. The
+             first letter of each word (.logo-letter-anchor) never hides —
+             it's the "p"/"d" that stay visible inside the dot once it
+             grows into the minimized badge. --}}
+     <h4 class="nav-logo-text-based">
+        <span class="serif"><span class="logo-letter logo-letter-anchor">p</span><span class="logo-letter">r</span><span class="logo-letter">e</span><span class="logo-letter">m</span><span class="logo-letter logo-s-prems">s</span></span><span class="brand logo-dot">.</span><span class="sans"><span class="logo-letter logo-letter-anchor">d</span><span class="logo-letter">e</span><span class="logo-letter">s</span><span class="logo-letter">i</span><span class="logo-letter">g</span><span class="logo-letter">n</span></span><span class="sans logo-s-design">s</span>
+        <span class="sans"><span class="logo-letter logo-letter-anchor">P</span><span class="logo-letter">r</span><span class="logo-letter">e</span><span class="logo-letter">m</span> <span class="logo-letter logo-letter-anchor">L</span><span class="logo-letter">u</span><span class="logo-letter">c</span><span class="logo-letter">z</span><span class="logo-letter">a</span><span class="logo-letter">k</span></span>
+       </h4>--> 
+      <!--{{#if @site.logo}}
+       <img src="{{@site.logo}}" alt="{{@site.title}}" class="nav-logo-image">
+      {{else}}
+        <div class="nav-logo-text">
+          <span>{{@site.title}}</span>
+        </div>
+      {{/if}}
+    </a>-->
+
+    {{!-- .nav-menu-icon/.nav-menu-label below: desktop shows the text label
+          only (icon hidden); mobile (main.css, max-width:768px) flips that
+          to show the icon only, turning this into an icon-only row instead
+          of hiding the whole menu as it did before. --}}
+    <!-- Desktop Menu -->
+    <ul class="nav-menu">
+       <li><a href="{{@site.url}}/" data-transition aria-label="Home"><img src="{{asset "icons/home.svg"}}" alt="" class="nav-menu-icon"><span class="nav-menu-label">Home</span><span class="nav-tooltip">Home</span></a></li>
+      <!--<li><a href="{{@site.url}}/work" data-transition><img src="{{asset "icons/work.svg"}}" alt="" class="nav-menu-icon"><span class="nav-menu-label">Work</span></a></li>-->
+      <li><a href="{{@site.url}}/about" data-transition aria-label="Profile"><img src="{{asset "icons/user.svg"}}" alt="" class="nav-menu-icon"><span class="nav-menu-label">Profile</span><span class="nav-tooltip">Profile</span></a></li>
+      <li><a href="{{@site.url}}/contact" data-transition aria-label="Contact"><img src="{{asset "icons/contact.svg"}}" alt="" class="nav-menu-icon"><span class="nav-menu-label">Contact</span><span class="nav-tooltip">Contact</span></a></li>
+     <!-- <li><a href="{{#get 'pages' limit='1' filter='slug:about'}}{{url}}{{else}}{{@site.url}}about/{{/get}}#aboutme">About</a></li>-->
+    </ul>
+    </div>
+
+    <!-- Right Side Controls -->
+    <div class="nav-controls">
+      {{!-- Close button — post pages only, FIRST/leftmost in the collapsed
+            pill (Previous/Next follow it). Collapses the nav down to just
+            these (see main.css "POST PAGE NAV"); returns to wherever the
+            post was opened from, at the same scroll position, via
+            page-transition.js's runCurtainExit(). --}}
+      {{#is "post"}}
+      <button class="nav-icon-btn nav-close-btn" aria-label="Close">
+        <img src="{{asset "icons/close.svg"}}" alt="Close" class="nav-icon-close">
+        <span class="nav-tooltip">Close</span>
+      </button>
+      {{/is}}
+
+      <!-- Post Navigation Arrows — commented out per request. Was: only on
+            post pages (CSS: body.post-template .nav-post-controls,
+            main.css). href starts as "#" and gets filled in by
+            post-navigation.hbs's own fetch once it resolves the prev/next
+            post URLs, so there's only one Content API call for both the
+            bottom cards and these. rel="prev"/"next" is what makes
+            page-transition.js's click handler skip overwriting
+            sessionStorage's postOrigin for these two — same mechanism the
+            bottom post-nav cards use.   -->
+     <div class="nav-post-controls">
+        <a href="#" data-transition rel="prev" class="nav-icon-btn nav-post-prev" aria-label="Previous post" title="Previous post">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+          </svg>
+          <span class="nav-tooltip">Previous</span>
+        </a>
+        <a href="#" data-transition rel="next" class="nav-icon-btn nav-post-next" aria-label="Next post" title="Next post">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+          </svg>
+          <span class="nav-tooltip">Next</span>
+        </a>
+      </div>
+   
+
+      <!-- Search Button
+      <button class="nav-icon-btn search-btn" aria-label="Search" data-ghost-search>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+        <span class="nav-tooltip">Search</span>
+      </button>-->
+
+      <!-- Sign In Button
+      <a href="#/portal/signin" class="nav-text-btn" data-portal="signin">Sign in</a>-->
+
+      <!-- Subscribe Button
+      <a href="#/portal" class="button nav-button" data-portal="signup">Subscribe</a>-->
+
+      <!-- Theme Toggle  -->
+      <button class="nav-icon-btn theme-toggle" aria-label="Toggle theme">
+       {{!-- Icons wrapped separately from .nav-tooltip: the stagger nav-hide
+              mode's max-width collapse (main.css) needs overflow:hidden on
+              whatever it's shrinking so the icon doesn't spill out mid-
+              transition — scoping that to just the icons (not the whole
+              button) keeps the tooltip, which sits outside the icons' own
+              box via top:100%, from being clipped along with it. --}}  
+        <span class="theme-toggle-icons">
+          <img src="{{asset "icons/sun.svg"}}" alt="Light mode" class="theme-icon-sun">
+          <img src="{{asset "icons/moon.svg"}}" alt="Dark mode" class="theme-icon-moon">
+        </span>
+        <span class="nav-tooltip">Theme</span>
+      </button>
+
+      <!-- Hamburger Menu -->
+      <!--<button class="hamburger" aria-label="Toggle menu" aria-expanded="false">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>-->
+    </div>
+  </div>
+
+  <!-- Mobile Menu -->
+  <div class="nav-menu-mobile">
+    <a href="{{@site.url}}" class="mobile-nav-link">Home</a>
+    <a href="{{#get 'pages' limit='1' filter='slug:about'}}{{url}}{{else}}{{@site.url}}about/{{/get}}" class="mobile-nav-link">About</a>
+    <hr class="mobile-nav-divider">
+    <a href="#/portal/signin" class="mobile-nav-link" data-portal="signin">Sign in</a>
+    <a href="#/portal" class="button mobile-nav-button" data-portal="signup">Subscribe</a>
+  </div>
+</nav>
+
+{{!-- Animate the post-page nav collapse — but only on a genuine arrival
+      from a non-post page. html.nav-hop (default.hbs head script) means
+      we hopped here from another post via prev/next, which was already
+      collapsed — nothing to animate, the CSS collapses it instantly pre-
+      paint instead (see main.css "POST PAGE NAV"). Otherwise the nav
+      renders expanded for a couple of frames on purpose (double rAF, so
+      the browser has actually painted that expanded state at least once
+      — a single rAF isn't reliably enough), then this adds the class that
+      triggers the collapse transition, and a matching class afterward
+      that removes .logoandnavwrapper from layout once the animation has
+      actually finished (can't be part of the transition itself — display
+      isn't animatable — doing it early would make the collapse look like
+      it snaps partway through instead of shrinking smoothly). --}}
+<script>
+  (function () {
+    // /work/ is a custom collection route (routes.yaml), not a real Ghost
+    // Page — body_class renders empty there, so there's no server-side
+    // class for the nav's "current page" CSS (main.css .nav-menu a) to
+    // match, unlike home/about/contact which get real body classes.
+    // Same pathname test already used for this exact page elsewhere
+    // (particle-morph.hbs's isWorkIndexPage).
+    if (/^\/work\/(page\/\d+\/)?$/.test(window.location.pathname)) {
+      document.body.classList.add('page-work-index');
+    }
+  })();
+</script>
+
+<script>
+  (function () {
+    if (document.documentElement.classList.contains('nav-hop')) return;
+    if (!document.body.classList.contains('post-template')) return;
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        document.body.classList.add('nav-collapsing');
+        setTimeout(function () {
+          document.body.classList.add('nav-collapsed-settled');
+        }, 450);
+      });
+    });
+  })();
+</script>

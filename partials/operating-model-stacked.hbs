@@ -1,0 +1,332 @@
+{{!--
+  OPERATING MODEL STACKED — Evidence Carousel with Accumulating Headers
+
+  Three categories (Products, Systems, Teams) with evidence carousels
+  Headers ACCUMULATE horizontally instead of replacing
+  Each category's header slides in and STAYS visible
+  Carousels scroll through as normal
+
+  Card modes: same as v2 (screenshot, video, text, metric)
+--}}
+
+<section class="operating-model-stacked" id="operating-model-stacked" data-skip-reveal>
+  <div class="om-stage" data-skip-reveal>
+
+    {{!-- HEADERS CONTAINER (accumulates) --}}
+    <div class="om-headers-row" data-skip-reveal>
+      <div class="om-header-slot" data-category="products" data-skip-reveal>
+        <h2 class="om-heading">Products</h2>
+        <p class="om-description">Designing end-to-end in cross-functional teams, ownership and hands on the craft throughout.<p>
+      </div>
+      <div class="om-header-slot" data-category="systems" data-skip-reveal>
+        <h2 class="om-heading">Systems</h2>
+        <p class="om-description">Reducing complexity through design systems, reusable patterns, workflows and scalable architecture.</p>
+      </div>
+      <div class="om-header-slot" data-category="teams" data-skip-reveal>
+        <h2 class="om-heading">Teams</h2>
+        <p class="om-description">Building clarity and alignment, improving efficiency and accelerating delivery.</p>
+      </div>
+    </div>
+    
+    {{!-- PRODUCTS CATEGORY --}}
+    <div class="om-category" data-category="products" data-morph-shape="sphere">
+      <div class="om-carousel">
+        <div class="om-carousel-track">
+          {{!-- Card 1: Metric --}}
+          <div class="om-card om-card-metric glass">
+            <div class="metric-content">
+              <span class="metric-eyebrow">Diamonds on blockchain</span>
+              <span class="metric-value">5M</span>
+            </div>
+          </div>
+
+          {{!-- Card 2: Metric --}}
+          <div class="om-card om-card-metric glass">
+            <div class="metric-content">
+              <span class="metric-eyebrow">Connected IoT devices</span>
+              <span class="metric-value">240M</span>
+            </div>
+          </div>
+
+          {{!-- Card 3: Metric --}}
+          <div class="om-card om-card-metric glass">
+            <div class="metric-content">
+              <span class="metric-eyebrow">Supported regions</span>
+              <span class="metric-value">180+</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {{!-- SYSTEMS CATEGORY --}}
+    <div class="om-category" data-category="systems" data-morph-shape="triple-sphere">
+      <div class="om-carousel">
+        <div class="om-carousel-track">
+          {{!-- Card 1: Metric --}}
+          <div class="om-card om-card-metric">
+            <div class="metric-content">
+              <span class="metric-eyebrow">Design Systems</span>
+              <span class="metric-value">0→1</span>
+            </div>
+          </div>
+
+          {{!-- Card 2: Metric --}}
+          <div class="om-card om-card-metric">
+            <div class="metric-content">
+              <span class="metric-eyebrow">Architecture simplified</span>
+              <span class="metric-value">10→3</span>
+            </div>
+          </div>
+
+          {{!-- Card 3: Metric --}}
+          <div class="om-card om-card-metric">
+            <div class="metric-content">
+              <span class="metric-eyebrow">Systems consolidated</span>
+              <span class="metric-value">3→1</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {{!-- TEAMS CATEGORY --}}
+    <div class="om-category" data-category="teams" data-morph-shape="torus">
+      <div class="om-carousel">
+        <div class="om-carousel-track">
+          {{!-- Card 1: Metric --}}
+          <div class="om-card om-card-metric">
+            <div class="metric-content">
+              <span class="metric-eyebrow">Founding designer</span>
+              <span class="metric-value">0→1</span>
+            </div>
+          </div>
+
+          {{!-- Card 2: Metric --}}
+          <div class="om-card om-card-metric">
+            <div class="metric-content">
+              <span class="metric-eyebrow">Design team scaled</span>
+              <span class="metric-value">1→5</span>
+            </div>
+          </div>
+
+          {{!-- Card 3: Metric --}}
+          <div class="om-card om-card-metric">
+            <div class="metric-content">
+              <span class="metric-eyebrow">Dev velocity</span>
+              <span class="metric-value">2x</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<script>
+(function() {
+  'use strict';
+
+  // `tl`'s tween values (x: VW) and the pin's `end: '+=totalScroll'` are all
+  // plain numbers baked in from window.innerWidth/innerHeight at build time.
+  // ScrollTrigger.refresh() (including GSAP's own automatic one on window
+  // resize) only re-measures the TRIGGER ELEMENT's position — it re-parses
+  // the *same* frozen "+=totalScroll" string against that new position, it
+  // never recomputes what totalScroll itself should be for the new viewport
+  // size, and it never touches values already baked into the timeline's
+  // tweens. After a real resize this leaves the pin's duration and the
+  // cards'/headers' off-screen starting offsets silently wrong for the new
+  // viewport — the kind of mismatch that shows up as content jumping out of
+  // sync with what should be directly above/below it (reported as "operating
+  // model jumps below post cards" after a window resize).
+  //
+  // The robust fix is to fully tear down and rebuild this section's timeline
+  // and ScrollTrigger on resize, so every viewport-dependent number is
+  // recomputed from scratch against the current window size — rather than
+  // trying to patch individual stale values in place.
+  let scrollTriggerInstance = null;
+  let timelineInstance = null;
+
+  function teardownOperatingModelStacked() {
+    scrollTriggerInstance?.kill();
+    timelineInstance?.kill();
+    scrollTriggerInstance = null;
+    timelineInstance = null;
+  }
+
+  function initOperatingModelStacked() {
+    if (typeof gsap === 'undefined' || typeof ScrollTrigger === 'undefined') {
+      setTimeout(initOperatingModelStacked, 50);
+      return;
+    }
+
+    const section = document.getElementById('operating-model-stacked');
+    if (!section) return;
+
+    const stage      = section.querySelector('.om-stage');
+    const headersRow = section.querySelector('.om-headers-row');
+    const cats       = Array.from(section.querySelectorAll('.om-category'));
+    const headerSlots = Array.from(section.querySelectorAll('.om-header-slot'));
+    const cardGroups = cats.map(c => Array.from(c.querySelectorAll('.om-card')));
+
+    if (!stage || !cats.length) return;
+
+    const VW = window.innerWidth;
+    const VH = window.innerHeight;
+
+    // ── CONFIG ──────────────────────────────────────────────────────────────
+    const N          = cats.length;        // 3
+    const scrollPerCat = VH * 2.5;         // px of scroll per category
+    const scrollBuffer = VH * 0.5;         // 50% viewport buffer after last category
+    const totalScroll = scrollPerCat * N + scrollBuffer;
+
+    // Normalised timeline: each category owns exactly 1/N of [0..1]
+    const dur = 1 / N;
+
+    // ── INITIAL STATE ────────────────────────────────────────────────────────
+    cats.forEach((cat, i) => {
+      gsap.set(cat, { opacity: i === 0 ? 1 : 0, pointerEvents: i === 0 ? 'auto' : 'none' });
+    });
+
+    // Headers start off-screen, slide in one by one (first is visible)
+    headerSlots.forEach((slot, i) => {
+      if (i === 0) {
+        gsap.set(slot, { opacity: 1, x: 0, filter: 'none' });
+      } else {
+        gsap.set(slot, { opacity: 0, x: VW, filter: 'none' });  // Use pixel value
+      }
+    });
+
+    // Cards start with slide-up initial state (opacity: 0, y: 40px set in CSS)
+
+    // ── MASTER TIMELINE ──────────────────────────────────────────────────────
+    const tl = gsap.timeline({ paused: true });
+    timelineInstance = tl;
+
+    cats.forEach((cat, i) => {
+      const tS = i * dur;          // category timeline start
+      const morphShape = cat.getAttribute('data-morph-shape');
+      const headerSlot = headerSlots[i];
+      const cards = cardGroups[i];
+
+      // ── Category cross-fade (carousel visibility) ──
+      if (i > 0) {
+        const prevCat = cats[i - 1];
+        tl.to(prevCat, { opacity: 0, pointerEvents: 'none', duration: dur * 0.05 }, tS);
+        tl.set(cat,    { opacity: 1, pointerEvents: 'auto' }, tS + dur * 0.02);
+      }
+
+      // ── Header: slide in from right and STAY visible ──
+      if (i > 0) {  // Only animate headers 1 and 2 (0 is already visible)
+        tl.fromTo(headerSlot,
+          { opacity: 0, x: VW, filter: 'none' },
+          { opacity: 1, x: 0, filter: 'none', duration: dur * 0.3, ease: 'power2.out' },
+          tS + dur * 0.05
+        );
+      }
+
+      // ── Cards: staggered slide-in from right animation ──
+      // Category 0 reveals here too (at tS=0, i.e. right as the pin engages)
+      // instead of via a separate pre-pin ScrollTrigger. Pinning guarantees
+      // the section already fully occupies the viewport by this point, so
+      // there's no previous section left on screen to clash with — see the
+      // note above the (removed) pre-pin trigger for why timing this against
+      // the section's own viewport-entry couldn't fully solve that.
+      cards.forEach((card, cardIdx) => {
+        const cardDelay = tS + dur * 0.1 + (cardIdx * dur * 0.08);
+        tl.fromTo(card,
+          { opacity: 0, x: VW },
+          { opacity: 1, x: 0, duration: dur * 0.25, ease: 'power2.out' },
+          cardDelay
+        );
+      });
+
+      // ── Particle morph (trigger when new slide appears) ──
+      tl.call(() => {
+        console.log('[om-stacked] Morph trigger:', morphShape, 'at time:', tS);
+        window.particleSystem?.morphTo?.(morphShape, 400);
+      }, null, tS);
+    });
+
+    // No pre-pin ScrollTrigger: category 0's header/cards are revealed inside
+    // `tl` above (at tS=0), which only ever plays once `pin` has engaged.
+    //
+    // A separate pre-pin reveal tied to the section's own viewport-entry
+    // ('top bottom') was tried and measured (via onEnter/onLeave + card-anim
+    // enter/exit logging) to still overlap the previous section: this section
+    // shares a zero-gap document boundary with whatever precedes it, so "this
+    // section's top touches the viewport bottom" and "the previous section's
+    // last card is still >30% visible" are not the same moment — the card
+    // logs showed the previous card didn't exit until ~760px of scroll AFTER
+    // this section's pre-pin reveal had already started. Timing the reveal
+    // against this section's own geometry can't fix that, because the overlap
+    // is caused by the OTHER section's content still being on screen, not by
+    // this section's timing relative to itself. Deferring the whole reveal
+    // until `pin` engages sidesteps the problem entirely: pinning guarantees
+    // this section already fully occupies the viewport, so nothing from the
+    // previous section can still be visible.
+
+    // ── PINNED SCROLL ────────────────────────────────────────────────────────
+    scrollTriggerInstance = ScrollTrigger.create({
+      id: 'om-stacked',
+      trigger: stage,
+      start: 'top top',
+      end:   `+=${totalScroll}`,
+      pin: true,
+      pinSpacing: true,
+      scrub: 1,
+      animation: tl,
+      onEnter:     () => console.log('[om-stacked] PIN ENTER at', Math.round(window.scrollY)),
+      onLeave:     () => console.log('[om-stacked] PIN LEAVE at', Math.round(window.scrollY)),
+      onEnterBack: () => console.log('[om-stacked] PIN ENTER-BACK at', Math.round(window.scrollY)),
+      onLeaveBack: () => console.log('[om-stacked] PIN LEAVE-BACK at', Math.round(window.scrollY))
+    });
+
+    console.log('[om-stacked] init — scrollPerCat:', scrollPerCat, 'scrollBuffer:', scrollBuffer, 'totalScroll:', totalScroll, 'VH:', VH);
+  }
+
+  // Every entry point routes through this, never initOperatingModelStacked()
+  // directly — teardown() on a not-yet-created instance is a harmless no-op
+  // (both refs start null), so this is safe to call before the first real
+  // build too. That guarantees there's only ever one live instance no matter
+  // which of the triggers below fires first.
+  function rebuildOperatingModelStacked(reason) {
+    teardownOperatingModelStacked();
+    initOperatingModelStacked();
+    console.log('[om-stacked] (re)built —', reason, '—', window.innerWidth, '×', window.innerHeight);
+  }
+
+  // Single resize handler: tears down and fully rebuilds the timeline +
+  // ScrollTrigger so every viewport-dependent value (card/header slide-in
+  // offsets, pin duration) is recomputed against the new window size,
+  // instead of leaving stale numbers from the previous size baked into an
+  // animation that only partially refreshes.
+  let resizeTimeout;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(() => rebuildOperatingModelStacked('resize'), 250);
+  });
+
+  if (document.readyState === 'complete') rebuildOperatingModelStacked('initial load');
+  else window.addEventListener('load', () => rebuildOperatingModelStacked('initial load'), { once: true });
+
+  // The initial build runs on window 'load', which only guarantees images
+  // have loaded — it does NOT guarantee custom @font-face fonts have finished
+  // swapping in. If the real font's metrics differ from the fallback font
+  // shown first (very common with font-display: swap), text above this
+  // section (e.g. posts-tabs' testimonial copy) reflows AFTER we've already
+  // measured and pinned everything, leaving this section's ScrollTrigger
+  // positions stale relative to the now-settled layout — which is what
+  // caused the overlap seen on initial page load/refresh (a manual resize
+  // "fixed" it only because resize already triggers the rebuild above, by
+  // then measuring the page in its final, settled state).
+  //
+  // Rebuilding once fonts.ready resolves (plus a short fallback timer for
+  // anything else that might settle late) closes that gap without waiting
+  // for the user to resize the window themselves.
+  document.fonts?.ready?.then(() => rebuildOperatingModelStacked('fonts ready'));
+  setTimeout(() => rebuildOperatingModelStacked('settle fallback'), 1000);
+
+})();
+</script>

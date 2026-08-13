@@ -1,0 +1,77 @@
+{{!--
+  PRELOADER v2
+  Sequence:
+  1. "prem design" letter-by-letter reveal (left to right)
+  2. Dot falls from top, bounces between words
+  3. Words reverse out (right to left stagger)
+  4. Dot fades out; particle system fades in as globe
+  5. Globe surface ripples (1.2s), then bursts outward (0.5s)
+  6. Preloader fades out, hero entrance triggers
+--}}
+
+<style>
+  .preloader-wordmark {
+    display: flex;
+    align-items: center;
+    font-size: clamp(calc(3rem * var(--type-scale-heading, 1)), calc(15vw * var(--type-scale-heading, 1)), calc(12rem * var(--type-scale-heading, 1)));
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+
+  .preloader-subtitle {
+    font-size: clamp(calc(0.875rem * var(--type-scale-body, 1)), calc(2vw * var(--type-scale-body, 1)), calc(1.125rem * var(--type-scale-body, 1)));
+    font-weight: 300;
+    line-height: 1.6;
+    letter-spacing: 0;
+    margin-top: 1.5rem;
+    opacity: 0;
+    animation: preloaderSubtitleReveal 0.6s ease-out 2.5s both;
+  }
+
+  @keyframes preloaderSubtitleReveal {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+</style>
+
+<section id="preloader" class="preloader">
+  {{!-- Indeterminate — no aria-valuenow on purpose (WAI-ARIA: omit it when
+        the duration isn't known, same reason the visible % text was
+        dropped; see main.css's .preloader-progress-bar comment). ONE
+        streak (.progress-bar-streak) — was a Material Design two-bar
+        chase, reverted 2026-08-06 ("too many firing off": two overlapping
+        bars × two duplicate layers below = 4 visible streaks) — see
+        main.css's comment on .progress-bar-streak/bar-comet-shoot for the
+        current "comet/shooting star" motion design. .progress-bar-streak and
+        the .progress-bar-track marker are SHARED with .scroll-progress
+        (default.hbs) — same animated-bar system reused for page-to-page
+        navigation, not a preloader-only component (see page-transition.js).
+        The streak is duplicated TWICE — once in .progress-bar-clip (crisp,
+        clipped to the track), once in .progress-bar-glow (identical,
+        blurred, stacked on top) — see main.css's comment on those two
+        classes for why a real duplicate layer, not box-shadow, and why it
+        has to live outside the clip. --}}
+  {{!-- is-loading is hardcoded here, not toggled by JS: unlike
+        .scroll-progress (which doubles as the real scroll indicator and so
+        must be switched in and out of the loading state), this element
+        exists ONLY during loading — there is no "off" state to return to.
+        It was missing until 2026-08-06, which meant
+        `.progress-bar-track:not(.is-loading) .progress-bar-streak
+        { display: none }` (main.css) hid this bar's streak on every single
+        load; only the page-navigation bar was ever visible. --}}
+  <div class="preloader-progress-bar progress-bar-track is-loading" id="preloader-progress-bar" role="progressbar" aria-valuetext="Loading" aria-label="Loading">
+    <div class="progress-bar-clip">
+      <div class="progress-bar-streak"></div>
+    </div>
+    <div class="progress-bar-glow" aria-hidden="true">
+      <div class="progress-bar-streak"></div>
+    </div>
+  </div>
+  <div class="preloader-content">
+    <div class="preloader-wordmark" data-skip-animation="true">
+      <span class="pl-word-prem serif">prems</span><span class="preloader-dot sans">.</span><span class="pl-word-design sans">design</span>
+    </div>
+    <!--<h2 class="preloader-subtitle" id="preloader-subtitle">Product Designer</h2>-->
+  </div>
+</section>
