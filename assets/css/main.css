@@ -1260,7 +1260,7 @@ p:last-child {
 .content-grid {
   
   display: grid;
-  gap: var(--space-md);
+  gap: var(--space-lg);
   /* auto is the default: no data-cols needed for "just fit them". */
   grid-template-columns: repeat(auto-fit, minmax(min(var(--content-grid-min, 280px), 100%), 1fr));
 }
@@ -1568,7 +1568,7 @@ p:last-child {
    `flex: 1 1 min(420px, 48%)` wrap behaviour. */
 .flexlayout {
   display: grid;
-  gap: var(--space-md);
+  gap: var(--space-lg);
   grid-template-columns: repeat(auto-fit, minmax(min(var(--content-grid-min, 280px), 100%), 1fr));
 }
 
@@ -1700,7 +1700,7 @@ p:last-child {
 */
 .field-grid {
   display: grid;
-  gap: var(--space-lg) var(--space-md);
+  gap: var(--space-lg) var(--space-lg);
   grid-template-columns: repeat(auto-fit, minmax(min(var(--content-grid-min, 280px), 100%), 1fr));
 }
 
@@ -1748,12 +1748,12 @@ p:last-child {
 .role-overview[data-rows] {
   display: flex;
   flex-direction: column;
-  gap: var(--space-lg);
+  gap: var(--space-xl);
 }
 
 .grid-row {
   display: grid;
-  gap: var(--space-md);
+  gap: var(--space-xl);
   grid-template-columns: repeat(auto-fit, minmax(min(var(--content-grid-min, 280px), 100%), 1fr));
 }
 
@@ -2303,6 +2303,11 @@ width: 100%;
   background-color: var(--color-outline);
   margin: var(--space-section) 0;
 }
+.kg-gallery-card, 
+.kg-image-card,
+kg-gallery-container {
+ gap: var(--space-md) !important;
+}
 
 /* margin-left only — indentation, not rhythm. The margin-top/-bottom that
    used to be here competed with the prose flow system above (this rule is
@@ -2537,7 +2542,7 @@ html {
   top: 0;
   left: 0;
   right: 0;
-  padding: var(--space-md) 0 0 var(--content-padding);
+  padding: var(--space-sm) 0 0 var(--content-padding);
   z-index: 10001;
   background-color: transparent !important; 
   border: none;
@@ -2931,7 +2936,7 @@ html {
      makes the box shrink-to-fit its content instead of spanning full width. */
   display: inline-flex;
   align-items: center;
-  padding: var(--space-xs) var(--space-sm) var(--space-xs) var(--space-sm);
+  padding: var(--space-xs) var(--space-xs) var(--space-xs) var(--space-xs);
   gap: var(--space-xs);
   border-radius: var(--glass-radius);
   border: 0.5px solid var(--glass-border-thin);
@@ -3238,7 +3243,18 @@ margin:0;
      evenly-padded rounded box. */
   display: inline-flex;
   align-items: center;
-  padding: var(--space-xs) var(--space-sm);
+  justify-content: center;
+  /* Fixed 48×48, matching .nav-icon-btn exactly (theme-toggle/close/prev/
+     next) — was padding-driven sizing (var(--space-xs) var(--space-sm)
+     around a 20px icon), which came out 48×34 since the vertical padding
+     was smaller than the horizontal: a visible rectangle next to the
+     square icon buttons' hover fill, even though both share the same
+     border-radius. .nav-menu-label is hidden (icon-only nav, see below),
+     so there's no text content that still needs room — a fixed square is
+     safe here, not a mismatch with content. */
+  width: 48px;
+  height: 48px;
+  padding: 0;
   border-radius: var(--radius-md);
   /* Anchors .nav-tooltip's position:absolute (see below) to this link
      itself, same as .nav-icon-btn already does for its own tooltip. */
@@ -3488,6 +3504,15 @@ body.page-work-index .nav-menu a[href$="/work"] .nav-menu-icon {
 .nav-controls {
   display: flex;
   align-items: center;
+  /* Was unset (flex gap default: normal = 0) — its icon buttons packed
+     together with zero spacing, unlike every other row in this nav
+     (.nav-wrapper, .nav-menu), which all use this same 7px gap. Also the
+     real source of the expanded-vs-collapsed pane WIDTH mismatch on post
+     pages: both rows end up with 4 icon buttons (theme-toggle never
+     actually hides — no rule for that exists — so the "collapsed" pill
+     is Close/Prev/Next/theme-toggle, not just 3), but only the expanded
+     side had gaps between them. */
+  gap: var(--space-xs);
 }
 
 /* Post navigation controls — prev/next arrows, only on post pages.
@@ -3500,7 +3525,18 @@ body.page-work-index .nav-menu a[href$="/work"] .nav-menu-icon {
   gap: var(--space-xs);
 }
 
-body.post-template .nav-post-controls {
+/* Was body.post-template .nav-post-controls (unconditional on every post
+   page) — rendered from the very first frame, BEFORE .nav-collapsing
+   ever lands, so the true "still expanded" measurement frame (see
+   navigation.hbs's width-measurement script) counted this alongside the
+   full logo+menu row, inflating --nav-expanded-w by everything the
+   collapsed pill was going to show too ("appended" — the pane looked
+   wider than either state actually is). Gated behind nav-collapsing (or
+   nav-hop, already-collapsed arrival) so it stays invisible for that one
+   true expanded frame, matching what a non-post page's nav actually
+   looks like at that moment. */
+html.nav-hop body.post-template .nav-post-controls,
+body.post-template.nav-collapsing .nav-post-controls {
   display: flex;
 }
 
@@ -3531,22 +3567,23 @@ body.post-template .nav-post-controls {
 .nav-icon-btn:hover {
   color: var(--color-primary);
   background-color: var(--color-surface-1);
+  /* .nav-icon-btn's base rule sets border-radius: var(--radius-full) — a
+     perfect circle. Overridden here, on EVERY icon button (theme-toggle,
+     search, close, prev/next — the shared class), to the same
+     rounded-rectangle radius .nav-menu a (Home/Profile/Contact) uses, so
+     every hover fill across the nav (and the post-page close/prev/next,
+     same class) reads consistently instead of some being circular and
+     some rectangular. Was scoped to .theme-toggle:hover only (2026-08-xx,
+     "not part of what was asked" at the time) — now applies to all
+     siblings per explicit follow-up request. Scoped to :hover only, not
+     the base rule — background is transparent at rest, so the shape is
+     invisible until this fill appears; no need to touch the resting box. */
+  border-radius: var(--radius-md);
 }
 
 .theme-toggle:hover {
   color: var(--color-primary) !important;
   background-color: rgba(var(--primary-rgb, 74, 158, 92), 0.08) !important;
-  /* .theme-toggle is `.nav-icon-btn theme-toggle` (navigation.hbs), which
-     inherits .nav-icon-btn's border-radius: var(--radius-full) — a perfect
-     circle. Overridden to the SAME rounded-rectangle radius .nav-menu a
-     (Home/Profile/Contact) uses, so the hover fill reads consistently with
-     the rest of the nav instead of being the one circular highlight among
-     rectangular ones. Scoped to :hover only, not .theme-toggle's base
-     rule — background is transparent at rest, so the shape is invisible
-     until this fill appears; no need to touch the resting box. Other
-     .nav-icon-btn siblings (close/search/prev/next) are unaffected on
-     purpose — not part of what was asked. */
-  border-radius: var(--radius-md) !important;
 }
 
 /* Navigation tooltips — appear below icon buttons. translateY(14px), not
@@ -3587,11 +3624,20 @@ body.post-template .nav-post-controls {
   transform: scale(0.92);
 }
 
-/* Post nav links styled as buttons */
+/* Post nav links styled as buttons.
+   color: inherit !important was the bug: both classes are `.nav-icon-btn
+   nav-post-prev` on the SAME <a>, so `inherit` skipped .nav-icon-btn's
+   own color-mix(--color-icon, ...) declaration on that element and
+   pulled from the <a>'s PARENT instead — which isn't pinned by
+   .nav-wrapper.glass-liquid the way --color-icon is, so it followed
+   [data-theme] like ordinary page text. Every other nav icon (close,
+   theme-toggle, home/profile/contact) reads its own .nav-icon-btn color
+   directly and stays pinned dark regardless of site theme; removing the
+   override here lets the arrows do the same instead of being the one
+   icon that visibly flips with light/dark mode. */
 .nav-post-prev,
 .nav-post-next {
   text-decoration: none !important;
-  color: inherit !important;
 }
 
 /* Inner wrapper around just the sun/moon images (see navigation.hbs and the
@@ -3684,7 +3730,13 @@ body.post-template .nav-post-controls {
   display: none;
 }
 
-body.post-template .nav-close-btn {
+/* Gated behind nav-collapsing/nav-hop, same reasoning as .nav-post-
+   controls above — was unconditional on body.post-template alone, so
+   this rendered from the very first frame too, inflating the true
+   "still expanded" measurement (navigation.hbs) alongside the full
+   logo+menu row. */
+html.nav-hop body.post-template .nav-close-btn,
+body.post-template.nav-collapsing .nav-close-btn {
   display: inline-flex;
   /* Was upsized (48px + space-xs*2) to fill the pill entirely when it was
      the ONLY button in a single-button pill. Now the pill holds 3 buttons
@@ -3708,16 +3760,10 @@ body.post-template .nav-close-btn {
    Neither present = a completely ordinary expanded nav, same as any other
    page — that's the deliberate "before" state the animation collapses
    away from, not a bug. */
-body.post-template .nav-menu,
-body.post-template .nav-controls .theme-toggle,
 body.post-template .hamburger {
   transition: opacity 0.4s cubic-bezier(0.2, 0, 0, 1), max-width 0.4s cubic-bezier(0.2, 0, 0, 1), margin 0.4s cubic-bezier(0.2, 0, 0, 1);
 }
 
-html.nav-hop body.post-template .nav-menu,
-body.post-template.nav-collapsing .nav-menu,
-html.nav-hop body.post-template .nav-controls .theme-toggle,
-body.post-template.nav-collapsing .nav-controls .theme-toggle,
 html.nav-hop body.post-template .hamburger,
 body.post-template.nav-collapsing .hamburger {
   opacity: 0 !important;
@@ -3727,45 +3773,117 @@ body.post-template.nav-collapsing .hamburger {
   margin: 0 !important;
 }
 
-body.post-template .nav-logo {
-  transition: opacity 0.4s cubic-bezier(0.2, 0, 0, 1), max-width 0.4s cubic-bezier(0.2, 0, 0, 1);
+/* POST-PAGE COLLAPSE — HIDE-THEN-SHRINK (2026-08-14, third pass)
+
+   Two earlier versions both kept Home/Profile/Contact/theme-toggle
+   VISIBLE (fading out) for the first chunk of the animation — meaning
+   the pane rendered at its full EXPANDED width for a beat on every post
+   landing before anything shrank, which read as "the pill is wider than
+   it should be" right when the page appears. Neither the position:
+   absolute crossfade nor the in-place fade-out version fixed that, since
+   both still show the expanded items initially.
+
+   This version: the expanded items are hidden IMMEDIATELY, the instant
+   .nav-collapsing lands (no fade-out — they're simply not part of the
+   animation at all), so the only thing left to animate is close/prev/
+   next staggering in WHILE the pane visually shrinks from its one true
+   expanded-width frame down to its own real collapsed width. Both
+   widths are known exactly because the collapsed state only ever
+   contains a small, fixed icon set — navigation.hbs measures both,
+   once, synchronously, right before hiding anything (see that file).
+   No position:absolute, no left-offset matching: everything stays in
+   normal flex flow, so close/prev/next simply render wherever flex
+   naturally puts them — which is also why the earlier absolute-position
+   version's alignment bug can't recur here. */
+body.post-template .gh-navigation[data-nav-hide-mode="stagger"] .nav-wrapper {
+  /* --nav-expanded-w: set by navigation.hbs from a real getBoundingClientRect()
+     read at the one true expanded frame — fit-content itself can't be
+     interpolated FROM (confirmed in isolation: a transition from
+     width:fit-content to a px value snaps instantly regardless of
+     whether `transition` is declared beforehand), so a real starting
+     pixel value is required for any shrink motion to be visible at all.
+     transition lives on this unconditional base rule, active before
+     .nav-collapsing ever changes the target — a transition can only
+     interpolate a property already flagged transitionable BEFORE the
+     value changes, not introduced in the same rule as the new value.
+     Also matches [data-nav-hide-mode="stagger"] (scroll-hide feature,
+     above) to reach the same (0,4,0) specificity tier — that feature's
+     own .nav-wrapper rule otherwise outranks a plain body.post-template
+     .nav-wrapper and silently overwrites the WHOLE transition shorthand
+     with just `gap`, regardless of source order. */
+  width: var(--nav-expanded-w, fit-content);
+  transition: width 0.4s cubic-bezier(0.2, 0, 0, 1), gap 0.4s cubic-bezier(0.2, 0, 0, 1) 0s;
 }
 
-html.nav-hop body.post-template .nav-logo,
-body.post-template.nav-collapsing .nav-logo {
-  opacity: 0;
-  max-width: 0;
-  overflow: hidden;
-  pointer-events: none;
+/* Value-only change, instant with .nav-collapsing (not gated on a fade
+   finishing — there's no fade left to wait for). --nav-collapsed-w is
+   also JS-measured (navigation.hbs) rather than fit-content, for the
+   same "can't animate to/from the keyword" reason as above — confirmed
+   fit-content can't be interpolated TO either, not just FROM.
+   Must match the same ancestor prefix as the base rule (0,5,0 vs its
+   0,4,0) or this loses the width property entirely regardless of
+   .nav-collapsing being present. */
+body.post-template.nav-collapsing .gh-navigation[data-nav-hide-mode="stagger"] .nav-wrapper {
+  width: var(--nav-collapsed-w, fit-content);
 }
 
-/* Zero-width once collapsed (opacity:0/max-width:0 on its children above)
-   still left it as a live flex ITEM of .nav-wrapper — the wrapper's own
-   `gap` opened a full gap's worth of space before .nav-controls regardless,
-   on top of .nav-wrapper's left padding, sitting the close button further
-   from the pill's edge than the next arrow sat from the other edge.
-   display:none removes it from the flex flow entirely once the collapse
-   is done settling — kept OUT of the transition-eligible rule above since
-   display can't be animated, and applied a beat after the animated case
-   (navigation.hbs sets it via JS on transitionend) so the collapse is
-   still visibly seen shrinking rather than snapping away instantly. */
+/* Expanded items vanish immediately — no fade, no delay, no transition.
+   They're not part of this animation at all; only the pane width
+   (above) and the incoming icons (below) actually move. nav-hop gets
+   the same immediate hide (arrives pre-collapsed, nothing to show).
+   .theme-toggle included: it lives in .nav-controls (a sibling of
+   .logoandnavwrapper, not a child of it), so hiding .logoandnavwrapper
+   alone doesn't touch it — without this it stayed visible in the
+   "collapsed" pill alongside close/prev/next, which isn't wanted there. */
 html.nav-hop body.post-template .logoandnavwrapper,
-body.post-template.nav-collapsed-settled .logoandnavwrapper {
+body.post-template.nav-collapsing .logoandnavwrapper,
+html.nav-hop body.post-template .nav-controls .theme-toggle,
+body.post-template.nav-collapsing .nav-controls .theme-toggle {
   display: none;
 }
 
+/* INCOMING — close/prev/next stagger in left-to-right, concurrent with
+   the pane's own shrink (both start the instant .nav-collapsing lands).
+   Base rule is the hidden starting state WITH the transition already
+   declared (same "must be declared before the value changes" rule the
+   width fix above relies on); .nav-collapsing only changes the target
+   to visible, so it animates instead of snapping. */
+body.post-template .nav-close-btn,
+body.post-template .nav-post-prev,
+body.post-template .nav-post-next {
+  opacity: 0;
+  transform: translateX(-12px);
+  transition: opacity 0.3s cubic-bezier(0.2, 0, 0, 1), transform 0.3s cubic-bezier(0.2, 0, 0, 1);
+}
+
+html.nav-hop body.post-template .nav-close-btn,
+html.nav-hop body.post-template .nav-post-prev,
+html.nav-hop body.post-template .nav-post-next {
+  opacity: 1;
+  transform: translateX(0);
+  transition: none;
+}
+
+body.post-template.nav-collapsing .nav-close-btn,
+body.post-template.nav-collapsing .nav-post-prev,
+body.post-template.nav-collapsing .nav-post-next {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+body.post-template.nav-collapsing .nav-close-btn { transition-delay: 0s; }
+body.post-template.nav-collapsing .nav-post-prev { transition-delay: 0.08s; }
+body.post-template.nav-collapsing .nav-post-next { transition-delay: 0.16s; }
+
 body.post-template .nav-wrapper {
-  /* Was a fixed square sized for exactly one button (close only) — now
-     the pill also holds the prev/next arrows (.nav-post-controls), so a
-     hardcoded single-button width clipped/overlapped them instead of
-     growing to fit. fit-content sizes to whatever's actually visible
-     (2 or 3 icon buttons), height stays fixed since it's never more than
-     one row. Small gap + side padding replace the old zero-gap/no-padding
-     single-button centering. */
+  /* Small gap + side padding, sized for icon buttons (close/prev/next)
+     rather than the logo+menu+theme-toggle row. height stays fixed since
+     it's never more than one row. Width lives on the [data-nav-hide-
+     mode="stagger"] rule above (needed there for the specificity fix) —
+     not duplicated here. */
   gap: var(--space-xs);
   padding: 0 var(--space-xs);
   height: calc(48px + (var(--space-xs) * 2));
-  width: fit-content;
   justify-content: center;
 }
 
@@ -6239,7 +6357,7 @@ body[data-page-width='full'] .gh-canvas {
 
 body[data-page-width='narrow'] .post[data-post-hero='respects_page_width'] > .post-header,
 body[data-page-width='narrow'] .post[data-post-hero='respects_page_width'] .post-layout {
-  max-width: 880px;
+  max-width: 700px;
 }
 
 body[data-page-width='contained'] .post[data-post-hero='respects_page_width'] > .post-header,
@@ -6264,7 +6382,7 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-l
 }
 
 body[data-page-width='narrow'] .post[data-post-hero='respects_page_width'] .post-image {
-  max-width: 880px;
+  max-width: 700px;
 }
 
 body[data-page-width='contained'] .post[data-post-hero='respects_page_width'] .post-image {
@@ -6298,7 +6416,7 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-i
 }
 
 .post[data-post-hero='narrow'] > .post-header,
-.post[data-post-hero='narrow'] .post-layout { max-width: 880px; }
+.post[data-post-hero='narrow'] .post-layout { max-width: 700px; }
 .post[data-post-hero='contained'] > .post-header,
 .post[data-post-hero='contained'] .post-layout { max-width: 1280px; }
 .post[data-post-hero='wide'] > .post-header,
@@ -6312,7 +6430,7 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-i
   width: 100%;
 }
 
-.post[data-post-hero='narrow'] .post-image { max-width: 880px; }
+.post[data-post-hero='narrow'] .post-image { max-width: 700px; }
 .post[data-post-hero='contained'] .post-image { max-width: 1280px; }
 .post[data-post-hero='wide'] .post-image { max-width: 1600px; }
 
@@ -6420,7 +6538,7 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-i
 }
 
 .page-content {
-  max-width: 800px;
+  max-width: 700px;
   margin-left: auto;
   margin-right: auto;
 }
@@ -6487,15 +6605,15 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-i
      measure") sets grid-column: narrow-start/narrow-end at EQUAL
      specificity (0,2,0 either way) and sits later in the file, so it won
      the tie and silently capped the actual TRACK to --main (~800px at this
-     viewport) — max-width:880px then had no effect, since the track itself
+     viewport) — max-width:700px then had no effect, since the track itself
      was already narrower than the cap it was supposed to apply. Verified
-     live: computed width was 800px (the --main track), not 880px. */
+     live: computed width was 800px (the --main track), not 700px. */
   grid-column: full-start / full-end;
-  max-width: 880px; /* [data-page-content-width="narrow"] */
+  max-width: 700px; /* [data-page-content-width="narrow"] */
   /* Left-anchored, not centered: the base rule's margin-inline:auto
      centers the box within the (wider) full track — invisible on
      wide/full, where the box already nearly fills that track, but
-     obviously wrong here, where an 880px box floating inside a much
+     obviously wrong here, where an 700px box floating inside a much
      wider track visibly drifted to the page's horizontal center instead
      of lining up with the post header/body's own left edge, same
      left-anchoring every OTHER zone in this grid follows (see the
@@ -7675,7 +7793,7 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
      REVEAL_START), so a brief pre-reveal blank state is already the
      expected, designed-for baseline here, not a regression.) */
   opacity: 0;
-  max-width: 880px !important
+  max-width: 700px !important
 }
 
 /* Belt-and-suspenders for the same gap the comment above describes: on this
@@ -8694,7 +8812,7 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
 .work-description {
   font-size: var(--text-size-h4);
   color: var(--color-on-surface-variant);
-  max-width: 800px;
+  max-width: 700px;
   margin: 0 auto;
 }
 
@@ -9211,7 +9329,7 @@ body[data-page-width='full'] .testimonials-section[data-testimonials-layout="scr
 }
 
 .modal-overlay[data-group-id='testimonials'] .modal-inner {
-  max-width: 800px;
+  max-width: 700px;
   margin: 0 auto;
 }
 
@@ -9560,7 +9678,7 @@ body[data-page-width='full'] .testimonials-section[data-testimonials-layout="scr
 
 /* Set max-width based on page-width setting */
 body[data-page-width='narrow'] [data-home-content-width="respect_page_width"] {
-  max-width: 880px;
+  max-width: 700px;
 }
 
 body[data-page-width='contained'] [data-home-content-width="respect_page_width"] {
@@ -9594,7 +9712,7 @@ body[data-page-width='full'] [data-home-content-width="respect_page_width"] {
   margin-left: auto;
   margin-right: auto;
   width: 100%;
-  max-width: 880px;
+  max-width: 700px;
 }
 
 [data-home-content-width="contained"] {
@@ -9636,7 +9754,7 @@ body[data-page-width='full'] [data-home-content-width="respect_page_width"] {
    the contained tier. Same shape as every other tier here, no new
    mechanism. */
 body[data-page-width='narrow'] [data-page-content-width="respect_page_width"] {
-  max-width: 880px;
+  max-width: 700px;
 }
 
 body[data-page-width='contained'] [data-page-content-width="respect_page_width"] {
@@ -9686,7 +9804,7 @@ body[data-page-width='full'] [data-page-content-width="respect_page_width"] {
 [data-page-content-width="narrow"] {
 
   width: 100%;
-  max-width: 880px;
+  max-width: 700px;
 }
 
 [data-page-content-width="contained"] {
@@ -9708,7 +9826,7 @@ body[data-page-width='full'] [data-page-content-width="respect_page_width"] {
 }
 
 body[data-page-width='narrow'] .gh-footer[data-footer-width="respect_page_width"] {
-  max-width: 880px;
+  max-width: 700px;;
 }
 
 body[data-page-width='contained'] .gh-footer[data-footer-width="respect_page_width"] {
@@ -9736,7 +9854,7 @@ body[data-page-width='full'] .gh-footer[data-footer-width="respect_page_width"] 
   margin-left: auto;
   margin-right: auto;
   width: 100%;
-  max-width: 880px;
+  max-width: 700px;
 }
 
 .gh-footer[data-footer-width="contained"] {

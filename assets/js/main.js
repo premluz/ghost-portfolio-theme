@@ -1820,18 +1820,20 @@ function initPostNavigation() {
 
 function initPostNavControls() {
   const article = document.querySelector('article.post');
-  if (!article) {
-    // Not a post page, hide nav controls
-    const controls = document.querySelector('.nav-post-controls');
-    if (controls) controls.style.display = 'none';
-    return;
-  }
+  if (!article) return;
 
   const navControls = document.querySelector('.nav-post-controls');
   if (!navControls) return;
 
-  // Show controls on post pages
-  navControls.style.display = 'flex';
+  // display is owned entirely by CSS now (main.css "POST PAGE NAV" —
+  // .nav-post-controls gated behind body.post-template.nav-collapsing/
+  // html.nav-hop). This function used to set it inline
+  // (display:flex here, display:none in the early-return above) —
+  // inline styles always beat class rules regardless of specificity, so
+  // that permanently pinned the arrows visible on every post page,
+  // overriding the collapse/reverse animation's own show/hide (measured:
+  // arrows stayed display:flex and mid-fade-opacity, spilling outside
+  // the still-narrow pane, while the REVERSE animation was playing).
 
   const currentId = article.getAttribute('data-post-id');
   const tagsStr = article.getAttribute('data-post-tags');

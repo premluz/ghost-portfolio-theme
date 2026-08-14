@@ -278,16 +278,36 @@
 
     const pageContent = document.querySelector('main');
 
+    // NAV REVERSE — removing .nav-collapsing plays the collapse's CSS
+    // transitions in reverse "for free" (main.css "POST PAGE NAV": the
+    // base/no-class rules ARE the expanded state, already have their own
+    // transitions declared, so un-setting the class naturally animates
+    // back — verified in isolation, ~0.4s to fully settle: close/prev/
+    // next snap invisible instantly (display:none, mirroring how they
+    // snapped visible on the way in), Home/Profile/Contact/theme-toggle
+    // reappear instantly, and the pane's width tweens from
+    // --nav-collapsed-w back to --nav-expanded-w). The nav sits ABOVE the
+    // scrim (z-index 10001 vs 9998), so this stays visible throughout —
+    // not something the scrim conveniently covers — hence extending the
+    // timeline below to let it actually finish before navigating.
+    document.body.classList.remove('nav-collapsing');
+
     const tl = gsap.timeline({
       onComplete: () => {
         window.location.href = href;
       },
     });
 
-    // Durations halved (0.15/0.3 → 0.08/0.18) per explicit "speed it up"
-    // request — scrim stays the longer of the two so it's still fully
-    // opaque (covering the page) by the time main's slide/fade finishes,
-    // same relationship as before, just compressed.
+    // scrim/main keep their existing fast 0.2s pace (an earlier explicit
+    // "speed it up" request) — only the timeline's OVERALL duration is
+    // extended, via this placeholder tween, so onComplete (and the actual
+    // navigation) waits for the nav's CSS width transition above to
+    // finish too. 0.42s: the reverse's own measured settle time (~0.4s)
+    // plus a small buffer — CSS transitions aren't tracked by GSAP's
+    // timeline duration on their own, so without this the page would
+    // navigate away at 0.2s, mid-expand.
+    tl.to({}, { duration: 0.42 }, 0);
+
     if (pageContent) {
       tl.to(pageContent, { y: 40, opacity: 0, duration: 0.2, ease: 'power2.in' }, 0);
     }

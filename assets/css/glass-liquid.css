@@ -50,10 +50,10 @@
     0 6px 16px rgba(0, 0, 0, 0.12);
   --glass-liquid-backdrop-distort: url(#glass-distortion) blur(8px) saturate(190%) brightness(0.95);
   --glass-liquid-fallback-bg: linear-gradient(180deg, rgba(22, 22, 26, 0.58), rgba(10, 10, 12, 0.72));
-  --glass-liquid-sheen:
+ /* --glass-liquid-sheen:
     radial-gradient(140% 70% at 50% -10%, rgba(255, 255, 255, 0.13), transparent 55%),
     linear-gradient(115deg, rgba(255, 255, 255, 0.07) 0%, transparent 20%, transparent 80%, rgba(255, 255, 255, 0.04) 100%);
-
+*/
   position: relative;
   /* No overflow:hidden here (removed) — .glass-liquid::before/::after
      already clip themselves to the same rounded shape via border-radius:

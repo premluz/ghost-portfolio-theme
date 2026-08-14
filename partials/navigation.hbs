@@ -187,12 +187,59 @@
   (function () {
     if (document.documentElement.classList.contains('nav-hop')) return;
     if (!document.body.classList.contains('post-template')) return;
+    var wrapper = document.querySelector('.nav-wrapper');
+    var logoAndNav = document.querySelector('.logoandnavwrapper');
+    if (!wrapper || !logoAndNav) return;
+
     requestAnimationFrame(function () {
       requestAnimationFrame(function () {
+        // Measure BOTH target widths as real DOM values, not hardcoded
+        // pixel constants — main.css's HIDE-THEN-SHRINK model needs real
+        // pixel numbers on both ends of the width transition (fit-content
+        // can't be interpolated to OR from — confirmed in isolation), but
+        // a literal number here would silently go stale if icon count/
+        // gap/padding tokens ever change. Read at the double-rAF point:
+        // the one true expanded frame, right before anything is hidden.
+        var expandedWidth = wrapper.getBoundingClientRect().width;
+
+        // Collapsed width: main.css gates close/.nav-post-controls behind
+        // .nav-collapsing (so they don't render during this very
+        // "expanded" frame and inflate expandedWidth above — see that
+        // CSS block's own comment) — which means they're EQUALLY hidden
+        // right now, before we've added that class. Temporarily add
+        // nav-collapsing to reveal them (and hide logoandnavwrapper/
+        // theme-toggle) for the measurement, then remove it immediately —
+        // synchronous, no paint happens between add and remove, so this
+        // never visibly flashes. The real (non-measurement) add happens a
+        // few lines down.
         document.body.classList.add('nav-collapsing');
+        var collapsedWidth = wrapper.getBoundingClientRect().width;
+        document.body.classList.remove('nav-collapsing');
+
+        wrapper.style.setProperty('--nav-expanded-w', expandedWidth + 'px');
+        wrapper.style.setProperty('--nav-collapsed-w', collapsedWidth + 'px');
+
+        // One more frame before flipping the target: a CSS transition
+        // needs the browser to actually COMMIT the "before" value
+        // (width: var(--nav-expanded-w), now a real px number instead of
+        // fit-content) in a real paint before the target changes — doing
+        // both in the same tick (confirmed in isolation while building
+        // this) collapses them into one style recalc with no "before"
+        // state to interpolate from, and the width just snaps.
+        requestAnimationFrame(function () {
+          document.body.classList.add('nav-collapsing');
+        });
+        // 550ms — matches the HIDE-THEN-SHRINK timing (main.css, "POST
+        // PAGE NAV"): the pane's width transition (0.4s) and the
+        // close/prev/next stagger (longest leg: Next, 0.16s delay + 0.3s
+        // duration = 0.46s) both run concurrently from t=0, +buffer.
+        // nav-collapsed-settled doesn't gate anything visual anymore —
+        // logoandnavwrapper is already display:none the instant
+        // nav-collapsing lands — it's kept only as a general "animation
+        // finished" marker other code can check.
         setTimeout(function () {
           document.body.classList.add('nav-collapsed-settled');
-        }, 450);
+        }, 550);
       });
     });
   })();
