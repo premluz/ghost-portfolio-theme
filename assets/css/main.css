@@ -1260,7 +1260,7 @@ p:last-child {
 .content-grid {
   
   display: grid;
-  gap: var(--space-lg);
+  gap: var(--space-sm);
   /* auto is the default: no data-cols needed for "just fit them". */
   grid-template-columns: repeat(auto-fit, minmax(min(var(--content-grid-min, 280px), 100%), 1fr));
 }
@@ -1700,7 +1700,7 @@ p:last-child {
 */
 .field-grid {
   display: grid;
-  gap: var(--space-lg) var(--space-lg);
+  gap: var(--space-md);
   grid-template-columns: repeat(auto-fit, minmax(min(var(--content-grid-min, 280px), 100%), 1fr));
 }
 
@@ -1897,6 +1897,235 @@ p:last-child {
 .field-grid-item[data-color='amber'] { background: var(--color-utility-amber-subtle-bg); border-color: var(--color-utility-amber-subtle-border); }
 .field-grid-item[data-color='amber'] > .text-eyebrow { color: var(--color-utility-amber-vibrant-text); }
 .field-grid-item[data-color='amber'] > p { color: var(--color-utility-amber-subtle-text); }
+
+/* ═════════════════════════════════════════════════════════════ */
+/* CASE STUDY SECTION — editorial layout for post-body case studies:    */
+/* full-bleed section, up to 3 columns, per-column width/vertical       */
+/* alignment/offset for art-directed asymmetric compositions, single-   */
+/* column reflow on mobile. Pasteable into post content, same contract  */
+/* as .content-grid/.field-grid above (free markup, no JS required).    */
+/* ═════════════════════════════════════════════════════════════ */
+/*
+  Three-level structure, matching how the rest of this codebase already
+  separates "how wide is this on the page" from "what's inside it":
+
+  .case-study-section   — the full-bleed OUTER wrapper. One per editorial
+                           beat of the case study. Sets the page-width
+                           zone via data-width, reusing .gh-canvas's own
+                           narrow/contained/wide/full named grid tracks
+                           (main.css, "GHOST WIDTH ZONES") rather than a
+                           parallel width system — a case-study-section
+                           IS a grid-column participant the same way
+                           .kg-width-wide/.kg-width-full already are, so
+                           it always sits correctly relative to the post
+                           header and every other pasted content type.
+  .case-study-columns    — the CONTENT of one section, up to 3 columns
+                           via data-cols, each column's width settable
+                           independently via data-col-widths (a slash-
+                           separated fr ratio, e.g. "2/1" or "1/1/1").
+                           Also takes its OWN data-width, independent of
+                           the section's — .case-study-section inherits
+                           the same named grid tracks one level deeper
+                           (grid-template-columns: inherit, same
+                           mechanism .gh-content already uses relative to
+                           .gh-canvas) so a full-bleed section (data-
+                           width="full" on the section) can still hold a
+                           narrow column row inside it (data-width=
+                           "narrow" on .case-study-columns) — e.g. a
+                           full-bleed color background with body-text-
+                           measure content centered inside it. Omitted:
+                           falls back to filling the section's own width
+                           (100%), today's original behaviour.
+  .case-study-item       — one column's content (text OR an artifact/
+                           image — this system doesn't care which).
+                           Vertical alignment via data-align (top|middle|
+                           bottom — the reference brief's "column left
+                           could be top/middle/bottom of the section"),
+                           and art-directed offset via data-offset-top/
+                           data-offset-bottom (token-based spacing, not
+                           literal pixels — see ART-DIRECTED OFFSET
+                           below).
+
+  Markup:
+    <section class="case-study-section" data-width="wide">
+      <div class="case-study-columns" data-cols="2" data-col-widths="1/1">
+        <div class="case-study-item" data-align="top">
+          <h3>Improving selection with a bottom sheet</h3>
+          <p>We replaced the dropdown with a bottom sheet...</p>
+        </div>
+        <div class="case-study-item" data-align="bottom" data-offset-top="xl">
+          <img src="artifact.png" alt="">
+        </div>
+      </div>
+    </section>
+
+  data-width         narrow | contained | wide | full  (default: wide on
+                      .case-study-section; on .case-study-columns,
+                      default is "fill the section" — see that element's
+                      own note above). Same four zones .kg-width-* already
+                      uses — narrow matches body-text measure, contained
+                      is the image default step between text and wide,
+                      wide is the existing "wide image" zone, full
+                      reaches the true viewport edge (bind-shift/full-
+                      bleed color sections belong here). Not a new width
+                      vocabulary — reusing the zone the reader already
+                      sees every other pasted image use keeps a case
+                      study visually consistent with plain post content
+                      around it. Valid on BOTH .case-study-section and
+                      .case-study-columns — set both to independently
+                      control the outer section's bleed and the inner
+                      content's measure (e.g. section="full",
+                      columns="narrow" for a full-bleed background with
+                      body-text-width content inside it).
+  data-cols           1 | 2 | 3  (on .case-study-columns; default: 1)
+  data-col-widths     Slash-separated fr ratios, one per column, e.g.
+                      "2/1" (first column twice the second) or "1/1/1"
+                      (even three-up). Optional — omitted or malformed
+                      falls back to even columns (grid's own 1fr default
+                      per track). Not needed at all for data-cols="1".
+  data-align          top | middle | bottom  (on .case-study-item;
+                      default: top) — this column's own vertical position
+                      within the row, independent of its siblings' height
+                      (align-self on a grid item), so a short text column
+                      can sit flush with an artifact's bottom edge, or a
+                      tall artifact can start below a short label instead
+                      of stretching to match it.
+  data-offset-top     xs | sm | md | lg | xl | 2xl | 3xl (on .case-study-
+  data-offset-bottom  item; optional) — extra padding pushing this one
+                      column down (top) or reserving space below it
+                      (bottom), for the staggered "one image begins lower
+                      than its neighbor" rhythm the reference brief
+                      describes. Token-scaled (--space-* below), not
+                      literal pixels, so it scales with the same fluid
+                      clamp() steps everything else on the page uses.
+                      Removed entirely on mobile (see REFLOW below) — an
+                      offset is a desktop art-direction device; forcing it
+                      into a stacked single column reads as an accidental
+                      gap, not a composition.
+*/
+
+.case-study-section {
+  width: 100%;
+  grid-column: wide-start / wide-end;
+  /* Nested grid inheriting the SAME named tracks one level deeper — same
+     mechanism .gh-content already uses relative to .gh-canvas
+     (grid-template-columns: inherit copies the computed track list, and
+     the named lines — narrow-start, wide-end, etc. — are the same names
+     regardless of which grid declared them). This is what lets
+     .case-study-columns pick its OWN width independently of the
+     section's: without this, .case-study-columns would only ever have
+     the section's own box to fill (width:100% of whatever span the
+     section resolved to), with no wider track structure left to opt
+     into. */
+  display: grid;
+  grid-template-columns: inherit;
+  padding: 20vh 0;
+}
+
+.case-study-section[data-width="narrow"] { grid-column: narrow-start / narrow-end; }
+.case-study-section[data-width="contained"] { grid-column: contained-start / contained-end; }
+.case-study-section[data-width="wide"] { grid-column: wide-start / wide-end; }
+.case-study-section[data-width="full"] { grid-column: full-start / full-end; }
+
+.case-study-columns {
+  /* 1 / -1 (fills whatever span the section resolved to) is the DEFAULT
+     — matches the original width:100% behavior exactly when no
+     data-width is set here. The data-width rules below override this
+     with a specific named track instead, opting OUT of just filling the
+     section and INTO the section's own inherited track structure. */
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(var(--case-study-cols, 1), minmax(0, 1fr));
+  gap: var(--space-4xl);
+  align-items: stretch;
+  width: 100%;
+}
+
+.case-study-columns[data-width="narrow"] { grid-column: narrow-start / narrow-end; }
+.case-study-columns[data-width="contained"] { grid-column: contained-start / contained-end; }
+.case-study-columns[data-width="wide"] { grid-column: wide-start / wide-end; }
+.case-study-columns[data-width="full"] { grid-column: full-start / full-end; }
+
+.case-study-columns[data-cols="1"] { --case-study-cols: 1; }
+.case-study-columns[data-cols="2"] { --case-study-cols: 2; }
+.case-study-columns[data-cols="3"] { --case-study-cols: 3; }
+
+/* data-col-widths overrides the even 1fr split above with an explicit
+   per-column ratio — one rule per supported column count × the specific
+   ratio strings actually needed. Not a generic N-value CSS parser (no
+   such thing exists without JS): a fixed, documented set of common
+   editorial ratios, same "known values, not open-ended input" contract
+   data-cols/data-align/data-offset-* all already use. Add more ratio
+   strings here as real compositions need them, same pattern as
+   data-color's fixed six-hue set. */
+.case-study-columns[data-cols="2"][data-col-widths="1/1"] { grid-template-columns: 1fr 1fr; }
+.case-study-columns[data-cols="2"][data-col-widths="2/1"] { grid-template-columns: 2fr 1fr; }
+.case-study-columns[data-cols="2"][data-col-widths="1/2"] { grid-template-columns: 1fr 2fr; }
+.case-study-columns[data-cols="2"][data-col-widths="3/2"] { grid-template-columns: 3fr 2fr; }
+.case-study-columns[data-cols="2"][data-col-widths="2/3"] { grid-template-columns: 2fr 3fr; }
+.case-study-columns[data-cols="3"][data-col-widths="1/1/1"] { grid-template-columns: 1fr 1fr 1fr; }
+.case-study-columns[data-cols="3"][data-col-widths="2/1/1"] { grid-template-columns: 2fr 1fr 1fr; }
+.case-study-columns[data-cols="3"][data-col-widths="1/2/1"] { grid-template-columns: 1fr 2fr 1fr; }
+.case-study-columns[data-cols="3"][data-col-widths="1/1/2"] { grid-template-columns: 1fr 1fr 2fr; }
+
+.case-study-item {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+}
+
+/* VERTICAL ALIGNMENT — align-self on the grid item, independent of
+   sibling height. "top" is the implicit grid/flex default (align-self:
+   stretch already reads top-anchored for content shorter than the row);
+   listed explicitly so data-align="top" is a real, matchable value
+   rather than relying on absence-of-attribute. */
+.case-study-item[data-align="top"] { align-self: start; }
+.case-study-item[data-align="middle"] { align-self: center; }
+.case-study-item[data-align="bottom"] { align-self: end; }
+
+/* ART-DIRECTED OFFSET — token-scaled padding, reference brief's top-150/
+   bottom-150 staggering device. padding, not margin: margin on a grid
+   item can collapse/interact with row gap in ways that shift the WHOLE
+   row's height; padding only affects this item's own box. */
+.case-study-item[data-offset-top="xs"] { padding-top: var(--space-xs); }
+.case-study-item[data-offset-top="sm"] { padding-top: var(--space-sm); }
+.case-study-item[data-offset-top="md"] { padding-top: var(--space-md); }
+.case-study-item[data-offset-top="lg"] { padding-top: var(--space-lg); }
+.case-study-item[data-offset-top="xl"] { padding-top: var(--space-xl); }
+.case-study-item[data-offset-top="2xl"] { padding-top: var(--space-2xl); }
+.case-study-item[data-offset-top="3xl"] { padding-top: var(--space-3xl); }
+
+.case-study-item[data-offset-bottom="xs"] { padding-bottom: var(--space-xs); }
+.case-study-item[data-offset-bottom="sm"] { padding-bottom: var(--space-sm); }
+.case-study-item[data-offset-bottom="md"] { padding-bottom: var(--space-md); }
+.case-study-item[data-offset-bottom="lg"] { padding-bottom: var(--space-lg); }
+.case-study-item[data-offset-bottom="xl"] { padding-bottom: var(--space-xl); }
+.case-study-item[data-offset-bottom="2xl"] { padding-bottom: var(--space-2xl); }
+.case-study-item[data-offset-bottom="3xl"] { padding-bottom: var(--space-3xl); }
+
+/* REFLOW — single column below 768px (same breakpoint every other
+   reflow rule in this file uses — .content-grid's own data-cols-mobile
+   exception, .role-overview's mobile 2-col grid, etc.), regardless of
+   data-cols/data-col-widths: art-directed multi-column ratios only make
+   sense with room to breathe sideways. Offsets and non-top alignment are
+   ALSO reset here — per the reference brief, "desktop art direction plus
+   mobile flow layout, rather than the same composition scaled down": a
+   deliberate desktop stagger reads as a stray, unexplained gap once
+   there's no adjacent column left to stagger against, and a
+   middle/bottom-aligned column has nothing left to align against once
+   every column is full-width and stacked in document order. */
+@media (max-width: 768px) {
+  .case-study-columns {
+    grid-template-columns: 1fr !important;
+  }
+
+  .case-study-item {
+    align-self: stretch !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+}
 
 /* ═════════════════════════════════════════════════════════════ */
 /* TAG PILL — generic keyword/label pill, pasteable into post content   */
@@ -2188,12 +2417,12 @@ width: 100%;
 
 .post-content > * + h2,
 .gh-content > * + h2 {
-  margin-top: var(--prose-flow-lg);
+  margin-top: var(--prose-flow-2xl);
 }
 
 .post-content > * + h3,
 .gh-content > * + h3 {
-  margin-top: var(--prose-flow-xl);
+  margin-top: var(--prose-flow-2xl);
 }
 
 .post-content > * + h4,
@@ -2242,7 +2471,7 @@ width: 100%;
    dropped back to the media step and read as if it belonged to the image. */
 .post-content > * + h2,
 .gh-content > * + h2 {
-  margin-top: var(--prose-flow-xl);
+  margin-top: var(--prose-flow-3xl);
 }
 
 /* hr is an explicit structural break — the largest step in the ladder. */
@@ -6658,6 +6887,8 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-i
   flex: 1 1 0 !important;
   min-width: 0;
  height: fit-content;
+ padding: 0 !important;
+ margin: 0 !important;
 }
 
 .kg-gallery-image img {

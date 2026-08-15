@@ -504,6 +504,10 @@
   --prose-flow-md: 3rem;    /* 40px — around media/figures             */
   --prose-flow-lg: 4rem;      /* 64px — before a new h2 section          */
   --prose-flow-xl: 8rem;      /* 96px — major structural break (hr)      */
+  --prose-flow-2xl:10rem; 
+  --prose-flow-3xl: 12rem; 
+  --prose-flow-4xl: 16rem; 
+
 
   /* Primitive spacing aliases for hero tag pills */
   --space-1: var(--primitive-space-1);
