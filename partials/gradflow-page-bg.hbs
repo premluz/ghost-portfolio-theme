@@ -79,7 +79,17 @@
       FRAGMENT's `if (u_noise > 0.001)` block, gradflow-shaders.js — 0
       skips that branch entirely, free). --}}
 <div class="gradflow-page-bg{{#if triggered}} gradflow-page-bg--triggered{{/if}}" aria-hidden="true">
-  <canvas class="gradflow-page-bg-canvas"></canvas>
+  {{!-- data-gradflow-deferred-color (triggered mode only): tells
+        gradflow-background.js NOT to paint its mount-time frame, because
+        this instance's real colours arrive later from
+        gradflow-page-bg-trigger.js (whichever card is in view). The
+        colour1/2/3 params above are only a placeholder for it, and painting
+        them produces a visible wrong-coloured frame — measured as a
+        near-white flash on a post→close curtain return. A transparent
+        canvas correctly shows the page background until real colours land.
+        Untriggered instances mount with their FINAL colours and keep the
+        immediate first paint. --}}
+  <canvas class="gradflow-page-bg-canvas"{{#if triggered}} data-gradflow-deferred-color{{/if}}></canvas>
   <script>
     (function () {
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;

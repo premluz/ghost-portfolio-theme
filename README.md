@@ -25,6 +25,7 @@
 | **Card Animations** | Scroll-based card entrance animations | [card-animations.js](./assets/js/card-animations.js) |
 | **Dispersed Variants** | Alternative particle formation patterns | [DISPERSED_VARIANTS.md](./DISPERSED_VARIANTS.md) |
 | **Gradient Systems** | Documentation of gradient architectures | [GRADIENT_SYSTEMS.md](./GRADIENT_SYSTEMS.md) |
+| **Colour & Gradient Tokens** | Where to edit colours; what each gradient drives; per-post overrides | [COLOR-SYSTEM.md](./COLOR-SYSTEM.md) |
 
 ---
 

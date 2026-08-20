@@ -5,6 +5,7 @@
       its background-image the way a real element could. post-and-cards.js
       sets the same property for cards whose gradient arrives via the async
       metadata fetch instead of this server-side custom field. --}}
+   
 <article class="post-card" data-post-url="{{url}}"{{#if tags}} data-tag-slugs="{{#foreach tags}}{{slug}} {{/foreach}}"{{/if}}{{#if custom.gradientCss}} data-gradient-css="{{custom.gradientCss}}" style="--card-gradient: {{custom.gradientCss}};"{{/if}}{{#if custom.cardId}} data-cardid="{{custom.cardId}}"{{else}} data-cardid="{{slug}}"{{/if}}>
   <a href="{{url}}" class="post-card-link" data-transition>
     {{!-- Inner wrapper that scales on hover, while link stays stable --}}
@@ -32,8 +33,8 @@
 
         <div class="post-card-meta">
           <!-- <time datetime="{{date format="YYYY-MM-DD"}}">{{date format="MMM DD, YYYY"}}</time>-->
-          {{!-- Keywords pills (from projectMeta cardKeywords) --}}
-         <div class="post-card-keywords"></div>
+          {{!-- Keywords pills (from projectMeta cardKeywords)
+         <div class="post-card-keywords"></div> --}}
           <!--{{#if @custom.show_reading_time}}
             {{#if reading_time}}
               <span class="reading-time">{{reading_time}}</span>
@@ -49,9 +50,9 @@
       <!--    <p class="post-card-excerpt">{{excerpt words="30"}}</p>-->
         {{/if}}
 
-        {{!-- Testimonial quote (from projectMeta) --}}
+        {{!-- Testimonial quote (from projectMeta) 
         <p class="post-card-testimonial"></p>
-        <p class="post-card-endorser"></p>
+        <p class="post-card-endorser"></p>--}}
 
       </div>
             {{#if feature_image}}
@@ -67,6 +68,15 @@
                 would otherwise still fade this image in independently,
                 same bug as the container used to have. --}}
           <div class="card-media-skeleton"></div>
+          {{!-- Hover glow (cinematic layout only — post-card-grid.css scopes
+                every rule for this to [data-posts-layout='cinematic'], so it
+                is inert markup in every other layout). A real DOM node, not
+                a pseudo-element, for the reason .post-card-image::after's own
+                comment already documents: this element's ::before (hover
+                colour wash) and ::after (legibility scrim) slots are BOTH
+                taken, and CSS allows only one of each — a third layer needs
+                a node. aria-hidden + no text: purely decorative. --}}
+          <div class="post-card-hover-glow" aria-hidden="true"></div>
           {{!-- Video vs image is decided HERE, server-side, via an internal
                 #video tag, no custom code — {{#has tag=...}} is a stock
                 Ghost helper. Uses the literal tag NAME ("#video"), not the

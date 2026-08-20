@@ -143,6 +143,22 @@ async function initGradFlowBackground(canvas, configInput) {
   resize();
   window.addEventListener('resize', resize, { passive: true });
 
+  // Re-measure once layout has genuinely settled — resize()'s FIRST call
+  // above can race ahead of the parent's real CSS taking effect. Reproduced
+  // live on a post page: canvas.parentElement.clientHeight read as the
+  // page's full SCROLL height (20,828px) instead of the fixed viewport box
+  // (1000px) that .gradflow-page-bg's position:fixed;inset:0 should always
+  // measure — inline canvas.style.height ended up baked to that wrong
+  // number, and since nothing re-triggers resize() except a real window
+  // resize event, it never self-corrected. A ResizeObserver on the parent
+  // catches this (and any later legitimate layout change) regardless of
+  // what caused the first measurement to be wrong — same reasoning
+  // invert-wrapper-full.js already uses for its own layout-race fix.
+  if (canvas.parentElement && window.ResizeObserver) {
+    const ro = new ResizeObserver(resize);
+    ro.observe(canvas.parentElement);
+  }
+
   const startTime = performance.now();
   let rafId = 0;
   const needsScroll = !!(config.parallax || l2.parallax);
@@ -218,7 +234,43 @@ async function initGradFlowBackground(canvas, configInput) {
   }, { rootMargin: '200px 0px' });
   visibility.observe(canvas);
 
+  // Tracks whether setColors() has drawn a frame yet — see the getter on the
+  // returned handle. Until it has, anything this canvas paints is the
+  // mount-time placeholder palette.
+  let hasDrawnRealColor = false;
+  const firstDrawCbs = [];
+
+  // Paint one frame NOW, synchronously, instead of waiting for the observer
+  // above to grant the first start(). IntersectionObserver callbacks are
+  // asynchronous — they fire after layout, a frame or more after observe()
+  // — so until then rafId is 0, nothing has rendered, and the canvas is
+  // simply TRANSPARENT rather than showing this gradient.
+  //
+  // DELIBERATELY SKIPPED for triggered instances (gradflow-page-bg.hbs's
+  // triggered="true", i.e. the homepage's whole-page background): their
+  // colours ALWAYS come from whichever card is in view, and the
+  // colour1/2/3 params they mount with are only a placeholder. Painting
+  // that placeholder is worse than painting nothing — measured on a curtain
+  // return, this very call put a near-white frame (242,239,237) on an
+  // already-opaque canvas for ~10ms before the real colours arrived. A
+  // transparent canvas simply shows the page background underneath, which
+  // is the correct thing to show while waiting. Untriggered instances
+  // (page-about.hbs etc.) mount with their FINAL colours, so for them this
+  // first frame is real content and still worth painting immediately.
+  if (!canvas.hasAttribute('data-gradflow-deferred-color')) {
+    renderer.render({ scene });
+  }
+
   return {
+    // TEMPORARY DIAGNOSTIC (2026-08-19) — REMOVE with the rest of the
+    // ?flashdiag=1 instrumentation. Reads the LIVE u_color1 uniform, i.e.
+    // the colour actually being painted right now, so a capture can tell a
+    // colour crossfade (gradflow-color-crossfade.js's 700ms tween) apart
+    // from a CSS opacity fade. Nothing else exposes the live uniforms.
+    get __debugColor1() {
+      var v = program.uniforms.u_color1 && program.uniforms.u_color1.value;
+      return v ? [Math.round(v[0] * 255), Math.round(v[1] * 255), Math.round(v[2] * 255)] : null;
+    },
     // Only the four colors — speed/scale/type/noise are structural and a
     // caller changing those should mount a new gradient instead.
     setColors(next) {
@@ -230,7 +282,40 @@ async function initGradFlowBackground(canvas, configInput) {
       const n2 = next.layer2;
       if (n2 && n2.color1) program.uniforms.u_layer2_color1.value = toGl(normalizeColor(n2.color1));
       if (n2 && n2.color2) program.uniforms.u_layer2_color2.value = toGl(normalizeColor(n2.color2));
+      // Draw immediately with the colours just set, rather than leaving the
+      // canvas showing its previous frame until the next rAF tick. Uniform
+      // writes alone change nothing on screen — measured on a curtain
+      // return, the canvas painted one frame in the pre-mount PLACEHOLDER
+      // palette (index.hbs's pale colour1/2/3: a near-white 242,239,237
+      // pixel) and only went dark when a later tick happened to redraw. A
+      // caller that sets colours has, by definition, decided what should be
+      // on screen; making that visible in the same turn is what stops a
+      // stale/placeholder frame from being shown.
+      renderer.render({ scene });
+      const wasFirst = !hasDrawnRealColor;
+      hasDrawnRealColor = true;
+      // Notify synchronously, in the same turn as the draw above, so a
+      // caller gating a reveal on "there is now a real frame" can act on the
+      // very same frame rather than discovering it on a later poll tick.
+      if (wasFirst && firstDrawCbs.length) {
+        const cbs = firstDrawCbs.splice(0, firstDrawCbs.length);
+        cbs.forEach((cb) => { try { cb(); } catch (e) { /* a bad listener must not break rendering */ } });
+      }
     },
+    // Register a callback for the first setColors()-driven draw. Fires
+    // immediately if that has already happened, so a late subscriber can
+    // never hang waiting for an event it missed.
+    onFirstDraw(cb) {
+      if (typeof cb !== 'function') return;
+      if (hasDrawnRealColor) { cb(); return; }
+      firstDrawCbs.push(cb);
+    },
+    // True once setColors() has drawn at least one frame — i.e. the canvas
+    // is painting a caller-chosen palette rather than the mount-time
+    // placeholder. Consumers that reveal this canvas (see
+    // gradflow-page-bg-trigger.js's hasRealColor gate) need "a real frame
+    // has been DRAWN", which is strictly later than "colours were set".
+    get hasDrawnRealColor() { return hasDrawnRealColor; },
     destroy() {
       stop();
       visibility.disconnect();

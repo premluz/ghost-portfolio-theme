@@ -1,16 +1,46 @@
 {{!-- Both tabs default to @custom.posts_layout (the theme's site-wide
       setting) — pass layout="grid" or layout="list" on the {{> ...}} call
       to override just this inclusion, e.g. {{> posts-tabs layout="grid"}}.
-      Applies uniformly to both the featured and experimental tab. --}}
+      Applies uniformly to both the featured and experimental tab.
+
+      WHICH POSTS EACH TAB PULLS — filterFeatured / filterExperimental,
+      optional, one per tab. Each takes a COMPLETE Ghost filter string and
+      defaults to the value that tab has always used, so every existing
+      call site is unaffected:
+        filterFeatured      "featured:true+tag:hash-work+tag:featured"
+        filterExperimental  "featured:true+tag:hash-work+tag:experimental"
+
+      Examples (call-site syntax, written without braces on purpose — see
+      the WARNING at the end of this comment):
+        lab posts in the first tab:
+          posts-tabs filterFeatured="featured:true+tag:hash-work+tag:experimental"
+        BOTH tags in one tab (comma = OR in Ghost's filter syntax):
+          posts-tabs filterFeatured="featured:true+tag:hash-work+tag:[featured,experimental]"
+        everything under #work, no sub-tag at all:
+          posts-tabs filterFeatured="featured:true+tag:hash-work"
+
+      A whole filter string is the parameter, rather than just a tag name,
+      because Handlebars cannot concatenate: there is no way to build
+      "…+tag:" + yourTag inside a template, and Ghost themes cannot register
+      custom helpers to do it. The get helper DOES accept a variable for its
+      filter argument,
+      so passing the finished string is the one mechanism that works — at
+      the cost of repeating the shared prefix at the call site.
+
+      Filter syntax reminder (Ghost NQL): + is AND, , is OR, and [a,b]
+      groups an OR of values for one field. So `tag:[featured,experimental]`
+      means "either tag", while `tag:featured+tag:experimental` would demand
+      BOTH on the same post.
+
+      WARNING — do not write partial calls or helper tags with real braces
+      anywhere in this comment. Handlebars ends a comment at the FIRST
+      closing marker it meets, so a nested comment inside this block would
+      terminate it early and everything after would be parsed as live
+      template code — a partial call here would then recurse into this same
+      file. That exact class of bug (helper syntax quoted inside a comment)
+      already took the whole site down once, returning 400 on every route. --}}
 <section class="posts-tabs-section" id="work" data-page-width="{{@custom.page_width}}" data-active-tab="featured">
 
-  {{!-- Glass switch component (independent, syncs to tab state) 
-<section class="statement-slide" style="min-height: 10vh; margin-top: 24px; margin-bottom: 20vh;">
-  <div class="statement-container">
-    <h2 class="statement-heading">Real products, <br />real constraints, <br />real impact</h2>
-    <h5 class="statement-description"></h5>
-  </div>
-</section>--}}
 
 
   <div class="posts-tabs-wrapper">
@@ -32,11 +62,23 @@
           <div class="container">
             <div id="work-cards"></div>
             <div class="carousel-track">
+              {{!-- filterFeatured (see this file's own doc at the top) —
+                    the if-branch is what supplies the default: a get with
+                    an undefined filter variable would fetch EVERY post, not
+                    fall back, so the literal has to be spelled out here. --}}
+              {{#if filterFeatured}}
+              {{#get "posts" filter=filterFeatured limit="100" include="tags,authors"}}
+                {{#foreach posts}}
+                  {{> post-card first=@first}}
+                {{/foreach}}
+              {{/get}}
+              {{else}}
               {{#get "posts" filter="featured:true+tag:hash-work+tag:featured" limit="100" include="tags,authors"}}
                 {{#foreach posts}}
                   {{> post-card first=@first}}
                 {{/foreach}}
               {{/get}}
+              {{/if}}
             </div>
           </div>
           <div class="carousel-controls">
@@ -60,11 +102,21 @@
           <div class="container">
             <div id="work-cards"></div>
             <div class="carousel-track">
+              {{!-- filterExperimental — same default-via-if-branch pattern as
+                    the featured tab above; see this file's doc at the top. --}}
+              {{#if filterExperimental}}
+              {{#get "posts" filter=filterExperimental limit="100" include="tags,authors"}}
+                {{#foreach posts}}
+                  {{> post-card first=@first}}
+                {{/foreach}}
+              {{/get}}
+              {{else}}
               {{#get "posts" filter="featured:true+tag:hash-work+tag:experimental" limit="100" include="tags,authors"}}
                 {{#foreach posts}}
                   {{> post-card first=@first}}
                 {{/foreach}}
               {{/get}}
+              {{/if}}
             </div>
           </div>
           <div class="carousel-controls">

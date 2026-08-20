@@ -73,6 +73,158 @@
       if (metaTheme) metaTheme.setAttribute('content', bg);
       var metaScheme = document.querySelector('meta[name="color-scheme"]');
       if (metaScheme) metaScheme.setAttribute('content', colorScheme);
+
+      // TEMPORARY DIAGNOSTIC (2026-08-19, v2) — REMOVE once the curtain-
+      // return white-flash bug is understood. ?flashdiag=1 only.
+      // v1 tracked --profile-shift/--gradient-shift-N and disproved that
+      // theory (every snapshot read 0 across a real repro) — see the
+      // console.table output already collected. v2 instead reads the
+      // ACTUAL rendered background-color of every candidate paint layer
+      // directly via getComputedStyle, since that's ground truth regardless
+      // of which custom property (if any) is actually responsible.
+      // #page-backdrop may not exist yet at the earliest checkpoints (it's
+      // in <body>, this runs in <head>) — guarded per-call.
+      if (/[?&]flashdiag=1/.test(location.search)) {
+        window.__flashdiag = window.__flashdiag || [];
+        window.__flashdiagSnap = function (point) {
+          var htmlEl = document.documentElement;
+          var bodyEl = document.body;
+          var backdropEl = document.getElementById('page-backdrop');
+          var scrimEl = document.getElementById('pt-scrim');
+          var gradflowEl = document.querySelector('.gradflow-page-bg');
+          window.__flashdiag.push({
+            t: Math.round(performance.now()),
+            point: point,
+            scrollY: window.scrollY,
+            scrimOpacity: scrimEl ? getComputedStyle(scrimEl).opacity : '-',
+            // COMPUTED opacity is the animating value; INLINE is what JS
+            // actually wrote. If inline reads '1' while computed is still
+            // climbing, the CSS transition is running (instant path failed).
+            // If BOTH read '1' from the first sample, opacity is not what's
+            // fading — the visible ramp is then the colour crossfade
+            // (gradflow-color-crossfade.js, 700ms) instead.
+            gfOpacityComputed: gradflowEl ? getComputedStyle(gradflowEl).opacity : '-',
+            gfOpacityInline: gradflowEl ? (gradflowEl.style.opacity || '(unset)') : '-',
+            gfDisplay: gradflowEl ? getComputedStyle(gradflowEl).display + '/' + getComputedStyle(gradflowEl).visibility : '-',
+            // The OTHER things layered over the gradflow canvas. If none of
+            // the gradflow fields animate but one of these does, the "fade
+            // in" being seen is that element revealing the canvas, not the
+            // canvas itself appearing. html.curtain-restoring hides .home
+            // (main.css) and is dropped by runCurtainEntrance.
+            homeOpacity: (function () {
+              var h = document.querySelector('.home');
+              return h ? getComputedStyle(h).opacity : '-';
+            })(),
+            htmlClasses: document.documentElement.className || '(none)',
+            // Live shader uniform (what the colour system THINKS is set).
+            gfColor1: (function () {
+              try {
+                var c = document.querySelector('.gradflow-page-bg-canvas');
+                var u = c && c.__gradflowHandle && c.__gradflowHandle.__debugColor1;
+                return u ? u.join(',') : (c && c.__gradflowHandle ? 'handle-no-debug' : 'no-handle');
+              } catch (err) { return 'err'; }
+            })(),
+            // GROUND TRUTH: the actual pixel currently rendered in the
+            // canvas's own drawing buffer, read back from the GPU. Unlike
+            // every other field here this cannot be fooled by opacity, by
+            // uniforms that were set but never drawn, or by a frame that
+            // hasn't been rendered yet — if this is transparent/black the
+            // canvas is genuinely painting nothing on screen, whatever the
+            // CSS says. preserveDrawingBuffer is NOT set on this context, so
+            // a readback outside the render tick can legitimately come back
+            // cleared; treated as informative, not authoritative, for that
+            // reason — a STABLE non-zero value is the meaningful signal.
+            gfPixel: (function () {
+              try {
+                var c = document.querySelector('.gradflow-page-bg-canvas');
+                if (!c) return '-';
+                var gl = c.getContext('webgl2', { preserveDrawingBuffer: true })
+                      || c.getContext('webgl', { preserveDrawingBuffer: true });
+                if (!gl) return 'no-gl';
+                var px = new Uint8Array(4);
+                gl.readPixels(Math.floor(c.width / 2), Math.floor(c.height / 2), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+                return px[0] + ',' + px[1] + ',' + px[2] + ' a' + px[3];
+              } catch (err) { return 'err:' + err.message; }
+            })(),
+          });
+        };
+        // Records only when something actually changed since the last row —
+        // see the poll in page-transition.js for why (a per-frame capture
+        // over a 2.5s window is otherwise ~150 identical rows).
+        window.__flashdiagSnapIfChanged = function (point) {
+          var arr = window.__flashdiag;
+          var beforeLen = arr.length;
+          window.__flashdiagSnap(point);
+          if (beforeLen === 0) return;
+          var prev = arr[beforeLen - 1];
+          var next = arr[arr.length - 1];
+          var same = Object.keys(next).every(function (k) {
+            return k === 't' || k === 'point' || String(prev[k]) === String(next[k]);
+          });
+          if (same) arr.pop();
+        };
+        window.__flashdiagSnap('head-inline-script-end');
+      }
+      // TEMPORARY DIAGNOSTIC (2026-08-19) — REMOVE with the rest of the
+      // ?flashdiag=1 instrumentation.
+      // Standalone timeline recorder for the "gradflow fades in on curtain
+      // return" report. Deliberately OUTSIDE the ?flashdiag=1 gate above:
+      // a curtain return lands on a plain '/' with no query string, so
+      // anything defined inside that gate simply does not exist on the page
+      // where the problem happens (which is why the first version of this
+      // never ran). Auto-starts below off the curtainReturn sessionStorage
+      // flag instead. Records every frame for 4s — longer than the earlier
+      // 600ms/2.5s windows, which may have ended before the reported ~1s
+      // sequence finished — and prints a compact table of only the rows
+      // where the composited result actually changed.
+      window.__gfWatch = function (ms) {
+        var rows = [];
+        var t0 = performance.now();
+        var lastKey = '';
+        (function step() {
+          var el = document.querySelector('.gradflow-page-bg');
+          var cv = document.querySelector('.gradflow-page-bg-canvas');
+          var px = '-';
+          try {
+            if (cv) {
+              var gl = cv.getContext('webgl2', { preserveDrawingBuffer: true })
+                    || cv.getContext('webgl', { preserveDrawingBuffer: true });
+              if (gl) {
+                var b = new Uint8Array(4);
+                gl.readPixels(Math.floor(cv.width / 2), Math.floor(cv.height / 2), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, b);
+                px = b[0] + ',' + b[1] + ',' + b[2] + ' a' + b[3];
+              }
+            }
+          } catch (e) { px = 'err'; }
+          var scrimEl2 = document.getElementById('pt-scrim');
+          var row = {
+            t: Math.round(performance.now() - t0),
+            gfOpacity: el ? getComputedStyle(el).opacity : '-',
+            gfPixel: px,
+            scrim: scrimEl2 ? getComputedStyle(scrimEl2).opacity : '-',
+            particles: (function () {
+              var p = document.getElementById('particle-morph-demo') || document.getElementById('gpu-canvas');
+              return p ? getComputedStyle(p).opacity : '-';
+            })(),
+          };
+          // Ignore 1-unit shader jitter so it doesn't force a row every frame.
+          var key = row.gfOpacity + '|' + row.gfPixel.replace(/\d+/g, function (n) { return Math.round(n / 8); }) + '|' + row.scrim + '|' + row.particles;
+          if (key !== lastKey) { lastKey = key; rows.push(row); }
+          if (performance.now() - t0 < (ms || 4000)) requestAnimationFrame(step);
+          else { console.table(rows); window.__gfWatchRows = rows; }
+        })();
+        return 'watching ' + (ms || 4000) + 'ms — table prints when done';
+      };
+      // Auto-start on a curtain return: this is a real navigation, so
+      // anything started by hand on the post page is gone by now. The flag
+      // is still in sessionStorage at this point (page-transition.js's
+      // runCurtainEntrance consumes it later, on DOMContentLoaded), so
+      // reading it here is the earliest reliable "this load is a return".
+      try {
+        if (sessionStorage.getItem('curtainReturn') === '1') {
+          document.addEventListener('DOMContentLoaded', function () { window.__gfWatch(4000); });
+        }
+      } catch (e) {}
     })();
   </script>
   <script src="{{asset "js/device-capability.js"}}?v={{@site.updated_at}}"></script>
@@ -130,6 +282,19 @@
   <title>{{meta_title}}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  {{!-- ogl (the WebGL library behind every gradflow canvas) is fetched from
+        unpkg by gradflow-background.js's dynamic import('ogl'), resolved via
+        the importmap at the top of this file. That import is the real floor
+        on how fast any gradflow background can paint: the canvas cannot draw
+        its first frame until the module has arrived, which on a fresh load
+        means a cold connection (DNS + TLS + fetch) before anything happens.
+        preconnect warms the connection in parallel with the rest of <head>;
+        modulepreload fetches the module itself at high priority so the
+        dynamic import() later resolves from cache instead of starting the
+        round trip then. Directly shortens the "page background visible,
+        gradflow not yet" window on a post→close return. --}}
+  <link rel="preconnect" href="https://unpkg.com" crossorigin>
+  <link rel="modulepreload" href="https://unpkg.com/ogl@1.0.11/src/index.js" crossorigin>
   {{!-- CRITICAL: Preload hero images FIRST (above-the-fold, highest priority) --}}
   {{#if @site.cover_image}}
   <link rel="preload" href="{{@site.cover_image}}" as="image" fetchpriority="high">
@@ -190,6 +355,7 @@
   <link rel="stylesheet" href="{{asset "css/gradient-frame.css"}}?v={{@site.updated_at}}">
   <link rel="stylesheet" href="{{asset "css/post-card-grid.css"}}?v={{@site.updated_at}}">
   <link rel="stylesheet" href="{{asset "css/post-cards-lab.css"}}?v={{@site.updated_at}}">
+  <link rel="stylesheet" href="{{asset "css/before-after-slider.css"}}?v={{@site.updated_at}}">
   <link rel="stylesheet" href="{{asset "css/profile.css"}}?v={{@site.updated_at}}">
   <link rel="stylesheet" href="{{asset "css/glass-liquid.css"}}?v={{@site.updated_at}}">
   {{!-- operating-model-stacked.css unlinked 2026-07: index.hbs renders {{> operating-model}} (om3);
@@ -460,6 +626,35 @@
             __crOrigin && typeof __crOrigin.scrollY === 'number' && __crOrigin.scrollY > 100) {
           window.__particleLayerHidden = true;
           document.documentElement.classList.add('curtain-restoring');
+          // Durable "this load is a curtain return" flag, separate from the
+          // class above. The class is a VEIL and is dropped early — the
+          // moment runCurtainEntrance's scroll jump settles (~200ms,
+          // page-transition.js) — whereas the scenario triggers that decide
+          // whether the particle layer should be hidden here fire later
+          // (measured ~660ms), by which point the class is long gone.
+          // __particleApply reads this flag to hide INSTANTLY instead of
+          // playing a 600ms exit fade over a page that should already look
+          // settled (see its own comment). Cleared on the first real user
+          // scroll: from that point on, hides ARE genuine scroll-driven
+          // exits and should animate normally.
+          window.__curtainReturnLoad = true;
+          // Cleared on a genuine USER scroll, not on the restore's own
+          // programmatic jump — snapTo() (page-transition.js) fires a native
+          // scroll event around t=200ms, which would otherwise clear this
+          // before the scenario triggers that need it run (~660ms). Real
+          // input events are the unambiguous signal; a time-based guess
+          // would just be another race. Also cleared by a hard timeout so a
+          // visitor who never scrolls doesn't keep instant-hide behaviour
+          // for the life of the page.
+          var __crEvents = ['wheel', 'touchstart', 'keydown', 'pointerdown'];
+          var __crClear = function () {
+            window.__curtainReturnLoad = false;
+            __crEvents.forEach(function (e2) { window.removeEventListener(e2, __crClear); });
+          };
+          __crEvents.forEach(function (evt) {
+            window.addEventListener(evt, __crClear, { passive: true });
+          });
+          setTimeout(__crClear, 3000);
           // failsafe: never let the veil outlive the restore window
           setTimeout(function () { document.documentElement.classList.remove('curtain-restoring'); }, 8000);
         }
@@ -586,7 +781,7 @@
         clipped) + .progress-bar-glow (blurred duplicate, stacked on top) —
         same structure as #preloader-progress-bar (preloader.hbs); see
         main.css's comment on those two classes. --}}
-  {{#if @custom.show_scroll_progress}}<!--
+  {{#if @custom.show_scroll_progress}}<!---->
  <div class="scroll-progress progress-bar-track" id="scroll-progress">
     <div class="progress-bar-clip">
       <div class="progress-bar-streak"></div>
@@ -594,7 +789,7 @@
     <div class="progress-bar-glow" aria-hidden="true">
       <div class="progress-bar-streak"></div>
     </div>
-  </div>-->
+  </div>
   <script>
     // Pre-paint continuity for the page-to-page loading bar: page-
     // transition.js's armLoadingBar() sets sessionStorage 'ptBarStart' on
@@ -832,7 +1027,7 @@
     // change, since the choreography in particle-morph.hbs is gated on it.
     // 'volatility' mounts the ground-plane lattice and no coil forms in the
     // hero; the coil shapes don't mount the lattice.
-    window.HERO_PARTICLE_MODE = 'ribbon-dispersed';
+    window.HERO_PARTICLE_MODE = 'ribbon-dispersed-pulse';
     // Resolver was previously unable to return anything but
     // 'ribbon-dispersed': BOTH ternary arms were that literal, and the
     // condition tested `m === 'ribbon-dispersed'` twice (never comparing
@@ -843,11 +1038,21 @@
     window.__heroShape = () => {
       // Valid hero shapes, all registered (shape-definitions.js /
       // dispersed-variants.js):
-      //   'ribbon-dispersed' = the scattered ribbon — the hero as shipped.
+      //   'ribbon-dispersed'       = the scattered ribbon — the hero as shipped.
+      //   'ribbon-dispersed-pulse' = 2026-08-11, OPT-IN: identical geometry to
+      //                              'ribbon-dispersed' (same generator — see
+      //                              RIBBON_DISPERSED_PULSE's own comment,
+      //                              shape-definitions.js), plus a travelling
+      //                              "heartbeat" colour/size pulse
+      //                              (STYLE_HERO_RIBBON_PULSE,
+      //                              particle-style-definitions.js). Switch
+      //                              HERO_PARTICLE_MODE below to this value to
+      //                              enable it; every other trigger/scenario
+      //                              is unaffected either way.
       //   'helix'            = original DNA-style double tube.
       //   'hero-helix'       = tilted, tapering halftone coil.
       //   'volatility'       = ground-plane lattice.
-      const VALID = ['ribbon-dispersed', 'helix', 'hero-helix', 'volatility'];
+      const VALID = ['ribbon-dispersed-pulse', 'ribbon-dispersed-pulse', 'helix', 'hero-helix', 'volatility'];
       const m = window.HERO_PARTICLE_MODE;
       return VALID.includes(m) ? m : 'ribbon-dispersed';
     };
@@ -887,7 +1092,7 @@
         profile: 'hide', 'profile-exit': 'hide',
         stats: 'hide',
         'work-grid': 'hide', 'work-cards': 'hide',
-        lab: 'hide',
+       // lab: 'hide',
         'lab-exit': 'hide',
         testimonials: 'hide',
         'footer-exit': 'hide',
@@ -1093,7 +1298,31 @@
         // hideDelayMs keeps the SAME ratio to whichever fade is in play
         // (1.75/1.5 ≈ 1.1667x it), so the render loop still only pauses
         // shortly AFTER the fade is visually done, never mid-fade.
-        const fadeMs = fadeMsOverride != null ? fadeMsOverride : duration * 1.5;
+        let fadeMs = fadeMsOverride != null ? fadeMsOverride : duration * 1.5;
+        // CURTAIN-RETURN: hide INSTANTLY, don't animate. A hide fade is an
+        // exit animation — it only reads correctly when the visitor watched
+        // the particles being there and scrolling away. On a post→close
+        // return the page boots fresh at a restored mid-page position where
+        // the particles were ALREADY hidden before the visitor left; playing
+        // a 600ms fade-out there means the layer paints at full opacity over
+        // whatever should be on screen, then dissolves.
+        //
+        // That is the "gradflow page bg fades in on return" report, measured:
+        // the gradflow canvas was fully opaque and correctly coloured the
+        // whole time (opacity 1 from t=116ms, stable pixel), while THIS
+        // layer ramped 1 -> 0 across t=659..1292ms on top of it. What looked
+        // like the background fading in was the particle layer clearing off
+        // it. Every earlier fix aimed at the gradflow itself therefore
+        // changed nothing.
+        //
+        // Gated on __curtainReturnLoad, NOT html.curtain-restoring: that
+        // class is a veil dropped as soon as the scroll jump settles
+        // (~200ms), while this hide fires later (~660ms measured), so the
+        // class is already gone by the time it would be checked. The flag is
+        // set by the same head guard and survives until the visitor's first
+        // real input — see its own comment. Normal scroll-driven hides keep
+        // their fade untouched.
+        if (window.__curtainReturnLoad) fadeMs = 0;
         const hideDelayMs = fadeMs * (1.75 / 1.5);
         if (layer) { layer.style.transition = `opacity ${fadeMs / 1000}s ease`; layer.style.opacity = '0'; }
         // Pause the render loop only AFTER the fade finishes — pausing
@@ -1189,6 +1418,13 @@
         before gradflow-page-bg-trigger.js, which reads
         window.GradflowColorCrossfade at init. --}}
   <script src="{{asset "js/gradflow-color-crossfade.js"}}?v={{@site.updated_at}}"></script>
+  {{!-- gradient-tokens.js reads tokens.css's --grad-brand-N/--grad-text-N
+        per-theme stops for JS consumers (gradflow-page-bg-trigger.js's
+        themechange re-drive below). Must load after
+        gradflow-color-crossfade.js (its toTones() calls into
+        window.GradflowColorCrossfade) and before gradflow-page-bg-trigger.js
+        (which reads window.GradientTokens at theme-change time). --}}
+  <script src="{{asset "js/gradient-tokens.js"}}?v={{@site.updated_at}}"></script>
   <script src="{{asset "js/gradflow-page-bg-trigger.js"}}?v={{@site.updated_at}}"></script>
   {{!-- .invert-wrapper (main.css) auto-init for scroll-scrubbed mode — see
         INVERSION.md. Forced (always-on) is the class's own CSS default
@@ -1203,6 +1439,230 @@
       if (!window.BackgroundLayer) return;
       document.querySelectorAll('.invert-wrapper[data-invert-scroll]').forEach(function (el) {
         window.BackgroundLayer.bindShift(el, '--profile-shift', { root: el, quantize: 0.05 });
+      });
+    })();
+  </script>
+
+  {{!-- PER-INSTANCE COLOUR OVERRIDES for the BOXED variants (base
+        .invert-wrapper and .invert-wrapper--full) — two independent
+        attributes, either usable alone:
+
+          data-shift-bg="#123456"    the colour this block's background shifts TO
+          data-shift-ink="#ffffff"   the colour its text/icons shift TO
+
+        -bg alone = pure background change, text keeps the theme's own shift
+        ink (right when the custom colour sits near the default shift target
+        in lightness). -ink alone = re-point text only. Both = full control,
+        the only combination that is contrast-correct by construction.
+
+        Set ON THE ELEMENT here, unlike the --page variant further down which
+        must reach :root: these variants consume the properties from their
+        own cascade (::before paints var(--shift-bg); the color-mix() ink
+        rules in main.css read var(--shift-ink) off the same element).
+
+        Runs for EVERY matching instance, not just [data-invert-scroll] ones
+        above — the base class is always-on by default (--profile-shift: 1),
+        so most instances never carry that attribute and would otherwise be
+        skipped. Excludes --page, which is handled by its own init below with
+        a different target.
+
+        JS rather than a CSS attr() rule on purpose: attr() with a type is
+        CSS Values 5, Chrome-only as of 2026-08, and fails silently (the
+        declaration is invalid at computed-value time, so the property keeps
+        its inherited value) in Safari and Firefox. See the matching note in
+        main.css next to .invert-wrapper. --}}
+  <script>
+    (function () {
+      document.querySelectorAll('.invert-wrapper:not(.invert-wrapper--page)').forEach(function (el) {
+        var bg = el.getAttribute('data-shift-bg');
+        var ink = el.getAttribute('data-shift-ink');
+        if (bg) el.style.setProperty('--shift-bg', bg);
+        if (ink) el.style.setProperty('--shift-ink', ink);
+      });
+    })();
+  </script>
+
+  {{!-- .invert-wrapper--page (main.css) — PAGE-LEVEL variant: instead of
+        .invert-wrapper's own local ::before panel (scoped to just this
+        element, background color-mix()'d only inside it), this writes to
+        the SAME --gradient-shift-3 slot + :root default binding
+        (document.documentElement) that testimonials-section already uses
+        on the homepage (scroll-scrub-anim.js's initTestimonialsColorInvert)
+        — #page-backdrop (main.css) reads --profile-shift = max() of the
+        four --gradient-shift-N slots and blends the WHOLE fixed viewport
+        background, not just this element's own box, exactly matching
+        "affect the page bg, not the container bg" for testimonials-style
+        sections pasted into a post. Slot 3 (not 0): gradient-frame.js
+        auto-indexes invert-mode .gradient-frame instances starting at 0
+        (e.g. .post-hero-gradient-frame on post pages, if present) — using
+        the last slot keeps this out of that auto-increment's way, same
+        reasoning testimonials' own binding already documents.
+        Scroll-scrubbed BY DEFAULT (the inverse of .invert-wrapper, which is
+        forced by default and opts INTO scrubbing via data-invert-scroll):
+        a page-level shift repaints the fixed backdrop, so a static one holds
+        its colour for the rest of the page's scroll range with no way back.
+        Opt out per instance with data-invert-static — see its own note
+        below for when that is the right call. --}}
+  {{!-- PER-INSTANCE COLOUR OVERRIDES (2026-08-20) — two independent
+        attributes on the same .invert-wrapper--page element:
+
+          data-shift-bg="#123456"    the colour the page background shifts TO
+          data-shift-ink="#ffffff"   the colour text/icons shift TO
+
+        Either may be set alone. Set only -bg for a pure background change
+        (text keeps whatever the theme's own --shift-ink gives it — correct
+        when the custom colour is close in lightness to the default shift
+        target); set only -ink to re-point text without touching the
+        background; set both for full control, which is the only combination
+        that is always contrast-correct by construction.
+
+        MUST be promoted to :root, not left on the element. Unlike the base
+        .invert-wrapper (which paints its own ::before from --shift-bg and so
+        reads the property from itself), the --page variant paints nothing:
+        it drives #page-backdrop, a FIXED full-viewport element outside this
+        wrapper's subtree, plus the site-wide color-mix() text rules in
+        main.css that read --shift-ink from :root. Neither can see a custom
+        property set on the wrapper, so setting it there would silently do
+        nothing.
+        Written on documentElement — the same element bindShift already
+        writes --gradient-shift-3 to, so the value and the scroll progress
+        that drives it live in one place.
+
+        Scoped by the shift itself, not by time: --shift-bg/--shift-ink are
+        only ever CONSUMED through a color-mix() weighted by --profile-shift,
+        which is 0 whenever no shift zone is active. An override sitting on
+        :root outside its own zone therefore has no visual effect — no
+        teardown needed. With several --page wrappers on one page the last
+        one initialised wins the :root value; they share a single
+        --gradient-shift-3 slot already, so overlapping zones were never
+        independently addressable. --}}
+  {{!-- data-invert-static — opt OUT of scroll-scrubbing for a --page
+        instance. Default stays scrub (see the caveat in the doc above: a
+        static page-level shift repaints the FIXED backdrop and, having no
+        exit ramp, holds that colour for the whole rest of the page's scroll
+        range). That is genuinely what you want when the shifted block is the
+        last thing on the page, or when the surrounding sections carry their
+        own opaque backgrounds — hence an explicit opt-in rather than a
+        blanket behaviour change.
+        Implemented by pinning the slot to 1 and NOT binding: --profile-shift
+        is max() of the four --gradient-shift-N slots, so a constant 1 in
+        slot 3 reads as "fully shifted" everywhere, with nothing to scrub it
+        back down.
+        Also the escape hatch for prefers-reduced-motion, which returns early
+        below and otherwise leaves a --page instance with no shift at all: a
+        static instance carries no motion, so it is applied before that
+        guard and works regardless. --}}
+  <script>
+    (function () {
+      // Static instances first — deliberately ABOVE both guards below, since
+      // neither applies to them: there is no motion to reduce, and pinning a
+      // custom property needs no BackgroundLayer.
+      // :not([data-invert-timed]) so an element carrying both attributes
+      // resolves predictably (timed wins) instead of being pinned to 1 here
+      // and then having nothing left for the fade to animate.
+      document.querySelectorAll('.invert-wrapper--page[data-invert-static]:not([data-invert-timed])').forEach(function (el) {
+        var sBg = el.getAttribute('data-shift-bg');
+        var sInk = el.getAttribute('data-shift-ink');
+        if (sBg) document.documentElement.style.setProperty('--shift-bg', sBg);
+        if (sInk) document.documentElement.style.setProperty('--shift-ink', sInk);
+        document.documentElement.style.setProperty('--gradient-shift-3', '1');
+      });
+
+      // TIMED instances — fade the page colour in on a timer when the block
+      // first reaches the viewport, then hold. Also above the guards: the
+      // reduced-motion case still wants the colour (the shift carries the
+      // section's palette, not decoration), just without the animation, and
+      // main.css drops the transition under that media query while leaving
+      // the value change intact. Needs no BackgroundLayer either — the whole
+      // animation is the registered-@property transition in CSS; this only
+      // decides WHEN to flip the class.
+      var timed = document.querySelectorAll('.invert-wrapper--page[data-invert-timed]');
+      if (timed.length) {
+        // Colours are applied at TRIGGER time (inside the observer below),
+        // not up-front here. --shift-bg/--shift-ink are single :root
+        // properties shared by every --page instance, so writing them during
+        // init means the LAST wrapper on the page wins regardless of which
+        // one the viewer is actually looking at. Measured live on a post page
+        // carrying two --page wrappers (#000000 scrubbed, #161616 timed): the
+        // scrubbed one initialised second and left --shift-bg at #000000, so
+        // the timed block faded to the wrong colour.
+        // Applying on entry makes the colour follow whichever block was
+        // actually reached, which is the only correct rule while the
+        // properties remain page-global.
+        // SYMMETRIC: fades in on enter, back out on leave, and re-triggers
+        // every time. The observer therefore stays connected (an earlier
+        // version disconnected after the first entry, which is why the colour
+        // held for the rest of the page).
+        //
+        // The slot is written INLINE both ways rather than left to the
+        // html.invert-timed-active rule in main.css. That rule cannot win:
+        // other bindShift consumers (scroll-scrub-anim.js's testimonials
+        // binding, present on post pages too) write --gradient-shift-3 as an
+        // INLINE style on this same documentElement every scroll frame, and
+        // an inline declaration always outranks a stylesheet one. Measured
+        // live: the class was correctly added but the slot still read 0,
+        // because testimonials — scrolled far out of its own range — kept
+        // re-writing 0 inline over it.
+        //
+        // Leaving sets the slot back to 0 rather than removing the property:
+        // removing it would fall back to whatever the stylesheet says, which
+        // for an active .invert-timed-active class is 1 — i.e. it would not
+        // revert at all. An explicit inline 0 is the only value that both
+        // reverts and keeps outranking the other inline writers. The
+        // transition (main.css, on :root) animates the 1->0 exactly as it
+        // does 0->1, so the fade is symmetric for free.
+        //
+        // TRIGGER ZONE — rootMargin pulls both viewport edges inward by 25%,
+        // leaving the middle 50% of the screen as the active band.
+        //
+        // rootMargin, not a bigger threshold, because the two are not
+        // interchangeable here: a single threshold value fires at the SAME
+        // visibility fraction in both directions, so it can only widen or
+        // narrow the zone symmetrically — it cannot delay the entry AND
+        // advance the exit. Shrinking the root box does exactly that: the
+        // block must travel 25% of the viewport further in before it counts
+        // as intersecting, and stops counting 25% sooner on the way out.
+        // Net effect is the requested "start later, leave earlier" — an
+        // active window ~50% narrower than the previous full-viewport root.
+        // Percentages (not px) so it scales with viewport height rather than
+        // reading very differently on a phone vs a desktop.
+        var io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (entry) {
+            var root = document.documentElement;
+            if (entry.isIntersecting) {
+              var tBg = entry.target.getAttribute('data-shift-bg');
+              var tInk = entry.target.getAttribute('data-shift-ink');
+              if (tBg) root.style.setProperty('--shift-bg', tBg);
+              if (tInk) root.style.setProperty('--shift-ink', tInk);
+              root.classList.add('invert-timed-active');
+              root.style.setProperty('--gradient-shift-3', '1');
+            } else {
+              root.classList.remove('invert-timed-active');
+              root.style.setProperty('--gradient-shift-3', '0');
+            }
+          });
+        // threshold 0 with the shrunk root, NOT 0.15. intersectionRatio is
+        // measured against the ELEMENT's own area, so a block taller than the
+        // shrunk root can never reach a 15% ratio no matter where it sits:
+        // at 25%/25% the root is half the viewport, so anything taller than
+        // ~3.3 viewports caps out below 0.15 and would NEVER fire. This
+        // block already carries 40vh+55vh of wash padding, so that is a live
+        // risk, not a hypothetical.
+        // With the root already shrunk to the middle band, threshold 0 means
+        // "any part of the block has reached that band" — which is the
+        // intended trigger anyway, and is height-independent by construction.
+        }, { threshold: 0, rootMargin: '-60% 0px -60% 0px' });
+        timed.forEach(function (el) { io.observe(el); });
+      }
+
+      if (!window.BackgroundLayer) return;
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      document.querySelectorAll('.invert-wrapper--page:not([data-invert-static]):not([data-invert-timed])').forEach(function (el) {
+        var bg = el.getAttribute('data-shift-bg');
+        var ink = el.getAttribute('data-shift-ink');
+        if (bg) document.documentElement.style.setProperty('--shift-bg', bg);
+        if (ink) document.documentElement.style.setProperty('--shift-ink', ink);
+        window.BackgroundLayer.bindShift(el, '--gradient-shift-3', { quantize: 0.05 });
       });
     })();
   </script>
@@ -1253,6 +1713,29 @@
        frame.js above, cheaper (no WebGL) alternative for cases that don't
        need gradient-frame's animated bands. -->
   <script src="{{asset "js/gradient-aura-frame.js"}}"></script>
+
+  <!-- Full-bleed .invert-wrapper--full breakout (main.css) — live-measures
+       each instance's actual distance from the viewport edges instead of
+       assuming it's horizontally centered (a post page's side rail/page
+       padding can push .gh-content off-center) — see that script's own
+       doc. Loaded site-wide, same "opt in with markup alone" model as
+       gradient-frame.js/gradient-aura-frame.js above. -->
+  <script src="{{asset "js/invert-wrapper-full.js"}}"></script>
+
+  <!-- .case-study-section[data-background] — reads the hex value into
+       --case-study-bg (main.css consumes it for the section's own
+       background-color and the data-gradient-wash fade). Loaded
+       site-wide, same "opt in with markup alone" model as the other
+       small auto-init scripts above. -->
+  <script src="{{asset "js/case-study-section.js"}}"></script>
+
+  <!-- .before-after-slider — before/after image comparison, pasted as
+       raw HTML into a Ghost content HTML card (no partial include
+       needed, Handlebars partials aren't reachable from the editor).
+       Same "opt in with markup alone" auto-init model as
+       case-study-section.js above; multiple instances per page work
+       unmodified. -->
+  <script src="{{asset "js/before-after-slider.js"}}"></script>
 
   <!-- Modular Animated Gradient Background System -->
   <script src="{{asset "js/gradient-distortion.js"}}"></script>

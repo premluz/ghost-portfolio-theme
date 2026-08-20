@@ -525,7 +525,7 @@
      updated by hand alongside (see COMMON_ISSUES.md). */
   --theme-light-bg: #FAFAF8;
   --theme-light-ink: #1a1a1a;
-  --theme-dark-bg: #1d1c1d;
+  --theme-dark-bg: #141217;
   --theme-dark-ink: var(--primitive-neutral-0);
 
   /* SHIFT PALETTE — targets for the reusable section palette-flip transition
@@ -582,16 +582,49 @@
   --icon-brightness-base: 1.2;
   --icon-brightness-shift: 1;
 
+  /* GRADIENT STOPS — single source for both the headline text-fill
+     (--gradient-text-image below) and the WebGL page-background gradient
+     (gradflow-background.js, driven via assets/js/gradient-tokens.js). Two
+     independent 3-stop families, each theme-scoped (dark here, light/dim
+     override below/elsewhere) — override ONLY these raw stops per theme;
+     the composed strings below derive from them via var(), so every
+     consumer (text fill, WebGL bg) recolors automatically and can never
+     drift out of sync the way two separately-authored gradients could.
+       --grad-brand-*  drives the page background (gradflow).
+       --grad-text-*   drives .text-gradient; defaults to the brand stops
+                       via var() so a theme that wants them identical only
+                       has to author 3 values, not 6 — override --grad-text-*
+                       directly only when text should diverge from the bg. */
+  --grad-brand-1: #b9a7ff;
+  --grad-brand-2: #8fd8d2;
+  --grad-brand-3: #6aa9ff;
+  --grad-text-1: var(--grad-brand-1);
+  --grad-text-2: var(--grad-brand-2);
+  --grad-text-3: var(--grad-brand-3);
+
   /* GRADIENT TEXT (DNA-Capital-style headline fill) — consumed by the
      .text-gradient utility in main.css (background-clip: text). Defaults to
      a layered CSS gradient (zero network cost); to switch to an authored
      image (small blurred WebP, ~400x300 is plenty), override per theme:
        --gradient-text-image: url('/assets/images/title-gradient-dark.webp');
-     Both tokens are theme-scoped — override them in the light block below.
-     NOT wired to the palette shift: .text-gradient must never be used
-     inside the shift zone (see the utility's comment). */
-  --gradient-text-image: linear-gradient(100deg,#b9a7ff 28%,  #8fd8d2 74%, #6aa9ff 100%);
+     Composed from --grad-text-1/2/3 above — declared once here in base
+     :root; every theme block need only override the 3 primitives, not this
+     string. NOT wired to the palette shift: .text-gradient must never be
+     used inside the shift zone (see the utility's comment). */
+  --gradient-text-image: linear-gradient(100deg, var(--grad-text-1) 28%, var(--grad-text-2) 74%, var(--grad-text-3) 100%);
   --gradient-text-fallback: var(--color-on-surface);
+
+  /* GRADIENT BRAND (page-background fill) — same "3 stops, one CSS string"
+     shape as GRADIENT TEXT above, but for gradflow's WebGL background
+     rather than a text-clip. gradflow itself takes 4 colors + an optional
+     2nd layer (gradflow-background.js); the 4th tone and layer-2 colors are
+     synthesized from these 3 stops by GradflowColorCrossfade.tonesFrom()
+     (already loaded site-wide, already used this way by post.hbs's
+     gradientCss override) rather than authored here — keeps the authoring
+     surface at exactly 3 stops everywhere in this system. This CSS string
+     itself is only consumed as a visual reference / non-JS fallback; the
+     canonical numeric read is assets/js/gradient-tokens.js. */
+  --gradient-brand-image: linear-gradient(100deg, var(--grad-brand-1) 0%, var(--grad-brand-2) 50%, var(--grad-brand-3) 100%);
 
   /* SHIFT SCOPE — where the palette-flip paints. Both are 0/1 multipliers
      on --profile-shift, so switching modes is a token change, no JS:
@@ -618,7 +651,7 @@
      the padding a full-bleed section already carries doesn't eat into
      that 1920px rather than sitting outside it. */
   --max-width: calc(1920px + var(--content-padding) * 2);
-  --content-padding: clamp(1rem, 4vw, 4rem);
+  --content-padding: clamp(1rem, 6rem, 6rem);
 
   /* Content width — easily configurable by page_width setting */
   --content-max-width-text: 800px;
@@ -854,8 +887,26 @@
 /* ═══════════════════════════════════════════════════════════════════════════ */
 
 :root[data-theme='light'] {
-  /* GRADIENT TEXT — deeper stops so the fill holds contrast on light bg */
+  /* GRADIENT TEXT — deeper stops so the fill holds contrast on light bg.
+     Kept as a direct 5-stop override (rather than composed from
+     --grad-text-1/2/3 like dark/dim) because light's existing fill needs
+     more stops than the 3-stop primitive shape supports — intentional,
+     not an oversight. --grad-text-1/2/3 are still set below so any code
+     that reads the primitives directly (not just --gradient-text-image)
+     gets a sane 3-stop approximation of this same gradient. */
   --gradient-text-image: linear-gradient(100deg, #1d5f8a 0%, #4b3f9e 30%, #1f2a44 55%, #16706a 78%, #1d5f8a 100%);
+  --grad-text-1: #1d5f8a;
+  --grad-text-2: #4b3f9e;
+  --grad-text-3: #16706a;
+
+  /* GRADIENT BRAND — page-background stops for light theme (see base :root
+     GRADIENT STOPS comment). No pre-existing brand gradient to preserve
+     here, so these are fresh, deliberately muted/light-safe stops rather
+     than dark's vivid pastel triple. */
+  --grad-brand-1: #a8c5e8;
+  --grad-brand-2: #c9a8e0;
+  --grad-brand-3: #8fc9c2;
+  --gradient-brand-image: linear-gradient(100deg, var(--grad-brand-1) 0%, var(--grad-brand-2) 50%, var(--grad-brand-3) 100%);
 
   /* SHIFT PALETTE — light site shifts to the dark theme's palette (see the
      cross-theme primitives in base :root — single source, can't drift). */
@@ -1048,6 +1099,10 @@
 /* ═══════════════════════════════════════════════════════════════════════════ */
 
 :root[data-theme='dim'] {
+  /* No --grad-brand-*/--grad-text-* override here — dim intentionally
+     inherits dark's gradient stops (base :root) unchanged; add an override
+     block here if dim ever needs its own. */
+
   /* BACKGROUND & SURFACES — Mid-tone grays */
   --color-background: #1d1e1f;
   --color-surface: #323232;

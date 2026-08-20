@@ -887,12 +887,12 @@ body[data-typography-body='medium'] .posts-tab {
    layout's large single-row card exactly"), so cinematic inherits that
    same proven size for free. */
 
-.posts-grid[data-posts-layout='cinematic'] .container {
+.posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .container {
   display: block;
   max-width: none;
 }
 
-.posts-grid[data-posts-layout='cinematic'] .carousel-track {
+.posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .carousel-track {
   display: grid;
   grid-template-columns: 1fr;
   gap: var(--space-3xl);
@@ -900,31 +900,137 @@ body[data-typography-body='medium'] .posts-tab {
   padding: var(--space-section) var(--content-padding);
 }
 
-.posts-grid[data-posts-layout='cinematic'] .post-card {
+/* ── CINEMATIC-GRID ──────────────────────────────────────────────────────
+   Same card treatment as 'cinematic' (every rule in this section matches
+   both values via :is(...)), differing ONLY in that cards sit two-up
+   instead of one per row.
+   Implemented by widening the existing selectors rather than duplicating
+   them: cinematic carries ~39 rules — image ratio, scrim layers, hover
+   glow, content positioning, the mobile block — and a copied variant would
+   have to be kept in sync with all of them by hand. One shared definition
+   plus the two overrides below cannot drift.
+
+   max-width is dropped to none here: cinematic sizes each card at
+   calc(--content-max-width-wide * 1.2) because it is a single centred
+   hero-scale card per row. Two of those side by side would overflow the
+   track, so in grid mode the column itself does the sizing. */
+.posts-grid:is([data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .carousel-track {
+  grid-template-columns: repeat(2, 1fr);
+  /* Tighter than cinematic's --space-3xl: that gap separates full-width
+     hero cards stacked vertically, where generous air reads as deliberate
+     pacing. Two-up, the same value pushes the columns apart and shrinks
+     each card for no benefit. --space-xl on both axes keeps the row and
+     column rhythm consistent. */
+  gap: var(--space-xl);
+}
+
+/* Content padding one step tighter again than the shared cinematic value
+   (--space-lg): each card is roughly half the width here, so the same
+   inset eats proportionally much more of the overlay. */
+.posts-grid:is([data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-content {
+  padding: var(--space-md);
+}
+
+/* No trailing space under the result line in this variant — it is the last
+   element in the overlay, so its bottom margin (--space-md, set by the base
+   .post-card-result rule further down this file AND in main.css) only adds
+   dead space between the text and the card's own padding edge. Top margin
+   kept: that one still separates it from the title above.
+   margin-bottom (the longhand) rather than re-declaring the whole
+   shorthand: both base rules set `margin: sm 0 md 0`, and a shorthand here
+   would have to restate the top value too, silently pinning it if that base
+   value is ever retuned. The longhand overrides exactly the one slot. */
+.posts-grid:is([data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-result {
+  margin-bottom: 0;
+}
+
+.posts-grid:is([data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card {
+  max-width: none;
+}
+
+/* ── CINEMATIC-RHYTHM ────────────────────────────────────────────────────
+   cinematic-grid's two-up layout PLUS the 1-2-1 cadence the 'grid' layout
+   uses: every 3rd card starting at 1 spans both columns, the other two in
+   each cycle sit side by side. Everything else — card treatment, gaps,
+   padding, hover glow — is inherited from the rules above, so this variant
+   is exactly one declaration of its own.
+
+   :nth-of-type, NOT :nth-child — copied deliberately from 'grid''s own
+   rule, for the reason documented there: post-and-cards.js inserts a
+   .statement-slide (<section>) as a sibling before some cards, and
+   :nth-child counts every sibling regardless of tag, so each inserted
+   <section> would shift the index of every .post-card after it and break
+   the cadence depending on how many cards happen to have a description.
+   :nth-of-type only counts <article> siblings, so the insertions can't
+   affect it.
+
+   No mobile guard needed: the 768px block further down already collapses
+   these variants to a single column, where spanning "both columns" is a
+   no-op. */
+/* The single card spans the full row and keeps its own max-width, so it is
+   narrower than the row — that leftover slack is what gets pushed to one
+   side or the other, alternating: 1st single right, 2nd left, 3rd right.
+   Singles fall on 3n+1 (cards 1, 4, 7, 10…), so alternating them is a
+   6-card cycle — 6n+1 (1, 7, 13…) right, 6n+4 (4, 10, 16…) left.
+
+   It keeps grid-column: 1 / -1 rather than being placed into a single
+   column. Placing it in one column looked equivalent and is not: that
+   leaves the other cell of the row empty, and grid's default row flow
+   BACKFILLS it with the next auto-placed card — so the "single" would
+   silently end up sharing its row. Confirmed by simulating placement
+   across 12 cards: card 5 was pulled up beside the single at card 4. */
+.posts-grid[data-posts-layout='cinematic-rhythm'] .post-card:nth-of-type(3n+1) {
+  grid-column: 1 / -1;
+  /* Restores the max-width the shared cinematic rule gives every card
+     (calc(--content-max-width-wide * 1.2)), which the two-up override above
+     sets to `none` — correct for a card filling one narrow column, wrong
+     for this one, which spans the whole row and would otherwise stretch
+     edge to edge. With the cap back, the card is narrower than its row,
+     which is what makes an alignment choice meaningful at all. */
+  max-width: calc(var(--content-max-width-wide) * 1.2);
+}
+
+/* Alternate which side that gap falls on. The shared .post-card rule sets
+   `margin: 0 auto` (both sides auto = centred); overriding ONE side to 0
+   collapses that side's slack and pushes the card the other way.
+   margin-left/-right longhands, not `margin: 0 0 0 auto`: the shorthand
+   would also restate the vertical margins, silently pinning them if the
+   base rule's values are ever changed. */
+.posts-grid[data-posts-layout='cinematic-rhythm'] .post-card:nth-of-type(6n+1) {
+  margin-right: 0;
+}
+
+.posts-grid[data-posts-layout='cinematic-rhythm'] .post-card:nth-of-type(6n+4) {
+  margin-left: 0;
+}
+
+.posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card {
   /* +30% over the base "wide" content token, on explicit request — calc()
      over the token rather than a new hardcoded max-width, so this still
      scales with the site's own page_width tiers (1000/1100/1800px)
      instead of picking one fixed pixel value that only looks right at one
      tier. */
-  max-width: calc(var(--content-max-width-wide) * 1.3);
+  max-width: calc(var(--content-max-width-wide) * 1.2);
   width: 100%;
   margin: 0 auto;
   padding: 0;
+
 }
 
-.posts-grid[data-posts-layout='cinematic'] .post-card-link {
+.posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-link {
   display: block;
 }
 
 /* display:block, not the base rule's flex row — content/image are stacked
    via position:absolute below, not laid out side by side. */
-.posts-grid[data-posts-layout='cinematic'] .post-card-inner {
+.posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-inner {
   display: block;
   gap: 0;
 }
 
-.posts-grid[data-posts-layout='cinematic'] .post-card-image {
+.posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-image {
   margin-bottom: 0;
+  border-radius: var(--radius-lg) !important;
 }
 
 /* Colour wash — the card's own gradient (data-gradient-css, mirrored into
@@ -937,7 +1043,7 @@ body[data-typography-body='medium'] .posts-tab {
    Hover-only, on request: hidden at rest (opacity:0), fades in only while
    the card is actually being interacted with — the shadow below is what
    carries legibility at rest, this is a separate accent on top of it. */
-.posts-grid[data-posts-layout='cinematic'] .post-card-image::before {
+.posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-image::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -949,7 +1055,7 @@ body[data-typography-body='medium'] .posts-tab {
 }
 
 /* Cinematic hover gradient disabled 2026-08-06
-.posts-grid[data-posts-layout='cinematic'] .post-card-link:hover .post-card-image::before {
+.posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-link:hover .post-card-image::before {
   opacity: 1;
 }
 */
@@ -965,18 +1071,123 @@ body[data-typography-body='medium'] .posts-tab {
    right corner, which stays comparatively clear. Bumped stronger too
    (0.8→0.92 core, reaches further before fully transparent) per "slightly
    more prominent." */
-.posts-grid[data-posts-layout='cinematic'] .post-card-image::after {
+.posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-image::after {
   content: '';
   position: absolute;
   inset: 0;
   z-index: 2;
-  background: radial-gradient(
-    ellipse 75% 65% at 18% 100%,
-    rgba(0, 0, 0, 0.92) 0%,
-    rgba(0, 0, 0, 0.55) 45%,
-    transparent 85%
-  );
+  /* TWO stacked backgrounds, not two pseudo-elements — .post-card-image
+     already uses both its ::before (hover colour wash, z-index:1) and
+     ::after (this rule) slots, and CSS allows only one of each per
+     element; a real third layer needs a DOM node. Multiple backgrounds
+     paint in listed order, first on top, so the radial legibility scrim
+     stays the frontmost/strongest layer and this flat wash sits behind
+     it, covering the full image evenly (the radial alone fades to
+     `transparent` well before the top-right corner — see its own comment
+     above — so without this, corners far from the text had no shade at
+     all). Two identical colour stops (not `black` shorthand) is the
+     standard way to express a FLAT colour as a <gradient> value, needed
+     here since `background` with multiple layers requires every layer to
+     be an image/gradient, not a plain colour. */
+  background:
+    radial-gradient(
+      ellipse 250% 100% at 0% 150%,
+      rgba(0, 0, 0, 0.99) 0%,
+      rgba(0, 0, 0, 0.75) 65%,
+      transparent 95%
+    ),
+    linear-gradient(rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.2));
   pointer-events: none;
+}
+
+/* ── HOVER GLOW ──────────────────────────────────────────────────────────
+   Moving gradient glow that fades in on hover, from an animated WebP.
+   A real element (.post-card-hover-glow, post-card.hbs) rather than a
+   pseudo-element: .post-card-image's ::before (colour wash) and ::after
+   (legibility scrim) are both already in use, and CSS allows one of each.
+
+   mix-blend-mode: screen is what makes it read as LIGHT rather than a
+   pasted rectangle — screen keeps the bright parts of the WebP and drops
+   its blacks entirely, so the asset's dark background disappears against
+   the card image instead of dimming it. That is also why no matching
+   "dark" asset is needed: black is already the transparent value here.
+
+   Oversized (scale) and offset (translate) deliberately: the glow is meant
+   to bleed in from off-card, not sit centred inside it, and
+   .post-card-image's overflow:hidden + border-radius clip it to the card's
+   rounded box. blur() softens the WebP's own banding at this scale.
+
+   z-index 3 puts it ABOVE the legibility scrim (::after, z-index:2) and
+   still below .post-card-content (raised to 4) — the glow must never wash
+   over the title/testimonial text.
+   Above the scrim is required, not cosmetic: mix-blend-mode blends against
+   whatever is painted BENEATH the layer, so with the glow under the scrim
+   the screen blend resolved against the scrim's near-black and the glow
+   effectively vanished on lighter card images. Sitting above it, the blend
+   resolves against the finished card (image + wash + scrim) and reads
+   consistently whatever the underlying photo's brightness.
+   It was at z-index 2 first, level with the scrim: equal z-index is decided
+   by paint order, and ::after generates as the LAST child, so the scrim
+   still won. A higher tier is the only thing that actually reorders them.
+
+   Transitions opacity AND visibility together (not opacity alone) so the
+   layer is genuinely inert at rest: visibility:hidden removes it from
+   hit-testing and lets the browser skip compositing the blurred, scaled,
+   blended layer entirely until it is actually needed. The delay-free
+   0.3s ease-out on both is what makes the fade-out still animate rather
+   than snapping the instant visibility flips. */
+.posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-hover-glow {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 3;
+  background-image: url('/content/images/animated_hover.webp');
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  background-size: cover;
+  filter: blur(10px);
+  mix-blend-mode: screen;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  scale: 1.71 1.25;
+  translate: -20% 10%;
+  transition: opacity var(--duration-standard) var(--ease-standard),
+              visibility var(--duration-standard) var(--ease-standard);
+}
+
+.posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-link:hover .post-card-hover-glow {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Slow push-in on the media itself, alongside the glow — the reference's
+   own paired scale on its image background. Scoped to the real media
+   elements, not .post-card-image (the container carries the border-radius
+   and overflow:hidden that clip everything; scaling it would scale the
+   clip box too and the rounding would drift). */
+.posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-image img,
+.posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-video {
+  transition: scale var(--duration-standard) var(--ease-standard);
+}
+
+.posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-link:hover .post-card-image img,
+.posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-link:hover .post-card-video {
+  scale: 1.05;
+}
+
+/* Motion-sensitive users: keep the glow (it is a hover affordance, not
+   decoration) but drop the movement — no media push-in, and the animated
+   WebP's own frames are the only thing left moving, which we cannot pause
+   from CSS. Removing the scale is the part that matters most here. */
+@media (prefers-reduced-motion: reduce) {
+  .posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-link:hover .post-card-image img,
+  .posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-link:hover .post-card-video {
+    scale: 1;
+  }
 }
 
 /* .post-card-link (base rule) is position:relative — the containing block
@@ -984,14 +1195,25 @@ body[data-typography-body='medium'] .posts-tab {
    leaves .post-card-image (in normal flow, aspect-ratio-driven height) as
    the only thing sizing .post-card-inner/.post-card-link, so this ends up
    flush against the image's own bottom edge regardless of how much text a
-   given card has. */
-.posts-grid[data-posts-layout='cinematic'] .post-card-content {
+   given card has.
+   z-index raised 3 -> 4 to make room for the hover glow at 3: the glow has
+   to sit ABOVE the legibility scrim (2) for its screen blend to resolve
+   against the finished card rather than against the scrim's near-black,
+   and 3 was the only tier between them. Text stays the frontmost layer. */
+.posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-content {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 3;
-  padding: var(--space-xl);
+  z-index: 4;
+  /* width:100% overrides the BASE .post-card-content rule's width:70%
+     (main.css) — that value is for the side-by-side layouts, where the
+     content column sits next to the image. Here the content is absolutely
+     positioned ACROSS the image, so 70% left a dead third on the right and
+     wrapped titles early. left/right:0 alone does not win: an explicit
+     width on the same element takes precedence over the inset pair. */
+  width: 100%;
+  padding: var(--space-lg);
   /* Hard backstop, not just the conservative title size above — a card
      with a long title AND a long testimonial together could still stack
      past the image's own top edge otherwise (bottom:0 alone puts no
@@ -1007,8 +1229,8 @@ body[data-typography-body='medium'] .posts-tab {
    frame's invert-mode islands (GRADIENT-FRAME-SYSTEM.md), just without the
    full --profile-shift machinery since nothing outside this one image
    needs to react. */
-.posts-grid[data-posts-layout='cinematic'] .post-card-category,
-.posts-grid[data-posts-layout='cinematic'] .post-card-title {
+.posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-category,
+.posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-title {
   color: #fff !important;
 }
 
@@ -1021,21 +1243,21 @@ body[data-typography-body='medium'] .posts-tab {
    upward out of the card). Left at the base rule's own --text-size-h3 —
    proven to fit in every other layout without this problem. */
 
-.posts-grid[data-posts-layout='cinematic'] .post-card-testimonial {
+.posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-testimonial {
   color: rgba(255, 255, 255, 0.85) !important;
 }
 
-.posts-grid[data-posts-layout='cinematic'] .post-card-endorser {
+.posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-endorser {
   color: rgba(255, 255, 255, 0.6) !important;
 }
 
 /* Fields the reference screenshot doesn't show for this layout — same
    "hide what doesn't fit the layout" precedent as list mode hiding
    .post-card-client/-description just above. */
-.posts-grid[data-posts-layout='cinematic'] .post-card-meta,
-.posts-grid[data-posts-layout='cinematic'] .post-card-client,
-.posts-grid[data-posts-layout='cinematic'] .post-card-description,
-.posts-grid[data-posts-layout='cinematic'] .post-card-bullets {
+.posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-meta,
+.posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-client,
+.posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-description,
+.posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-bullets {
   display: none;
 }
 
@@ -1057,16 +1279,34 @@ body[data-typography-body='medium'] .posts-tab {
    order irrelevant on desktop), so a plain column flex would stack the
    text ABOVE the photo. */
 @media (max-width: 768px) {
-  .posts-grid[data-posts-layout='cinematic'] .post-card-inner {
+  /* cinematic-grid collapses to one column on phones — two cinematic cards
+     side by side leaves each far too narrow for the overlaid title/
+     testimonial content this layout puts on top of the image. Mirrors what
+     'grid' already does at its own breakpoint. Everything else in this
+     block applies to both variants unchanged. */
+  .posts-grid:is([data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .carousel-track {
+    grid-template-columns: 1fr;
+  }
+
+  /* At one column the alternating side-alignment is meaningless — reset the
+     margin override so every card is centred again, matching the rest of
+     the mobile layout. max-width is left alone: it is the same cap every
+     other card already carries here. */
+  .posts-grid[data-posts-layout='cinematic-rhythm'] .post-card:nth-of-type(3n+1) {
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-inner {
     display: flex;
     flex-direction: column;
   }
 
-  .posts-grid[data-posts-layout='cinematic'] .post-card-image {
+  .posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-image {
     order: 1;
   }
 
-  .posts-grid[data-posts-layout='cinematic'] .post-card-content {
+  .posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-content {
     order: 2;
     position: static;
     max-height: none;
@@ -1076,11 +1316,11 @@ body[data-typography-body='medium'] .posts-tab {
   }
 
   /* Legibility scrim off — content is below the image, not over it. */
-  .posts-grid[data-posts-layout='cinematic'] .post-card-image::after {
+  .posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-image::after {
     display: none;
   }
 
-  .posts-grid[data-posts-layout='cinematic'] .post-card-meta {
+  .posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-meta {
     display: block;
   }
 
@@ -1102,23 +1342,23 @@ body[data-typography-body='medium'] .posts-tab {
      section-scoped token, which is the whole point. Values match
      tokens.css's own light/dark ink so this stays consistent with the
      rest of the site. */
-  :root[data-theme='dark'] .posts-grid[data-posts-layout='cinematic'] .post-card-title {
+  :root[data-theme='dark'] .posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-title {
     color: #f5f5f5 !important;
   }
 
-  :root[data-theme='dark'] .posts-grid[data-posts-layout='cinematic'] .post-card-category,
-  :root[data-theme='dark'] .posts-grid[data-posts-layout='cinematic'] .post-card-testimonial,
-  :root[data-theme='dark'] .posts-grid[data-posts-layout='cinematic'] .post-card-endorser {
+  :root[data-theme='dark'] .posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-category,
+  :root[data-theme='dark'] .posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-testimonial,
+  :root[data-theme='dark'] .posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-endorser {
     color: #d0d0d0 !important;
   }
 
-  :root[data-theme='light'] .posts-grid[data-posts-layout='cinematic'] .post-card-title {
+  :root[data-theme='light'] .posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-title {
     color: #1a1a1a !important;
   }
 
-  :root[data-theme='light'] .posts-grid[data-posts-layout='cinematic'] .post-card-category,
-  :root[data-theme='light'] .posts-grid[data-posts-layout='cinematic'] .post-card-testimonial,
-  :root[data-theme='light'] .posts-grid[data-posts-layout='cinematic'] .post-card-endorser {
+  :root[data-theme='light'] .posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-category,
+  :root[data-theme='light'] .posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-testimonial,
+  :root[data-theme='light'] .posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-endorser {
     color: #4a4a4a !important;
   }
 }
@@ -1419,7 +1659,7 @@ body[data-typography-body='medium'] .posts-tab {
 .post-card-title {
   display: block;
   width: 100%;
-  font-size: var(--text-size-h3);
+  font-size: var(--text-size-h4);
   line-height: 1.5 !important; /* was var(--line-spacing-body-normal); token system removed */
   margin-top: 0;
   margin: var(--space-sm) 0;
@@ -1496,7 +1736,7 @@ body[data-typography-body='medium'] .posts-tab {
 
 .post-card-result {
   font-size: var(--text-size-body);
-  color: var(--color-on-surface-variant);
+  color: var(--color-on-surface);
   margin: var(--space-sm) 0 var(--space-md) 0;
   line-height: 1.5;
 }

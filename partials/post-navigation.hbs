@@ -25,6 +25,22 @@
   <section class="post-navigation" data-post-id="{{id}}" data-published-at="{{published_at}}" data-post-tags="{{#foreach tags}}{{slug}}{{#unless @last}},{{/unless}}{{/foreach}}"></section>
   <script>
     (function() {
+      // This script renders as part of {{{body}}} (default.hbs), which
+      // comes BEFORE post-utilities.js's own <script src> tag later in
+      // <body> — so window.getGhostContentKey (defined there) does not
+      // exist yet if this IIFE runs immediately/synchronously as parsed.
+      // Deferring the real work to DOMContentLoaded is enough to fix
+      // that: it only fires once every synchronous script encountered
+      // earlier in the document (post-utilities.js included) has
+      // already run, without needing a manual polling wait the way a
+      // script loaded ASYNC/deferred elsewhere in this codebase would.
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', run, { once: true });
+      } else {
+        run();
+      }
+
+      function run() {
       const nav = document.querySelector('.post-navigation[data-post-id]');
       if (!nav) return;
 
@@ -50,7 +66,23 @@
       const prevPostSlug = manualMeta && manualMeta.prevPostSlug ? manualMeta.prevPostSlug.trim() : '';
       console.log('[post-nav] Manual overrides — next:', nextPostSlug || '(none)', 'prev:', prevPostSlug || '(none)');
 
-      const key = window.ghostContentKey || '53c1eef4fff835def4f59619d6';
+      // getGhostContentKey() (post-utilities.js, loaded site-wide well
+      // before this partial's markup renders) is the ONE shared,
+      // documented resolver for this: window.ghostContentKey if set via
+      // Ghost Admin > Code Injection (see main.js's own doc comment,
+      // "Usage in Ghost Admin > Site Header Code Injection"), else the
+      // local dev key. This inline script used to hardcode its OWN
+      // separate copy of that same local dev key with no fallback
+      // chain at all — silently correct locally (the hardcoded key
+      // happened to match this instance), silently WRONG on production
+      // or any other Ghost instance, since a Content API key only ever
+      // works against the one install it was issued for. Confirmed:
+      // post-and-cards.js and CONSTANTS.js each ALSO have their own
+      // separate hardcoded copy of the same key — pre-existing
+      // duplication this fix doesn't touch, but the same root cause
+      // (production Code Injection never configured) would explain
+      // failures there too if this alone doesn't fully resolve it.
+      const key = window.getGhostContentKey();
       const fields = 'id,title,url,feature_image,published_at,reading_time,html';
 
       // Fetch featured posts (for the chronological fallback) and any
@@ -135,5 +167,6 @@
           if (navNext && nextPost) navNext.href = nextPost.url;
         })
         .catch(e => console.error('[post-nav]', e));
+      }
     })();
   </script>

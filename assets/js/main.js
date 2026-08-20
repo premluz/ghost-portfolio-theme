@@ -745,11 +745,11 @@ function initPostHeaderAnimation() {
   if (typeof gsap === 'undefined') return;
 
   // .post-header-layout (post.hbs only) is preferred: it's the outer
-  // two-column row (.post-project-summary + .post-header), and animating
-  // it instead of the inner .post-header makes the WHOLE row — sidebar
-  // included — fade/blur in as one unit. page.hbs/page-about.hbs have no
-  // such wrapper, so they fall through to their own .post-header (which
-  // also carries .page-header on those two templates) unchanged.
+  // header wrapper (.post-header-top's 3 columns: logo/meta/title —
+  // rebuilt 2026-08-15, was a 2-column summary+header row), and animating
+  // it fades/blurs the whole row in as one unit. page.hbs/page-about.hbs
+  // have no such wrapper, so they fall through to their own .post-header
+  // (which also carries .page-header on those two templates) unchanged.
   const postHeaderLayout = document.querySelector('.post-header-layout');
   const postHeader = document.querySelector('.post-header');
   const pageHeader = document.querySelector('.page-header');
@@ -803,7 +803,32 @@ function initPostHeaderAnimation() {
       animateH1LetterByLetter(postTitle, tl, 0);
     }
 
-    const heroImage = headerEl.querySelector('.post-image img, .post-image video, .post-image-wrapper img, .page-image img');
+    // Logo column fade-in (post.hbs only, .post-header-logo/.logomark-
+    // container) — replaces the old GSAP drop-bounce (initLogomarkAnimation/
+    // calculateLandingPosition, retired 2026-08-15: their whole premise was
+    // landing the logo in the corner of a text block, which doesn't apply
+    // now that it's a normal grid column). Same opacity fade every other
+    // piece of this timeline uses, at 0 like the header itself so it
+    // appears together with the row rather than trailing behind it.
+    const logoEl = headerEl.querySelector('.post-header-logo .logomark-container');
+    if (logoEl) {
+      tl.to(logoEl, {
+        opacity: 1,
+        duration: 0.8,
+        ease: 'power2.out',
+      }, 0);
+    }
+
+    // Hero image lookup is NOT scoped to headerEl: .post-hero-sticky
+    // (post.hbs) is a SIBLING of .post-header-layout, not a descendant —
+    // moved out deliberately so it can be position:sticky in normal
+    // document flow while the header (a separate, fading element) sits
+    // above it. page.hbs/page-about.hbs's .post-image is still inside
+    // their own .post-header, which headerEl already covers when it's
+    // that branch. postArticleEl below is the shared ancestor both cases
+    // actually live under.
+    const postArticleEl = headerEl.closest('.post, .page') || headerEl;
+    const heroImage = postArticleEl.querySelector('.post-hero-sticky img, .post-image img, .post-image video, .post-image-wrapper img, .page-image img');
     if (heroImage) {
       // CSS holds the initial state (opacity 0, scale 0.95 in main.css);
       // this animation is the only thing that reveals the image — it must
@@ -811,6 +836,23 @@ function initPostHeaderAnimation() {
       tl.to(heroImage, {
         opacity: 1,
         transform: 'scale(1)',
+        duration: 0.8,
+        ease: 'power2.out',
+      }, 0);
+    }
+
+    // Hero gradient-frame (post.hbs's .post-hero-gradient-frame, the
+    // animated WebGL band behind/around the header) — CSS holds it at
+    // opacity:0 (main.css, same pre-reveal-flash guard the header/hero
+    // image above use); this is the only thing that reveals it. Scoped
+    // to postArticleEl like heroImage above, not headerEl — it's a
+    // SIBLING of .post-header-layout in post.hbs, not a descendant.
+    // Same 0.8s/power2.out/position-0 as the rest of this timeline so it
+    // fades in together with the header row, not trailing behind it.
+    const heroGradientFrame = postArticleEl.querySelector('.post-hero-gradient-frame');
+    if (heroGradientFrame) {
+      tl.to(heroGradientFrame, {
+        opacity: 1,
         duration: 0.8,
         ease: 'power2.out',
       }, 0);
@@ -2656,7 +2698,29 @@ document.addEventListener('DOMContentLoaded', async () => {
   requestAnimationFrame(() => requestAnimationFrame(() => initStackedCards()));
   window.initTableOfContents?.();
   initPostNavigation();
-  initPostNavControls();
+  // initPostNavControls() retired — post-navigation.hbs (its
+  // {{> post-navigation}} include in post.hbs, re-enabled 2026-08-17)
+  // is the sole, authoritative source for .nav-post-prev/.nav-post-next
+  // now — its own script sets these SAME header-arrow elements' href
+  // in addition to rendering the bottom PREVIOUS/NEXT UP cards, per its
+  // own doc comment ("Same data powers the top-nav prev/next arrows").
+  // This function was a leftover legacy implementation of the SAME
+  // header arrows with no knowledge of post-navigation.hbs's
+  // nextPostSlug/prevPostSlug manual-override system (post.hbs
+  // codeinjection_head) — chronological-tag-order only, no override
+  // support. Both ran unconditionally on every post page load, each
+  // setting .href AND (this function specifically) attaching its own
+  // click listener with preventDefault() + an explicit location.href
+  // navigation — so even when post-navigation.hbs correctly set the
+  // override href first, THIS function's click listener still fired
+  // and navigated to its own chronological pick instead, regardless of
+  // what the href attribute said. Confirmed live: a post with
+  // nextPostSlug set to a specific slug still opened a different,
+  // chronologically-next post when the arrow was clicked.
+  // initPostNavControls() itself is left defined-but-unused below
+  // (this codebase's own convention for retired functions, e.g.
+  // initLogoMorphToOperatingModel) rather than deleted, in case its
+  // click-based fallback is ever wanted back.
   // initHeroTitleReveal moved into initHero() for synchronized timeline
   hideEmptyMetadata();
 
@@ -2682,7 +2746,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   // initHero();
   initPostHeaderAnimation();
   initHeroBlink();
-  initLogomarkAnimation();
+  // initLogomarkAnimation(); // disabled 2026-08-15 — the drop-bounce landed
+  // the logo in the corner of a text block (calculateLandingPosition read
+  // .post-header-content/.post-excerpt's live rect); post.hbs's header
+  // rebuild gives the logo its own dedicated grid column instead, so that
+  // premise no longer applies. Logo now gets a plain fade-in as part of
+  // initPostHeaderAnimation()'s own timeline (see that function). Function
+  // itself left intact/unused, same convention as initLogoMorphToOperating
+  // Model below.
   // initLogoMorphToOperatingModel(); // disabled — conflicts with logo minimize/expand animation, see definition above
   initGalleryModals();
 

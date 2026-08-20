@@ -71,11 +71,22 @@
 
     <!-- Right Side Controls -->
     <div class="nav-controls">
-      {{!-- Close button — post pages only, FIRST/leftmost in the collapsed
-            pill (Previous/Next follow it). Collapses the nav down to just
-            these (see main.css "POST PAGE NAV"); returns to wherever the
-            post was opened from, at the same scroll position, via
-            page-transition.js's runCurtainExit(). --}}
+      {{!-- Close button — post pages only via Handlebars ({{#is "post"}}
+            has ambient ready access to the page-type context at this
+            top-level {{> navigation}} include point, main.css "POST PAGE
+            NAV"). About/Contact get the SAME button added via plain JS
+            just below instead of a second {{#is}}/{{#has}} branch here —
+            {{#has slug="about, contact"}} was tried first and confirmed
+            NOT to render anything: {{> navigation}} is included at
+            default.hbs's top level, outside any {{#post}}/{{#page}}
+            block, so `slug` has no resolved post/page data to check
+            against at this scope (unlike {{#is "post"}}, which reads a
+            more ambient template-type signal that IS available here).
+            document.body.classList is the one signal ALL of body_class,
+            {{#is}}, and this JS check agree on regardless of Handlebars
+            scope — same pattern navigation.hbs's own collapse-trigger
+            script (further down this file) and page-transition.js's
+            isPostPage already use for the identical problem. --}}
       {{#is "post"}}
       <button class="nav-icon-btn nav-close-btn" aria-label="Close">
         <img src="{{asset "icons/close.svg"}}" alt="Close" class="nav-icon-close">
@@ -122,7 +133,7 @@
       <!-- Subscribe Button
       <a href="#/portal" class="button nav-button" data-portal="signup">Subscribe</a>-->
 
-      <!-- Theme Toggle  -->
+      <!-- Theme Toggle  
       <button class="nav-icon-btn theme-toggle" aria-label="Toggle theme">
        {{!-- Icons wrapped separately from .nav-tooltip: the stagger nav-hide
               mode's max-width collapse (main.css) needs overflow:hidden on
@@ -135,7 +146,7 @@
           <img src="{{asset "icons/moon.svg"}}" alt="Dark mode" class="theme-icon-moon">
         </span>
         <span class="nav-tooltip">Theme</span>
-      </button>
+      </button>-->
 
       <!-- Hamburger Menu -->
       <!--<button class="hamburger" aria-label="Toggle menu" aria-expanded="false">
@@ -183,10 +194,47 @@
   })();
 </script>
 
+{{!-- About/Contact close button — plain JS, not a second {{#is}}/{{#has}}
+      branch in the markup above (that block's own comment explains why:
+      {{> navigation}} sits outside any {{#post}}/{{#page}} context at its
+      include point in default.hbs, so per-slug Handlebars checks have no
+      data to match against there). Inserted BEFORE the collapse-trigger
+      script below runs — that script measures .nav-wrapper's collapsed
+      width by temporarily toggling nav-collapsing, which requires
+      .nav-close-btn to already exist in the DOM or the measurement is
+      wrong (missing this button's own width). Mirrors the real
+      .nav-close-btn markup above exactly (same classes/icon/tooltip) so
+      every CSS rule keyed off that class works identically regardless of
+      which path created the element. --}}
+<script>
+  (function () {
+    var isCloseablePage = document.body.classList.contains('page-about')
+      || document.body.classList.contains('page-contact');
+    if (!isCloseablePage) return;
+    var navControls = document.querySelector('.nav-controls');
+    if (!navControls || navControls.querySelector('.nav-close-btn')) return;
+    var btn = document.createElement('button');
+    btn.className = 'nav-icon-btn nav-close-btn';
+    btn.setAttribute('aria-label', 'Close');
+    btn.innerHTML = '<img src="{{asset "icons/close.svg"}}" alt="Close" class="nav-icon-close"><span class="nav-tooltip">Close</span>';
+    navControls.insertBefore(btn, navControls.firstChild);
+  })();
+</script>
+
 <script>
   (function () {
     if (document.documentElement.classList.contains('nav-hop')) return;
-    if (!document.body.classList.contains('post-template')) return;
+    // Same collapse-to-close-pill treatment now applies to About/Contact
+    // (body.page-about / body.page-contact — Ghost's own page-slug body
+    // classes), not just posts: same "close returns to wherever this was
+    // opened from" behavior (page-transition.js's postOrigin/closePost(),
+    // already generic — reads sessionStorage, no template gating in the
+    // JS itself), just without prev/next (those stay post-only below —
+    // "next about page" isn't a meaningful concept).
+    var isPostOrCloseablePage = document.body.classList.contains('post-template')
+      || document.body.classList.contains('page-about')
+      || document.body.classList.contains('page-contact');
+    if (!isPostOrCloseablePage) return;
     var wrapper = document.querySelector('.nav-wrapper');
     var logoAndNav = document.querySelector('.logoandnavwrapper');
     if (!wrapper || !logoAndNav) return;

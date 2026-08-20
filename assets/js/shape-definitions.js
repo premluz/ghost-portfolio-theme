@@ -252,6 +252,18 @@ const ribbonDispersedGenerator = (particleCount, config) => {
   const positions = new Float32Array(particleCount * 3);
   const phis = new Float32Array(particleCount);
   const sizes = new Float32Array(particleCount);
+  // Per-particle position ALONG the ribbon's own length, 0 (start, lower
+  // end — cy = (u-0.5)*height gives its most-negative Y here) to 1 (top).
+  // Added 2026-08-11 for the hero "heartbeat" pulse: Y alone can't drive a
+  // wave that travels WITH a spiral shape (two particles can share a Y but
+  // sit at completely different points along the ribbon's own path,
+  // several turns apart) — this is literally `u` from the loop below,
+  // just kept instead of discarded once position is computed from it.
+  // Free-floating/scatter particles (the tail past latticeCount) get -1,
+  // a sentinel outside the valid [0,1] range: the pulse shader can check
+  // `progress >= 0` to skip them rather than having them light up at a
+  // false "u=0" if this were left at the array's default fill (0).
+  const ribbonProgress = new Float32Array(particleCount).fill(-1);
 
   const R = config.radius;
   const height = config.height;
@@ -289,6 +301,7 @@ const ribbonDispersedGenerator = (particleCount, config) => {
       positions[idx * 3 + 1] = cy + dy * v + j;
       positions[idx * 3 + 2] = cz + dz * v + j;
       phis[idx] = tw + t;
+      ribbonProgress[idx] = u;
       const h = hash(idx);
       sizes[idx] = 0.38 + h * 0.22;
       idx++;
@@ -300,7 +313,9 @@ const ribbonDispersedGenerator = (particleCount, config) => {
   }
 
   // Remaining slice: free-floating, randomly scattered — same cube scatter
-  // as dispersedGenerator below. phis stays 0 (no wave-animation input).
+  // as dispersedGenerator below. phis stays 0 (no wave-animation input);
+  // ribbonProgress stays -1 (sentinel set above) — these aren't on the
+  // ribbon at all, so the pulse shouldn't try to place them along it.
   const scatterHalfWidth = 25;
   for (; idx < particleCount; idx++) {
     positions[idx * 3]     = (Math.random() - 0.5) * scatterHalfWidth * 2;
@@ -310,11 +325,29 @@ const ribbonDispersedGenerator = (particleCount, config) => {
     sizes[idx] = 0.3 + Math.random() * 0.3;
   }
 
-  return { positions, phis, sizes };
+  return { positions, phis, sizes, ribbonProgress };
 };
 
 const RIBBON_DISPERSED = new ShapeDefinition(
   'ribbon-dispersed',
+  ribbonDispersedGenerator,
+  { radius: 2.5, height: 22, dispersedFraction: 0.2 }
+);
+
+// RIBBON DISPERSED (PULSE) — same geometry as RIBBON_DISPERSED above,
+// SAME generator function, only the registry key differs. Added 2026-08-11
+// as an opt-in hero variant: set window.HERO_PARTICLE_MODE (default.hbs)
+// to 'ribbon-dispersed-pulse' instead of 'ribbon-dispersed' to enable the
+// travelling "heartbeat" pulse (STYLE_HERO_RIBBON_PULSE,
+// particle-style-definitions.js) — everything else (particle count, other
+// shapes, every other trigger) is completely untouched by that switch, and
+// reverting is the same one-line change back. Deliberately a SEPARATE
+// ShapeDefinition rather than a flag on the existing one: shape identity
+// (the key) is what every trigger/scenario/style lookup in this codebase
+// keys off, so two distinct keys is what makes "with or without the pulse"
+// a real, independent choice rather than a hidden mode within one shape.
+const RIBBON_DISPERSED_PULSE = new ShapeDefinition(
+  'ribbon-dispersed-pulse',
   ribbonDispersedGenerator,
   { radius: 2.5, height: 22, dispersedFraction: 0.2 }
 );
@@ -781,36 +814,69 @@ const TERRAIN = new ShapeDefinition(
   { width: 13, depth: 11 }
 );
 
-// GRID - Regular, unjittered interior lattice ("technical drawing paper")
-// with the same organic boundary treatment as TERRAIN (see its own
-// edgeFactor comment above) — a hard rectangle reads as an obvious square
-// from directly above regardless of how even the interior is, so the
-// silhouette is pulled toward an irregular closed curve the same way
-// TERRAIN's is, while keeping (unlike TERRAIN) zero per-cell jitter, which
-// is what preserves the "technical drawing paper" read close-up.
-// Interactive displacement (mouse wave + click ripple) lives in
-// particle-animation-loop.js's vertex shader.
+// GRID - Regular, unjittered interior lattice ("technical drawing paper"),
+// plain rectangle, no organic boundary mask. Interactive displacement
+// (mouse wave + click ripple) lives in particle-animation-loop.js's vertex
+// shader.
 //
-// Previous version (plain rectangle, no organic boundary) kept below,
-// unused, in case we want to revert:
-// const gridGenerator_square = (particleCount, config) => {
+// REVERTED 2026-08-19 — was pulling every particle outside an organic
+// boundary curve (a handful of summed sine harmonics over angle) radially
+// INWARD onto that curve, so the silhouette read as a coastline/blob
+// instead of a hard rectangle from directly above. In practice that
+// collapsed a large fraction of particles onto one dense, bright contour
+// line — reported as a "solid density line edge" against a reference
+// image wanting a flat, evenly-stretched field with no dominant edge.
+// Reverted to the plain rectangle version (which predates the organic
+// mask — this file already kept it, unused, in a comment for exactly this
+// "revert if needed" case). The organic-boundary version is kept below,
+// commented out, should the coastline silhouette ever be wanted back.
+//
+// const gridGenerator_organic = (particleCount, config) => {
+//   console.log('[grid-gen] generating', particleCount, 'particles');
 //   const positions = new Float32Array(particleCount * 3);
 //   const size = config.size;
 //   const half = size / 2;
 //   const cols = Math.max(1, Math.round(Math.sqrt(particleCount)));
 //   const rows = Math.max(1, Math.ceil(particleCount / cols));
 //   const cellSize = size / cols;
+//
+//   // Same organic edge mask as TERRAIN — a handful of sine harmonics summed
+//   // over angle, pulling particles outside the resulting closed curve
+//   // radially inward so the silhouette reads as a coastline/blob, not a
+//   // hard rectangle, from directly above.
+//   const edgeFactor = (angle) => 1.0
+//     + 0.22 * Math.sin(angle * 2.3 + 0.6)
+//     + 0.15 * Math.sin(angle * 3.7 + 2.4)
+//     + 0.11 * Math.sin(angle * 5.1 + 4.1)
+//     + 0.07 * Math.sin(angle * 7.9 + 1.2);
+//
 //   let idx = 0;
 //   for (let r = 0; r < rows && idx < particleCount; r++) {
 //     for (let c = 0; c < cols && idx < particleCount; c++) {
-//       const x = -half + (c + 0.5) * cellSize;
-//       const z = -half + (r + 0.5) * cellSize;
+//       let x = -half + (c + 0.5) * cellSize;
+//       let z = -half + (r + 0.5) * cellSize;
+//
+//       const nx = x / half;
+//       const nz = z / half;
+//       const dist = Math.sqrt(nx * nx + nz * nz);
+//       if (dist > 0.0001) {
+//         const angle = Math.atan2(nz, nx);
+//         const threshold = edgeFactor(angle);
+//         if (dist > threshold) {
+//           const pull = threshold / dist;
+//           x *= pull;
+//           z *= pull;
+//         }
+//       }
+//
 //       positions[idx * 3] = x;
 //       positions[idx * 3 + 1] = 0;
 //       positions[idx * 3 + 2] = z;
 //       idx++;
 //     }
 //   }
+//
+//   console.log('[grid-gen] generated', idx, 'particles');
 //   return positions;
 // };
 const gridGenerator = (particleCount, config) => {
@@ -822,35 +888,26 @@ const gridGenerator = (particleCount, config) => {
   const rows = Math.max(1, Math.ceil(particleCount / cols));
   const cellSize = size / cols;
 
-  // Same organic edge mask as TERRAIN — a handful of sine harmonics summed
-  // over angle, pulling particles outside the resulting closed curve
-  // radially inward so the silhouette reads as a coastline/blob, not a
-  // hard rectangle, from directly above.
-  const edgeFactor = (angle) => 1.0
-    + 0.22 * Math.sin(angle * 2.3 + 0.6)
-    + 0.15 * Math.sin(angle * 3.7 + 2.4)
-    + 0.11 * Math.sin(angle * 5.1 + 4.1)
-    + 0.07 * Math.sin(angle * 7.9 + 1.2);
+  // Perspective-compensation: the object is tilted (rotation.x, see
+  // particle-animation-loop.js's "Grid/Dots: fixed camera framing" block),
+  // so rows at +z (top of the on-screen trapezoid) read narrower and rows
+  // at -z (bottom) read wider — plain camera perspective on a tilted plane.
+  // Empirically-tuned per-row width multiplier (not derived from exact
+  // camera math — see 2026-08-19 session notes) that counter-widens the far
+  // (+z/top) rows and counter-narrows the near (-z/bottom) rows so the
+  // rendered silhouette reads as a rectangle instead of a trapezoid.
+  // `t` is -1 at the nearest row, +1 at the farthest row; retune
+  // rowWidthMultiplier's range directly against a screenshot if the
+  // silhouette still isn't a clean rectangle.
+  const rowWidthMultiplier = (t) => 1 + t * 0.6;
 
   let idx = 0;
   for (let r = 0; r < rows && idx < particleCount; r++) {
+    const z = -half + (r + 0.5) * cellSize;
+    const t = half > 0 ? z / half : 0;
+    const widthScale = rowWidthMultiplier(t);
     for (let c = 0; c < cols && idx < particleCount; c++) {
-      let x = -half + (c + 0.5) * cellSize;
-      let z = -half + (r + 0.5) * cellSize;
-
-      const nx = x / half;
-      const nz = z / half;
-      const dist = Math.sqrt(nx * nx + nz * nz);
-      if (dist > 0.0001) {
-        const angle = Math.atan2(nz, nx);
-        const threshold = edgeFactor(angle);
-        if (dist > threshold) {
-          const pull = threshold / dist;
-          x *= pull;
-          z *= pull;
-        }
-      }
-
+      const x = (-half + (c + 0.5) * cellSize) * widthScale;
       positions[idx * 3] = x;
       positions[idx * 3 + 1] = 0;
       positions[idx * 3 + 2] = z;
@@ -865,7 +922,19 @@ const gridGenerator = (particleCount, config) => {
 const GRID = new ShapeDefinition(
   'grid',
   gridGenerator,
-  { size: 16 }
+  // size widened 16 -> 30 (2026-08-19) per explicit "should be across full
+  // width" — same 16000-particle budget spread over more world units, so
+  // this also thins the spacing (same tradeoff DOTS's own size comment
+  // documents at 85 units for its own, flatter/camera-facing shape). GRID
+  // is a receding XZ ground-plane (camera at z=8/75deg FOV, looking at the
+  // origin — particle-animation-loop.js), not a flat camera-facing card
+  // like DOTS, so its near-camera rows already read wider on screen than
+  // the raw size number alone suggests — 30 kept narrower than DOTS's 85
+  // for that reason. Retune directly here if it's still not reaching the
+  // viewport edges, or overshoots it (see rowWidthMultiplier in
+  // gridGenerator above for the separate top/bottom trapezoid-correction
+  // knob).
+  { size: 30 }
 );
 
 // DOTS - Plain flat rectangular lattice, no organic boundary mask (unlike
@@ -1273,6 +1342,7 @@ if (typeof window !== 'undefined') {
   window.DISPERSED = DISPERSED;
   window.RIBBON = RIBBON;
   window.RIBBON_DISPERSED = RIBBON_DISPERSED;
+  window.RIBBON_DISPERSED_PULSE = RIBBON_DISPERSED_PULSE;
   window.VOLATILITY = VOLATILITY;
   window.HERO_HELIX = HERO_HELIX;
   window.COLLAPSE = COLLAPSE;

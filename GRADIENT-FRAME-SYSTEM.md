@@ -377,6 +377,103 @@ may exist and would break the same way under a fixed palette.
 
 ---
 
+## PARKED: making top/bottom bands look visually distinct (2026-08-16)
+
+**Goal.** On `.post-hero-gradient-frame` (`post.hbs`), with both bands
+enabled (`data-gradient-bands="both"`), make the bottom band read as
+*obviously different* from the top — not the same wave repeated. Original
+ask was framed as "mirror the bottom band vertically and horizontally,"
+with a reference image showing the two bands' diagonal sweeps leaning
+opposite ways.
+
+**Status: unresolved.** Three approaches tried, all either broken or too
+subtle to notice. Reverted to both bands sharing the same wave config
+(today's actual state) rather than ship something that doesn't work.
+
+### Attempt 1 — CSS `transform: scaleY(-1)` on `.gradient-frame-canvas`
+
+Reverted immediately. Flips every rendered pixel, including the
+already-correct `u_outer_at_one` color-to-edge mapping (inner color at the
+inner edge, outer at the outer edge) — since color and wave shape share the
+same fragment-shader `uv`, a pixel-space flip can't separate "flip the
+shape" from "flip the colors." The inner/outer relationship inverted and
+no longer matched either edge.
+
+### Attempt 2 — shader uniform, flip `uv.x`/negate displacement inside `waveFlow()`
+
+A `u_mirror_shape` uniform, sign-flipping `uv.x` inside each `sin()` call
+and separately negating the summed `w1+w2+w3` displacement. Compiled and
+ran with no errors, uniform confirmed reaching the GPU correctly
+(`u_mirror_shape=1` on bottom, `=0` on top, verified via live
+`gl.uniform1f` interception) — but produced **zero visible change**.
+
+Root cause: `sin()` is an odd function (`sin(-x) == -sin(x)`). Negating
+`uv.x` inside the sine argument *already* flips each `wN` term's sign on
+its own; negating the already-flipped sum again cancels the first flip
+right back out. Two negations of an odd function's output is a no-op
+(confirmed by direct pixel readback — "mirrored" rendered pixel-identical
+to unmirrored except for the unrelated `u_scroll * parallax` term).
+
+### Attempt 3 — shader uniform, point-reflection (`waveFlowMirrored`)
+
+Fixed the algebra properly: `mirrored(x, y) = 1 - waveFlow(1-x, 1-y)` —
+sample the *original* function at the point-reflected coordinate, then
+invert the result so `pattern`'s 0→1 climb (which the color ramp reads
+directly) still anchors to the true, un-reflected `uv.y`. Verified
+correct three independent ways before calling it done:
+
+1. **Algebraically** — edges stay anchored (`uv.y≈0 → pattern≈0`,
+   `uv.y≈1 → pattern≈1`) regardless of mirror state, checked in Python
+   against the exact GLSL formula.
+2. **Against an isolated WebGL test harness** — real shader compiler
+   output matched the Python reference to the rounding pixel.
+3. **On the live page** — actual composited screenshot pixels differ
+   between mirrored and unmirrored (proven via `img.getpixel()` row
+   comparison, not eyeballing).
+
+**Still reverted.** Despite being mathematically correct at every level
+above, a human glancing at the two bands side by side could not tell they
+were mirrored — this wave's shape is three layered sine harmonics with
+different phase offsets (`+0.5`, `+0.3`, `+0.8`) and only ~10–20%
+amplitude before the `data-gradient-amplitude` multiplier. A point-reflected
+version of that kind of layered, low-amplitude noise still looks like "a
+similar squiggle," not an obviously flipped image — there's no single
+dominant visual feature (like one clean sine crest) for a mirror to make
+unmistakable.
+
+### Attempt 4 — different `scale`/`speed` per band instead of a mirror
+
+Added `data-gradient-scale-bottom` / `data-gradient-speed-bottom` (and the
+matching `-top` variants), following the existing `parallaxTop`/
+`parallaxBottom` per-band-override pattern in `gradient-frame.js`'s
+`bandConfig()`/`readConfig()`. Set the bottom band to `scale=1.6` (vs.
+shared `0.9`) and `speed=0.45` (vs. `0.7`) on the post-hero instance.
+
+Verified the uniforms genuinely differ at the GPU level (`gl.uniform1f`
+interception showed `u_scale`/`u_speed` set to the distinct per-band
+values, not the shared ones) — but a rigorous side-by-side screenshot
+comparison still showed both bands reading as the same "soft diagonal
+wash" to the eye. Root cause: `resolutionScale: 0.35` (this instance's
+own setting) downsamples the canvas significantly, and combined with the
+wave's inherently small amplitude, even a large `scale` delta (0.9→1.6)
+doesn't translate into a visually obvious frequency difference at normal
+viewing distance — the fine spatial detail a scale change would otherwise
+produce gets smoothed away by the low sampling density.
+
+### What's actually needed if this is picked back up
+
+The blocker in every attempt was **magnitude, not correctness** — every
+fix so far has been provably right and still too subtle. Next lever to
+try, not yet attempted: a **much** larger `data-gradient-amplitude-bottom`
+(e.g. 2.5–3×, needs its own per-band plumbing — `amplitude` isn't in the
+`parallaxTop`/`Bottom` per-band pattern yet) or a **flat, high-contrast
+color swap** on the bottom band (different `data-gradient-wave-a`/`-b`
+entirely, not just shape/speed) — leaning on color contrast instead of
+geometry, since geometry has now failed three ways at this wave's actual
+amplitude/resolution.
+
+---
+
 ## The `gradflow` origin
 
 `node_modules/gradflow` is a **React** component; this theme has no React

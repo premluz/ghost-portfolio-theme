@@ -28,7 +28,8 @@ This two-key-match design (body attribute × element attribute) is what makes pe
 | `data-home-content-width` | `home_content_width` | `full` / `respect_page_width` / `narrow` / `contained` / `wide` | `respect_page_width` | `index.hbs` (wraps posts-tabs/lab sections) |
 | `data-footer-width` | `footer_width` | `full` / `respect_page_width` / `narrow` / `contained` / `wide` | `full` | `default.hbs` (`.gh-footer`) |
 | `data-home-hero-width` | `home_hero_width` | `full` / `respect_page_width` / `narrow` / `contained` / `wide` | `full` | `partials/hero.hbs` |
-| `data-post-hero` | `page_hero_width` | `fullscreen` / `respects_page_width` / `narrow` / `contained` / `wide` | `fullscreen` | `page.hbs`, `post.hbs` (`.post-layout`, `.post-image`) |
+| `data-post-hero` | `page_hero_width` | `fullscreen` / `respects_page_width` / `narrow` / `contained` / `wide` | `fullscreen` | `page.hbs`, `post.hbs` (`.post-layout`, `.post-image`) — **also** independently readable directly on `.post-header-layout` (`post.hbs`), narrow/contained/wide only, no `fullscreen`/`respects_page_width` there; see "Header/body-area independent width" below |
+| `data-page-hero` | — (not custom-setting-backed) | `narrow` / `contained` / `wide` | — | `post.hbs` (`.post-body-area`) — same independent scoping as `.post-header-layout[data-post-hero]` just above, for the body content column instead |
 | `data-nav-layout` | `nav_layout` | `fullscreen` / `respects_page_width` | `fullscreen` | `partials/navigation.hbs` |
 | `data-testimonials-layout` | `testimonials_layout` | `grid` / `scroll` / `list` | `grid` | `partials/testimonials.hbs` — not a width toggle, controls layout mode; `scroll` mode is full-bleed by design (see main.css breakout rule) |
 | `data-home-profile-width` | `home_profile_width` | — | — | `partials/profile.hbs` — **dangling**: this custom setting doesn't exist in `package.json`, so the attribute always renders empty. Not currently wired to anything in CSS either. Fix or remove if picked up. |
@@ -66,6 +67,21 @@ Now `body[data-page-width='contained'] [data-page-content-width='respect_page_wi
 This just wins by selector specificity/source order over the generic `body[data-page-width='...'] .container` rule.
 
 Use (1) when the override itself might need to become theme-configurable later (it already speaks the settings system's language). Use (2) for a section that should just permanently differ, full stop.
+
+## Header/body-area independent width (`post.hbs`, added 2026-08-18)
+
+`post.hbs`'s `<article class="post" data-post-hero="...">` had a working narrow/contained/wide width tier (`main.css`, `.post[data-post-hero='...'] .post-layout`) — but the markup ALSO carried `data-post-hero="wide"` directly on the inner `.post-header-layout` div, and separately `data-page-hero="contained"` on `.post-body-area`, neither of which any CSS rule ever matched. Both looked like real controls and did nothing.
+
+Fixed by adding two new, independently-scoped rule blocks (`main.css`, right after the article-level `.post[data-post-hero='...'] .post-image` rules) that read the attribute directly off each element instead of off the outer `<article>`:
+
+```css
+.post-header-layout[data-post-hero='wide'] { max-width: 1600px; margin-inline: auto; width: 100%; }
+.post-body-area[data-page-hero='contained'] { max-width: 1280px; margin-inline: auto; width: 100%; }
+```
+
+Same narrow/contained/wide scale (700/1280/1600px) as the article-level tier, but the header row and body content column can now each pick their own width independently of each other and of the article's own `data-post-hero` value — setting the header to `wide` no longer forces the body content area to match, and vice versa. No `fullscreen`/`respects_page_width` values on these two — those only make sense at the article/page-width-setting level, not for a single independently-scoped element.
+
+This didn't touch a single existing `.post[data-post-hero='...']` selector: post.hbs's `<article>` is hardcoded to `data-post-hero="full"`, which never matched narrow/contained/wide/respects_page_width in the first place (confirmed — that whole tier was already 100% inert on post.hbs specifically, only ever live on `page.hbs`/`page-about.hbs`'s own `.post-header`/`.post-image`), so there was no existing live behavior to preserve or risk breaking.
 
 ## Full-bleed-with-contained-header pattern
 

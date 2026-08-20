@@ -1,0 +1,145 @@
+/* .before-after-slider — standalone before/after image comparison. See
+   before-after-slider.js for the full markup snippet and behavior; this
+   file only styles it. Own stylesheet (not folded into main.css) since
+   this is a self-contained, independently-droppable module — same
+   reasoning as before-after-slider.js being its own file rather than
+   added to main.js. */
+
+.before-after-slider {
+  position: relative;
+  width: 100%;
+  /* --before-after-ratio (before-after-slider.js) always ends up the
+     BEFORE image's true naturalWidth/naturalHeight once it loads,
+     whatever that ratio actually is — optionally set a frame early from
+     data-width/data-height as a same-frame hint, but the loaded image's
+     real dimensions are what's actually trusted (overwrites the hint).
+     var()'s own 16:9 fallback only matters for the brief window before
+     either source is available. Matching the box's own ratio to the
+     image's real one — instead of a fixed guessed shape — is what keeps
+     background-size:cover below from ever cropping anything: cover only
+     crops when the box ratio is WRONG; once it matches exactly, cover
+     and contain produce identical, uncropped results. */
+  aspect-ratio: var(--before-after-ratio, 16 / 9);
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  cursor: ew-resize;
+  /* touch-action:none, not pan-y — a vertical scroll gesture starting on
+     the slider would otherwise fight the horizontal drag on mobile;
+     disabling all default touch handling here is what makes the pointer
+     events below receive the raw drag instead of the browser
+     intercepting it as a page scroll. */
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.before-after-slider-before,
+.before-after-slider-after {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  pointer-events: none;
+}
+
+.before-after-slider-after {
+  /* Overwritten per-frame by before-after-slider.js (clip-path: inset())
+     — this is only the pre-JS/no-JS fallback shape so an instance never
+     flashes the unclipped "after" image full-bleed before the script
+     runs. */
+  clip-path: inset(0 50% 0 0);
+}
+
+.before-after-slider-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  /* Rest = --color-surface-variant (the "next" surface step up from
+     --color-surface, tokens.css) — a neutral dark panel tone, not the
+     --color-on-surface ink token this used before. Matches the handle
+     circle's own rest fill below; the divider line and the circle
+     always share one fill color at any given state. */
+  background: var(--color-surface-variant);
+  transform: translateX(-50%);
+  cursor: ew-resize;
+  transition: background-color 0.2s ease;
+}
+
+/* Hover and active-drag both switch the line + handle fill to
+   --before-after-accent instead of the neutral ink token — gives the
+   slider a clear "you're interacting with this" signal.
+   --before-after-accent (post.hbs, from codeinjection_head's
+   accentColor) overrides this per post — same "one shared class,
+   per-post CSS variable override" shape textGradientColor uses for
+   .text-gradient. Falls back to --color-secondary (teal,
+   --primitive-accent-500 — already used elsewhere on the site, e.g. nav
+   icons) for any post/page that hasn't set accentColor, or any use of
+   this slider outside a post page entirely. NOT --color-primary: that
+   token is currently overridden site-wide to a near-white grayscale
+   (tokens.css, "revert: restore accent colour" comment there — the real
+   brand green is deliberately disabled right now), which made an
+   earlier version of this rule visually invisible against the handle's
+   own near-white rest state. :hover alone would drop back to neutral
+   mid-drag the instant a fast pointer move carries the cursor off the
+   thin 2px line (pointer capture keeps the DRAG going, but :hover only
+   tracks the literal element under the cursor) — .is-dragging
+   (JS-toggled on the root, see before-after-slider.js) is what keeps
+   the accent held for the whole gesture regardless of exact pointer
+   position. */
+.before-after-slider:hover .before-after-slider-handle,
+.before-after-slider.is-dragging .before-after-slider-handle {
+  background: var(--before-after-accent, var(--color-secondary));
+}
+
+.before-after-slider-handle::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: clamp(2.5rem, 6vw, 3.5rem);
+  height: clamp(2.5rem, 6vw, 3.5rem);
+  border-radius: var(--radius-full);
+  /* Rest = --color-surface-variant, same neutral panel tone as the line
+     above (not --color-on-surface, the ink token this used before). */
+  background: var(--color-surface-variant);
+  transition: background-color 0.2s ease;
+  /* Placeholder handle icon — a plain double-chevron drag affordance
+     built from two rotated pseudo-borders (no image asset yet); swap
+     this ::before/::after pair for a real icon (e.g. background-image on
+     the handle itself) once one is supplied, no markup change needed. */
+}
+
+.before-after-slider:hover .before-after-slider-handle::before,
+.before-after-slider.is-dragging .before-after-slider-handle::before {
+  background: var(--before-after-accent, var(--color-secondary));
+}
+
+.before-after-slider-handle::after {
+  content: '\2194';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  /* --color-on-surface (light ink), not --color-background — the fill
+     behind this icon is now a dark surface tone at rest and a saturated
+     accent color on hover/drag (rules above); light stays legible
+     against BOTH, so it's one constant value rather than a per-state
+     override the way the fill itself needs. */
+  color: var(--color-on-surface);
+  font-size: clamp(1.1rem, 2.5vw, 1.5rem);
+  line-height: 1;
+  pointer-events: none;
+}
+
+.before-after-slider.is-dragging {
+  cursor: grabbing;
+}
+
+.before-after-slider-handle:focus-visible {
+  outline: 2px solid var(--before-after-accent, var(--color-secondary));
+  outline-offset: 4px;
+  border-radius: var(--radius-full);
+}

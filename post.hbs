@@ -5,22 +5,35 @@
 --}}
 {{#post}}
 
-
+{{!-- gradflow-page-bg: whole-page fixed animated background, colored per-
+      post from the same codeinjection_head gradientCss field the hero
+      gradient-frame's wave colors already use (see displayProjectMetadata()
+      below, near "Per-post hero gradient colors"). Sibling of <article
+      class="post">, NOT nested inside it — that partial's own doc: nesting
+      inside an element that later gains position:relative;z-index would
+      trap this fixed canvas in a local stacking context; .post has neither
+      today (verified, main.css), so this placement is safe. No triggered
+      param: unlike index.hbs's multi-card crossfade (many posts to
+      transition between, driven by gradflow-page-bg-trigger.js), a post
+      page has exactly ONE post — nothing to crossfade between, so this
+      mounts once at load and gets its one-time color set directly, no
+      scroll-driven IntersectionObserver machinery needed. Params here are
+      placeholders; displayProjectMetadata() overwrites them via
+      canvas.__gradflowHandle.setColors() once gradientCss resolves — see
+      that function for the actual color source. 
+{{> gradflow-page-bg type="smoke" speed="0.1" scale="0.5" noise="0"}}
+--}}
 <article class="post" data-post-hero="full" data-post-id="{{id}}" data-post-tags="{{#foreach tags}}{{slug}}{{#unless @last}},{{/unless}}{{/foreach}}">
-  {{!-- .post-header-layout is the two-column row: .post-project-summary
-        (col 1) beside .post-header (col 2 — EVERYTHING else: title/
-        category/excerpt/meta, the feature image, and the logomark all
-        stack normally inside it). This replaces an earlier attempt
-        (.post-header-row) that put the summary INSIDE .post-header
-        alongside just the title block, with the image forced below
-        spanning full width — that read as the summary sitting next to
-        the title only, not next to the whole header. .logomark-container
-        lives here too (not inside .post-header): its CSS positions it
-        with `right: calc((100% - 1280px) / 2 + ...)`, which assumes 100%
-        = the full page-width column: correct when its containing block
-        is .post-header-layout (this element), wrong (narrower) if it
-        were .post-header, now a flex:1 child sharing the row with the
-        260px sidebar. --}}
+  {{!-- .post-header-layout: outer header wrapper, grid-area:header inside
+        .post-layout below. Contents rebuilt 2026-08-15 into a 3-column row
+        (.post-header-top: logo / meta / title+excerpt), replacing the
+        earlier 2-column (.post-project-summary + .post-header) shape.
+        The feature image moved OUT of this wrapper entirely: it's now
+        .post-hero-sticky (class name kept from an earlier position:sticky
+        version — since reverted to a plain scrolling image per explicit
+        request, not renamed a second time to avoid a purely cosmetic
+        selector update across CSS/JS/this file), a sibling AFTER
+        .post-header-layout rather than nested inside it. --}}
   {{!-- .post-layout is the page-level grid. On desktop it's two columns —
         .post-side (the role/context summary) on the left, spanning BOTH
         rows of the right column (header on top, body content below), so
@@ -29,78 +42,391 @@
         header → side → content (the side sits BETWEEN them). DOM order is
         header-first so the H1 stays the first heading for a11y/SEO; the
         grid areas do the repositioning, not source order. --}}
+  
+  
+  
   <div class="post-layout">
-    {{!-- Header area. Keeps the .post-header-layout class: it's still the
-          logomark's positioning parent (its `right: calc(...)` math and
-          main.js's calculateLandingPosition() both resolve against this
-          element) and still what initPostHeaderAnimation() animates. --}}
-    <div class="post-header-layout">
-      <header class="post-header">
-      <div class="container">
-        <div class="post-header-content">
-          {{!-- Project category from projectMeta --}}
-          <p class="post-category text-eyebrow" id="project-category"></p>
+    {{!-- Header area. Keeps the .post-header-layout class: still what
+          initPostHeaderAnimation() (main.js) animates in as one blurred
+          fade-in unit — see that function for the exact selector chain. --}}
+    <div class="post-header-layout" data-post-hero="wide">
+      <div class="post-header-top">
+        {{!-- Column 1: logo. Plain in-flow occupant now — no more
+              position:absolute/GSAP drop-bounce (initLogomarkAnimation()
+              retired, main.js). Kep  t the same #logomark-container/
+              #logomark-image ids so displayProjectMetadata() below needs
+              no changes to how it populates/hides this element. --}}
+        <div class="post-header-logo">
+          <div class="logomark-container" id="logomark-container">
+            <img class="logomark-image" id="logomark-image" alt="Project logo" />
+          </div>
+        </div>
+
+        {{!-- Column 2: meta list (Client / Category / Timeline / Skills /
+              Date / Role / Scope), eyebrow+value rows — same visual
+              pattern as the (unused) .role-overview-block below,
+              populated by displayProjectMetadata()'s new fields section.
+              Each row hidden individually when its own field is empty.
+              date/role/scope added 2026-08-16: these came from
+              codeinjection_head with no active place to render (the
+              separate .role-overview-block/.post-summary-band system that
+              would normally take them is fully commented out) — added
+              here instead of resurrecting that block, since this one's
+              already live with no extra animation system needed. --}}
+        <div class="post-header-meta" id="post-header-meta">
+          <div class="post-header-meta-row" data-field="client">
+            <span class="text-eyebrow">Client</span>
+            <p id="project-client"></p>
+          </div>
+          <div class="post-header-meta-row" data-field="category">
+            <span class="text-eyebrow">Category</span>
+            <p id="project-category"></p>
+          </div>
+          <div class="post-header-meta-row" data-field="timeline">
+            <span class="text-eyebrow">Timeline</span>
+            <p id="project-timeline"></p>
+          </div>
+          <div class="post-header-meta-row" data-field="skills">
+            <span class="text-eyebrow">Skills</span>
+            <p id="project-skills"></p>
+          </div>
+          <div class="post-header-meta-row" data-field="date">
+            <span class="text-eyebrow">Date</span>
+            <p id="project-date"></p>
+          </div>
+          <div class="post-header-meta-row" data-field="scope">
+            <span class="text-eyebrow">Scope</span>
+            <p id="project-scope"></p>
+          </div>
+        </div>
+
+        {{!-- Column 3: title + description, as before. --}}
+        <div class="post-header-title">
           <h1 class="post-title">{{title}}</h1>
-          {{!-- Project client name --}}
-          <!--<p class="post-client" id="project-client"></p>-->
-          {{!-- Project result --}}
-        <!--  <div class="post-result" id="project-result"></div>-->
           {{#if custom_excerpt}}
             <p class="post-excerpt">{{custom_excerpt}}</p>
           {{/if}}
-
           <div class="post-meta">
-            <!--<time datetime="{{date format="YYYY-MM-DD"}}">{{date format="MMM DD, YYYY"}}</time>-->
             {{!-- Keywords pills from projectMeta --}}
             <div class="post-keywords" id="post-keywords"></div>
-           <!-- {{#if reading_time}}
-              <span class="reading-time">{{reading_time}}</span>
-            {{/if}}-->
           </div>
         </div>
       </div>
+    </div>
 
 
-      {{#if feature_image}}
-        <figure class="post-image mb0">
-          {{!-- Video vs image, decided server-side via the same internal
-                #video tag post-card.hbs uses. NOTE: {{#has tag="hash-video"}}
-                (the slugified form, "stock Ghost helper" convention
-                documented in post-card.hbs) does NOT match on this install —
-                verified live via a temporary debug block: {{#has
-                tag="hash-video"}} = false even with the tag confirmed
-                attached ({{#foreach tags visibility="all"}} showed it),
-                while {{#has tag="#video"}} (the literal tag NAME, hash
-                included) = true. Using the literal name here; post-card.hbs
-                carries the same pre-existing bug, tracked separately. File
-                must be named after the post's own slug, same convention as
-                the card grid. Unlike the grid version, this plays
-                immediately (autoplay) rather than via an
-                IntersectionObserver: the hero is above the fold on load,
-                there's no "wait until scrolled into view" case here. 
-          {{#has tag="#video"}}
-            <video autoplay muted loop playsinline data-skip-reveal>
-              <source src="/content/images/videos/{{slug}}.mp4" type="video/mp4">
-            </video>
-          {{else}}
-            <img src="{{feature_image}}" alt="{{title}}" loading="lazy" data-skip-reveal>
-          {{/has}}--}}
-          <img src="{{feature_image}}" alt="{{title}}" loading="lazy" data-skip-reveal>
 
-        </figure>
-      {{/if}}
-      </header>
+{{!-- .post-hero-gradient-frame: instance-specific class (alongside the
+      shared .gradient-frame) so the full-bleed breakout below only
+      targets THIS post-header usage, not every other .gradient-frame on
+      the site (image-stripe, homepage lab section, etc.), each of which
+      may want to stay contained within its own context. --}}
+<div class="gradient-frame post-hero-gradient-frame"  
 
-      {{!-- Project logomark container --}}
-      <div class="logomark-container" id="logomark-container">
-        <img class="logomark-image" id="logomark-image" alt="Project logo" />
-        {{!-- Populated from meta.client (client name, not a date — class/id
-              still say "date" from an earlier version of this), revealed
-              letter-by-letter only once the logomark's drop/bounce (main.js
-              animateLogomarkDrop) has actually finished — see the
-              logomarkDropComplete listener below, not a fixed delay guess. --}}
-        <p class="logomark-date" id="logomark-date"></p>
-      </div>
+data-gradient-frame
+
+{{!-- Top band only — no bottom band beneath the hero image, per explicit
+      request ("the gradient should only have the top part"). gradient-
+      frame.js: a skipped band is never inserted into the DOM/mounted,
+      not just hidden — real removal, costs nothing. --}}
+data-gradient-bands="top"
+
+{{!-- Making the bottom band visually distinct from the top (mirrored
+      shape, then a different scale/speed config) was attempted and
+      PARKED unresolved — see "PARKED: making top/bottom bands look
+      visually distinct" in GRADIENT-FRAME-SYSTEM.md (theme root) for the
+      full history of what was tried and why each attempt was reverted.
+      Both bands currently share the same config below (data-gradient-
+      scale/-speed/-wave-a/-b etc.) — no per-band override applied here.
+      data-gradient-scale-bottom/-speed-bottom (gradient-frame.js's
+      bandConfig/readConfig) are already wired and ready to use if this
+      is picked back up. --}}
+
+{{!-- Outer (page-facing) edge — configurable per instance (see
+
+gradient-frame.css's own doc on this attribute):
+
+"true" — fades to transparent instead of a flat
+
+--color-background-matched color, blending into
+
+whatever's actually behind the frame.
+
+"false" — solid data-gradient-outer color (theme background by
+
+default), a flat hard edge. Was "false" (matching Lab's own
+
+reversion, posts-tabs-grid-lab.hbs), switched to "true" here
+
+per explicit request: both bands read fully opaque/hard-edged
+
+with it off (u_fade_outer gates the shader's whole alpha-fade
+
+branch — confirmed live, no softness at either band's edge
+
+without this), and the ask was specifically for the BOTTOM
+
+band's own outer (page-facing, i.e. ITS bottom) edge to fade
+
+soft the same way the top band's top edge already does. This
+
+instance's own setting, independent of Lab's — that section's
+
+reversion isn't touched.
+
+Inner edge (this section's own invert-mode palette) stays fully
+
+opaque either way — this only ever touches the side facing the
+
+page. --}}
+
+data-gradient-fade-outer="false"
+
+{{!-- .posts-tabs-grid-lab-section has no background of its own by
+
+design — the particle canvas shows through its gaps wherever it's
+
+scrolled to. Without this, .gradient-frame's own solid inner fill
+
+(data-gradient-inner below) paints across the WHOLE box at this
+
+element's z-index:2, which sits ABOVE the particle canvas
+
+(z-index:1) — hiding it completely for this section's entire
+
+scroll range, not just behind actual card content. Same fix
+
+already documented/applied to this identical Lab wrapper
+
+elsewhere in this file (see the commented-out reference block
+
+below, data-gradient-transparent-middle="true") — this live
+
+instance was missing it. See gradient-frame.css's own doc on
+
+this attribute for the full stacking-context reasoning. --}}
+
+data-gradient-transparent-middle="false"
+
+{{!-- Page-background TOKEN, not a hardcoded hex (2026-08-19). This is the
+      frame's own inner fill, which exists to match the page background
+      behind it — so it has to track whatever that background actually is.
+      gradient-frame.js's resolveColor() resolves any value starting with
+      '--' against this element via getComputedStyle, so a token name works
+      here directly. The previous literal #1d1c1d was byte-identical to
+      --theme-dark-bg (tokens.css), i.e. correct in dark mode only: in light
+      and dim it painted the dark background's colour over a page that was
+      no longer that colour. Referencing the token makes it correct in every
+      theme by construction rather than by coincidence. --}}
+data-gradient-inner="--color-background"
+
+{{!-- BAND HEIGHT (new attribute, 2026-08-10) — the physical height of
+
+the box each wave lives in. Previously only settable as the
+
+--gradient-frame-edge-height CSS custom property, with no data-
+
+equivalent, so it was the one knob on this component that wasn't
+
+where the others are. Default is 480px.
+
+This is a DIFFERENT question from amplitude (how tall the wave
+
+swings inside the box) and wave2-width (how thick the second
+
+wave's band is) — a taller box is what gives the wave room to
+
+read as a long diagonal sweep rather than a compact stripe. --}}
+
+{{!-- clamp(), not a flat "800px" — this box's height stayed fixed at
+      every viewport before, so on a mobile-width screen the exact same
+      800px band read as wildly oversized relative to the page around
+      it. clamp(min, preferred, max): preferred is a vw-based value (so
+      it genuinely shrinks toward mobile widths, not just viewport
+      HEIGHT the way a vh value would — a tall-but-narrow phone in
+      portrait doesn't get a short band just because vh is small), min/
+      max pin the floor/ceiling so it never goes below a still-usable
+      height or grows past the original desktop 800px on very wide
+      screens. Same clamp() pattern this theme's own --space-* tokens
+      already use (tokens.css) for the identical "shrink toward mobile"
+      problem, applied here directly in the attribute since gradient-
+      frame.js passes this string straight through to
+      --gradient-frame-edge-height via setProperty() — any valid CSS
+      length works, clamp() included. --}}
+
+data-gradient-edge-height="clamp(320px, 90vw, 800px)"
+
+{{!-- BASE WAVE — the 4-colour ramp's animated core. --}}
+
+data-gradient-wave-a="#562967"
+
+data-gradient-wave-b="#19141E"
+
+data-gradient-scale="0.9"
+
+data-gradient-speed="0.7"
+
+  
+
+{{!-- SECOND WAVE — composited in the same shader (no extra canvas).
+
+A DIFFERENT scale is what makes the two cross instead of stack.
+
+Omit wave2-a/-b to reuse the base pair at partial opacity. --}}
+
+data-gradient-wave2-a="#562967"
+
+data-gradient-wave2-b="#19141E"
+
+data-gradient-wave2-opacity="0.75"
+
+data-gradient-wave2-scale="1.9"
+
+data-gradient-wave2-speed="0.45"
+
+data-gradient-wave2-center="0.52"
+
+data-gradient-wave2-width="0.64"
+
+  
+
+{{!-- WAVE HEIGHT + PULSE — all three were UNSET on this instance until
+
+2026-08-09, so they were silently running on gradient-frame.js's
+
+DEFAULTS (amplitude 1, breathe 0.4, breatheRate 0.12). That's why
+
+the height pulse read as barely-there here: it was never actually
+
+configured, just inherited.
+
+amplitude — overall wave HEIGHT multiplier (1 = original).
+
+Distinct from `scale` above, which is FREQUENCY
+
+("squiggliness"), not height.
+
+breathe — depth of the calm height pulse; 0 = flat.
+
+breathe-rate — pulse speed, applied on top of each layer's own
+
+`speed`, so the two waves keep breathing at
+
+different paces instead of in lockstep. --}}
+
+data-gradient-amplitude="1.2"
+
+{{!-- breathe was 5.85 — far past useful. The shader ranges the height
+
+multiplier over 1-breathe .. 1+breathe, so anything above ~1
+
+spends most of the cycle CLAMPED at fully-collapsed, which reads
+
+as a dense flat mass rather than a breathing wave. 0.8 keeps a
+
+strong stretch (20%..180% height) while still moving. --}}
+
+data-gradient-breathe="1.4"
+
+data-gradient-breathe-rate="0.35"
+
+  
+
+{{!-- BASE-WAVE OPACITY (new, 2026-08-09) — wave2 always had its own
+
+opacity; the base ramp had none. Blends the animated ramp back
+
+toward the band's flat vertical gradient (NOT toward transparency,
+
+which would break the band's seamless page-background match).
+
+1 = fully animated, 0 = static gradient. --}}
+
+data-gradient-wave-opacity="0.72"
+
+{{!-- PARALLAX — viewport-heights of scroll.
+
+The TOP and BOTTOM bands used to share one value, so they drifted
+
+together and never separated. The *-top / *-bottom overrides
+
+(new, 2026-08-09) give each band its own rate; the shared
+
+data-gradient-parallax / -wave2-parallax below stay as the
+
+fallback for anything not overridden. Opposite signs between the
+
+two BANDS is what reads as the two edges of the frame moving
+
+independently as you scroll. --}}
+
+{{!-- These are now TRUE scroll parallax. u_scroll used to be absolute
+
+page scroll (scrollY / innerHeight), so on this ~14-viewport page
+
+a band sitting 4 viewports down received a CONSTANT ~4 before any
+
+scrolling happened — and since waveFlow() multiplies
+
+`u_scroll * parallax` by `taper = sin(uv.y * PI)` (zero at both
+
+band edges), that constant shoved the wave into its own taper and
+
+flattened it, worse the further down the page it sat. Fixed in
+
+gradflow-background.js: u_scroll is now each canvas's OWN position
+
+relative to the viewport centre, sweeping about -0.8 -> +1.2 as
+
+the band crosses the screen (measured), centred near 0.
+
+Because the input is small and centred now, these values can be
+
+real magnitudes rather than the tiny numbers that were previously
+
+needed just to avoid the taper.
+
+Opposite signs between top and bottom is what makes the frame's
+
+two edges drift apart as you scroll. --}}
+
+data-gradient-parallax="0.24"
+
+data-gradient-wave2-parallax="-0.3"
+
+data-gradient-parallax-top="-0.28"
+
+data-gradient-parallax-bottom="0.28"
+
+data-gradient-wave2-parallax-top="0.36"
+
+data-gradient-wave2-parallax-bottom="-0.36"
+
+  
+
+{{!-- PALETTE-SHIFT TIMING — ramp length in viewport heights, and the
+
+band render resolution (see gradflow-background.js). --}}
+
+data-gradient-enter-span="0.5"
+
+data-gradient-exit-span="0.5"
+
+data-gradient-resolution-scale="0.35">
+    {{#if feature_image}}
+      {{!-- Hero image — full-bleed, scrolls normally with the page (was
+            position:sticky, reverted per explicit request — see
+            .post-hero-sticky's own CSS comment, main.css). data-skip-
+            reveal: this is above-the-fold, so it should just be visible
+            immediately via initPostHeaderAnimation()'s own entrance fade
+            (main.js), not scroll-revealed by the generic
+            IntersectionObserver system (card-scroll-reveal.js), which
+            can't fire for something already in the initial viewport. --}}
+      <figure class="post-hero-sticky" data-post-hero="wide" data-skip-reveal>
+        <img src="{{feature_image}}" alt="{{title}}" loading="lazy">
+      </figure>
+    {{/if}}
+
     </div>
 
     {{!-- Role/contributions summary placement — TWO mutually exclusive
@@ -202,7 +528,11 @@
 
     {{!-- Body content — grid-area "content", i.e. under the header and
           beside the side rail. --}}
-    <div class="post-body-area" data-page-hero="contained" >
+
+
+</div>
+          
+    <div class="post-body-area">
       {{!-- Table of Contents --}}
       <aside class="post-toc" aria-label="Table of contents">
         <button class="post-toc-toggle" aria-expanded="false" aria-controls="post-toc-list">
@@ -238,7 +568,7 @@
   <footer class="post-footer">
   </footer>
 
-  {{!-- {{> post-navigation}} — commented out per request --}}
+  {{> post-navigation}}
 </article>
 
 
@@ -261,21 +591,80 @@
       return;
     }
 
-    if (meta.projectCategory) {
-      const categoryEl = document.getElementById('project-category');
-      if (categoryEl) {
-        categoryEl.textContent = meta.projectCategory;
-        categoryEl.style.display = 'block';
-        console.log('[metadata] Set projectCategory:', meta.projectCategory);
+    // Post-header meta column (Client / Category / Timeline / Skills) —
+    // each row is .post-header-meta-row[data-field] wrapping a
+    // .text-eyebrow label + a value <p> (post.hbs markup). A field with no
+    // value hides its OWN row entirely (same "hide, don't leave an empty
+    // labeled row" contract the role-overview fields below already use),
+    // rather than the old approach of forcing the value element's own
+    // display — that fought a flex/grid row's own layout role once this
+    // became a real row instead of a single free-floating <p>.
+    const headerMetaFields = [
+      ['client', 'project-client'],
+      ['projectCategory', 'project-category'],
+      ['timeline', 'project-timeline'],
+      ['skills', 'project-skills'],
+      ['date', 'project-date'],
+      ['scope', 'project-scope'],
+    ];
+    headerMetaFields.forEach(([key, elId]) => {
+      const valueEl = document.getElementById(elId);
+      if (!valueEl) return;
+      const row = valueEl.closest('.post-header-meta-row');
+      const value = meta[key];
+      if (value) {
+        valueEl.textContent = value;
+        if (row) row.style.display = '';
+        console.log('[metadata] Set ' + key + ':', value);
+      } else if (row) {
+        row.style.display = 'none';
       }
-    }
+    });
 
-    if (meta.client) {
-      const clientEl = document.getElementById('project-client');
-      if (clientEl) {
-        clientEl.textContent = meta.client;
-        console.log('[metadata] Set client:', meta.client);
-      }
+    // Stagger fade-in for .post-header-meta-row, same shape as the
+    // (dead, see .post-side's own doc) .role-overview-block stagger
+    // further below (opacity + y + scale + blur, SCROLL_REVEAL_CONFIG.
+    // card.default) — kept as its own separate block rather than
+    // sharing that one's summaryEl/hasSummaryContent gate: unlike
+    // .post-side (a whole block that's either fully shown or fully
+    // hidden), .post-header-meta is ALWAYS present in the header — only
+    // individual ROWS toggle visibility above, per field. Selecting
+    // rows AFTER the display:none loop above means only whichever rows
+    // ended up actually visible for THIS post get animated; a row
+    // that's display:none never becomes part of the GSAP target set, so
+    // there's nothing to reveal for an empty field.
+    const headerMetaRows = Array.from(document.querySelectorAll('.post-header-meta-row'))
+      .filter((row) => row.style.display !== 'none');
+    const revealHeaderMetaRows = () => {
+      if (!headerMetaRows.length) return;
+      const cfg = window.SCROLL_REVEAL_CONFIG.card.default;
+      gsap.set(headerMetaRows, { opacity: 0, y: cfg.yOffset, scale: cfg.scale.start });
+      gsap.to(headerMetaRows, {
+        opacity: 1,
+        y: 0,
+        scale: cfg.scale.end,
+        filter: `blur(${cfg.blur.end}px)`,
+        duration: cfg.duration,
+        ease: cfg.ease,
+        stagger: cfg.staggerDelay,
+      });
+    };
+    if (window.gsap && window.SCROLL_REVEAL_CONFIG) {
+      revealHeaderMetaRows();
+    } else {
+      // Same "GSAP loads later in the page than this inline script"
+      // situation the role-overview-block stagger below already
+      // documents — headerMetaGsapWaitAttempts (not
+      // attempts/metaWaitAttempts/gsapWaitAttempts) for the same shared-
+      // top-level-scope reason those two already use distinct names.
+      let headerMetaGsapWaitAttempts = 0;
+      const waitForHeaderMetaGsap = () => {
+        if (window.gsap && window.SCROLL_REVEAL_CONFIG) { revealHeaderMetaRows(); return; }
+        headerMetaGsapWaitAttempts++;
+        if (headerMetaGsapWaitAttempts < 50) setTimeout(waitForHeaderMetaGsap, 50);
+        else headerMetaRows.forEach((r) => { r.style.opacity = '1'; });
+      };
+      waitForHeaderMetaGsap();
     }
 
     if (meta.result) {
@@ -302,10 +691,7 @@
     // Each field's .role-overview-block (the value element's own parent —
     // see post.hbs markup) is hidden entirely when that field has no data,
     // rather than rendering an empty block with just its eyebrow label and
-    // nothing under it. date reuses meta.date — the same field the
-    // logomark's own date reveal (tryRevealLogomarkDate, below) already
-    // reads — rather than a second, separate date field a post's code
-    // injection would have to duplicate.
+    // nothing under it.
     const roleOverviewFields = [
       ['date', 'post-project-date'],
       ['role', 'post-project-role'],
@@ -398,32 +784,223 @@
       containerEl.style.backgroundColor = accentColor;
       console.log('[metadata] Set accentColor:', accentColor);
     }
-
-    // Make container visible if either logomark or color is set
-    if (containerEl && (meta.logomark || accentColor)) {
-      containerEl.style.visibility = 'visible';
-      containerEl.style.opacity = '1';
-      console.log('[metadata] Made logomark container visible');
+    // Also feeds --before-after-accent (before-after-slider.css) — the
+    // before/after slider is a standalone module pasted into content via
+    // an HTML card, with no direct access to this post's own metadata,
+    // so it reads accentColor the same indirect way textGradientColor
+    // reaches .text-gradient: a CSS custom property set here on
+    // documentElement, consumed by that module's own stylesheet with a
+    // fallback for any page where accentColor isn't set at all.
+    if (accentColor) {
+      document.documentElement.style.setProperty('--before-after-accent', accentColor);
     }
 
-    // Client name under the logomark (was meta.date — the role-overview
-    // sidebar already shows the timeline, so date there was redundant;
-    // client name isn't shown anywhere else). Element id/class/function
-    // names below still say "date" (logomark-date, tryRevealLogomarkDate)
-    // — left as-is rather than a wider rename sweep, since nothing about
-    // the reveal mechanism itself changed, only which meta field feeds it.
-    // Text is set now, but NOT revealed yet — kept invisible until the
-    // logomarkDropComplete event (dispatched by main.js's
-    // animateLogomarkDrop() when its bounce timeline actually finishes),
-    // not a fixed delay guess that could fire before/after the real drop.
-    if (meta.client) {
-      const dateEl = document.getElementById('logomark-date');
-      if (dateEl) {
-        dateEl.dataset.pendingText = meta.client;
-        console.log('[metadata] Queued client for reveal after logomark drop:', meta.client);
-        tryRevealLogomarkDate(); // in case the drop already finished before metadata arrived
+    // ── Per-mode metadata resolution ────────────────────────────────────
+    // Every colour field below accepts an optional per-theme variant
+    // alongside its existing mode-agnostic form:
+    //     textGradientColor       (both modes — existing, unchanged)
+    //     textGradientColorLight  (light only)   } new, optional
+    //     textGradientColorDark   (dark only)    }
+    // Resolution is "specific wins, generic falls back", so every post
+    // authored before this existed keeps behaving exactly as it did.
+    // Both camelCase and kebab-case are accepted throughout, matching the
+    // convention accentColor above already established.
+    //
+    // 'dim' resolves to the Dark variant, not its own: dim inherits dark's
+    // gradient stops in tokens.css (see the note in its :root block there),
+    // so a separate dimmed override here would contradict the token layer.
+    function currentMode() {
+      return document.documentElement.getAttribute('data-theme') === 'light' ? 'Light' : 'Dark';
+    }
+    function metaForMode(baseKey) {
+      const mode = currentMode();                              // 'Light' | 'Dark'
+      const kebab = baseKey.replace(/[A-Z]/g, (m) => '-' + m.toLowerCase());
+      return meta[baseKey + mode]
+          || meta[kebab + '-' + mode.toLowerCase()]
+          || meta[baseKey]
+          || meta[kebab];
+    }
+
+    // textGradientColor — per-post override of .text-gradient's fill
+    // (main.css .text-gradient utility, background-clip:text). The
+    // class itself never changes per post; the gradient is driven by CSS
+    // custom properties (tokens.css), so overriding those on
+    // documentElement is enough for every .text-gradient element on the
+    // page to pick up this post's own color with zero markup changes —
+    // same "one shared class, per-post CSS variable override" shape
+    // accentColor above already uses, just targeting a gradient fill
+    // instead of a flat background-color.
+    // Comma-separated hex list, same format/parsing convention as
+    // gradientCss below (not a literal linear-gradient(...) string) —
+    // one consistent "just list your colors" authoring format across
+    // every per-post color field on this page, rather than requiring
+    // full CSS gradient syntax in codeinjection_head. 100deg + the
+    // 28%/74%/100% stop positions match --gradient-text-image's own
+    // default shape in tokens.css exactly; only the colors change.
+    //
+    // Sets BOTH the --grad-text-1/2/3 primitives and the composed
+    // --gradient-text-image string, on purpose. Primitives alone would be
+    // enough in dark (where tokens.css composes the string from them via
+    // var()), but NOT in light — light keeps its own direct 5-stop
+    // --gradient-text-image override, which would outrank the primitives
+    // and silently ignore this post's colours. Writing the composed string
+    // too covers both; writing the primitives too keeps anything reading
+    // the raw stops (gradient-tokens.js) correct rather than stale.
+    function applyTextGradient() {
+      const textGradientColor = metaForMode('textGradientColor');
+      if (!textGradientColor) return;
+      const stops = textGradientColor.split(',').map((c) => c.trim()).filter(Boolean);
+      if (!stops.length) return;
+      let image;
+      if (stops.length === 1) {
+        image = `linear-gradient(100deg, ${stops[0]} 0%, ${stops[0]} 100%)`;
+      } else if (stops.length === 2) {
+        image = `linear-gradient(100deg, ${stops[0]} 28%, ${stops[1]} 100%)`;
+      } else {
+        image = `linear-gradient(100deg, ${stops[0]} 28%, ${stops[1]} 74%, ${stops[2]} 100%)`;
       }
+      const root = document.documentElement.style;
+      root.setProperty('--gradient-text-image', image);
+      // Pad a short list by repeating the last stop, so all three
+      // primitives always describe the same gradient the string above does
+      // (a 1-stop post shouldn't leave stale stops 2/3 from another post).
+      root.setProperty('--grad-text-1', stops[0]);
+      root.setProperty('--grad-text-2', stops[1] || stops[0]);
+      root.setProperty('--grad-text-3', stops[2] || stops[1] || stops[0]);
+      console.log('[metadata] Set text-gradient colors (' + currentMode() + '):', stops);
     }
+    applyTextGradient();
+
+    // Progress bar (the loading streak AND the scroll indicator — one
+    // shared .scroll-progress.progress-bar-track element, default.hbs).
+    // -a is left alone entirely: its CSS fallback (main.css) is
+    // --color-background, the theme's own bg token — already responsive to
+    // dark/light/dim with zero JS, no per-post override wanted here.
+    // -b is this post's accentColor when set (mode-agnostic — accentColor
+    // has no Light/Dark variant anywhere else in this file either, see the
+    // block above that first reads it), falling back to the theme's
+    // --color-secondary (main.css) otherwise. No re-resolve needed on
+    // themechange: accentColor doesn't change per mode, and -a is pure CSS.
+    function applyProgressBarColors() {
+      if (!accentColor) return;
+      document.documentElement.style.setProperty('--progress-bar-color-b', accentColor);
+      console.log('[metadata] Set progress bar accent:', accentColor);
+    }
+    applyProgressBarColors();
+
+    // Per-post hero gradient colors, reusing the same gradientCss field the
+    // (currently-disabled) card gradient systems already use elsewhere on
+    // the site (see GRADIENT_SYSTEMS.md) — but this frame is gradient-
+    // frame.js's type:"wave", which takes two literal hex colors
+    // (data-gradient-wave-a/-b), not a CSS gradient string, so gradientCss
+    // here is repurposed as a simple "color1, color2" pair rather than a
+    // linear-gradient(...) value. Must be set BEFORE gradient-frame.js's
+    // own DOMContentLoaded-timed initAll() reads frame.dataset (main.js is
+    // not what mounts frames — gradient-frame.js self-inits site-wide,
+    // default.hbs) — this script runs earlier (synchronous body script,
+    // resolves as soon as codeinjection_head's projectMetaArray exists),
+    // so setting the attribute here is in time.
+    // Per-mode variants (gradientCssLight / gradientCssDark) resolve through
+    // the same metaForMode() helper as textGradientColor above — see its own
+    // comment for the resolution order and why 'dim' maps to Dark.
+    if (metaForMode('gradientCss')) {
+      const gradientCss = metaForMode('gradientCss');
+      const [waveA, waveB] = gradientCss.split(',').map((c) => c.trim());
+      const frameEl = document.querySelector('.post-hero-gradient-frame');
+      if (frameEl && waveA) {
+        frameEl.setAttribute('data-gradient-wave-a', waveA);
+        frameEl.setAttribute('data-gradient-wave2-a', waveA);
+        if (waveB) {
+          frameEl.setAttribute('data-gradient-wave-b', waveB);
+          frameEl.setAttribute('data-gradient-wave2-b', waveB);
+        }
+        console.log('[metadata] Set gradient wave colors:', waveA, waveB);
+      }
+
+      // Whole-page gradflow-page-bg (this file, above <article>) colored
+      // from the SAME gradientCss field — reuses GradflowColorCrossfade's
+      // existing hex-list parser/tone-builder (gradflow-color-crossfade.js,
+      // loaded site-wide) rather than re-deriving color1/2/3 by hand a
+      // second time in this file. tonesFrom() already handles a
+      // short list gracefully (1 stop: synthesizes a darker color2,
+      // falls back to the live --color-background for color3; 2 stops:
+      // still falls back to --color-background for color3) — same
+      // fallback behavior the homepage's per-card crossfade already
+      // relies on, so a post whose gradientCss only has 1-2 stops (like
+      // the 2-stop pair used above for the wave colors) still gets a
+      // sensible 3-tone result here, not an error.
+      //
+      // TWO things must both be ready before this can run, neither
+      // guaranteed yet: window.GradflowColorCrossfade (gradflow-color-
+      // crossfade.js loads near the BOTTOM of default.hbs, well after
+      // {{{body}}} — this inline script runs synchronously as part of the
+      // body, same "script tag further down the page" situation this
+      // file's own waitForGsap() already documents) and
+      // canvas.__gradflowHandle (that partial's own initGradFlowBackground()
+      // .then(), resolves asynchronously after ogl loads). One poll loop
+      // checks both rather than nesting two separate waits.
+      // bgWaitAttempts: this script's shared top-level scope already has
+      // metaWaitAttempts/gsapWaitAttempts (see their own comments on why
+      // plain `let attempts` collides site-wide) — same naming reason.
+      let bgWaitAttempts = 0;
+      const waitForPageBg = () => {
+        const bgCanvas = document.querySelector('.gradflow-page-bg-canvas');
+        if (window.GradflowColorCrossfade && bgCanvas && bgCanvas.__gradflowHandle) {
+          // Re-resolved per call (not the outer `gradientCss` const) so the
+          // themechange re-run below picks up this post's OTHER mode variant
+          // rather than repainting the first-resolved one.
+          const rgbs = window.GradflowColorCrossfade.extractRgbs(metaForMode('gradientCss'));
+          if (rgbs.length) {
+            const tones = window.GradflowColorCrossfade.tonesFrom(rgbs);
+            bgCanvas.__gradflowHandle.setColors(tones);
+            console.log('[metadata] Set page background colors (' + currentMode() + '):', tones);
+          }
+          return;
+        }
+        bgWaitAttempts++;
+        if (bgWaitAttempts < 50) setTimeout(waitForPageBg, 100);
+      };
+      waitForPageBg();
+
+      // Re-drive on theme toggle. Two independent reasons this is needed,
+      // either one sufficient on its own:
+      //   1. A post authored with gradientCssLight/gradientCssDark has a
+      //      different colour set per mode — without this, the mode the
+      //      page happened to load in would stick forever.
+      //   2. Even with ONE mode-agnostic gradientCss, tonesFrom()'s color3
+      //      falls back to the live --color-background (see its own doc in
+      //      gradflow-color-crossfade.js), which changes with the theme —
+      //      the same reasoning gradflow-page-bg-trigger.js's own
+      //      themechange listener documents for the homepage's cards.
+      // Fires setColors() directly (a snap, not a crossfade) to match how
+      // this canvas is coloured on this page everywhere else — the
+      // crossfader in gradflow-color-crossfade.js is the homepage
+      // card-to-card mechanism, not wired up here.
+      window.addEventListener('themechange', function () {
+        bgWaitAttempts = 0;
+        waitForPageBg();
+      });
+    }
+
+    // Re-resolve on theme toggle — deliberately OUTSIDE the gradientCss
+    // block above: a post can set textGradientColorLight/Dark without
+    // setting gradientCss at all, and nesting this inside that `if` would
+    // leave such a post stuck on whichever mode it loaded in.
+    // applyProgressBarColors() is NOT re-run here: accentColor has no
+    // Light/Dark variant, so it resolves to the same value regardless of
+    // theme, and -a is pure CSS (--color-background) that recomputes on
+    // its own the instant data-theme changes — nothing for JS to redrive.
+    window.addEventListener('themechange', applyTextGradient);
+
+    // No visibility/opacity handling here anymore — .logomark-container's
+    // opacity:0 (main.css) is the entrance animation's OWN pre-reveal
+    // state now (initPostHeaderAnimation(), main.js, fades it in with the
+    // rest of the header), not a "hide until real data confirms a
+    // logomark exists" gate the old absolutely-positioned/GSAP-dropped
+    // version needed. Setting opacity:1 here as an inline style — which
+    // this metadata script resolves well before the entrance timeline
+    // runs (that waits on waitForPreloader()) — would have popped the
+    // logo instantly visible and skipped its fade-in entirely.
 
     // Handle disable-link (both camelCase and kebab-case)
     const disableLink = meta.disableLink || meta['disable-link'];
@@ -431,46 +1008,6 @@
       // On post detail pages, we can't disable the entire post
       // Instead, this would be used on post cards/homepage
       console.log('[metadata] disable-link flag set (applies to post cards, not detail page)');
-    }
-  }
-
-  // Letter-by-letter reveal for the date under the logomark — gated on
-  // BOTH conditions being true (meta.date having arrived AND the drop
-  // animation having actually finished), whichever order they happen to
-  // resolve in; either side calls this and it only fires once both are met.
-  // Declared here, BEFORE waitForMeta()'s invocation below: if
-  // window.projectMeta is already set by the time this script runs,
-  // waitForMeta() calls displayProjectMetadata() synchronously, which calls
-  // tryRevealLogomarkDate() — referencing logomarkDropDone before it was
-  // declared threw "Cannot access before initialization" and silently
-  // aborted the rest of this script's execution, including the
-  // logomarkDropComplete listener below ever getting registered at all.
-  let logomarkDropDone = false;
-  function tryRevealLogomarkDate() {
-    const dateEl = document.getElementById('logomark-date');
-    if (!dateEl || !logomarkDropDone) return;
-    if (!dateEl.dataset.pendingText || dateEl.dataset.revealed === 'true') return;
-    dateEl.dataset.revealed = 'true';
-
-    const text = dateEl.dataset.pendingText;
-    dateEl.innerHTML = '';
-    const chars = Array.from(text).map((ch) => {
-      const span = document.createElement('span');
-      span.className = 'char';
-      // Spaces get their own span too (so layout/spacing is correct) but
-      // start fully visible — there's no glyph to fade in, and skipping
-      // the span entirely was the exact bug that ran words together
-      // elsewhere on this site (scroll-scrub-anim.js's splitText()).
-      span.style.opacity = ch.trim() ? '0' : '1';
-      span.textContent = ch;
-      dateEl.appendChild(span);
-      return span;
-    });
-
-    if (window.gsap) {
-      gsap.to(chars, { opacity: 1, duration: 0.05, stagger: 0.03, ease: 'power1.out' });
-    } else {
-      chars.forEach((c) => { c.style.opacity = '1'; });
     }
   }
 
@@ -496,15 +1033,6 @@
     }
   };
   waitForMeta();
-
-  // Dispatched by main.js's animateLogomarkDrop() when its bounce timeline
-  // actually completes — same cross-script event pattern already used for
-  // heroEntranceDone, rather than guessing a fixed delay that could fire
-  // before/after the real drop finishes.
-  document.addEventListener('logomarkDropComplete', () => {
-    logomarkDropDone = true;
-    tryRevealLogomarkDate();
-  });
 </script>
 
 {{!-- Testimonial metadata display script (runs after content) --}}

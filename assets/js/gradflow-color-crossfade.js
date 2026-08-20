@@ -119,10 +119,39 @@
   function makeCrossfader(getHandle, durationMs) {
     var displayed = null; // last color this crossfader actually applied — gradflow-background.js exposes no getter for its live uniforms, so this is the only record of "where we're tweening from"
     var rafId = 0;
+    var pendingTones = null;  // colour requested before the mount resolved
+    var pendingPoll = 0;
 
     return function crossfadeTo(targetTones) {
       var handle = getHandle();
-      if (!handle) return; // mount not ready (or prefers-reduced-motion skipped it entirely)
+      if (!handle) {
+        // Mount not ready — initGradFlowBackground() resolves asynchronously
+        // (it dynamically import()s ogl), so early callers land here. This
+        // used to just `return`, silently DROPPING the colour: on a curtain
+        // return the restore backfill runs ~450ms before the mount resolves,
+        // so its (correct) colour was thrown away and the canvas kept
+        // painting initGradFlowBackground()'s pastel placeholder until the
+        // unrelated 500ms applyCard(0) bootstrap happened to fire — measured
+        // as ~350ms of visible pink on a fully-revealed page.
+        // Remember the request instead and flush it the moment the handle
+        // exists. Last request wins (a newer colour supersedes an older
+        // queued one), and the poll is self-cancelling.
+        pendingTones = targetTones;
+        if (!pendingPoll) {
+          pendingPoll = setInterval(function () {
+            if (!getHandle()) return;
+            clearInterval(pendingPoll);
+            pendingPoll = 0;
+            var tones = pendingTones;
+            pendingTones = null;
+            if (tones) crossfadeTo(tones);
+          }, 50);
+        }
+        return;
+      }
+
+      // A queued colour is now moot — this call supersedes it.
+      if (pendingPoll) { clearInterval(pendingPoll); pendingPoll = 0; pendingTones = null; }
 
       if (!displayed) {
         handle.setColors(targetTones); // first-ever color: snap, nothing to tween from

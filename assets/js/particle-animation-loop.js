@@ -243,7 +243,7 @@ class ParticleAnimationLoop {
     }
   }
 
-  createParticles(positions, colors, sizes, phis) {
+  createParticles(positions, colors, sizes, phis, ribbonProgress) {
     if (this.particles) {
       // Carried onto the replacement below — see the _heroOffsetSeeded block
       // at the end of this method.
@@ -280,6 +280,20 @@ class ParticleAnimationLoop {
       1
     );
     geo.setAttribute('helixPhi', helixPhiAttr);
+
+    // ribbon-dispersed-only per-particle position ALONG the ribbon's own
+    // length (0-1; -1 sentinel for particles not on the ribbon at all —
+    // see ribbonDispersedGenerator's own comment). Same always-present-
+    // attribute reasoning as helixPhi just above: the shader unconditionally
+    // declares this, so every geometry built here needs it, defaulting to
+    // -1 (not 0, which is a VALID ribbon position — "start of the ribbon" —
+    // and would make every non-ribbon shape's particles light up as if
+    // sitting at the pulse's own origin point).
+    const ribbonProgressAttr = new THREE.BufferAttribute(
+      ribbonProgress ? new Float32Array(ribbonProgress) : new Float32Array(positions.length / 3).fill(-1),
+      1
+    );
+    geo.setAttribute('aRibbonProgress', ribbonProgressAttr);
 
     // PARTICLE ROLE — a stable per-particle random in [0,1). A particle is
     // "free floating" (ignores the shape, drifts on its own) when its hash
@@ -882,7 +896,7 @@ ${styles.fragmentBodyBlocks()}
   setState(state, duration = 0) {
     if (!this.currentState) {
       this.currentState = state;
-      this.createParticles(state.positions, this.colorConfig.generate(this.particleCount, state), state.sizes, state.phis);
+      this.createParticles(state.positions, this.colorConfig.generate(this.particleCount, state), state.sizes, state.phis, state.ribbonProgress);
     } else if (duration > 0) {
       const geo = this.particles && this.particles.geometry;
       if (geo && geo.attributes.aTargetPos) {
@@ -912,7 +926,7 @@ ${styles.fragmentBodyBlocks()}
       this.morphProgress = 0;
       this.morphStartTime = null;
       this.nextState = null;
-      this.createParticles(state.positions, this.colorConfig.generate(this.particleCount, state), state.sizes, state.phis);
+      this.createParticles(state.positions, this.colorConfig.generate(this.particleCount, state), state.sizes, state.phis, state.ribbonProgress);
     }
   }
 

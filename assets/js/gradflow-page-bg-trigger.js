@@ -54,14 +54,72 @@
   // cleared the top. Recomputes window.innerHeight live each call rather
   // than caching it, so this can't go stale across a resize.
   var lastShown = null;
-  function updateSectionVisibility() {
+  // skipTransition: suppress the normal 0.4s fade (main.css) for one write,
+  // used by the curtain-return/missed-crossing backfill below. On a
+  // post→close return the canvas and its colours are already loaded from
+  // before the visitor left, so easing them in just reads as "everything
+  // else appears, then the background catches up a beat later".
+  //
+  // Three separate things all had to be right for this to actually work —
+  // each one alone silently produced no visible change:
+  //   1. `skipTransition === true` STRICTLY, not truthiness — this function
+  //      is also a scroll listener, and the browser passes an Event as the
+  //      first argument, so a truthy check makes EVERY scroll take the
+  //      instant path and kills the fade everywhere.
+  //   2. The `shown === lastShown` early-out has to let an instant call
+  //      through: on a curtain return snapTo()'s native scroll event reaches
+  //      the listener first, sets lastShown with the transition still live,
+  //      and starts the fade — so by the time the backfill calls in there is
+  //      no state change left and the fade proceeds regardless. An instant
+  //      call re-applies even with no state change; it's idempotent (same
+  //      opacity, transition suppressed) so its only effect is cutting a
+  //      fade that's already mid-flight.
+  //   3. The canvas must actually have a REAL FRAME in it. Making it opaque
+  //      achieves nothing while it is unrendered (transparent), and is
+  //      actively wrong while it holds the mount-time placeholder palette
+  //      (index.hbs's pale colour1/2/3 — only a fallback for this triggered
+  //      instance, whose colours always come from whichever card is in
+  //      view). Both were measured on a curtain return: first a transparent
+  //      canvas showing the page background, then a near-white 242,239,237
+  //      frame, then the real colour. The gate below waits for the drawn
+  //      frame; gradflow-background.js additionally skips its mount-time
+  //      paint entirely for deferred-colour instances.
+  function updateSectionVisibility(skipTransition) {
     var r = postsSection.getBoundingClientRect();
     var shown = r.top < window.innerHeight * 0.5 && r.bottom > window.innerHeight * 0.1;
-    if (shown === lastShown) return;
+    var instant = skipTransition === true;
+    // Never reveal the canvas before a real card colour has been DRAWN into
+    // it. "Drawn", not merely "set": uniform writes change nothing on screen
+    // until a frame renders, and revealing between those two points shows
+    // the previous (placeholder) frame — measured as a near-white 242,239,237
+    // pixel on an already-opaque canvas during a curtain return. The handle's
+    // hasDrawnRealColor flips inside setColors(), after its own render call,
+    // so it is the only authoritative signal here (a local "applyCard ran"
+    // flag is not: applyCard's colour may still be queued, undrawn).
+    var handle = canvas.__gradflowHandle;
+    var drawn = handle ? handle.hasDrawnRealColor === true : false;
+    if (shown && !drawn) shown = false;
+    if (window.__flashdiagSnap) window.__flashdiagSnap('visibility-call instant=' + instant + ' shown=' + shown + ' last=' + lastShown + ' drawn=' + drawn);
+    if (shown === lastShown && !instant) return;
     lastShown = shown;
-    bgEl.style.opacity = shown ? '1' : '0';
+    if (instant) {
+      bgEl.style.transition = 'none';
+      bgEl.style.opacity = shown ? '1' : '0';
+      // Force a style flush so `transition: none` is actually in effect for
+      // the opacity write above before it's cleared below — without this all
+      // three writes collapse into one recalc and the element keeps its
+      // stylesheet transition, animating the change after all.
+      void bgEl.offsetHeight;
+      bgEl.style.transition = '';
+    } else {
+      bgEl.style.opacity = shown ? '1' : '0';
+    }
   }
-  window.addEventListener('scroll', updateSectionVisibility, { passive: true });
+  // Wrapped, not passed directly: as a listener this receives an Event as
+  // its first argument, which must not be read as skipTransition. Kept
+  // wrapped even while the instant path is commented out — it costs
+  // nothing and stops trap 1 above from silently reappearing.
+  window.addEventListener('scroll', function () { updateSectionVisibility(); }, { passive: true });
   updateSectionVisibility();
 
   // Color extraction/tone/crossfade logic lives in gradflow-color-
@@ -84,7 +142,57 @@
     var rgbs = extractRgbs(cards[index].getAttribute('data-gradient-css') || '');
     if (!rgbs.length) return; // no color set on this card (yet, or ever) — keep showing whatever's current
     currentCardIndex = index;
+    if (window.__flashdiagSnap) window.__flashdiagSnap('applyCard(' + index + ')');
     crossfadeTo(tonesFrom(rgbs));
+    // Re-run the visibility check so a canvas held back by the gate is
+    // released as soon as it has a real frame. Called unconditionally, not
+    // just on the first applyCard: crossfadeTo QUEUES rather than applies
+    // when the mount hasn't resolved (gradflow-color-crossfade.js), so the
+    // first call here often leaves the gate still closed, and the flush that
+    // finally draws happens later with no applyCard around it. releaseWhenDrawn
+    // below covers that case; this covers the already-mounted one.
+    updateSectionVisibility(true);
+    releaseWhenDrawn();
+  }
+
+  // Poll briefly for the first drawn frame, then open the gate. Needed
+  // because the moment a real colour is DRAWN is not necessarily inside any
+  // call this file makes: when crossfadeTo queues a colour pre-mount, the
+  // flush that eventually renders it happens on the crossfader's own timer.
+  // Self-cancelling, and capped so it can't poll forever on a page where the
+  // mount never resolves (prefers-reduced-motion skips it entirely).
+  var releasePoll = 0;
+  var releaseTries = 0;
+  function releaseWhenDrawn() {
+    // Direct callback first: gradflow-background.js invokes onFirstDraw
+    // synchronously inside setColors(), immediately after its render call,
+    // so the reveal lands on the SAME frame the colour is painted. The poll
+    // below is only a fallback for a handle that mounted before this ran.
+    var h0 = canvas.__gradflowHandle;
+    if (h0) {
+      if (h0.hasDrawnRealColor === true) { updateSectionVisibility(true); return; }
+      if (typeof h0.onFirstDraw === 'function') {
+        h0.onFirstDraw(function () { updateSectionVisibility(true); });
+        return;
+      }
+    }
+    if (releasePoll) return;
+    releasePoll = setInterval(function () {
+      var h = canvas.__gradflowHandle;
+      if (h && typeof h.onFirstDraw === 'function' && h.hasDrawnRealColor !== true) {
+        clearInterval(releasePoll);
+        releasePoll = 0;
+        h.onFirstDraw(function () { updateSectionVisibility(true); });
+        return;
+      }
+      if (h && h.hasDrawnRealColor === true) {
+        clearInterval(releasePoll);
+        releasePoll = 0;
+        updateSectionVisibility(true);
+        return;
+      }
+      if (++releaseTries > 100) { clearInterval(releasePoll); releasePoll = 0; }
+    }, 16);
   }
 
   var cardObserver = new IntersectionObserver(
@@ -151,7 +259,14 @@
   // observer round-trip needed) rather than waiting on one, so it works
   // regardless of whether an observer callback happens to fire in between.
   function backfillMostVisibleCard() {
-    updateSectionVisibility();
+    // skipTransition: true — this function only runs to correct a MISSED
+    // crossing (curtain-return jump, or the scroll-up safety net above),
+    // never the primary path (the direct 'scroll' listener on
+    // updateSectionVisibility still fades normally on every real scroll
+    // frame). By the time this fires, the visibility change it's about to
+    // apply should already have happened smoothly and didn't — catching up
+    // instantly reads correct here, a delayed fade does not.
+    updateSectionVisibility(true);
     var vh = window.innerHeight;
     var bestIndex = -1, bestRatio = 0;
     cards.forEach(function (card, i) {
@@ -183,5 +298,35 @@
   // yet (currentCardIndex still -1 — nothing to re-derive from).
   window.addEventListener('themechange', function () {
     if (currentCardIndex >= 0) applyCard(currentCardIndex);
+  });
+
+  // ── bfcache restore (browser back button) ────────────────────────────────
+  // A back-button return is NOT a fresh load: the page comes back out of
+  // bfcache with this whole script's state frozen exactly as it was when the
+  // visitor navigated away (lastShown, currentCardIndex, the canvas's live
+  // uniforms), and none of the init path above re-runs. Nothing re-evaluates
+  // the canvas against the scroll position actually restored, so it can come
+  // back showing a different card's colour — or visible when it should not
+  // be — which reads as "the gradflow has a different setup than on a
+  // curtain return, taking more of the colour across the whole page".
+  // Same defensive-reset pattern as page-transition.js's own pageshow
+  // handler (see its "bfcache restore" block). Deferred one frame: on a
+  // bfcache restore, scroll position is applied by the browser around this
+  // event, so reading geometry synchronously here can sample the pre-restore
+  // position. Reset lastShown first so the visibility check below can't be
+  // swallowed by its own no-change early-out.
+  window.addEventListener('pageshow', function (e) {
+    if (!e.persisted) return;
+    requestAnimationFrame(function () {
+      lastShown = null;
+      // currentCardIndex too: backfillMostVisibleCard()'s own de-dupe skips
+      // applyCard() when the winning card is the one already recorded as
+      // applied — but after a bfcache restore that record describes the
+      // pre-navigation state, and the canvas's actual colours may not match
+      // it. Clearing forces a genuine re-apply rather than trusting stale
+      // bookkeeping.
+      currentCardIndex = -1;
+      backfillMostVisibleCard();
+    });
   });
 })();

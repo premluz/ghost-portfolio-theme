@@ -15,8 +15,8 @@
     color1r="253" color1g="186" color1b="206"
     color2r="255" color2g="229" color2b="229"
     color3r="250" color3g="250" color3b="248"
-    speed="0.5" scale="1.1" noise="0.1"
-    type="animated"}}
+    speed="0.5" scale="0.7" noise="0.1"
+    type="smoke"}}
 
 --}}
 
@@ -24,8 +24,8 @@
 
   {{!-- Hero section — configured via Ghost Admin › Design › Custom Fields --}}
 
-{{> hero }}
 
+{{> hero }}
 
     {{!-- Logos scroll section — infinite scrolling client logos --}}
 
@@ -54,7 +54,7 @@
 
 
   
-{{> posts-tabs layout="list"}}
+{{> posts-tabs layout="cinematic-rhythm" filterFeatured="featured:true+tag:hash-work+tag:featured" }}
 
 
 
@@ -78,8 +78,10 @@
       posts-tabs-grid-lab.css for why it's inset from the top/bottom by
       the band height rather than the whole box (must not repaint the
       band's own fade-to-page-bg edge). --}}
+      <!--
 <div class="lab-particle-backdrop-wrap">
   <div class="lab-particle-backdrop" aria-hidden="true"></div>
+  -->
 
   {{!-- Animated gradient bands above and below the whole Lab section, via
       the reusable gradient-frame component (gradient-frame.js/.css,
@@ -97,81 +99,263 @@
       tokens — see the "FIXED PALETTE" block there. Colours that must reach
       the fixed nav have to live at :root; only the band's own wave colours
       belong on this element. --}}
+
+
+  
+  <div class="lab-particle-backdrop-wrap">
+
+<div class="lab-particle-backdrop" aria-hidden="true"></div>
+
 <div class="gradient-frame"
-     data-gradient-frame
-     data-gradient-mode="invert"
-     {{!-- Outer (page-facing) edge fades to transparent instead of a flat
-           --color-background-matched color, same as page-about.hbs's
-           gradflow-page-bg use — the homepage now has its own whole-page
-           fixed background (index.hbs) behind this section, so a solid
-           outer edge here would show as a hard seam against it. Inner edge
-           (this island's own fixed palette, data-gradient-inner below)
-           stays fully opaque either way — fadeOuter only touches the side
-           facing the page. --}}
-     data-gradient-fade-outer="true"
-     {{!-- .posts-tabs-grid-lab-section (posts-tabs-grid-lab.css) has no
-           background of its own — the particle system's morphing sphere
-           shows through its gaps by original design, wherever it's
-           scrolled to. Without this, the fade-outer rule above ALSO fills
-           the frame's own middle zone solid (correct for testimonials/
-           profile, whose cards need a backdrop) — reproduced live, that
-           hid the sphere completely for Lab's whole scroll range, not just
-           behind cards. See gradient-frame.css's own doc on this attribute
-           for the stacking-context reasoning. --}}
-     data-gradient-transparent-middle="true"
-     {{!-- FIXED PALETTE (this island is the SAME purple in both themes,
-           it does not mirror the theme like a plain invert frame does).
-           Two halves that must be kept in sync BY HAND:
-             1. this literal — paints the island + its two bands. Stated as
-                a literal, not a token, on purpose: gradient-frame.js
-                resolves it in JS at init/theme-change only, so a token that
-                another section can redirect made the colour depend on when
-                that read fired (see MODE_COLORS in gradient-frame.js).
-             2. the :root[data-active-gradient-frame='lab'] block in
-                posts-tabs-grid-lab.css — retints the FIXED NAV, which sits
-                outside this element and so cannot inherit from it.
-           data-gradient-shift-key is what activates half 2 while this
-           frame (and only this frame) is the one on screen. --}}
-     data-gradient-shift-key="lab"
-     data-gradient-inner="#201D23"
 
-     {{!-- BASE WAVE — the 4-colour ramp's animated core. --}}
-     data-gradient-wave-a="#4C3057"
-     data-gradient-wave-b="#1F1A23"
-     data-gradient-scale="0.9"
-     data-gradient-speed="0.7"
+data-gradient-frame
 
-     {{!-- SECOND WAVE — composited in the same shader (no extra canvas).
-           A DIFFERENT scale is what makes the two cross instead of stack.
-           Omit wave2-a/-b to reuse the base pair at partial opacity. --}}
-     data-gradient-wave2-a="#562967"
-     data-gradient-wave2-b="#19141E"
-     data-gradient-wave2-opacity="0.75"
-     data-gradient-wave2-scale="1.4"
-     data-gradient-wave2-speed="0.45"
-     data-gradient-wave2-center="0.52"
-     data-gradient-wave2-width="0.94"
+{{!-- Outer (page-facing) edge — configurable per instance (see
 
-     {{!-- PARALLAX — viewport-heights of scroll. Opposite signs make the
-           two layers slide past each other; both 0 skips the scroll read. --}}
-     data-gradient-parallax="0.05"
-     data-gradient-wave2-parallax="-0.09"
+gradient-frame.css's own doc on this attribute):
 
-     {{!-- BREATHE — calm wave-height pulse (expand/collapse), shared knob
-           for both layers. Each layer breathes at its OWN pace since the
-           rate is derived from its own speed above (0.7 vs 0.45), so the
-           two drift in and out of phase without a second parameter. --}}
-     data-gradient-breathe="0.4"
+"true" — fades to transparent instead of a flat
 
-     {{!-- PALETTE-SHIFT TIMING — ramp length in viewport heights, and the
-           band render resolution (see gradflow-background.js). --}}
-     data-gradient-enter-span="0.5"
-     data-gradient-exit-span="0.5"
-     data-gradient-resolution-scale="0.35">
+--color-background-matched color, blending into
 
+whatever's actually behind the frame.
+
+"false" — solid data-gradient-outer color (theme background by
+
+default), a flat hard edge. Currently "false" here,
+
+matching Lab's own reversion (posts-tabs-grid-lab.hbs)
+
+— tried "true" first, reverted per explicit request.
+
+Inner edge (this section's own invert-mode palette) stays fully
+
+opaque either way — this only ever touches the side facing the
+
+page. --}}
+
+data-gradient-fade-outer="true"
+
+{{!-- .posts-tabs-grid-lab-section has no background of its own by
+
+design — the particle canvas shows through its gaps wherever it's
+
+scrolled to. Without this, .gradient-frame's own solid inner fill
+
+(data-gradient-inner below) paints across the WHOLE box at this
+
+element's z-index:2, which sits ABOVE the particle canvas
+
+(z-index:1) — hiding it completely for this section's entire
+
+scroll range, not just behind actual card content. Same fix
+
+already documented/applied to this identical Lab wrapper
+
+elsewhere in this file (see the commented-out reference block
+
+below, data-gradient-transparent-middle="true") — this live
+
+instance was missing it. See gradient-frame.css's own doc on
+
+this attribute for the full stacking-context reasoning. --}}
+
+data-gradient-transparent-middle="false"
+
+data-gradient-inner="#2D104A"
+
+{{!-- BAND HEIGHT (new attribute, 2026-08-10) — the physical height of
+
+the box each wave lives in. Previously only settable as the
+
+--gradient-frame-edge-height CSS custom property, with no data-
+
+equivalent, so it was the one knob on this component that wasn't
+
+where the others are. Default is 480px.
+
+This is a DIFFERENT question from amplitude (how tall the wave
+
+swings inside the box) and wave2-width (how thick the second
+
+wave's band is) — a taller box is what gives the wave room to
+
+read as a long diagonal sweep rather than a compact stripe. --}}
+
+data-gradient-edge-height="700px"
+
+{{!-- BASE WAVE — the 4-colour ramp's animated core. --}}
+
+data-gradient-wave-a="#392341"
+
+data-gradient-wave-b="#19141E"
+
+data-gradient-scale="0.9"
+
+data-gradient-speed="0.7"
+
+  
+
+{{!-- SECOND WAVE — composited in the same shader (no extra canvas).
+
+A DIFFERENT scale is what makes the two cross instead of stack.
+
+Omit wave2-a/-b to reuse the base pair at partial opacity. --}}
+
+data-gradient-wave2-a="#392341"
+
+data-gradient-wave2-b="#19141E"
+
+data-gradient-wave2-opacity="0.75"
+
+data-gradient-wave2-scale="1.9"
+
+data-gradient-wave2-speed="0.45"
+
+data-gradient-wave2-center="0.52"
+
+data-gradient-wave2-width="0.64"
+
+  
+
+{{!-- WAVE HEIGHT + PULSE — all three were UNSET on this instance until
+
+2026-08-09, so they were silently running on gradient-frame.js's
+
+DEFAULTS (amplitude 1, breathe 0.4, breatheRate 0.12). That's why
+
+the height pulse read as barely-there here: it was never actually
+
+configured, just inherited.
+
+amplitude — overall wave HEIGHT multiplier (1 = original).
+
+Distinct from `scale` above, which is FREQUENCY
+
+("squiggliness"), not height.
+
+breathe — depth of the calm height pulse; 0 = flat.
+
+breathe-rate — pulse speed, applied on top of each layer's own
+
+`speed`, so the two waves keep breathing at
+
+different paces instead of in lockstep. --}}
+
+data-gradient-amplitude="1.2"
+
+{{!-- breathe was 5.85 — far past useful. The shader ranges the height
+
+multiplier over 1-breathe .. 1+breathe, so anything above ~1
+
+spends most of the cycle CLAMPED at fully-collapsed, which reads
+
+as a dense flat mass rather than a breathing wave. 0.8 keeps a
+
+strong stretch (20%..180% height) while still moving. --}}
+
+data-gradient-breathe="1.4"
+
+data-gradient-breathe-rate="0.35"
+
+  
+
+{{!-- BASE-WAVE OPACITY (new, 2026-08-09) — wave2 always had its own
+
+opacity; the base ramp had none. Blends the animated ramp back
+
+toward the band's flat vertical gradient (NOT toward transparency,
+
+which would break the band's seamless page-background match).
+
+1 = fully animated, 0 = static gradient. --}}
+
+data-gradient-wave-opacity="0.72"
+
+data-gradient-edge-height="6.95"
+
+{{!-- PARALLAX — viewport-heights of scroll.
+
+The TOP and BOTTOM bands used to share one value, so they drifted
+
+together and never separated. The *-top / *-bottom overrides
+
+(new, 2026-08-09) give each band its own rate; the shared
+
+data-gradient-parallax / -wave2-parallax below stay as the
+
+fallback for anything not overridden. Opposite signs between the
+
+two BANDS is what reads as the two edges of the frame moving
+
+independently as you scroll. --}}
+
+{{!-- These are now TRUE scroll parallax. u_scroll used to be absolute
+
+page scroll (scrollY / innerHeight), so on this ~14-viewport page
+
+a band sitting 4 viewports down received a CONSTANT ~4 before any
+
+scrolling happened — and since waveFlow() multiplies
+
+`u_scroll * parallax` by `taper = sin(uv.y * PI)` (zero at both
+
+band edges), that constant shoved the wave into its own taper and
+
+flattened it, worse the further down the page it sat. Fixed in
+
+gradflow-background.js: u_scroll is now each canvas's OWN position
+
+relative to the viewport centre, sweeping about -0.8 -> +1.2 as
+
+the band crosses the screen (measured), centred near 0.
+
+Because the input is small and centred now, these values can be
+
+real magnitudes rather than the tiny numbers that were previously
+
+needed just to avoid the taper.
+
+Opposite signs between top and bottom is what makes the frame's
+
+two edges drift apart as you scroll. --}}
+
+data-gradient-parallax="0.24"
+
+data-gradient-wave2-parallax="-0.3"
+
+data-gradient-parallax-top="-0.28"
+
+data-gradient-parallax-bottom="0.28"
+
+data-gradient-wave2-parallax-top="0.36"
+
+data-gradient-wave2-parallax-bottom="-0.36"
+
+  
+
+{{!-- PALETTE-SHIFT TIMING — ramp length in viewport heights, and the
+
+band render resolution (see gradflow-background.js). --}}
+
+data-gradient-enter-span="0.5"
+
+data-gradient-exit-span="0.5"
+
+data-gradient-resolution-scale="0.35">
 
    {{!--  Operating model stacked — headers accumulate horizontally --}}
-{{> posts-tabs-grid-lab layout="list"}}
+  
+  {{!-- Glass switch component (independent, syncs to tab state) --}}
+<section class="statement-slide" style="min-height: 10vh; margin-top: 0; margin-bottom: 0;">
+  <div class="statement-container">
+    <h2 class="statement-heading text-gradient">AI experiments, <br />explorations</h2>
+    <h5 class="statement-description">Not a handful of prompted UI demos. Actual old-school thinking.<br /> Deep explorations of subjects I find genuinely interesting, paired with prototypes built in real dev environments.<br /> </h5>
+  </div>
+</section>
+
+{{> posts-tabs layout="cinematic-grid" filterFeatured="featured:true+tag:hash-work+tag:experimental" }}
+
 
 
 </div>

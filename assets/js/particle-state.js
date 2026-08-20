@@ -7,6 +7,7 @@ class ParticleState {
     this.positions = positions;
     this.sizes = config.sizes || null; // Optional size variation data
     this.phis = config.phis || null; // Helix-only: per-particle tube angle (see helixGenerator)
+    this.ribbonProgress = config.ribbonProgress || null; // ribbon-dispersed only: position along the ribbon's length, 0-1 (see ribbonDispersedGenerator)
     this.config = {
       radius: config.radius || 3.5,
       scale: config.scale || 1.0,

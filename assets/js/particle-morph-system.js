@@ -8,7 +8,7 @@ class ParticleMorphSystem {
   // _createImmediateStates() (what to build now) and createInitialStates()
   // (what not to rebuild later); they used to be separate hand-kept lists
   // that had drifted apart.
-  static IMMEDIATE_SHAPES = ['dispersed', 'collapse', 'helix', 'hero-helix', 'ribbon', 'ribbon-dispersed', 'volatility', 'lab', 'terrain', 'grid', 'dots'];
+  static IMMEDIATE_SHAPES = ['dispersed', 'collapse', 'helix', 'hero-helix', 'ribbon', 'ribbon-dispersed', 'ribbon-dispersed-pulse', 'volatility', 'lab', 'terrain', 'grid', 'dots'];
 
   constructor(container, config = {}) {
     this.container = typeof container === 'string' ? document.querySelector(container) : container;
@@ -31,6 +31,7 @@ class ParticleMorphSystem {
     this.shapeRegistry.register(window.HELIX);
     this.shapeRegistry.register(window.RIBBON);
     this.shapeRegistry.register(window.RIBBON_DISPERSED);
+    this.shapeRegistry.register(window.RIBBON_DISPERSED_PULSE);
     this.shapeRegistry.register(window.VOLATILITY);
     this.shapeRegistry.register(window.HERO_HELIX);
     this.shapeRegistry.register(window.COLLAPSE);
@@ -149,7 +150,9 @@ class ParticleMorphSystem {
         // comment in shape-definitions.js and uHelixProgress's in
         // particle-animation-loop.js.
         const phis = result.phis || null;
-        this.stateRegistry.register(key, positions, { shapeKey: key, sizes, phis });
+        // ribbon-dispersed only — see ribbonDispersedGenerator's own comment.
+        const ribbonProgress = result.ribbonProgress || null;
+        this.stateRegistry.register(key, positions, { shapeKey: key, sizes, phis, ribbonProgress });
       } catch (err) {
         console.warn(`[particle-morph-system] Could not create immediate state: ${key}`, err);
       }
@@ -185,7 +188,7 @@ class ParticleMorphSystem {
     //    _createImmediateStates()'s `immediate` array and had fallen behind
     //    it (missing 'ribbon'/'volatility'), so those two got regenerated
     //    here and clobbered the live state. Both now derive from one array.
-    const shapes = ['dispersed', 'collapse', 'helix', 'hero-helix', 'ribbon', 'ribbon-dispersed', 'volatility', 'sphere', 'triple-sphere', 'torus', 'mobile', 'note', 'diamond', 'globe', 'game', 'chart', 'email', 'camera', 'footer', 'lab', 'terrain', 'grid', 'dots'];
+    const shapes = ['dispersed', 'collapse', 'helix', 'hero-helix', 'ribbon', 'ribbon-dispersed', 'ribbon-dispersed-pulse', 'volatility', 'sphere', 'triple-sphere', 'torus', 'mobile', 'note', 'diamond', 'globe', 'game', 'chart', 'email', 'camera', 'footer', 'lab', 'terrain', 'grid', 'dots'];
     shapes.forEach(key => {
       try {
         // Skip states already created by _createImmediateStates to avoid overwriting live state
@@ -195,9 +198,17 @@ class ParticleMorphSystem {
         const sizes = result.sizes || null;
         // phis (helix-only per-particle tube angle) was captured in
         // _createImmediateStates but dropped here — a helix regenerated on
-        // this path lost its wave animation input.
+        // this path lost its wave animation input. ribbonProgress (hero
+        // pulse's own per-particle position-along-the-ribbon, added
+        // 2026-08-11) carried alongside it here for the same reason —
+        // ribbon-dispersed is also IMMEDIATE_SHAPES, so line 194's guard
+        // means this branch is normally skipped for it in practice, but
+        // keeping both fields symmetric avoids silently reintroducing the
+        // exact bug phis already hit once if that guard's assumptions ever
+        // change.
         const phis = result.phis || null;
-        this.stateRegistry.register(key, positions, { shapeKey: key, sizes, phis });
+        const ribbonProgress = result.ribbonProgress || null;
+        this.stateRegistry.register(key, positions, { shapeKey: key, sizes, phis, ribbonProgress });
         if (key === 'lab') {
           console.log(`[particle-morph-system] ✅ Lab state created with ${positions.length / 3} particles`);
         }
@@ -479,9 +490,65 @@ class ParticleMorphSystem {
   }
 
   /**
+   * Shared autonomous-wave loop, extracted 2026-08-11 so Lab and the hero
+   * ribbon can each get their own cadence/bounds/progress gate WITHOUT
+   * duplicating this math — they still drive the SAME shared uWavefront
+   * uniform (see the "only one wave position in the shader" note on
+   * STYLE_HERO_RIBBON, particle-style-definitions.js), since the two
+   * shapes are never simultaneously current and so never actually contend
+   * for it.
+   *
+   * @param {object} bounds - {minY, maxY} of the TARGET shape's own rest
+   *   positions (not whatever's currently live on the geometry buffer —
+   *   see the call-site comments for why that distinction matters).
+   * @param {string} progressUniformName - which uniform gates this wave's
+   *   visibility (e.g. 'uLabProgress', 'uHeroRibbonProgress') — read every
+   *   frame, NOT cached, since it's animate()'s own shape-driven blend and
+   *   changes continuously across morphs.
+   * @param {[number, number]} legRangeS - sweep duration range (s).
+   * @param {[number, number]} dwellRangeS - end-of-sweep pause range (s).
+   */
+  _startAutonomousWave(bounds, progressUniformName, legRangeS, dwellRangeS) {
+    const yExtent = bounds.maxY - bounds.minY;
+    const park = bounds.maxY + 3; // fully above the shape → no tint
+    const rand = (lo, hi) => lo + Math.random() * (hi - lo);
+    let phase = 'down';
+    let legDur = rand(legRangeS[0], legRangeS[1]);
+    let tLeft = legDur;
+    let pos01 = 0;
+    let last = performance.now();
+    this.loop._rafCallbacks.push(() => {
+      const u = this.loop.particles && this.loop.particles.material.uniforms;
+      if (!u) return;
+      const progressUniform = u[progressUniformName];
+      if (!progressUniform) return;
+      const now = performance.now();
+      const dt = Math.min((now - last) / 1000, 0.1); // clamp tab-suspend gaps
+      last = now;
+      if (u.uPrefersReducedMotion.value) { u.uWavefront.value = park; return; }
+      tLeft -= dt;
+      if (phase === 'down' || phase === 'up') {
+        const p = 1 - Math.max(tLeft, 0) / legDur;
+        const eased = 0.5 - 0.5 * Math.cos(p * Math.PI); // smooth both ends
+        pos01 = (phase === 'down') ? eased : 1 - eased;
+        if (tLeft <= 0) {
+          phase = (phase === 'down') ? 'dwellBottom' : 'dwellTop';
+          tLeft = rand(dwellRangeS[0], dwellRangeS[1]);
+        }
+      } else if (tLeft <= 0) {
+        phase = (phase === 'dwellBottom') ? 'up' : 'down';
+        legDur = rand(legRangeS[0], legRangeS[1]);
+        tLeft = legDur;
+      }
+      const cyclePos = bounds.maxY - pos01 * yExtent;
+      const amount = progressUniform.value;
+      u.uWavefront.value = park + (cyclePos - park) * amount;
+    });
+  }
+
+  /**
    * Initialize Lab wave binding — scroll-driven color wave propagates from
-   * top of Lab section downward through particle field. Uses bindShift to
-   * map section entry progress (0-1) to particle field's y-extent.
+   * top of Lab section downward through particle field.
    */
   initLabWave() {
     console.log('[lab-wave] initLabWave called');
@@ -522,7 +589,6 @@ class ParticleMorphSystem {
     const bounds = labState
       ? this.loop.getParticleBounds(labState.positions)
       : this.loop.getParticleBounds();
-    const yExtent = bounds.maxY - bounds.minY;
 
     // AUTONOMOUS WAVE (was scroll-scrubbed via bindShift): the wavefront
     // now travels on its own cadence whenever the Lab shape is on screen —
@@ -536,40 +602,7 @@ class ParticleMorphSystem {
     // wave ramps in/out with morphs and parks fully above the shape
     // (zero tint) whenever Lab isn't the active shape. Runs as a
     // loop._rafCallbacks entry: same RAF tick as the render, no own loop.
-    const LEG_S = [5, 9];        // sweep duration range (s) — cadence knob
-    const DWELL_S = [0.6, 1.8];  // end-of-sweep pause range (s)
-    const park = bounds.maxY + 3; // fully above the shape → no tint
-    const rand = (lo, hi) => lo + Math.random() * (hi - lo);
-    let phase = 'down';
-    let legDur = rand(LEG_S[0], LEG_S[1]);
-    let tLeft = legDur;
-    let pos01 = 0;
-    let last = performance.now();
-    this.loop._rafCallbacks.push(() => {
-      const u = this.loop.particles && this.loop.particles.material.uniforms;
-      if (!u) return;
-      const now = performance.now();
-      const dt = Math.min((now - last) / 1000, 0.1); // clamp tab-suspend gaps
-      last = now;
-      if (u.uPrefersReducedMotion.value) { u.uWavefront.value = park; return; }
-      tLeft -= dt;
-      if (phase === 'down' || phase === 'up') {
-        const p = 1 - Math.max(tLeft, 0) / legDur;
-        const eased = 0.5 - 0.5 * Math.cos(p * Math.PI); // smooth both ends
-        pos01 = (phase === 'down') ? eased : 1 - eased;
-        if (tLeft <= 0) {
-          phase = (phase === 'down') ? 'dwellBottom' : 'dwellTop';
-          tLeft = rand(DWELL_S[0], DWELL_S[1]);
-        }
-      } else if (tLeft <= 0) {
-        phase = (phase === 'dwellBottom') ? 'up' : 'down';
-        legDur = rand(LEG_S[0], LEG_S[1]);
-        tLeft = legDur;
-      }
-      const cyclePos = bounds.maxY - pos01 * yExtent;
-      const labAmount = u.uLabProgress.value;
-      u.uWavefront.value = park + (cyclePos - park) * labAmount;
-    });
+    this._startAutonomousWave(bounds, 'uLabProgress', [5, 9], [0.6, 1.8]);
 
     // Sample card aura colors from the Lab grid and blend them for the wave gradient
     // For now, use a reasonable default; future: query card data-gradient-css or accent colors
@@ -592,6 +625,24 @@ class ParticleMorphSystem {
     }
     console.log('[lab-wave] ✅ Lab wave initialized successfully');
   }
+
+  // initHeroWave() REMOVED 2026-08-11 — the hero pulse (STYLE_HERO_RIBBON_
+  // PULSE, particle-style-definitions.js) was reworked from a JS-driven
+  // ping-pong wavefront (this method + _startAutonomousWave, matching
+  // initLabWave's own mechanism) to a fully self-contained, continuous
+  // periodic shader function keyed off uTime + aRibbonProgress directly —
+  // same style Lab's OWN visible wave (STYLE_GRID's mouse-follow ripple,
+  // the actual "footer shape" reference the rework was asked to match)
+  // already uses. No JS-side state to initialise any more: the style's
+  // uHeroRibbonProgress gate is still driven automatically by animate()'s
+  // generic progressDrivenStyles() loop, same as before, and every other
+  // uniform (uPulseCycleS, uPulseBandWidth, the four uPulse* colours) is a
+  // static default set once at material creation — see that style's own
+  // uniforms block for what's tunable and how.
+  // Lab's OWN wave (initLabWave, directly below) is UNCHANGED — it still
+  // owns the shared uWavefront/uWaveColor uniforms the pulse used to
+  // borrow; the two are now fully independent mechanisms that happen to
+  // live in the same file.
 
   destroy() {
     this.triggerManager.destroy();

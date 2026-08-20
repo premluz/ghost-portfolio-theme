@@ -297,6 +297,203 @@ const STYLE_TERRAIN = new ParticleStyleDefinition('terrain', {
             pos.y += (tn1 + tn2) * _amount;`,
 });
 
+// HERO RIBBON PULSE — the OPT-IN variant of the hero ribbon (2026-08-11,
+// reworked to a continuous periodic pulse). Plain 'ribbon-dispersed'
+// (shape-definitions.js) has NO style entry at all and so no pulse
+// behaviour whatsoever — this style is registered under the SEPARATE
+// 'ribbon-dispersed-pulse' shape key instead (same generator/geometry, see
+// RIBBON_DISPERSED_PULSE's own comment), so the plain ribbon is completely
+// untouched by anything below and switching between them is a one-line
+// change to window.HERO_PARTICLE_MODE (default.hbs).
+//
+// MECHANISM — matches how the footer/grid wave (STYLE_GRID's mouse-follow
+// ripple, above) actually works: a continuous periodic function of uTime,
+// no JS-side state machine, no _rafCallbacks loop, nothing to get out of
+// sync with the render clock. The earlier version of this style drove the
+// shared Lab uWavefront/uWaveColor uniforms via a hand-rolled JS
+// ping-pong phase tracker (initHeroWave/_startAutonomousWave,
+// particle-morph-system.js) — replaced entirely: this style is now
+// fully self-contained, reading only uTime (already global) and its own
+// aRibbonProgress attribute (Stage 1, 2026-08-11 — each particle's 0-1
+// position along the ribbon's own spiral length, -1 sentinel for
+// off-ribbon/scattered particles — see ribbonDispersedGenerator's comment,
+// shape-definitions.js).
+//
+//   pulseCenter    fract(uTime / uPulseCycleS) — 0→1 repeating every
+//                  uPulseCycleS seconds (~5s, "4-6s between pulses" per
+//                  request), so a new pulse begins the instant the last
+//                  one wraps — genuinely continuous, not dwell-and-repeat.
+//   pulseIntensity 1.0 - pulseCenter — the pulse is loudest at cycle
+//                  start (bottom of the ribbon) and fades as it travels
+//                  toward the top, per explicit request ("wave stronger
+//                  at beginning, and fading... not always full shape").
+//                  This is the SAME shape exp(-falloff) gives the footer's
+//                  ripple envelope, just linear instead of exponential —
+//                  simpler to reason about for "point A to point B, one
+//                  cycle."
+//   band           gaussian-ish falloff around |aRibbonProgress -
+//                  pulseCenter| — narrow on purpose (uPulseBandWidth
+//                  small) so only a thin travelling slice is ever lit,
+//                  not the whole shape at once (explicit "5-10% of
+//                  particles intensely bright at any given moment").
+//   trailFactor    band value biased toward the TRAILING (already-passed,
+//                  lower-progress) side only — afterglow lingers behind
+//                  the travelling pulse, not ahead of it, so the ramp
+//                  reads as "pulse arrives, afterglow lingers, next pulse
+//                  arrives" rather than a symmetric blob.
+//
+// Colour is a genuine 4-stop ramp (base -> pulse -> hot -> afterglow),
+// not a 2-stop mix like the old Lab-style wave: hot is reached only at
+// the very core of the band (tight power curve on `band`), afterglow only
+// on the trailing side, so the two never wash out into one flat pink —
+// per explicit "not always full shape... more organic... coordinated
+// ripple that feels like a whole, not chaotic".
+//
+// Everything below is scaled by uHeroRibbonProgress (this style's own
+// activity gate) AND by a `progress >= 0.0` check per particle — colorize/
+// sizeMul blocks are NOT auto-gated by the shader composer (unlike
+// displace), so both guards are written explicitly; without the
+// uHeroRibbonProgress factor this would still tint the ribbon while some
+// OTHER hero shape (helix, volatility, ...) is active but this style's
+// state is merely registered, not current.
+const STYLE_HERO_RIBBON_PULSE = new ParticleStyleDefinition('ribbon-dispersed-pulse', {
+  // FOUND 2026-08-11 — this was the actual "particles render fine, no
+  // console errors, but no visible pulse" cause, confirmed live:
+  // window.particleSystem.loop.particles.material.uniforms.
+  // uHeroRibbonProgress.value read 0 even with the hero shape genuinely
+  // active. Root cause: the continuous-pulse rewrite replaced this whole
+  // style's body (uniforms/colorize/sizeMul) but dropped the
+  // `progressUniform: 'uHeroRibbonProgress'` line the earlier ping-pong
+  // version had — progressDrivenStyles() (above) only drives a uniform
+  // animate() is TOLD about via this field; without it, the uniform sits
+  // at its uniforms-block default (0) forever, and every gate in colorize/
+  // sizeMul below (`uHeroRibbonProgress > 0.0001`) correctly, silently,
+  // never passes. The band-width/size amplification tried just before
+  // this fix was chasing amplitude on an effect that was never running at
+  // all — restored to the original subtler values now that activation
+  // itself is fixed; re-tune from there if the organic/subtle feel still
+  // needs adjusting.
+  progressUniform: 'uHeroRibbonProgress',
+  uniforms: {
+    uHeroRibbonProgress: { value: 0 },
+    uPulseCycleS: { value: 9.0 },       // seconds per pulse — cadence knob
+    // 0.08 — partway back down from the 0.16 visibility-test value now
+    // that the real bug (missing progressUniform, see above) is fixed;
+    // original spec target was 0.055 ("5-10% of particles lit at once").
+    // Retune live from here rather than jumping straight back to the
+    // narrowest value blind.
+    uPulseBandWidth: { value: 0.2 },
+    // How many multiples of uPulseBandWidth the trailing comet tail
+    // stretches across, vs the leading edge's own width — widened from
+    // the earlier 1.6x hardcoded value per "comet tail kind of thing".
+    uPulseTailStretch: { value: 1.6 },
+    // Where in the 0-1 cycle the climb-fade begins easing down (1.0 =
+    // top of the ribbon/cycle wrap). 0.85 = the pulse holds full climb
+    // brightness for the first 85% of its journey and only softens in
+    // the final 15%, so it visibly completes the climb before fading —
+    // see colorize's own comment for the "used to fade out mid-journey"
+    // bug this replaces.
+    uPulseFadeStart: { value: 0.55 },
+    // Gentle secondary oscillation riding on top of the main envelope —
+    // "calmly pulsing... not fully [fading]... up to brightness along as
+    // it moves". Depth is the swing AROUND 1.0 (0.15 = between 0.85x and
+    // 1.0x, never fully dark); Hz is independent of uPulseCycleS so the
+    // breathing reads as the pulse's own inner rhythm, not tied to how
+    // fast it travels.
+    uPulseBreatheDepth: { value: 0.12 },
+    uPulseBreatheHz: { value: 0.8 },
+    uPulseColor: { value: new THREE.Color(0x4F6695) },     // pulse core
+    uPulseColorEdge: { value: new THREE.Color(0xA4EAD6) }, // pulse outer edge, blended with uPulseColor across the band
+    uPulseHot: { value: new THREE.Color(0x6F5F85) },       // hottest particles — white with a pink bias (see colorize)
+    uPulseAfterglow: { value: new THREE.Color(0xffffff) }, // trailing tint left behind the band
+  },
+  attributes: ['aRibbonProgress'],
+  colorize: `
+        if (uHeroRibbonProgress > 0.0001 && aRibbonProgress >= 0.0) {
+          float pulseCenter = fract(uTime / uPulseCycleS);
+
+          // REWORKED 2026-08-11 — was "1.0 - pulseCenter", a straight-line
+          // decay across the WHOLE cycle: full brightness at the bottom,
+          // ~0 by the time the band neared the top, so the pulse visibly
+          // fizzled out before ever reaching the crest (reported: "should
+          // travel across entire ribbon up"). Now two SEPARATE effects,
+          // per explicit follow-up spec:
+          //   1) climbFade — stays at 1.0 for most of the journey
+          //      (uPulseFadeStart, default 0.85 = the top 15%), only
+          //      easing down in the final stretch approaching the top, so
+          //      the pulse visibly completes its climb before softening —
+          //      it fades AT the crest, not on the way there.
+          //   2) breathe — a gentle sine oscillation riding on top, never
+          //      dropping to 0 (uPulseBreatheDepth is the swing AROUND
+          //      1.0, e.g. 0.15 = between 0.85x and 1.0x) — "calmly
+          //      pulsing... not fully [fading]... up to brightness along
+          //      as it moves". Frequency independent of the travel speed
+          //      (uPulseBreatheHz, in breathes/second) so it reads as the
+          //      pulse's own inner rhythm, not tied to cycle length.
+          float climbFade = 1.0 - smoothstep(uPulseFadeStart, 1.0, pulseCenter);
+          float breathe = 1.0 - uPulseBreatheDepth * 0.5 * (1.0 - sin(uTime * uPulseBreatheHz * 6.28318));
+          float pulseIntensity = climbFade * breathe;
+
+          float d = aRibbonProgress - pulseCenter;
+          // Comet tail: particles BEHIND the pulse (lower progress, d < 0)
+          // fall off much more slowly than particles ahead of it — a real
+          // trailing tail, not just a slightly-wider mirror of the leading
+          // edge. uPulseTailStretch controls how many multiples of the
+          // leading-edge width the tail stretches across (widened from the
+          // original 1.6x per "comet tail kind of thing").
+          float widthAhead = uPulseBandWidth;
+          float widthBehind = uPulseBandWidth * uPulseTailStretch;
+          float sideWidth = d >= 0.0 ? widthAhead : widthBehind;
+          float band = exp(-(d * d) / (2.0 * sideWidth * sideWidth));
+
+          float amt = band * pulseIntensity * uHeroRibbonProgress;
+
+          // 4-stop ramp: base -> pulse edge -> pulse core -> hot. amt past
+          // 1.0 (only possible right at band center on a fresh, full-
+          // intensity pulse) pushes further into hot/white, an HDR-style
+          // over-bright core the fragment shader's own bloom-adjacent glow
+          // can pick up — same "values >1.0 read as hot" convention this
+          // shader already uses elsewhere (see the sparkle/HDR core note
+          // in particle-morph.hbs's generateColors()).
+          vec3 pulseTone = mix(uPulseColorEdge, uPulseColor, clamp(amt, 0.0, 1.0));
+          vec3 hotMix = mix(pulseTone, uPulseHot, clamp((amt - 0.6) / 0.4, 0.0, 1.0));
+          // Afterglow only applies behind the pulse (d < 0) and only where
+          // the main band has mostly faded — a dim, lingering tint rather
+          // than competing with the bright travelling core.
+          float afterglowAmt = d < 0.0 ? (1.0 - clamp(amt * 3.0, 0.0, 1.0)) * exp(-(d * d) / (2.0 * widthBehind * widthBehind * 4.0)) * pulseIntensity * uHeroRibbonProgress : 0.0;
+
+          baseColor = mix(baseColor, uPulseAfterglow, afterglowAmt * 0.5);
+          baseColor = mix(baseColor, hotMix, clamp(amt, 0.0, 1.0));
+        }`,
+  sizeMul: `
+        if (uHeroRibbonProgress > 0.0001 && aRibbonProgress >= 0.0) {
+          // Same climbFade + breathe + comet-tail derivation as colorize's
+          // pulseIntensity — kept as a literal duplicate rather than a
+          // shared function, matching how this codebase's other
+          // colorize/sizeMul pairs already work (see STYLE_GRID/STYLE_LAB
+          // above: sizeMul blocks have never called into colorize's own
+          // locals, they are separate GLSL scopes assembled at different
+          // points in main()). Keep the two in sync by hand if either
+          // changes — see colorize's own comment for what each term means.
+          float pcSize = fract(uTime / uPulseCycleS);
+          float climbFadeSize = 1.0 - smoothstep(uPulseFadeStart, 1.0, pcSize);
+          float breatheSize = 1.0 - uPulseBreatheDepth * 0.5 * (1.0 - sin(uTime * uPulseBreatheHz * 6.28318));
+          float piSize = climbFadeSize * breatheSize;
+          float dSize = aRibbonProgress - pcSize;
+          float wSize = dSize >= 0.0 ? uPulseBandWidth : (uPulseBandWidth * uPulseTailStretch);
+          float bandSize = exp(-(dSize * dSize) / (2.0 * wSize * wSize));
+          float amtSize = bandSize * piSize * uHeroRibbonProgress;
+          // 1.0 normal -> 1.6 at the pulse's own core -> eases back to 1.0
+          // approaching/trailing it, per explicit spec (1x / 1.2x
+          // approaching / 1.6x centre / 1.1x trailing / 1x). amtSize is
+          // already a smooth 0-1 envelope shaped like that curve (it IS
+          // the same gaussian band used for colour), so one multiply
+          // reproduces the whole ramp rather than a separate stepped
+          // lookup.
+          styleSizeMul *= 1.0 + amtSize * 0.6;
+        }`,
+});
+
 // VOLATILITY — the hero's receding term-structure surface. Same "flat rest
 // position + shader-driven heightfield" split as Terrain, with its own
 // amp/freq/speed (a much larger, shallower field, so lower frequency reads
@@ -645,15 +842,20 @@ if (typeof window !== 'undefined') {
   window.STYLE_VOLATILITY = STYLE_VOLATILITY;
   window.STYLE_HELIX = STYLE_HELIX;
   window.STYLE_GRID = STYLE_GRID;
+  window.STYLE_HERO_RIBBON_PULSE = STYLE_HERO_RIBBON_PULSE;
 
   // Registration order IS displacement order and must not be reordered
   // casually: helix writes pos.x/pos.z absolutely, while orb/terrain/
   // volatility/grid accumulate into pos. This matches the original
-  // hand-written block order in the shader exactly.
+  // hand-written block order in the shader exactly. STYLE_HERO_RIBBON_PULSE
+  // has no displace/colorize of its own (see its own comment above), so
+  // its position in this list doesn't affect displacement order — placed
+  // with the other minimal/non-deforming styles for locality.
   window.createDefaultParticleStyleRegistry = () =>
     new ParticleStyleRegistry()
       .register(STYLE_ORB)
       .register(STYLE_TERRAIN)
+      .register(STYLE_HERO_RIBBON_PULSE)
       .register(STYLE_VOLATILITY)
       .register(STYLE_HELIX)
       .register(STYLE_GRID)

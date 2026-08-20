@@ -9,6 +9,26 @@
   --gh-font-body: var(--font-family-body);
 }
 
+/* --gradient-shift-3 registered as a real <number> so it can be TRANSITIONED.
+   An unregistered custom property is a plain token string to the engine: it
+   flips between values instantly and `transition` on it is ignored, which is
+   why every existing consumer of this slot drives it per-frame from scroll
+   (BackgroundLayer.bindShift) rather than animating it. Registering gives it
+   a type and an initial value, which is what makes interpolation legal —
+   that in turn is what lets .invert-wrapper--page[data-invert-timed] fade
+   its page-level colour in on a timer instead of scrubbing with scroll.
+   Slot 3 only: the other three slots are still scroll-driven and registering
+   them would change nothing. Registration is inert for the scroll path — a
+   per-frame write to a registered number behaves exactly as before, and the
+   transition below is scoped to the timed opt-in class, so no existing
+   instance starts animating. syntax "<number>" (not "<length>") matches the
+   0-1 scalar --profile-shift's max() expects. */
+@property --gradient-shift-3 {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
 /* ═════════════════════════════════════════════════════════════ */
 /* RESET & BASE STYLES */
 /* ═════════════════════════════════════════════════════════════ */
@@ -679,10 +699,17 @@ html.page-ready main > *:not(#preloader):not(.home):not(.gradflow-page-bg) {
      an abrupt opacity cutoff). Deliberately symmetric again: the previous
      asymmetric version existed only to fake a slower-fading comet tail,
      which is explicitly dropped — see the storyboard notes above. */
+  /* --progress-bar-color-a/-b: per-page override hook. -a defaults to
+     --color-background (the theme's own bg token — responsive to
+     dark/light/dim, no per-post override), -b defaults to --color-secondary
+     (theme accent) — so a page that sets neither behaves exactly like the
+     rest of the theme. post.hbs overrides -b with the post's own
+     accentColor when set, so the loading streak and the scroll indicator
+     below both carry that post's accent instead of the generic theme one. */
   background: linear-gradient(90deg,
     transparent 0%,
-    var(--color-primary) 12%,
-    var(--color-secondary) 88%,
+    var(--progress-bar-color-a, var(--color-background)) 12%,
+    var(--progress-bar-color-b, var(--color-secondary)) 88%,
     transparent 100%
   );
   left: 0;
@@ -1977,6 +2004,36 @@ p:last-child {
                       content's measure (e.g. section="full",
                       columns="narrow" for a full-bleed background with
                       body-text-width content inside it).
+  data-content-align  left | center | right  (on .case-study-section,
+                      optional) — horizontal position of a narrower
+                      .case-study-columns within a wider section (e.g.
+                      section="full" + columns="contained"). Every named
+                      width-zone shares the same LEFT-anchored start line
+                      by default (see .case-study-section's own data-width
+                      rules), so without this a narrower columns element
+                      always sits flush-left — this opts into centering
+                      or right-aligning it instead. Omit for today's
+                      default (flush-left, zero risk to existing
+                      sections). Not the same as .case-study-item's own
+                      data-align (vertical, top|middle|bottom) — see that
+                      attribute's own note on why the name differs
+                      despite the similar job.
+  data-layout         columns | stacked  (on .case-study-columns; default:
+                      columns) — "stacked" forces a single column at EVERY
+                      viewport, ignoring data-cols/data-col-widths entirely
+                      (they stay in the markup, just unused while stacked —
+                      switching back to "columns" needs no other edits).
+                      For a section that's editorially always one column
+                      (a single wide statement, a full-bleed image), not a
+                      2/3-column layout that HAPPENS to reflow to one
+                      column under 768px — those still use data-cols="1"/
+                      "2"/"3" as normal and get the automatic mobile
+                      reflow below for free either way. Also tightens the
+                      column gap from --space-4xl to --space-lg — the
+                      wider gap is sized to read as a horizontal gutter
+                      between side-by-side columns, which looks like an
+                      oversized, disconnected gap once it's vertical space
+                      in a single stacked column instead.
   data-cols           1 | 2 | 3  (on .case-study-columns; default: 1)
   data-col-widths     Slash-separated fr ratios, one per column, e.g.
                       "2/1" (first column twice the second) or "1/1/1"
@@ -2002,10 +2059,183 @@ p:last-child {
                       offset is a desktop art-direction device; forcing it
                       into a stacked single column reads as an accidental
                       gap, not a composition.
-*/
+  data-bleed          left | right | both (on .case-study-item, optional)
+                      — pulls THIS column out past .case-study-columns'
+                      own padding (--content-padding) to the section's
+                      true outer edge, on whichever side(s) are named,
+                      while sibling columns in the same row keep their
+                      padding untouched. Negative margin equal to
+                      --content-padding on the target edge(s) — the SAME
+                      variable the parent's padding uses, so the two
+                      can't drift apart at any viewport. "left"/"right"
+                      only removes the content-padding side, NOT the
+                      grid's own inter-column gap — a bled first column
+                      still keeps normal spacing from a sibling beside
+                      it. On mobile (see REFLOW below), any data-bleed
+                      value becomes full-bleed (both edges) regardless of
+                      which side was named for desktop — "left"/"right"
+                      have no meaning once every column is stacked
+                      full-width with no side left to bleed toward.
+  data-background     A hex color (e.g. "#201D23") OR an image URL, on
+                      .case-study-section — sets this section's own
+                      background. Set via a tiny auto-init script
+                      (case-study-section.js, loaded site-wide) rather
+                      than a plain CSS rule: neither a raw hex value nor a
+                      URL from a data-* attribute can reach background-
+                      color/-image through the stylesheet alone — CSS
+                      attr() only resolves inside `content`, not those
+                      properties. The script reads data-background and
+                      EITHER writes --case-study-bg as an inline custom
+                      property (color case; the stylesheet rule below just
+                      consumes that variable) OR sets background-image/
+                      -size/-position directly plus data-background-
+                      type="image" (URL case — see data-gradient-wash
+                      below for why that flag matters).
+                      FOUR states, not three — whether the attribute is
+                      PRESENT matters, not just its value, and its value's
+                      FORMAT (starts with "#" or not) picks color vs image:
+                        omitted entirely   -> --case-study-bg left unset;
+                                              the CSS rule's own var(...,
+                                              var(--color-background))
+                                              fallback resolves it to the
+                                              live page background token
+                                              (matches the rest of the
+                                              page by default).
+                        data-background="#hex" -> that flat color.
+                        data-background="" (present, blank) -> explicit
+                                              transparent — an authored
+                                              "no background," distinct
+                                              from the omitted case above.
+                                              A blank attribute still
+                                              matches the script's
+                                              [data-background] selector
+                                              (presence, not value), so
+                                              this needed its own branch
+                                              rather than falling through
+                                              to the page-token default.
+                        data-background="<url>" -> anything non-blank not
+                                              starting with "#" — a cover-
+                                              sized, centered background
+                                              image instead of a color.
+  data-gradient-wash  "true" (on .case-study-section, optional, requires
+                      data-background to have a visible effect) — adds a
+                      soft fade at the section's own top and bottom edges.
+                      TWO variants, matched to data-background's own two
+                      shapes:
+                        color background — data-background's color (inner,
+                          at the section boundary) fades OUT to transparent
+                          (outer, at each fade's far end), revealing
+                          whatever's actually behind the section rather
+                          than assuming that's always the page token.
+                        image background (data-background-type="image",
+                          set automatically by case-study-section.js when
+                          data-background is a URL) — REVERSED: transparent
+                          at the image's own edge (inner — the image shows
+                          through unaltered), fading IN to the page's live
+                          --color-background token (outer, at the fade's
+                          far end). An image has no flat color of its own
+                          to fade FROM the way a color background does, so
+                          the wash instead blends the PAGE's color over the
+                          image's edge instead of the image's edge into the
+                          page — the two-attribute selector for this variant
+                          naturally outranks the color variant's one-
+                          attribute selector, so it applies automatically
+                          with no separate opt-in beyond data-background
+                          being a URL.
+                      Static CSS gradients, not the animated WebGL bands
+                      .gradient-frame draws (see GRADIENT-FRAME-SYSTEM.md)
+                      — this is a much lighter, purely decorative edge
+                      treatment for a section that just wants to blend
+                      into the page, not an animated component.
+  data-gradient-wash-top     sm | md | lg | xl | 2xl (on .case-study-
+  data-gradient-wash-bottom  section, optional, independent per edge) —
+                      how tall each wash band is: sm=20vh, md=30vh,
+                      lg=40vh, xl=55vh, 2xl=70vh. Omit either (or both) to
+                      keep sm (20vh) on that edge — this system's
+                      original/only size before this scale existed, so an
+                      instance using only data-gradient-wash="true" with
+                      no size attribute renders identically to before.
+                      Independent per edge on purpose: a section might
+                      want a short fade into a tight header above but a
+                      tall fade into open page space below, or vice versa
+                      — data-gradient-wash-top/-bottom never have to
+                      match. Applies identically to both data-background
+                      variants (color and image) above — this only
+                      changes the band's HEIGHT, not which of the two
+                      gradient-stop orders is used, so sizing and
+                      background-type are fully independent choices. vh
+                      units, not the site's rem-based --space-* scale:
+                      --space-* tops out around 6rem and is sized for
+                      padding/gaps, not a full-bleed band meant to read as
+                      a real fraction of the viewport.
+  data-gradient-top-offset  sm | md | lg | xl | 2xl (on .case-study-
+                      section, optional) — pulls THIS section itself
+                      upward, underneath whatever section PRECEDES it in
+                      the DOM, instead of leaving a real gap above it.
+                      Works the SAME regardless of inner/outer or whether
+                      data-gradient-wash is even set at all — this is a
+                      general-purpose "pull myself up" control, not tied
+                      to the wash band's own geometry. Overrides this
+                      section's own margin-top from positive
+                      (data-gradient-wash-top's gap, if set) to NEGATIVE
+                      the chosen size — same sm..2xl vh values as
+                      data-gradient-wash-top/-bottom, one shared size
+                      vocabulary. No z-index needed for the overlap
+                      itself — this section is LATER in DOM than the one
+                      it's overlapping, and later siblings already paint
+                      over earlier ones under normal stacking; an OUTER
+                      top band's own z-index:9999 (below) only matters if
+                      the previous section ALSO has its own outer bottom
+                      band that would otherwise tie with it at the same
+                      z-index.
+  data-gradient-position  outer | inner (on .case-study-section, optional;
+                      default: outer) — where the wash band sits relative
+                      to the section's own edge, independent of the color/
+                      image split above (both variants respect this the
+                      same way):
+                        outer — band is pushed OUTWARD, past the section's
+                          boundary (negative top/bottom offset), acting as
+                          a separator between this section and whatever
+                          neighbors it above/below. Fades from the
+                          section's own edge color/transparency toward
+                          fully transparent at the band's far end,
+                          revealing whatever's actually behind/beside the
+                          section rather than assuming it's the page
+                          token. This is the default: a section that just
+                          sets data-gradient-wash="true" with no position
+                          gets this. The band itself is a position:
+                          absolute pseudo-element (paints outside the
+                          section's box but reserves no layout space on
+                          its own), so outer ALSO adds real margin-top/
+                          -bottom equal to the band's own height — without
+                          that, the band would only overlap whatever
+                          section sits above/below rather than creating an
+                          actual gap between them. That margin is keyed
+                          off data-gradient-wash-top/-bottom's mere
+                          PRESENCE, not data-gradient-wash="true" — so
+                          those two size attributes double as a
+                          standalone spacing control even with no visible
+                          wash: data-gradient-wash-top="xl" alone (no
+                          data-gradient-wash) reserves 55vh of margin
+                          above the section with nothing painted.
+                        inner — band sits INWARD, flush at top:0/bottom:0,
+                          directly over the section's own top/bottom
+                          content — the same geometry this system
+                          shipped with before this attribute existed.
+                          Fades toward --color-background (a real
+                          token-to-token blend) since fading to
+                          transparent here would be a no-op: it would
+                          just reveal the section's own matching
+                          background sitting directly underneath.
+                      Both color and image data-background variants use
+                      the SAME inner/outer switch — data-gradient-position
+                      alone decides the geometry; data-background-type
+                      only ever changes which color the band fades FROM
+                      (the section's flat color, or transparent over an
+                      image), never where the band sits. */
 
 .case-study-section {
-  width: 100%;
+
   grid-column: wide-start / wide-end;
   /* Nested grid inheriting the SAME named tracks one level deeper — same
      mechanism .gh-content already uses relative to .gh-canvas
@@ -2019,13 +2249,481 @@ p:last-child {
      into. */
   display: grid;
   grid-template-columns: inherit;
-  padding: 20vh 0;
+  margin-left:0;
+  margin-right:0;
+  /* position:relative anchors the data-gradient-wash pseudo-elements
+     below (position:absolute, inset to this box's own top/bottom edges).
+     Harmless when wash isn't used — this alone draws nothing.
+     Default background is the live PAGE token (--color-background), not
+     transparent — a section with no data-background still reads as "this
+     theme's normal page background," matching every other section on the
+     page, rather than see-through to whatever's behind .case-study-section
+     in the stacking order (its own gradient-wash pseudo-elements, a
+     parent's own background, etc.). data-background (case-study-
+     section.js) overrides --case-study-bg per instance when set; the var()
+     fallback here is what makes an instance WITHOUT that attribute resolve
+     to the page token automatically.
+
+     NO UNCONDITIONAL background-color HERE — deliberate. A section with no
+     data-background must stay TRANSPARENT so the particle canvas, gradflow
+     page background and any parent layer show through it. Declaring
+     `background-color: var(--case-study-bg, var(--color-background))` on
+     this base rule makes EVERY .case-study-section paint an opaque
+     page-coloured box, hiding all of that — tried 2026-08-20 and reverted.
+     The attribute-scoped rule just below is the correct form: it paints
+     only the instances that actually asked for a colour. */
+  position: relative;
 }
+
+/* Paint the section's own body when — and only when — data-background is
+   set. Scoped to the ATTRIBUTE's presence rather than declared on the base
+   rule above, which is the whole distinction: an instance that specifies a
+   colour should show it across the section, while every instance that does
+   not stays transparent for the layers behind it.
+   No var() fallback needed: this rule cannot match unless the attribute
+   exists, and case-study-section.js always writes --case-study-bg for a
+   present attribute — including the blank data-background="" case, which it
+   sets to `transparent` explicitly (documented in that file as "explicit
+   transparent"), so blank keeps working as an opt-out rather than falling
+   back to the page token.
+   The image case sets background-image inline via JS and leaves
+   --case-study-bg unset; `transparent` there means the inline image is what
+   shows, unmasked. */
+.case-study-section[data-background] {
+  background-color: var(--case-study-bg, transparent);
+}
+
+/* WASH — two pseudo-elements, one per edge. Position (inner vs outer) is
+   controlled by data-gradient-position — see that attribute's own doc
+   comment above — with outer (pushed past the section's own boundary,
+   negative offset) as the default when the attribute is omitted, and
+   inner (flush at top:0/bottom:0) opted into explicitly. z-index:0 + the
+   section's own children needing z-index:1 would be the usual stacking
+   fix, but isn't needed here: these are BEFORE the section's only real
+   content in DOM/paint order (::before paints first) and non-positioned
+   in-flow content already paints above a position:absolute NEGATIVE-Z
+   sibling — no, actually per CSS stacking order, position:absolute (auto
+   z-index) is tier 6, plain in-flow content is tier 3, so the pseudo-
+   element would paint ABOVE .case-study-columns without an explicit
+   lower z-index. Setting it here, not left implicit. */
+.case-study-section[data-gradient-wash="true"]::before,
+.case-study-section[data-gradient-wash="true"]::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Outer's band paints OUTSIDE the section's own box, into space the
+   section BELOW (or above) may occupy — z-index:0 is only enough to
+   stack above THIS section's own in-flow content (.case-study-columns,
+   see that rule's own comment), not a SIBLING section's box, which is
+   its own separate stacking context at the same z-order by default.
+   9999 forces the outer band to paint over a neighboring section
+   regardless of DOM order — needed for data-gradient-top-offset below,
+   where the band is explicitly meant to overlap the next section's top
+   edge rather than just fade into empty margin space. Inner keeps
+   z-index:0 (previous rule, not overridden here) — it never leaves its
+   own section's box, so it has no neighbor to paint over.
+
+   SOLID IS EXCLUDED HERE (="true" only, not the shared :is(...) used by
+   the geometry rules): 9999 is safe for a gradient band because its far
+   edge fades to transparent, so overlapping a neighbour blends. A solid
+   band has no falloff — at 9999 it paints flat colour straight over the
+   neighbouring section, which with data-gradient-top-offset (that pulls
+   this section up UNDER its predecessor) erased the gap the spacing was
+   meant to create. Solid therefore keeps the base z-index:0 from the rule
+   above: the band still paints outside the box, but a neighbouring
+   section's own background wins over it instead of being covered. The
+   margins are untouched either way — they never referenced the wash value
+   and apply identically to both. */
+.case-study-section[data-gradient-wash="true"]:not([data-gradient-position="inner"])::before,
+.case-study-section[data-gradient-wash="true"]:not([data-gradient-position="inner"])::after {
+  z-index: 9999;
+}
+
+/* SCALE — data-gradient-wash-top / data-gradient-wash-bottom (optional,
+   independent per edge), sm|md|lg|xl|2xl. Each sets its OWN custom
+   property (--case-study-wash-top / -bottom) rather than sharing one
+   --case-study-wash-height, so the two edges can genuinely differ (a
+   short top fade into a tight header, a tall bottom fade into open page
+   space, say) instead of always matching. Omitted on either edge falls
+   back to sm (20vh, this system's original/only size before this scale
+   existed) via the var()'s own fallback below — every existing instance
+   that only ever set data-gradient-wash="true" with no size attribute is
+   unaffected. Values are vh, not the site's rem-based --space-* scale:
+   --space-* tops out around 6rem and is sized for padding/gaps, not a
+   full-bleed band that needs to read as a meaningful fraction of the
+   viewport — a dedicated vh scale here avoids reusing tokens for a job
+   they were never sized for. */
+.case-study-section[data-gradient-wash-top="sm"]  { --case-study-wash-top: 20vh; }
+.case-study-section[data-gradient-wash-top="md"]  { --case-study-wash-top: 30vh; }
+.case-study-section[data-gradient-wash-top="lg"]  { --case-study-wash-top: 40vh; }
+.case-study-section[data-gradient-wash-top="xl"]  { --case-study-wash-top: 55vh; }
+.case-study-section[data-gradient-wash-top="2xl"] { --case-study-wash-top: 70vh; }
+
+.case-study-section[data-gradient-wash-bottom="sm"]  { --case-study-wash-bottom: 20vh; }
+.case-study-section[data-gradient-wash-bottom="md"]  { --case-study-wash-bottom: 30vh; }
+.case-study-section[data-gradient-wash-bottom="lg"]  { --case-study-wash-bottom: 40vh; }
+.case-study-section[data-gradient-wash-bottom="xl"]  { --case-study-wash-bottom: 55vh; }
+.case-study-section[data-gradient-wash-bottom="2xl"] { --case-study-wash-bottom: 70vh; }
+
+/* INNER (data-gradient-position="inner") — flush at top:0/bottom:0,
+   directly over the section's own top/bottom content. Two attribute
+   selectors ([data-gradient-wash="true"][data-gradient-position="inner"])
+   beats the outer rules' one-attribute selector below on specificity
+   alone, so top/bottom:0 here naturally overrides outer's negative
+   offset with no !important needed.
+     color case:  --case-study-bg (solid, at the section's own edge)
+                  fades to --color-background (the real page token, at
+                  the band's inner end) — a token-to-token blend that's
+                  genuinely visible regardless of what's physically
+                  behind the element. Fading to literal `transparent`
+                  here would be a verified no-op: the transparent portion
+                  would just reveal the section's own identical
+                  background-color already sitting directly underneath,
+                  so nothing would visibly move.
+     image case:  the image has no flat color of its own to fade FROM, so
+                  instead the page's --color-background fades IN at the
+                  exact section boundary (y=0, the seam against whatever
+                  is above) and dissolves to fully transparent (image
+                  showing through unaltered) deeper into the image. No
+                  no-op risk here: the image is genuinely different from
+                  transparent at every point in the band. Explicit stop
+                  positions (0% / 50% / 99%) match a reference gradient
+                  supplied directly — near-transparent start pinned just
+                  off the true edge, a bare midpoint HINT at 50% biasing
+                  where the transition's own middle sits (a real, distinct
+                  CSS gradient feature — a color-stop POSITION with no
+                  color pulls the interpolation's midpoint toward that
+                  percentage instead of the default halfway point; it
+                  does not add a third discrete color), solid color
+                  pinned just short of the far edge. */
+.case-study-section[data-gradient-wash="true"][data-gradient-position="inner"]::before {
+  height: var(--case-study-wash-top, 20vh);
+  top: 0;
+  background: linear-gradient(to top, var(--case-study-bg, var(--color-background)) 0%, var(--case-study-bg, var(--color-background)) 20%, var(--color-background) 100%);
+}
+
+.case-study-section[data-gradient-wash="true"][data-gradient-position="inner"]::after {
+  height: var(--case-study-wash-bottom, 20vh);
+  bottom: 0;
+  background: linear-gradient(to bottom, var(--case-study-bg, var(--color-background)) 0%, var(--case-study-bg, var(--color-background)) 20%, var(--color-background) 100%);
+}
+
+.case-study-section[data-gradient-wash="true"][data-background-type="image"][data-gradient-position="inner"]::before {
+  top: 0;
+  background: linear-gradient(to top, transparent 0%, 50%, var(--color-background) 99%);
+}
+
+.case-study-section[data-gradient-wash="true"][data-background-type="image"][data-gradient-position="inner"]::after {
+  bottom: 0;
+  background: linear-gradient(to bottom, transparent 0%, var(--color-background) 80%, var(--color-background) 100%);
+}
+
+/* OUTER (default — applies whenever data-gradient-position is omitted, or
+   explicitly "outer") — band pushed PAST the section's own boundary
+   (negative top/bottom), acting as a separator between this section and
+   whatever neighbors it. Same near-edge -> far-edge direction for BOTH
+   background variants (unlike inner, where color and image order is
+   reversed) — near the section's own boundary starts solid (the
+   section's flat --case-study-bg, or --color-background as the best
+   available stand-in when the background is an image, since an image has
+   no flat color of its own to anchor the near edge), fading to
+   transparent at the band's far end, revealing whatever's actually
+   behind/beside the section rather than assuming a token-to-token blend
+   — outward space isn't guaranteed to be the page token the way the
+   section's own inner edge is, so transparent (not --color-background)
+   is the only far-end color that's correct regardless of what's actually
+   out there. Selector has no data-gradient-position attribute condition,
+   only :not("inner") — this is what makes it the default for an instance
+   that never sets the attribute at all, while still losing specificity
+   ties to the inner rules above whenever "inner" IS set. */
+.case-study-section[data-gradient-wash="true"]:not([data-gradient-position="inner"])::before {
+  height: var(--case-study-wash-top, 20vh);
+  top: calc(-1 * var(--case-study-wash-top, 20vh));
+  background: linear-gradient(to top, var(--case-study-bg, var(--color-background)) 0%, transparent 100%);
+}
+
+.case-study-section[data-gradient-wash="true"]:not([data-gradient-position="inner"])::after {
+  height: var(--case-study-wash-bottom, 20vh);
+  bottom: calc(-1 * var(--case-study-wash-bottom, 20vh));
+  background: linear-gradient(to bottom, var(--case-study-bg, var(--color-background)) 0%, transparent 100%);
+}
+
+.case-study-section[data-gradient-wash="true"][data-background-type="image"]:not([data-gradient-position="inner"])::before {
+  height: var(--case-study-wash-top, 20vh);
+  top: calc(-1 * var(--case-study-wash-top, 20vh));
+  background: linear-gradient(to top, var(--color-background) 0%, transparent 100%);
+}
+
+.case-study-section[data-gradient-wash="true"][data-background-type="image"]:not([data-gradient-position="inner"])::after {
+  height: var(--case-study-wash-bottom, 20vh);
+  bottom: calc(-1 * var(--case-study-wash-bottom, 20vh));
+  background: linear-gradient(to bottom, var(--color-background) 0%, transparent 100%);
+}
+
+/* ── SOLID WASH — data-gradient-wash="solid" ─────────────────────────────
+   A DIFFERENT MODEL from "true", not a restyled band.
+
+     "true"   paints ::before/::after bands OUTSIDE the section's box that
+              fade to transparent, plus margin to reserve room for them.
+     "solid"  paints NO bands at all. Instead the sm|md|lg|xl|2xl size
+              becomes PADDING inside the section, so the section's own
+              background (data-background / data-content-theme) simply
+              extends into that space.
+
+   Why not a band: a solid band has no falloff, so anything it overlaps it
+   erases. At the outer band's z-index:9999 that meant covering the section's
+   own text; dropped to 0 it still fought whichever neighbour it overlapped,
+   and combined with data-gradient-top-offset (which pulls the section UP
+   under its predecessor) it erased the very gap the spacing created. There
+   is no z-index that makes an opaque band overlap correctly — the band is
+   simply the wrong mechanism for a solid fill. Padding keeps the colour
+   strictly inside the box, where it can never cover anything else.
+
+   Consequences of that, all deliberate:
+     - no ::before/::after (they are suppressed below, so the geometry rules
+       the two values share become inert for solid)
+     - no negative-offset margins, since there is nothing outside the box to
+       reserve room for
+     - data-gradient-position (inner/outer) is meaningless for solid — there
+       is no band to position — and is simply ignored
+     - data-background-type="image" needs no special case: the section's own
+       background-image already fills the padded box
+
+   Still one attribute with two values rather than a separate
+   data-solid-wash: the two are mutually exclusive by construction, so a
+   section can never be in both states at once. */
+
+/* No band suppression rule is needed here — the band-generating rule at the
+   top of this system is scoped to [data-gradient-wash="true"] alone, so a
+   solid section never generates ::before/::after in the first place.
+   A `content: none` override was tried here first and does NOT work: that
+   rule's selector is (0,2,1) while the generator's :is(...) form is (0,3,1),
+   so the generator wins and the pseudo-elements are still created. Not
+   matching is both simpler and correct — see the generator's own comment. */
+
+/* The padding itself — same --case-study-wash-top/-bottom custom properties
+   the band heights use, so the size vocabulary stays identical across both
+   modes and the mobile scale (further down) applies to solid for free.
+   Falls back to 0, not the bands' 20vh: an omitted size attribute must mean
+   no padding, exactly as an omitted attribute means no margin in the outer
+   model. */
+.case-study-section[data-gradient-wash="solid"] {
+  padding-top: var(--case-study-wash-top, 0);
+  padding-bottom: var(--case-study-wash-bottom, 0);
+}
+
+
+/* Outer's negative-offset pseudo-elements above are position:absolute —
+   they paint outside the section's own box but reserve no layout space,
+   so without this the band would simply OVERLAP whatever neighboring
+   section sits above/below rather than acting as a real gap between them.
+   margin-top/-bottom here pushes the section's actual box away from its
+   neighbors by exactly the band's own height (same var(), so the
+   reserved space always matches what's drawn — the two can never drift
+   apart), turning the visual "separator" into a real one. Not applied to
+   inner: that variant already sits INSIDE the section's own box at
+   top:0/bottom:0, so it needs no extra space — adding margin there would
+   just be blank space with nothing pushed into it.
+   Selector keys off ATTRIBUTE PRESENCE ([data-gradient-wash-top], no
+   ="value"), not data-gradient-wash="true" — deliberately independent of
+   whether the visible fade band is even drawn. This lets
+   data-gradient-wash-top/-bottom double as a standalone spacing control:
+   a section can set data-gradient-wash-top="xl" alone, with no
+   data-gradient-wash attribute at all, purely to reserve 55vh of margin
+   above it, no gradient painted. No var() fallback here (unlike the band
+   height rules above) — omitting this attribute must mean zero margin,
+   not a silent 20vh default applied to every .case-study-section
+   site-wide; the band-height rules' own 20vh fallback only ever matters
+   once data-gradient-wash-top/-bottom is already present, so this
+   selector requiring presence keeps the two in sync. */
+.case-study-section[data-gradient-wash-top]:not([data-gradient-position="inner"]) {
+  margin-top: var(--case-study-wash-top);
+}
+.case-study-section[data-gradient-wash-bottom]:not([data-gradient-position="inner"]) {
+  margin-bottom: var(--case-study-wash-bottom);
+}
+
+/* Cancel the outer model's margin reservation for solid. Those rules key off
+   the SIZE attributes' presence alone (deliberately independent of the wash
+   value, so the sizes can double as a standalone spacing control), which
+   means a solid section would otherwise get BOTH the internal padding above
+   and an equal external margin — double the intended space. Only the wash-
+   driven margins are reset; data-gradient-top-offset is left alone, since
+   that is an explicit "pull myself up" instruction rather than room reserved
+   Placed AFTER those margin rules on purpose: the selectors tie on
+   specificity ((0,3,0) each, since the original's :not() argument counts),
+   so source order is what decides. Sitting earlier in the file it silently
+   lost and the margins still applied. */
+.case-study-section[data-gradient-wash="solid"][data-gradient-wash-top] {
+  margin-top: 0;
+}
+.case-study-section[data-gradient-wash="solid"][data-gradient-wash-bottom] {
+  margin-bottom: 0;
+}
+
+
+/* data-gradient-top-offset — sm|md|lg|xl|2xl — pulls THIS section itself
+   upward, underneath whatever section PRECEDES it in the DOM, instead of
+   leaving a real gap above it. NEGATIVE margin-top (not margin-bottom —
+   the effect lands on the section it's set on, not a neighbor). Reuses
+   the exact same sm..2xl vh values as data-gradient-wash-top/-bottom
+   (20/30/40/55/70vh) for one consistent size vocabulary across this
+   whole system, rather than inventing a second scale.
+   Deliberately NOT scoped to outer (no :not([data-gradient-position=
+   "inner"]) here, unlike every other margin/z-index rule in this
+   system) — this is a general-purpose "pull myself up" control,
+   independent of whether THIS section even has a wash at all, let alone
+   which variant. An inner section, or a section with no
+   data-gradient-wash attribute whatsoever, can still set
+   data-gradient-top-offset alone to pull itself upward under its
+   previous sibling — same "standalone spacing control" precedent
+   data-gradient-wash-top/-bottom already established two rules above.
+   No z-index needed for the overlap itself: this section is LATER in
+   DOM than the one it's overlapping, and later siblings already paint
+   over earlier ones under normal stacking — true whether this section
+   has an outer top band (z-index:9999, wash rule above, in case a
+   VISIBLE band specifically needs to win against the previous section's
+   own OWN outer bottom band, which would otherwise also be at 9999) or
+   no wash at all.
+   Selector is [data-gradient-top-offset][data-gradient-top-offset] —
+   the same attribute selector written TWICE, not a typo — solely to
+   force this rule's specificity above the base margin-top rule two
+   rules up. That rule's own selector, [data-gradient-wash-top]:not
+   ([data-gradient-position="inner"]), is actually TWO attribute-level
+   selectors (the bare attribute presence check, PLUS :not()'s own
+   specificity contribution, which counts as its argument's), so a
+   single [data-gradient-top-offset] selector here previously LOST that
+   specificity fight even though it comes later in source order —
+   confirmed live: a section with both data-gradient-wash-top AND
+   data-gradient-top-offset set was silently keeping the wash-top rule's
+   POSITIVE margin instead of this rule's intended negative one, on
+   outer sections specifically (inner never hits the conflict — the
+   wash-top rule excludes it). Doubling the attribute selector here
+   matches that specificity exactly while still winning via source
+   order, without reaching for !important. */
+.case-study-section[data-gradient-top-offset="sm"]  { --case-study-top-offset: 20vh; }
+.case-study-section[data-gradient-top-offset="md"]  { --case-study-top-offset: 30vh; }
+.case-study-section[data-gradient-top-offset="lg"]  { --case-study-top-offset: 40vh; }
+.case-study-section[data-gradient-top-offset="xl"]  { --case-study-top-offset: 55vh; }
+.case-study-section[data-gradient-top-offset="2xl"] { --case-study-top-offset: 70vh; }
+
+.case-study-section[data-gradient-top-offset][data-gradient-top-offset] {
+  margin-top: calc(-1 * var(--case-study-top-offset));
+}
+
+/* MOBILE SCALE — same 768px breakpoint every other reflow rule in this
+   file uses. The three vh scales above (wash-top/-bottom/top-offset)
+   were sized for desktop viewport heights; unscaled on a phone, even
+   "sm" (20vh) reads as a huge chunk of a short mobile viewport, and
+   "2xl" (70vh) can exceed a phone's entire visible height in landscape
+   or with the browser chrome collapsed. Roughly half the desktop
+   magnitude at every step keeps the same relative sm→2xl progression
+   while landing in a range that actually reads as inter-section
+   spacing on a small screen rather than a near-full-viewport gap.
+   Redeclaring the custom properties (not overriding the selectors
+   above with !important) is enough — these come later in source order
+   at equal specificity, so they naturally win inside this media query
+   without touching the desktop rules at all. */
+@media (max-width: 768px) {
+  .case-study-section[data-gradient-wash-top="sm"]  { --case-study-wash-top: 10vh; }
+  .case-study-section[data-gradient-wash-top="md"]  { --case-study-wash-top: 15vh; }
+  .case-study-section[data-gradient-wash-top="lg"]  { --case-study-wash-top: 20vh; }
+  .case-study-section[data-gradient-wash-top="xl"]  { --case-study-wash-top: 28vh; }
+  .case-study-section[data-gradient-wash-top="2xl"] { --case-study-wash-top: 35vh; }
+
+  .case-study-section[data-gradient-wash-bottom="sm"]  { --case-study-wash-bottom: 10vh; }
+  .case-study-section[data-gradient-wash-bottom="md"]  { --case-study-wash-bottom: 15vh; }
+  .case-study-section[data-gradient-wash-bottom="lg"]  { --case-study-wash-bottom: 20vh; }
+  .case-study-section[data-gradient-wash-bottom="xl"]  { --case-study-wash-bottom: 28vh; }
+  .case-study-section[data-gradient-wash-bottom="2xl"] { --case-study-wash-bottom: 35vh; }
+
+  .case-study-section[data-gradient-top-offset="sm"]  { --case-study-top-offset: 10vh; }
+  .case-study-section[data-gradient-top-offset="md"]  { --case-study-top-offset: 15vh; }
+  .case-study-section[data-gradient-top-offset="lg"]  { --case-study-top-offset: 20vh; }
+  .case-study-section[data-gradient-top-offset="xl"]  { --case-study-top-offset: 28vh; }
+  .case-study-section[data-gradient-top-offset="2xl"] { --case-study-top-offset: 35vh; }
+}
+
+/* Keeps real content above the wash pseudo-elements (tier 6 positioned,
+   z-index:0, vs. the fallback tier-3 in-flow paint the columns would
+   otherwise get) — see the wash rule's own comment above for the
+   stacking-order reasoning. */
+.case-study-section:is([data-gradient-wash="true"],[data-gradient-wash="solid"]) > .case-study-columns {
+  position: relative;
+  z-index: 1;
+}
+
 
 .case-study-section[data-width="narrow"] { grid-column: narrow-start / narrow-end; }
 .case-study-section[data-width="contained"] { grid-column: contained-start / contained-end; }
 .case-study-section[data-width="wide"] { grid-column: wide-start / wide-end; }
 .case-study-section[data-width="full"] { grid-column: full-start / full-end; }
+
+/* data-content-align (on .case-study-section, optional) — horizontal
+   placement of a narrower .case-study-columns WITHIN a wider section
+   (e.g. a "full" section holding "contained" columns). Named
+   data-content-align, not data-align: .case-study-item already has its
+   OWN data-align (top|middle|bottom, vertical, further below) — same
+   attribute name with a different vocabulary depending on which element
+   it landed on would be a real ambiguity trap reading markup, so this is
+   deliberately a different name despite the similar job.
+   Every named width-zone (narrow/contained/wide/full) shares the SAME
+   start line — .gh-canvas's own "left-anchored, not centered" design
+   (that file's own comment) — so a .case-study-columns[data-width]
+   narrower than its section can ONLY ever sit flush-left against that
+   shared start line; there is no grid-column span that could center or
+   right-align it, because named lines place an edge, they don't hand the
+   item slack to redistribute. left|center|right below sidesteps the
+   named-line system entirely for the CHILD's placement (while data-width
+   on .case-study-columns still picks its target WIDTH, unchanged):
+   max-width duplicates that same zone's real total width from the tokens
+   .gh-canvas itself computes from (--content-max-width-text/-wide,
+   --container+200), and justify-self positions the resulting (now
+   explicitly sized, no longer line-pinned) box within the section's own
+   full span. Omit data-content-align entirely to keep today's default
+   (flush-left via the named-line system, zero risk to any existing
+   section — this selector only matches when BOTH attributes are
+   present). */
+.case-study-section[data-content-align] > .case-study-columns[data-width] {
+  grid-column: 1 / -1;
+}
+.case-study-section[data-content-align] > .case-study-columns[data-width="narrow"] {
+  max-width: var(--content-max-width-text);
+}
+.case-study-section[data-content-align] > .case-study-columns[data-width="contained"] {
+  max-width: var(--content-max-width-wide);
+}
+.case-study-section[data-content-align] > .case-study-columns[data-width="wide"] {
+  /* Fixed 1600px, not calc(var(--container) + 200px) — that derived
+     value resolves to 2000px whenever the page-width setting is "full"
+     (--container: 1800px there, main.css .gh-canvas), which is barely
+     distinguishable from an unconstrained full-bleed section at typical
+     viewport widths and read as "wide isn't doing anything." 1600px
+     matches this theme's other "wide" tiers directly (.kg-width-wide,
+     .post-header-layout[data-post-hero='wide']) — one consistent number
+     for "wide" everywhere on the site instead of a page-width-dependent
+     calculation only this one rule used. */
+  max-width: 1600px;
+}
+/* data-width="full" + data-content-align is a no-op (full already spans
+   the section's whole box, nothing left to align within) — no rule
+   needed, the max-width simply never constrains it below the section's
+   own width. */
+
+.case-study-section[data-content-align="left"] > .case-study-columns[data-width] {
+  justify-self: start;
+}
+.case-study-section[data-content-align="center"] > .case-study-columns[data-width] {
+  justify-self: center;
+}
+.case-study-section[data-content-align="right"] > .case-study-columns[data-width] {
+  justify-self: end;
+}
 
 .case-study-columns {
   /* 1 / -1 (fills whatever span the section resolved to) is the DEFAULT
@@ -2039,16 +2737,59 @@ p:last-child {
   gap: var(--space-4xl);
   align-items: stretch;
   width: 100%;
+  padding: 0 var(--content-padding);
 }
 
 .case-study-columns[data-width="narrow"] { grid-column: narrow-start / narrow-end; }
 .case-study-columns[data-width="contained"] { grid-column: contained-start / contained-end; }
-.case-study-columns[data-width="wide"] { grid-column: wide-start / wide-end; }
 .case-study-columns[data-width="full"] { grid-column: full-start / full-end; }
+
+/* wide WITHOUT data-content-align — the same instance that gets a fixed
+   1600px cap when data-content-align IS present (rule above, ~2563) fell
+   through to the raw wide-start/wide-end NAMED TRACK here instead, with
+   no max-width applied at all: measured live at 2000px (--container +
+   200px - --content-max-width-wide math, .gh-canvas), not 1600px — the
+   exact same value the OTHER rule used to have before being fixed to a
+   flat 1600px. Two different real widths for the identical
+   data-width="wide" depending on an unrelated sibling attribute
+   (data-content-align) is the actual bug behind repeated "wide isn't
+   responding" reports — some sections had data-content-align set (saw
+   the fixed 1600px), others didn't (still saw the stale ~2000px track
+   width) even though nothing about the wide VALUE itself differed.
+   max-width:1600px here makes this path match the other one exactly;
+   the track itself (wide-start/wide-end) is still what POSITIONS the
+   box (left-anchored, matching every other zone on the page per
+   PAGE-WIDTH-SYSTEM.md's documented left-anchoring), this only caps how
+   wide it's allowed to grow within that track — harmless whenever the
+   track itself is already ≤1600px (the cap simply never binds, e.g. at
+   narrower page_width settings), and stays flush-left rather than
+   centered, unlike the data-content-align path which explicitly
+   opts into centering via justify-self. */
+.case-study-columns[data-width="wide"] {
+  grid-column: wide-start / wide-end;
+  max-width: 1600px;
+}
 
 .case-study-columns[data-cols="1"] { --case-study-cols: 1; }
 .case-study-columns[data-cols="2"] { --case-study-cols: 2; }
 .case-study-columns[data-cols="3"] { --case-study-cols: 3; }
+
+/* data-layout="stacked" — single column at EVERY viewport, not just the
+   mobile reflow below. data-col-widths (just below) is TWO attribute
+   selectors ([data-cols][data-col-widths]), higher specificity than this
+   rule's single [data-layout] — !important is what actually wins here,
+   not source order, so data-cols/data-col-widths can stay in the markup
+   unedited when switching layout back to "columns" later.
+   gap also drops here: the base --space-4xl (up to 10rem) is sized to
+   read as a horizontal gutter BETWEEN side-by-side columns — stacked
+   turns that same gap into VERTICAL space between items in a single
+   column, where it reads as an oversized, disconnected gap rather than a
+   gutter. --space-lg (up to 3rem) matches the tighter vertical rhythm
+   used elsewhere for stacked/single-column content on this site. */
+.case-study-columns[data-layout="stacked"] {
+  grid-template-columns: 1fr !important;
+  gap: var(--space-lg) !important;
+}
 
 /* data-col-widths overrides the even 1fr split above with an explicit
    per-column ratio — one rule per supported column count × the specific
@@ -2073,6 +2814,31 @@ p:last-child {
   display: flex;
   flex-direction: column;
   align-self: stretch;
+}
+
+/* data-bleed — left | right | both (on .case-study-item, optional) —
+   pulls THIS column out to the section's true outer edge, escaping
+   .case-study-columns' own padding:0 var(--content-padding) on
+   whichever side(s) are specified, while sibling columns in the SAME
+   row keep their padding untouched. Negative margin equal to
+   --content-padding on the target edge (the exact variable the
+   parent's own padding uses, so the two can never drift out of sync at
+   any viewport) is what makes this a per-CHILD escape rather than
+   needing to strip padding off the whole row — .case-study-columns'
+   padding is one shared box constraint for the whole grid, so a single
+   item can't opt out of it by fighting its own box model UNLESS the
+   escape happens on the item itself, pulling just that one column back
+   out to where the padding would otherwise have stopped it, without
+   touching what the padding does for any other column in that row.
+   "right"/"left" bleed only removes margin equal to content-padding,
+   NOT the grid's own inter-column --space-4xl gap — a "left"-bled
+   FIRST column still keeps its normal gap from a second column beside
+   it; only the outer, page-edge-facing side moves. */
+.case-study-item[data-bleed="left"] { margin-left: calc(-1 * var(--content-padding)); }
+.case-study-item[data-bleed="right"] { margin-right: calc(-1 * var(--content-padding)); }
+.case-study-item[data-bleed="both"] {
+  margin-left: calc(-1 * var(--content-padding));
+  margin-right: calc(-1 * var(--content-padding));
 }
 
 /* VERTICAL ALIGNMENT — align-self on the grid item, independent of
@@ -2114,16 +2880,51 @@ p:last-child {
    deliberate desktop stagger reads as a stray, unexplained gap once
    there's no adjacent column left to stagger against, and a
    middle/bottom-aligned column has nothing left to align against once
-   every column is full-width and stacked in document order. */
+   every column is full-width and stacked in document order.
+
+   data-mobile-order (on .case-study-item, optional) — this item's
+   position once columns stack to one at 768px, independent of its
+   source-order position in the markup (CSS `order`, scoped to this same
+   breakpoint). Desktop order is always source order regardless of this
+   attribute — it only takes effect once stacked, whether that's this
+   automatic mobile reflow or an always-stacked data-layout="stacked"
+   section (see that attribute's own doc above) already narrow enough to
+   look stacked above 768px too. Omit to keep source order (the default;
+   every existing instance is unaffected). */
 @media (max-width: 768px) {
   .case-study-columns {
     grid-template-columns: 1fr !important;
+    /* Base gap (--space-4xl, up to 10rem) is sized as a HORIZONTAL
+       gutter between side-by-side columns — once stacked to one column
+       here, that same gap becomes vertical space between items and
+       reads as an oversized, disconnected gap rather than a gutter
+       (same reasoning data-layout="stacked" already documents above for
+       its own always-stacked case, just applied to the automatic mobile
+       reflow instead of that opt-in attribute). --space-xl (up to 4rem)
+       matches the tighter vertical rhythm used elsewhere for stacked
+       content on this site. */
+    gap: var(--space-xl) !important;
   }
 
   .case-study-item {
     align-self: stretch !important;
     padding-top: 0 !important;
     padding-bottom: 0 !important;
+  }
+
+  .case-study-item[data-mobile-order="1"] { order: 1; }
+  .case-study-item[data-mobile-order="2"] { order: 2; }
+  .case-study-item[data-mobile-order="3"] { order: 3; }
+
+  /* data-bleed once stacked: "left"/"right" no longer mean anything
+     once every column is full-width and stacked in document order (no
+     side left to bleed toward relative to a sibling) — any data-bleed
+     value becomes full-bleed (both edges) here, matching the reflow
+     rule's own "desktop art direction resets to a sensible mobile
+     default" pattern already used for offsets/alignment just above. */
+  .case-study-item[data-bleed] {
+    margin-left: calc(-1 * var(--content-padding)) !important;
+    margin-right: calc(-1 * var(--content-padding)) !important;
   }
 }
 
@@ -3126,13 +3927,13 @@ html {
   opacity: 1;
   transform: translateX(0);
   pointer-events: auto;
-  max-width: 48px;
+  max-width: 36px;
   transition: transform 0.4s cubic-bezier(0.2, 0, 0, 1), opacity 0.4s ease,
               max-width 0.4s cubic-bezier(0.2, 0, 0, 1) 0s;
 }
 
 .gh-navigation[data-nav-hide-mode="stagger"] .nav-controls .theme-toggle .theme-toggle-icons {
-  max-width: 48px;
+  max-width: 36x;
   overflow: hidden;
   transition: max-width 0.4s cubic-bezier(0.2, 0, 0, 1) 0s;
 }
@@ -3481,8 +4282,8 @@ margin:0;
      border-radius. .nav-menu-label is hidden (icon-only nav, see below),
      so there's no text content that still needs room — a fixed square is
      safe here, not a mismatch with content. */
-  width: 48px;
-  height: 48px;
+  width: 36px;
+  height: 36px;
   padding: 0;
   border-radius: var(--radius-md);
   /* Anchors .nav-tooltip's position:absolute (see below) to this link
@@ -3779,8 +4580,8 @@ body.post-template.nav-collapsing .nav-post-controls {
   justify-content: center;
   color: color-mix(in srgb, var(--color-icon), var(--shift-ink, white) calc(var(--profile-shift, 0) * 100%));
   transition: color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard);
-  width: 48px;
-  height: 48px;
+  width: 36px;
+  height: 36px;
   border-radius: var(--radius-full);
   position: relative;
 }
@@ -3963,9 +4764,18 @@ body.post-template.nav-collapsing .nav-post-controls {
    controls above — was unconditional on body.post-template alone, so
    this rendered from the very first frame too, inflating the true
    "still expanded" measurement (navigation.hbs) alongside the full
-   logo+menu row. */
+   logo+menu row.
+   body.page-about/body.page-contact added (not html.nav-hop — that's
+   specifically "arrived via a prev/next hop between POSTS", which has no
+   equivalent on a single unique page like About/Contact) so these two
+   pages get the same collapse-to-close-only pill treatment, just without
+   the .nav-post-controls (prev/next) siblings — those stay scoped to
+   body.post-template alone, untouched, since "next about page" isn't a
+   meaningful concept. */
 html.nav-hop body.post-template .nav-close-btn,
-body.post-template.nav-collapsing .nav-close-btn {
+body.post-template.nav-collapsing .nav-close-btn,
+body.page-about.nav-collapsing .nav-close-btn,
+body.page-contact.nav-collapsing .nav-close-btn {
   display: inline-flex;
   /* Was upsized (48px + space-xs*2) to fill the pill entirely when it was
      the ONLY button in a single-button pill. Now the pill holds 3 buttons
@@ -3989,12 +4799,16 @@ body.post-template.nav-collapsing .nav-close-btn {
    Neither present = a completely ordinary expanded nav, same as any other
    page — that's the deliberate "before" state the animation collapses
    away from, not a bug. */
-body.post-template .hamburger {
+body.post-template .hamburger,
+body.page-about .hamburger,
+body.page-contact .hamburger {
   transition: opacity 0.4s cubic-bezier(0.2, 0, 0, 1), max-width 0.4s cubic-bezier(0.2, 0, 0, 1), margin 0.4s cubic-bezier(0.2, 0, 0, 1);
 }
 
 html.nav-hop body.post-template .hamburger,
-body.post-template.nav-collapsing .hamburger {
+body.post-template.nav-collapsing .hamburger,
+body.page-about.nav-collapsing .hamburger,
+body.page-contact.nav-collapsing .hamburger {
   opacity: 0 !important;
   max-width: 0 !important;
   overflow: hidden !important;
@@ -4024,7 +4838,9 @@ body.post-template.nav-collapsing .hamburger {
    normal flex flow, so close/prev/next simply render wherever flex
    naturally puts them — which is also why the earlier absolute-position
    version's alignment bug can't recur here. */
-body.post-template .gh-navigation[data-nav-hide-mode="stagger"] .nav-wrapper {
+body.post-template .gh-navigation[data-nav-hide-mode="stagger"] .nav-wrapper,
+body.page-about .gh-navigation[data-nav-hide-mode="stagger"] .nav-wrapper,
+body.page-contact .gh-navigation[data-nav-hide-mode="stagger"] .nav-wrapper {
   /* --nav-expanded-w: set by navigation.hbs from a real getBoundingClientRect()
      read at the one true expanded frame — fit-content itself can't be
      interpolated FROM (confirmed in isolation: a transition from
@@ -4052,7 +4868,9 @@ body.post-template .gh-navigation[data-nav-hide-mode="stagger"] .nav-wrapper {
    Must match the same ancestor prefix as the base rule (0,5,0 vs its
    0,4,0) or this loses the width property entirely regardless of
    .nav-collapsing being present. */
-body.post-template.nav-collapsing .gh-navigation[data-nav-hide-mode="stagger"] .nav-wrapper {
+body.post-template.nav-collapsing .gh-navigation[data-nav-hide-mode="stagger"] .nav-wrapper,
+body.page-about.nav-collapsing .gh-navigation[data-nav-hide-mode="stagger"] .nav-wrapper,
+body.page-contact.nav-collapsing .gh-navigation[data-nav-hide-mode="stagger"] .nav-wrapper {
   width: var(--nav-collapsed-w, fit-content);
 }
 
@@ -4061,13 +4879,17 @@ body.post-template.nav-collapsing .gh-navigation[data-nav-hide-mode="stagger"] .
    (above) and the incoming icons (below) actually move. nav-hop gets
    the same immediate hide (arrives pre-collapsed, nothing to show).
    .theme-toggle included: it lives in .nav-controls (a sibling of
-   .logoandnavwrapper, not a child of it), so hiding .logoandnavwrapper
+   .logoandnavwrapper, not a child of it), so hiding .logoabutton ndnavwrapper
    alone doesn't touch it — without this it stayed visible in the
    "collapsed" pill alongside close/prev/next, which isn't wanted there. */
 html.nav-hop body.post-template .logoandnavwrapper,
 body.post-template.nav-collapsing .logoandnavwrapper,
+body.page-about.nav-collapsing .logoandnavwrapper,
+body.page-contact.nav-collapsing .logoandnavwrapper,
 html.nav-hop body.post-template .nav-controls .theme-toggle,
-body.post-template.nav-collapsing .nav-controls .theme-toggle {
+body.post-template.nav-collapsing .nav-controls .theme-toggle,
+body.page-about.nav-collapsing .nav-controls .theme-toggle,
+body.page-contact.nav-collapsing .nav-controls .theme-toggle {
   display: none;
 }
 
@@ -4079,7 +4901,9 @@ body.post-template.nav-collapsing .nav-controls .theme-toggle {
    to visible, so it animates instead of snapping. */
 body.post-template .nav-close-btn,
 body.post-template .nav-post-prev,
-body.post-template .nav-post-next {
+body.post-template .nav-post-next,
+body.page-about .nav-close-btn,
+body.page-contact .nav-close-btn {
   opacity: 0;
   transform: translateX(-12px);
   transition: opacity 0.3s cubic-bezier(0.2, 0, 0, 1), transform 0.3s cubic-bezier(0.2, 0, 0, 1);
@@ -4095,16 +4919,22 @@ html.nav-hop body.post-template .nav-post-next {
 
 body.post-template.nav-collapsing .nav-close-btn,
 body.post-template.nav-collapsing .nav-post-prev,
-body.post-template.nav-collapsing .nav-post-next {
+body.post-template.nav-collapsing .nav-post-next,
+body.page-about.nav-collapsing .nav-close-btn,
+body.page-contact.nav-collapsing .nav-close-btn {
   opacity: 1;
   transform: translateX(0);
 }
 
-body.post-template.nav-collapsing .nav-close-btn { transition-delay: 0s; }
+body.post-template.nav-collapsing .nav-close-btn,
+body.page-about.nav-collapsing .nav-close-btn,
+body.page-contact.nav-collapsing .nav-close-btn { transition-delay: 0s; }
 body.post-template.nav-collapsing .nav-post-prev { transition-delay: 0.08s; }
 body.post-template.nav-collapsing .nav-post-next { transition-delay: 0.16s; }
 
-body.post-template .nav-wrapper {
+body.post-template .nav-wrapper,
+body.page-about .nav-wrapper,
+body.page-contact .nav-wrapper {
   /* Small gap + side padding, sized for icon buttons (close/prev/next)
      rather than the logo+menu+theme-toggle row. height stays fixed since
      it's never more than one row. Width lives on the [data-nav-hide-
@@ -4112,7 +4942,7 @@ body.post-template .nav-wrapper {
      not duplicated here. */
   gap: var(--space-xs);
   padding: 0 var(--space-xs);
-  height: calc(48px + (var(--space-xs) * 2));
+  height: calc(36px + (var(--space-xs) * 2));
   justify-content: center;
 }
 
@@ -4576,18 +5406,42 @@ body.post-template .nav-wrapper {
     font-size: var(--text-size-h5);
   }
 
-  /* Desktop keeps .nav-wrapper fit-content (the floating glass pill — see
-     base rule above). Mobile instead fills the row: .gh-navigation's own
-     padding above already insets the shell by --content-padding on both
-     sides (same margin as every section's content), so nav-wrapper only
-     needs display:flex + width:100% to stretch edge-to-edge within that —
-     giving it the exact same left/right margin as page content, not a
-     second content-padding stacked on top of the shell's. */
+  /* Mobile matches desktop's floating glass pill: sized by its own contents
+     (the icon row) and centred in the shell, NOT stretched edge-to-edge.
+     Was width:100% + space-between, which made the pane as wide as the
+     viewport and left the expanded (homepage) nav visibly larger than the
+     collapsed (post) one — the collapsed state is driven by
+     --nav-collapsed-w, a JS-measured px value with no media query, so it
+     stayed a narrow pill on mobile while this rule kept the expanded state
+     full-bleed. Two different width models on the same breakpoint.
+     max-width keeps a long expanded row from overflowing the shell on very
+     narrow phones; the shell's own --content-padding still provides the
+     minimum side margin. margin-inline:auto does the centring — the shell
+     is full-bleed, so without it a fit-content pane sits left. */
   .nav-wrapper {
     display: flex;
-    width: 100%;
-    justify-content: space-between;
+    width: fit-content;
+    max-width: 100%;
+    margin-inline: auto;
+    justify-content: center;
     padding: var(--space-sm) var(--space-md);
+  }
+
+  /* The collapsed-state width rules (see "HIDE-THEN-SHRINK" above, ~line
+     4740) are deliberately unscoped by viewport, so their JS-measured px
+     widths apply here too and would re-pin this pane to a fixed number.
+     On mobile both states should simply be sized by their contents, so the
+     measured values are overridden back to fit-content for both ends of the
+     transition. Width then stops animating on mobile — correct, since
+     there's no longer a width CHANGE to animate: only the icons swap. */
+  body.post-template .gh-navigation[data-nav-hide-mode="stagger"] .nav-wrapper,
+  body.page-about .gh-navigation[data-nav-hide-mode="stagger"] .nav-wrapper,
+  body.page-contact .gh-navigation[data-nav-hide-mode="stagger"] .nav-wrapper,
+  body.post-template.nav-collapsing .gh-navigation[data-nav-hide-mode="stagger"] .nav-wrapper,
+  body.page-about.nav-collapsing .gh-navigation[data-nav-hide-mode="stagger"] .nav-wrapper,
+  body.page-contact.nav-collapsing .gh-navigation[data-nav-hide-mode="stagger"] .nav-wrapper {
+    width: fit-content;
+    margin-inline: auto;
   }
 
 }
@@ -4616,7 +5470,15 @@ body.post-template .nav-wrapper {
   top: 0;
   left: 0;
   height: 3px;
-  background: linear-gradient(90deg, var(--color-primary), var(--color-secondary));
+  /* Same --progress-bar-color-a/-b override hook as the loading streak
+     above (see its comment) — one pair of tokens drives both states of
+     this shared element, so a post can't end up with a coloured loading
+     bar and a theme-coloured scroll bar. Falls back to the theme pair
+     (--color-background / --color-secondary). */
+  background: linear-gradient(90deg,
+    var(--progress-bar-color-a, var(--color-background)),
+    var(--progress-bar-color-b, var(--color-secondary))
+  );
   width: 0%;
   z-index: 10002;
   /* `transition: none`, stated EXPLICITLY — not just omitted.
@@ -4960,26 +5822,19 @@ body.post-template .nav-wrapper {
   line-height: 1.4;
 }
 
-/* Logomark container - desktop only, aligned with content width.
-   `right` is set live by initLogomarkAnimation() (main.js), measured
-   against .post-header-content's actual right edge — NOT a
-   data-post-hero-tiered `right: calc(...)` rule anymore (removed): that
-   only handled three hardcoded attribute values ('contained'/'wide'/
-   'fullscreen'), and silently left `right` unset — landing the logomark
-   near the LEFT edge instead — for any other value in real use (e.g.
-   'full'). No flash risk from the JS dependency: visibility stays hidden
-   until the same code that sets `right` also reveals it. */
+/* Logomark container — 2026-08-15 header rebuild: now a plain in-flow
+   occupant of .post-header-logo (post.hbs), one of three columns in
+   .post-header-top, NOT absolutely positioned/GSAP-dropped anymore
+   (initLogomarkAnimation()/calculateLandingPosition() retired, main.js —
+   their whole premise was landing this box in the corner of a text block,
+   which doesn't apply once the logo has its own dedicated column). Fluid
+   sizing kept from the old rule (80-140px clamp) since it's still a fair
+   "this box roughly follows viewport width" range for a real grid column.
+   opacity starts 0 here — .post-header-logo's own entrance fade
+   (initPostHeaderAnimation(), main.js) reveals it, same "hidden until the
+   entrance timeline runs" contract .post-header-layout's own opacity:0
+   already uses. */
 .logomark-container {
-  position: absolute;
-  top: -420px;
-  /* Fluid, not a flat 140px — it previously stayed that exact size across
-     the whole desktop/tablet range (769px-4000px+), only ever snapping to
-     display:none at the 768px mobile cutoff below. That read as "doesn't
-     scale down with the window" right up until it vanished outright.
-     80px floor (~800px viewport) to 140px ceiling (~1400px+); main.js's
-     calculateLandingPosition() reads the actual rendered height at
-     runtime rather than assuming 140px, so its landing position stays
-     correct at every size here. */
   width: clamp(80px, 10vw, 140px);
   height: clamp(80px, 10vw, 140px);
   border-radius: var(--radius-sm);
@@ -4987,34 +5842,13 @@ body.post-template .nav-wrapper {
   align-items: center;
   justify-content: center;
   box-shadow: var(--elevation-3);
-  visibility: hidden;
   opacity: 0;
-  will-change: transform, opacity;
 }
 
 .logomark-image {
   width: 60%;
   height: 60%;
   object-fit: contain;
-}
-
-/* Positioned relative to .logomark-container (already position:absolute) —
-   the container itself is a fixed 140x140px box (flex-centered on the
-   image alone), so this sits just below its bottom edge rather than
-   competing with the image for space inside it. Text is set (post.hbs)
-   but kept invisible (each .char span starts at opacity:0) until
-   animateLogomarkDrop() finishes — see logomarkDropComplete. */
-.logomark-date {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  margin: var(--space-sm) 0 0 0;
-  text-align: center;
-  font-size: var(--text-size-caption);
-  letter-spacing: var(--text-letter-spacing-eyebrow);
-  text-transform: uppercase;
-  color: var(--color-on-surface-variant);
 }
 
 /* Post card metadata */
@@ -5150,13 +5984,6 @@ body.post-template .nav-wrapper {
   color: var(--color-on-surface-variant);
   text-transform: uppercase;
   white-space: nowrap;
-}
-
-/* Hide logomark on mobile/tablet */
-@media (max-width: 768px) {
-  .logomark-container {
-    display: none !important;
-  }
 }
 
 /* .post-card base definition moved to post-card-grid.css (single source of truth) */
@@ -6094,12 +6921,49 @@ body[data-page-width='full'] .gh-canvas {
 .kg-width-wide figure {
   grid-column: wide-start / wide-end;
   padding: 0 var(--content-padding);
-  max-width: 1800px;
+  max-width: 1600px;
+  /* width:100% + margin:auto, not margin:auto alone — a bare grid item
+     defaults to justify-self:stretch (fills its track, letting
+     max-width cap it), but declaring margin-left/-right:auto on a grid
+     item EXPLICITLY disables that stretch per the CSS Grid spec, and
+     without an explicit width this figure has no intrinsic size of its
+     own to fall back to — confirmed live: it collapsed to width:0
+     (invisible) the instant margin:auto was added with no matching
+     width. width:100% (of the max-width-capped box) is what restores
+     real size, and 100% + max-width means the box grows to fill up to
+     1600px and margin:auto only ever has real space to distribute once
+     the track itself is wider than that cap. Centers this box WITHIN
+     its own wide-start/wide-end track whenever that track IS wider —
+     .gh-canvas's own zone tracks are deliberately LEFT-anchored, not
+     centered (that rule's own comment, main.css ~6560: "changed
+     2026-08-06", a fix for post-page header/text alignment), so without
+     this a card capped narrower than its track would hug the track's
+     left edge instead of centering inside it. This only affects the
+     CARD'S position within its already-left-anchored track, not the
+     track's own position relative to .gh-content — the left-anchoring
+     fix stays intact. */
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
 }
 
-/* Galleries always fullscreen with padding */
+/* Galleries — same regular/narrow width as a plain image card by
+   default (main-start/main-end, matching .kg-width-regular immediately
+   above). Previously grid-column: full-start/full-end unconditionally
+   ("Galleries always fullscreen with padding") — every gallery rendered
+   full-bleed even with no kg-width-wide/kg-width-full class present, no
+   narrower default the way a single image card already had.
+   NOT centered here — deliberately, matching a real precedent already
+   in this file: .content-grid/.field-grid's own narrow tier (further
+   down, ~7709) tried margin-inline:auto on a similarly narrow box and
+   reverted it after confirming live that centering a narrow box inside
+   a much wider left-anchored track visibly drifted it away from the
+   post header/body's own left edge — center-anchoring only reads
+   correctly once the box nearly fills its track (kg-width-wide below),
+   not at this width difference. */
 .kg-gallery-container {
-  grid-column: full-start / full-end;
+  grid-column: main-start / main-end;
+  padding: 0 var(--content-padding);
 }
 
 .kg-width-full,
@@ -6116,11 +6980,35 @@ body[data-page-width='full'] .gh-canvas {
   display: block;
 }
 
-/* Gallery cards (full-width by default) */
-.kg-gallery-card,
+/* Gallery cards — same regular/narrow-by-default treatment as
+   .kg-gallery-container above (this selector catches the OUTER
+   .kg-gallery-card wrapper Koenig renders; .kg-gallery-container is
+   nested inside it). Not centered, same reasoning as
+   .kg-gallery-container's own comment just above.
+   .kg-width-full.kg-gallery-container (explicit full class) still gets
+   the true full-bleed track, untouched. */
+.kg-gallery-card {
+  grid-column: main-start / main-end;
+  padding: 0 var(--content-padding);
+}
+
+.kg-width-wide.kg-gallery-card {
+  grid-column: wide-start / wide-end;
+  max-width: 1600px;
+  /* width:100%, same reason .kg-width-wide's own rule above needs it —
+     margin:auto alone on a grid item disables its default
+     justify-self:stretch with no explicit width to fall back on. */
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.kg-width-full.kg-gallery-card,
 .kg-width-full.kg-gallery-container {
   grid-column: full-start / full-end;
   padding: 0 var(--content-padding);
+  margin-left: 0;
+  margin-right: 0;
 }
 
 /* Post-page override: .post-layout (further down this file) already insets
@@ -6184,34 +7072,36 @@ body[data-page-width='full'] .gh-canvas {
   padding-top: var(--space-3xl);
   padding-bottom: var(--space-section);
   width: 100%;
-  /* overflow-x removed: it forces overflow-y to non-visible per CSS spec,
-     which clips the absolutely-positioned .logomark-container at top:-160px.
+  /* No overflow-x here — was originally left off because it clipped the
+     old absolutely-positioned .logomark-container (removed in the
+     2026-08-15 header rebuild, logomark is now a normal in-flow column).
      Horizontal overflow is instead clamped on .gh-content. */
+}
+
+/* --space-3xl's own clamp() floor (4rem/64px) still reads as a lot of
+   dead space above the header on a short phone viewport — same 768px
+   breakpoint every other reflow rule in this file uses, dropping to
+   --space-xl (up to 4rem, but with a MUCH lower clamp() floor than
+   --space-3xl's own 4rem minimum) for a noticeably tighter top gap on
+   mobile specifically. padding-bottom untouched — --space-section is
+   already its own separate clamp(), not the value in question here. */
+@media (max-width: 768px) {
+  .post {
+    padding-top: var(--space-xl);
+  }
 }
 
 /* Post header entrance animation */
 /* postHeaderEnter animation moved to GSAP initPostHeaderAnimation() */
 
-/* .post-header class is reused by THREE templates in two different roles:
-   - page.hbs / page-about.hbs: .post-header is a DIRECT CHILD of the
-     .post-hero article/section — the outer padded/max-width/entrance
-     element itself. No sidebar, no wrapper — page-about.hbs's whole-page
-     gradflow background ({{> gradflow-page-bg}}) is a SIBLING of the
-     page's own <section>, not a wrapper around .post-header, so it needs
-     no compensating selector here (an earlier .page-about-hero-wrap
-     attempt did wrap it and briefly needed one — see git history).
-   - post.hbs: .post-header-layout (new) is the outer two-column row —
-     .post-project-summary (col 1) beside .post-header (col 2 — title/
-     excerpt/meta, the feature image, AND the logomark, all stacked
-     normally inside it, exactly like the standalone case). .post-header
-     here is nested INSIDE .post-header-layout, never a direct child of
-     .post — that's what the `>` combinator below is for: it cleanly
-     separates the two roles with zero override/reset chains, since each
-     selector can only ever match its own template's DOM shape.
-   (Earlier attempt, removed: .post-header-row, which put the summary
-   INSIDE .post-header alongside just the title block, image forced below
-   full-width — read as the summary sitting next to the title only, not
-   next to the whole header.) */
+/* .post-header class is used by page.hbs / page-about.hbs ONLY as of the
+   2026-08-15 post-header rebuild — post.hbs no longer has a .post-header
+   element at all (its header content moved to .post-header-top's three
+   columns: .post-header-logo / .post-header-meta / .post-header-title,
+   inside the same .post-header-layout wrapper as before). The `>`
+   combinator below (.post > .post-header) still cleanly separates this
+   from post.hbs's own DOM shape by construction — post.hbs simply never
+   has a .post-header for it to match. */
 /* Standalone .post-header (page.hbs/page-about.hbs) — the outer role:
    width + content-padding + entrance state, all on one element. */
 .post > .post-header {
@@ -6234,13 +7124,43 @@ body[data-page-width='full'] .gh-canvas {
    inset as the header rather than hanging off the page edge. */
 .post-layout {
   width: 100%;
-  padding: 0 var(--content-padding);
+  padding: 0;
+  /* position:relative + z-index:3 — needed so the header/body content
+     stack ABOVE .post-hero-gradient-frame (post.hbs, z-index:2 from the
+     shared .gradient-frame base rule, gradient-frame.css). Without an
+     explicit position here, .post-layout and everything inside it is
+     UNPOSITIONED (stacking tier 3 in the CSS spec's painting order),
+     which always paints BELOW any positioned z-index:0+ element
+     regardless of the actual number — the exact trap gradient-frame.css's
+     own base-rule comment documents for #page-backdrop. 3, not 2: needs
+     to be strictly greater than the frame's own 2, not equal (equal
+     z-index at the same stacking level falls back to DOM order, which
+     would still occasionally lose depending on paint order — an explicit
+     higher number removes the ambiguity). */
+  position: relative;
+  z-index: 3;
 }
 
 .post-header-layout {
   position: relative;
+  /* z-index needed on THIS sibling specifically, not just the shared
+     .post-layout ancestor (its own z-index:3 fix, above): .post-header-
+     layout and .post-hero-gradient-frame (post.hbs) are SIBLINGS inside
+     .post-layout's stacking context, and .post-hero-gradient-frame's
+     z-index:2 (from the shared .gradient-frame base rule, gradient-
+     frame.css) beats this element's implicit z-index:auto regardless of
+     DOM order — verified live, the header (logo/meta/title) was
+     completely covered by the gradient band despite .post-layout's own
+     z-index:3 correctly lifting the WHOLE subtree above other page
+     content. auto only wins ties by DOM order among OTHER auto siblings;
+     against an explicit z-index:2 it always loses.
+     Bumped 3 -> 4 (2026-08-15) to make room for .post-hero-sticky at 3,
+     between this header (must stay on top) and .post-hero-gradient-frame
+     at 2 (must stay on bottom) — a real tier, not DOM-order luck. */
+  z-index: 4;
   opacity: 0;
   filter: blur(4px);
+  padding: 0 var(--content-padding);
 }
 
 /* Section-scoped invert (see INVERSION.md) — --profile-shift here reaches
@@ -6258,6 +7178,29 @@ body[data-page-width='full'] .gh-canvas {
   --color-on-surface-variant: color-mix(in srgb, var(--gradient-frame-ink-variant-base), var(--shift-ink, white) calc(var(--profile-shift, 0) * 100%));
   --color-primary: color-mix(in srgb, var(--gradient-frame-ink-primary-base), var(--shift-ink, white) calc(var(--profile-shift, 0) * 100%));
 }
+
+/* PER-INSTANCE COLOUR OVERRIDES — two independent attributes:
+     data-shift-bg="#123456"   the colour this block's background shifts TO
+     data-shift-ink="#ffffff"  the colour its text/icons shift TO
+   Either may be set alone: -bg only for a pure background change (text keeps
+   the theme's own shift ink), -ink only to re-point text without touching
+   the background, both for full control — the only combination that is
+   always contrast-correct by construction.
+   Applied in JS (default.hbs, the .invert-wrapper init), NOT here. A pure
+   CSS version was written first and reverted:
+     .invert-wrapper[data-shift-bg] { --shift-bg: attr(data-shift-bg type(<color>)); }
+   attr() with a type is CSS Values 5 — Chrome-only as of 2026-08, absent in
+   Safari and Firefox, where the declaration is invalid at computed-value
+   time and --shift-bg silently keeps its inherited value. A per-instance
+   colour that works in one browser and no-ops in two is worse than no
+   feature, so both variants go through the same JS promotion instead.
+   The two variants differ in WHERE the property must land:
+     base / --full  on the element (its own ::before paints var(--shift-bg),
+                    and the color-mix() rules above read var(--shift-ink)
+                    from its own cascade)
+     --page         on :root (it paints nothing itself; it drives
+                    #page-backdrop, a fixed element outside this subtree,
+                    plus the site-wide :root text rules) */
 
 /* The actual inverted BACKGROUND panel — the three color-mix() rules above
    only ever flip ink (text/icon) colors; nothing paints a background, so
@@ -6287,6 +7230,250 @@ body[data-page-width='full'] .gh-canvas {
   z-index: 1;
 }
 
+/* PAGE-LEVEL VARIANT — opt-in modifier, not a change to the base rule
+   above. .invert-wrapper's own --profile-shift:1 + ::before panel paint a
+   LOCAL inversion, scoped to just this element's own box (a plain custom
+   property with no :root write) — correct for a section that should look
+   inverted only within its own bounds, but NOT what "like testimonials
+   does on index" means: that section inverts the whole fixed-viewport
+   #page-backdrop (main.css) behind EVERYTHING, not a panel of its own.
+   default.hbs's own auto-init for .invert-wrapper--page binds
+   --gradient-shift-3 (document.documentElement, default root) instead of
+   a per-element property — same slot testimonials-section's own binding
+   already uses (scroll-scrub-anim.js), which #page-backdrop's
+   color-mix() reads via --profile-shift = max() of all four
+   --gradient-shift-N slots (gradient-frame.css). Two things to undo from
+   the base rule for that to actually work:
+     1. --profile-shift:1 here would override the real (0-1 scroll-
+        driven) value JS writes at :root with a permanently-forced 1 —
+        the same property set directly on THIS element always wins over
+        one set on an ancestor, regardless of specificity elsewhere.
+        `unset` is what actually undoes that: for a custom property it
+        behaves as `inherit` (custom properties are inheritable by
+        definition — see CSS Custom Properties spec), pulling the real
+        computed value down from :root instead of a locally-forced one.
+     2. ::before's local panel needs to not paint here — #page-backdrop
+        is already doing that job for the whole viewport; painting BOTH
+        double-darkens the overlap and leaves a visible seam at this
+        element's own edges once its shift and the page's diverge (they
+        won't, same slot — but the panel is still pure redundant paint).
+   Ink/text color-mix() rules are INHERITED from the base .invert-wrapper
+   rule untouched — those still apply locally exactly like testimonials'
+   own text staying readable against the shifted page background. */
+.invert-wrapper--page {
+  --profile-shift: unset;
+}
+
+/* TIMED (non-scroll-bound) page shift — data-invert-timed.
+   Three modes now exist for a --page instance:
+     (default)            scroll-scrubbed: --gradient-shift-3 tracks scroll
+                          position every frame, ramping in and back out.
+     data-invert-static   pinned to 1 instantly, no motion, never reverts.
+     data-invert-timed    fades 0 -> 1 over a fixed duration when the block
+                          enters the viewport, and back 1 -> 0 when it
+                          leaves. Symmetric and repeatable. Unlike the
+                          scrubbed default it is not tied to scroll POSITION:
+                          the fade always runs at its own fixed duration, so
+                          scroll speed cannot make it partial or jumpy — it
+                          is only triggered by entering/leaving, not driven
+                          frame-by-frame.
+
+   The transition lives on :root, not on the wrapper: --gradient-shift-3 is
+   written to documentElement (that is where bindShift writes it, and where
+   #page-backdrop's own max() reads it from), so :root is the element whose
+   property is actually changing and therefore the only place a transition on
+   it can fire. html.invert-timed-active is toggled by default.hbs's init
+   once the block is observed entering the viewport.
+   Works only because --gradient-shift-3 is registered via @property at the
+   top of this file — an unregistered custom property cannot transition.
+   Duration matches the page-level colour changes elsewhere in this theme
+   (0.6s ease) rather than the faster 0.4s used for local UI states; this is
+   a full-viewport background, where a quick change reads as a flicker. */
+:root:has(.invert-wrapper--page[data-invert-timed]) {
+  transition: --gradient-shift-3 0.4s ease;
+}
+
+html.invert-timed-active {
+  --gradient-shift-3: 1;
+}
+
+/* prefers-reduced-motion: keep the colour change, drop the animation — the
+   shift carries meaning (it is the section's own palette), so suppressing it
+   entirely would lose information rather than just motion. */
+@media (prefers-reduced-motion: reduce) {
+  :root:has(.invert-wrapper--page[data-invert-timed]) {
+    transition: none;
+  }
+}
+
+.invert-wrapper--page::before {
+  content: none;
+}
+
+/* FULL-BLEED VARIANT — opt-in modifier, not a change to the base rule
+   above (that would also affect every narrower/contained .invert-wrapper
+   elsewhere on the site). .invert-wrapper itself sets no width at all —
+   it's purely a color-inversion mechanism — so dropped into a narrower
+   parent (.gh-content's article measure, e.g. a pasted post HTML card)
+   it just fills that narrow column, which is what read as "squashed."
+   Same breakout technique as .post-hero-gradient-frame (that class's own
+   comment explains why margin: calc(-50vw + 50%) is used over the
+   left/right:50% .fullpagewidth variant this file otherwise defaults to
+   — that variant breaks under position:sticky elsewhere; harmless but
+   unnecessary here since .invert-wrapper only uses position:relative,
+   kept for consistency with the other full-bleed instance).
+   Add .invert-wrapper--full alongside .invert-wrapper (and
+   data-invert-scroll, if scroll-scrubbed) to reach the true viewport
+   edge instead of the article's own measure. Pasteable:
+     <div class="invert-wrapper invert-wrapper--full" data-invert-scroll>
+       ...
+     </div> */
+.invert-wrapper--full {
+  /* --invert-wrapper-left/right-offset are set live by
+     invert-wrapper-full.js — this element's own actual distance from
+     each viewport edge, NOT the calc(-50vw + 50%) formula used elsewhere
+     (.post-hero-gradient-frame): that formula only self-corrects WIDTH
+     and assumes the element is horizontally CENTERED in the viewport,
+     which .gh-content is not on a post page (page padding + an optional
+     side rail push it left of true center — verified live, left edge
+     landed at 237px instead of 0 with the vw-only formula). Negative
+     margins pull each edge out to the true viewport edge directly,
+     independent of any centering assumption. Falls back to the
+     calc(-50vw + 50%) formula (correct for a centered element) via each
+     var()'s second argument so the element isn't visibly broken for the
+     one frame before JS runs.
+
+     display:grid + grid-template-columns:inherit — REQUIRED, not
+     cosmetic: content pasted inside (e.g. .case-study-section, which
+     resolves grid-column: wide-start/wide-end etc.) only works because
+     .gh-content re-establishes the SAME named tracks .gh-canvas declares
+     (grid-template-columns: inherit copies the computed track list, the
+     named lines carry over). .invert-wrapper--full sits between them in
+     the DOM but was a plain block box with no grid of its own, so
+     wide-start/wide-end etc. had nothing to resolve against inside it —
+     confirmed live, case-study content overflowed past both viewport
+     edges (text clipped on both sides) instead of respecting its own
+     width zone. Without --full's negative margins this element would
+     just behave like any other .gh-content descendant; WITH them, it's
+     now also acting as a `.gh-canvas`-equivalent boundary for its own
+     children, so it needs the same grid contract .gh-content already
+     uses relative to its own parent. */
+  display: grid;
+  grid-template-columns: inherit;
+  margin-left: calc(-1 * var(--invert-wrapper-left-offset, calc(50vw - 50%)));
+  margin-right: calc(-1 * var(--invert-wrapper-right-offset, calc(50vw - 50%)));
+  /* LEFT-EDGE GUTTER — the named width-zone tracks (narrow/contained/wide,
+     inherited above) are LEFT-ANCHORED (.gh-canvas's own doc: "every
+     zone's START line sits at the same position... only their END lines
+     differ") — that's correct when the zone's start already has a real
+     inset from something further up the tree (.gh-content's own
+     --gap-driven padding). Here it doesn't: this element's negative
+     margins reset that start line to the TRUE viewport edge (x:0), so
+     even data-width="contained" content — verified live, .case-study-
+     section[data-width=contained] correctly narrowed to 1000px but its
+     LEFT edge still landed at x:0 — has no left gutter at all, only a
+     right one. This padding is independent of the width-zone system
+     entirely (same --content-padding token .post-layout already uses
+     for its own edge gutter) — it insets the CONTENT, not the
+     background: the background panel (.invert-wrapper::before /
+     #page-backdrop for --page) reads from the border box via inset:0,
+     unaffected by padding, so it stays genuinely full-bleed while the
+     grid children pull in symmetrically. */
+  padding-left: var(--content-padding);
+  padding-right: var(--content-padding);
+}
+
+/* Re-establish the same "fill whatever span the grid gave you" default
+   .gh-content itself uses (grid-column: 1 / -1) — without this, a plain
+   in-flow child of a NEW grid context only occupies the grid's first
+   auto-placed cell/track, not the full width, even though the OUTER box
+   (.invert-wrapper--full itself) is already full-bleed via its margins. */
+.invert-wrapper--full > * {
+  grid-column: 1 / -1;
+}
+
+/* ── CONTENT THEME (data-content-theme) ──────────────────────────────────
+   Paint any element with an explicit colour scheme, independent of (or
+   pinned against) the site's active theme. Works on ANY element — section,
+   div, wrapper — not just .case-study-section.
+
+     (absent)             inherit the current theme. No rules match, zero
+                          cost, no stacking context, nothing to undo.
+     data-content-theme="invert"   the OPPOSITE of whatever theme is active
+     data-content-theme="dark"     always dark,  regardless of active theme
+     data-content-theme="light"    always light, regardless of active theme
+
+   How the three differ is ONE declaration each (the --ct-bg/--ct-ink pair
+   at the bottom); everything above it is shared machinery.
+
+   "invert" reuses --shift-bg/--shift-ink, which each theme block defines as
+   its own opposite (tokens.css: dark :root points --shift-bg at
+   --theme-light-bg, the light block points it at --theme-dark-bg), so it
+   flips automatically with the theme.
+
+   "dark"/"light" instead point at the CROSS-THEME primitives
+   (--theme-dark-bg/-ink, --theme-light-bg/-ink). Those carry the same value
+   in every theme block, which is what makes these two persistent by
+   construction rather than by JS — toggling the site theme cannot change
+   them, because there is no per-theme override to pick up.
+
+   Relationship to .invert-wrapper (above): that class is the older,
+   heavier equivalent of "invert", and keeps its own --page/--full modifiers
+   plus scroll-scrubbing (data-invert-scroll). This attribute is the
+   lightweight always-on version — deliberately NOT scroll-fadeable (its
+   ::before has no --profile-shift opacity), because scroll-bound inversion
+   is exactly what .invert-wrapper--page + data-invert-scroll already do.
+   .invert-wrapper is left untouched; the two coexist. */
+[data-content-theme="invert"],
+[data-content-theme="dark"],
+[data-content-theme="light"] {
+  position: relative; /* anchors ::before below */
+  /* Ink is a color-mix() at a FIXED 100% rather than a plain assignment so
+     these stay drop-in compatible with the same --gradient-frame-ink-*-base
+     inputs .invert-wrapper mixes from (gradient-frame.css) — an element can
+     carry both without the two disagreeing about what the base colour is. */
+  --color-on-surface:         color-mix(in srgb, var(--gradient-frame-ink-base), var(--ct-ink) 100%);
+  --color-on-surface-variant: color-mix(in srgb, var(--gradient-frame-ink-variant-base), var(--ct-ink) 100%);
+  --color-primary:            color-mix(in srgb, var(--gradient-frame-ink-primary-base), var(--ct-ink) 100%);
+}
+
+/* The background panel. Same ::before approach as .invert-wrapper: the ink
+   rules above only recolour text/icons, so without a painted background the
+   block keeps the page's own colour and the flipped ink lands on the wrong
+   surface. z-index:0 is a POSITIONED tier that paints above plain in-flow
+   content, which is why the child rule below is required to lift real
+   content back on top of it. */
+[data-content-theme="invert"]::before,
+[data-content-theme="dark"]::before,
+[data-content-theme="light"]::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-color: var(--ct-bg);
+  pointer-events: none;
+}
+
+[data-content-theme="invert"] > *,
+[data-content-theme="dark"] > *,
+[data-content-theme="light"] > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* The only per-value difference: which bg/ink pair --ct-* resolves to.
+   Each defers to --case-study-bg first: an element carrying BOTH
+   data-content-theme and an explicit data-background (case-study-section.js
+   writes --case-study-bg from it) should honour the explicit colour — that
+   attribute is the more specific instruction, and the panel below would
+   otherwise paint straight over it at inset:0 and hide it completely.
+   Ink still comes from the content theme, so "dark surface, but this exact
+   dark" keeps its light text. --case-study-bg is unset on any element that
+   doesn't use that system, so the fallback is the normal path here. */
+[data-content-theme="invert"] { --ct-bg: var(--case-study-bg, var(--shift-bg));       --ct-ink: var(--shift-ink); }
+[data-content-theme="dark"]   { --ct-bg: var(--case-study-bg, var(--theme-dark-bg));  --ct-ink: var(--theme-dark-ink); }
+[data-content-theme="light"]  { --ct-bg: var(--case-study-bg, var(--theme-light-bg)); --ct-ink: var(--theme-light-ink); }
+
 /* ── POST PAGE LAYOUT GRID (post.hbs) ────────────────────────────
    Page-level grid: the side rail runs alongside BOTH the header and the
    body content on desktop, and drops between them on mobile.
@@ -6307,7 +7494,6 @@ body[data-page-width='full'] .gh-canvas {
     "header"
     "side"
     "content";
-  row-gap: var(--space-lg);
 }
 
 .post-header-layout { grid-area: header; }
@@ -6400,29 +7586,16 @@ body[data-page-width='full'] .gh-canvas {
   flex: 1 1 160px;
 }
 
-/* Header area wrapper — the logomark's positioning parent (see post.hbs)
-   and initPostHeaderAnimation()'s target. Was itself the two-column row
-   before the .post-layout grid above took that job over; now it just
-   stacks the header and the absolutely-positioned logomark. */
+/* Header area wrapper — initPostHeaderAnimation()'s (main.js) fade-in
+   target, and .post-header-top's own containing block. 2026-08-15: the
+   logomark is no longer absolutely positioned against this element (it's
+   a normal in-flow column now, see .post-header-logo below); this rule
+   just stacks .post-header-top vertically in case anything else ever
+   joins it as a sibling. */
 .post-header-layout {
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
-}
-
-.post-header-layout > .post-header {
-  /* Flex child (col 2) — reset the outer-role properties from the shared
-     rule above: .post-header-layout already provides width/padding/
-     position/entrance-state for the whole row, summary included, so
-     applying them AGAIN here would double the inset and leave this
-     element permanently invisible (parent opacity 0 × child's own
-     opacity 0 — GSAP only ever animates the parent). */
-  width: auto;
-  padding: 0;
-  position: static;
-  opacity: 1;
-  filter: none;
-  min-width: 0;
 }
 
 .post-header .container {
@@ -6435,24 +7608,63 @@ body[data-page-width='full'] .gh-canvas {
   max-width: none;
 }
 
-/* Wraps category/title/excerpt/meta */
-.post-header-content {
+/* POST HEADER TOP — 3-column row (logo / meta / title+excerpt), post.hbs
+   only (page.hbs/page-about.hbs keep their own single-column .post-header
+   shape, untouched). Fixed-width logo + meta columns, title takes the
+   remaining space — matches the reference composition (logo mark, a
+   narrow eyebrow+value meta list, then the large H1 alongside it).
+   On mobile (768px, same breakpoint every other reflow rule in this file
+   uses), logo + meta STAY side by side (2 columns, auto + 1fr) —
+   matching the desktop pairing — with only the title dropping to its own
+   full-width row below both; title's grid-column:1/-1 is what spans it
+   across whatever column count is active, so this rule doesn't need its
+   own separate override at this breakpoint. */
+.post-header-top {
+  display: grid;
+  grid-template-columns: auto minmax(160px, 220px) 1fr;
+  gap: var(--space-xl);
+  align-items: start;
+}
+
+@media (max-width: 768px) {
+  .post-header-top {
+    grid-template-columns: auto 1fr;
+    gap: var(--space-lg);
+  }
+
+  .post-header-title {
+    grid-column: 1 / -1;
+  }
+}
+
+.post-header-logo {
+  display: flex;
+}
+
+.post-header-meta {
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
 }
 
-/* Desktop: .post-project-summary becomes a left-hand column beside
-   .post-header (col 2, containing the title block AND the feature image),
-   with a generous gap between them. order:-1 moves .post-project-summary
-   first visually without reordering the DOM (the H1 stays the first
-   heading in reading/source order). */
-/* The old flex two-column rules that lived here (.post-header-layout →
-   flex-direction:row, .post-project-summary → flex:0 0 260px + order:-1,
-   and the mobile order:1 counterpart) are gone: .post-layout's grid areas
-   above now own both the desktop side-by-side arrangement and the mobile
-   header → side → content stack, and the summary is no longer a sibling
-   of .post-header at all. */
+.post-header-meta-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.post-header-meta-row p {
+  margin: 0;
+  font-size: var(--text-size-small);
+  color: var(--color-on-surface-subtle);
+}
+
+.post-header-title {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-width: 0;
+}
 
 /* Override page-width constraints for fullscreen post hero — releases
    .container from the site-wide page_width cap (body[data-page-width='X']
@@ -6464,39 +7676,15 @@ body[data-page-width='full'] .gh-canvas {
   max-width: var(--max-width);
 }
 
-.post-category {
-  display: none;
-  font-size: var(--text-size-sm);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--color-on-surface-subtle);
-  margin-bottom: 0;
-  
-}
-
 .post-title {
   margin-bottom: 0;
   margin-top:0;
-  padding-right: 40px !important;
-}
-
-@media (max-width: 768px) {
-  .post-title {
-    padding-right: 0 !important;
-  }
 }
 
 .post-excerpt {
   font-size: var(--text-size-h4);
   color: var(--color-on-surface);
   margin-bottom: var(--space-md);
-  padding-right: 160px;
-}
-
-@media (max-width: 768px) {
-  .post-excerpt {
-    padding-right: 0;
-  }
 }
 
 .post-meta {
@@ -6567,15 +7755,116 @@ body[data-page-width='full'] .gh-canvas {
   filter: blur(0px);
 }
 
+/* HERO IMAGE — post.hbs only, 2026-08-15 header rebuild (renamed from
+   sticky). Full-bleed (true viewport edge), scrolls normally with the
+   page — position:sticky was tried and explicitly reverted per request:
+   sticky only stays pinned for the duration of its OWN box height (was
+   75vh — confirmed via live scroll sampling it released after ~400px,
+   not the "header + whole first section" span originally wanted), and a
+   taller wrapper to fix that pin duration turned out not to be the
+   actual desired effect at all — plain scroll-with-the-page instead.
+   Class name kept as .post-hero-sticky (not renamed a second time) to
+   avoid another round of selector updates across CSS/JS/post.hbs for a
+   purely cosmetic rename — it's just a full-bleed hero image now. */
+/* Full-bleed breakout for THIS gradient-frame instance only (post.hbs,
+   "instance-specific class" comment on the element itself) — .gradient-
+   frame's own base rule (gradient-frame.css) sets no width at all, it
+   just fills whatever its parent gives it; here that parent is
+   .post-layout, inset by --content-padding, so without this the frame
+   (bands included) would stay contained instead of reaching the true
+   viewport edge. Same margin: calc(-50vw + 50%) technique as
+   .post-hero-sticky below (that one's own comment explains why not the
+   left/right:50% .fullpagewidth variant this file otherwise defaults to).
+   Scoped to this class, not .gradient-frame itself, so other instances
+   sitewide (image-stripe, homepage lab section) keep their own
+   containment untouched. */
+.post-hero-gradient-frame {
+  width: 100vw;
+  margin-left: calc(-50vw + 50%);
+  margin-right: calc(-50vw + 50%);
+  /* Pre-reveal state — same "CSS holds the initial state, JS is the only
+     thing that reveals it" contract .post > .post-header and the hero
+     image already use (see initPostHeaderAnimation(), main.js): without
+     this, the frame would flash fully visible for one frame before
+     GSAP's own gsap.set(...) runs. Plain opacity, no blur/scale — this
+     element hosts the animated WebGL gradient canvas itself; blurring
+     the canvas's own container would blur the live shader output, not
+     just fade a static image the way it does for a plain <img>. */
+  opacity: 0;
+}
+
+/* padding:0 + margin-top:-500px — moved out of an inline style="" on the
+   post.hbs element (removed there) into a desktop-only rule here. The
+   -500px pull was tuned against the desktop header/hero composition;
+   unscoped, that same negative margin on a much shorter mobile layout
+   pulled the frame up into content that has no equivalent extra height
+   to absorb it. min-width:768px (not the more common max-width mobile
+   override pattern elsewhere in this file) since this is additive
+   desktop-only behavior layered onto a mobile-first default, not a
+   mobile-specific override of a desktop default. */
+@media (min-width: 768px) {
+  .post-hero-gradient-frame {
+    padding: 0;
+    margin-top: -500px;
+  }
+}
+
+.post-hero-sticky {
+  /* No breakout margin here anymore — .post-hero-sticky now always sits
+     directly inside .post-hero-gradient-frame (post.hbs), which is ALREADY
+     full-bleed (see that class's own rule, just above). Applying the same
+     calc(-50vw + 50%) breakout a second time here double-applied it:
+     verified live, the "already full-bleed" parent made this element
+     compute back DOWN to the constrained (1280px-ish) width instead of
+     staying at the viewport edge — the two breakouts effectively
+     cancelled out. width:100% now correctly just fills the already-
+     full-bleed parent.
+     No fixed height/overflow:hidden either — that combined with
+     object-fit:cover (below) was cropping the top/bottom off any image
+     whose real aspect ratio didn't match a fixed box, per explicit
+     request to show the image at its real proportions instead. Height
+     comes from the image's own natural aspect ratio at full width.
+     position+z-index: pulled up over the gradient frame's top band, so it
+     needs to win the stacking fight against .post-hero-gradient-frame
+     (z-index:2, gradient-frame.css) while still losing to
+     .post-header-layout (bumped 3 -> 4, that rule's own comment) — a real
+     3-tier stack (frame 2 < image 3 < header 4), not DOM-order luck.
+     z-index is spec'd as an integer; a fractional value like 2.5 is
+     invalid and computes back to `auto` (confirmed live) — hence 3, not
+     2.5, for the "between" tier.
+     margin-top negative by the frame's own rendered top-band height
+     (measured live: 348px at data-gradient-edge-height:700px, not a 1:1
+     px mapping — the component's own internal box model adds/removes
+     from the configured value) pulls the image flush against
+     .post-header-top's bottom edge with no visible gap. */
+  position: relative;
+  z-index: 3;
+  margin: -268px var(--content-padding) 0 var(--content-padding);
+
+}
+
+.post-hero-sticky img {
+  width: 100%;
+  height: auto;
+  display: block;
+  /* Entrance-hidden initial state — same values .post-header .post-image
+     img/video used (that rule's own comment explains why filter:none, not
+     omitted: a non-none filter forces a standing filter-effect compositing
+     layer, costly for anything that repaints often). initPostHeaderAnimation()
+     (main.js) is what reveals this — see that function's heroImage lookup. */
+  opacity: 0;
+  transform: scale(0.95);
+  filter: none;
+    border-radius: var(--radius-lg);
+}
+
 /* Post hero respecting page width — constrain header and image to page width.
-   Two targets, same reasoning as the .post-header-layout block above: the
-   direct-child `.post > .post-header`
-   for the standalone case (page.hbs/page-about.hbs — the :is() branch
-   reaches through page-about's own gradient-frame wrapper, see that file)
-   and `.post-header-layout` for the two-column case (post.hbs) — the `>`
-   combinator keeps them from ever cross-matching. .post-image is a sibling
-   of .container inside .post-header either way, so whichever outer
-   element's content-padding applies insets it too. */
+   .post-image here only ever matches page.hbs/page-about.hbs's own hero
+   figure — post.hbs's equivalent element is .post-hero-sticky (renamed,
+   2026-08-15 header rebuild) and its article carries data-post-hero="full",
+   which none of these narrow/contained/wide/respects_page_width selectors
+   match, so this whole tier system was already page.hbs/page-about.hbs-only
+   before the rebuild too. */
 .post[data-post-hero='respects_page_width'] > .post-header,
 .post[data-post-hero='respects_page_width'] .post-layout {
   margin-left: auto;
@@ -6662,6 +7951,93 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-i
 .post[data-post-hero='narrow'] .post-image { max-width: 700px; }
 .post[data-post-hero='contained'] .post-image { max-width: 1280px; }
 .post[data-post-hero='wide'] .post-image { max-width: 1600px; }
+
+/* .post-header-layout[data-post-hero] — post.hbs, INDEPENDENT of the
+   article-level .post[data-post-hero] tier above. The markup already had
+   data-post-hero="wide" sitting directly on .post-header-layout, but
+   nothing ever matched it there: every rule above targets
+   .post[data-post-hero='...'] (the outer <article>), which on post.hbs
+   is hardcoded to data-post-hero="full" (never narrow/contained/wide/
+   respects_page_width) — confirmed the whole tier system above was
+   already 100% inert on post.hbs regardless, serving only page.hbs/
+   page-about.hbs's own .post-header/.post-image. Safe to add this
+   without touching a single existing selector.
+   Same narrow/contained/wide/full 700/1280/1600/1800px scale as the
+   article-level tier, but scoped to JUST the header row — the article
+   itself can stay "full" (unconstrained body content) while the header
+   independently pins to any of these, or vice versa. "full" here means
+   "no cap, matches whatever .post-layout itself allows" — not literally
+   1800px like the article-level tier's page-width-respecting "full",
+   since there's no site-wide page_width value this scoped a version
+   needs to match. */
+.post-header-layout[data-post-hero='narrow'],
+.post-header-layout[data-post-hero='contained'],
+.post-header-layout[data-post-hero='wide'] {
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+}
+
+.post-header-layout[data-post-hero='narrow'] { max-width: 700px; }
+.post-header-layout[data-post-hero='contained'] { max-width: 1280px; }
+.post-header-layout[data-post-hero='wide'] { max-width: 1600px; }
+
+/* .post-hero-sticky[data-post-hero] — the actual hero <figure>, matching
+   .post-header-layout's own tier immediately above so the image lines up
+   with the header instead of staying full-bleed regardless of it. This
+   element is NOT inside .post-header-layout (post.hbs's own comment: a
+   sibling AFTER it, living inside the unconditionally full-bleed
+   .post-hero-gradient-frame instead — main.css, that class's own 100vw
+   breakout) — so it needs this SEPARATE rule; nothing about the header's
+   own width cascades down to it automatically.
+   Only max-width + horizontal margin:auto are added here — every other
+   property on the base .post-hero-sticky rule just above (position,
+   z-index, and critically margin-top:-268px, which pulls the image flush
+   against the header's own bottom edge) is left completely untouched.
+   margin shorthand isn't used here for exactly that reason: overwriting
+   it would silently reset margin-top back to 0 and reopen the gap the
+   base rule's negative pull exists to close. */
+.post-hero-sticky[data-post-hero='narrow'],
+.post-hero-sticky[data-post-hero='contained'],
+.post-hero-sticky[data-post-hero='wide'] {
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+  /* Insets the image itself from its own capped box edges — without
+     this, .post-hero-sticky img's width:100% (base rule) fills this
+     box completely edge-to-edge, which reads as too harsh/tight once
+     the box is no longer full-bleed (unlike .post-header-layout, whose
+     own children are text with natural gaps between them and never
+     touch the box edges regardless of padding). Same
+     "padding: 0 var(--content-padding)" pattern .kg-width-wide/
+     .kg-width-full images already use elsewhere on the site — one
+     consistent way capped images get breathing room from their own
+     box, not a new one invented for this element specifically. */
+  padding: 0 var(--content-padding);
+}
+
+.post-hero-sticky[data-post-hero='narrow'] { max-width: 700px; }
+.post-hero-sticky[data-post-hero='contained'] { max-width: 1280px; }
+.post-hero-sticky[data-post-hero='wide'] { max-width: 1600px; }
+
+/* .post-body-area[data-page-hero] — same independent-tier treatment,
+   mirroring .post-header-layout[data-post-hero] immediately above, for
+   the body content column instead of the header row. The markup already
+   had data-page-hero="contained" on .post-body-area with nothing
+   anywhere matching it (confirmed: zero references to data-page-hero in
+   this whole stylesheet before this rule) — genuinely dead until now,
+   not a duplicate of a working system the way data-post-hero was. */
+.post-body-area[data-page-hero='narrow'],
+.post-body-area[data-page-hero='contained'],
+.post-body-area[data-page-hero='wide'] {
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+}
+
+.post-body-area[data-page-hero='narrow'] { max-width: 700px; }
+.post-body-area[data-page-hero='contained'] { max-width: 1280px; }
+.post-body-area[data-page-hero='wide'] { max-width: 1600px; }
 
 .post-footer {
   padding: var(--space-section) 0;
@@ -7988,7 +9364,7 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
      clipped the headline's right edge on narrower desktop windows the
      moment the copy got longer. If future copy has a longer 2-word line,
      raise the 7.1 divisor to that line's em-width + ~0.2 headroom. */
-  font-size: var(--text-size-h1);
+  font-size: var(--text-size-h2);
   line-height: var(--text-line-height-h1) !important;
   letter-spacing: var(--text-letter-spacing-h1);
   color: var(--color-primary, #4a9e5c);
@@ -8141,7 +9517,7 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
 
 /* Nudged clear of the avatar's circular edge. */
 .hero-avatar .nav-tooltip {
-  top: calc(100% + 4px) !important;
+  top: calc(100% + 4px) !important;url(https://prems.me/content/images/size/w2400/2026/07/zTransfer--1-.png)
 }
 
 /* Supporting description */
@@ -8150,7 +9526,7 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
      numbers on the BODY axis, so the body-size setting moves it */
   /* Missing semicolon fixed 2026-08-07 — without it the line-height below
      was swallowed into this declaration and silently never applied. */
-  font-size: var(--text-size-h4);
+  font-size: var(--text-size-h5);
   line-height: var(--text-line-height-body, 1.8);
  /* color: var(--color-on-surface-variant, #d0d0d0); */
    color: var(--color-on-surface-subtle);

@@ -77,6 +77,19 @@
 // Note the frame still wraps its content either way; "top" gives a band
 // above the content only, "bottom" below it only.
 //
+// data-gradient-scale-top / -scale-bottom, data-gradient-speed-top /
+// -speed-bottom — per-band overrides of data-gradient-scale/-speed (see
+// their own doc above), same "null = no override, use the shared value"
+// contract as data-gradient-parallax-top/-bottom. Lets the two bands run
+// genuinely different wave configurations (e.g. a shorter/faster squiggle
+// on one, a longer/slower sweep on the other) so they read as clearly
+// visually distinct. A true geometric mirror of the shape was tried and
+// reverted — mathematically correct (verified against an independent
+// reference implementation and live GPU uniform readback) but this wave's
+// layered sine harmonics have no single dominant visual "direction" to
+// flip, so the mirror still looked like "a similar variant," not an
+// obviously mirrored pair.
+//
 // data-gradient-edge-height — band height, e.g. "700px" or "40vh". Sets
 // --gradient-frame-edge-height (gradient-frame.css) on the frame element,
 // so it cascades to both bands AND to anything else keyed off that property
@@ -242,6 +255,22 @@ function readConfig(frame) {
     parallaxBottom: num(d.gradientParallaxBottom, null),
     wave2ParallaxTop: num(d.gradientWave2ParallaxTop, null),
     wave2ParallaxBottom: num(d.gradientWave2ParallaxBottom, null),
+    // PER-BAND scale/speed overrides — same "null = no override, use the
+    // shared value" contract as parallaxTop/Bottom above. Added so the two
+    // bands can be given a genuinely DIFFERENT wave configuration (e.g. a
+    // shorter, faster squiggle vs. a longer, slower sweep), which reads as
+    // clearly visually distinct at a glance. A true geometric mirror of
+    // the shape (sample the shader at the point-reflected coordinate) was
+    // tried first and reverted: it was mathematically verified correct
+    // (matched an independent Python reference to the rounding pixel,
+    // confirmed via live GPU uniform readback) but the wave's own layered
+    // sine harmonics don't have a single dominant visual "direction" to
+    // flip, so a provably-correct mirror still read as "a similar-looking
+    // variant," not an obviously mirrored pair, on screen.
+    scaleTop: num(d.gradientScaleTop, null),
+    scaleBottom: num(d.gradientScaleBottom, null),
+    speedTop: num(d.gradientSpeedTop, null),
+    speedBottom: num(d.gradientSpeedBottom, null),
     breathe: num(d.gradientBreathe, DEFAULTS.breathe),
     breatheRate: num(d.gradientBreatheRate, DEFAULTS.breatheRate),
     amplitude: num(d.gradientAmplitude, DEFAULTS.amplitude),
@@ -308,8 +337,12 @@ function bandConfig(cfg, position, frame) {
   return Object.assign({
     color2: resolveColor(cfg.waveA, frame),
     color3: resolveColor(cfg.waveB, frame),
-    speed: cfg.speed,
-    scale: cfg.scale,
+    // Per-band override wins over the shared value when supplied — same
+    // pattern as parallaxTop/Bottom below, see readConfig()'s own doc on
+    // scaleTop/Bottom + speedTop/Bottom for why (a genuinely different
+    // wave config per band instead of a geometric mirror).
+    speed: pickBand(cfg.speedTop, cfg.speedBottom, cfg.speed, outerAtTop),
+    scale: pickBand(cfg.scaleTop, cfg.scaleBottom, cfg.scale, outerAtTop),
     type: 'wave',
     noise: 0,
     resolutionScale: cfg.resolutionScale,

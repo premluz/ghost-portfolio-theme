@@ -331,6 +331,7 @@
   // curtain return. Restores the saved scroll position BEFORE fading
   // anything in, so there's no visible scroll-to-top-then-jump flash.
   function runCurtainEntrance() {
+    if (window.__flashdiagSnap) window.__flashdiagSnap('runCurtainEntrance-start');
     let isCurtainReturn = false;
     try { isCurtainReturn = sessionStorage.getItem('curtainReturn') === '1'; } catch (err) {}
     console.log('[curtain-return] isCurtainReturn:', isCurtainReturn);
@@ -393,6 +394,28 @@
       // scroll-up backfills), at several points (idempotent, cheap) — right
       // after the jump, after init settles, and as a final sweep-up.
       const backfill = () => window.__runAllBackfills();
+      // Synchronous call FIRST, not just the setTimeout(…, 450) below.
+      // window.__gradflowBgBackfill (one of the dispatchers __runAllBackfills
+      // calls — gradflow-page-bg-trigger.js) both flips the homepage's
+      // triggered gradflow canvas to visible AND sets its colour from
+      // whichever card is now most visible, based on live geometry — but
+      // until this fires even once, the canvas is showing initGradFlowBackground()'s
+      // PARTIAL DEFAULTS (index.hbs's own color1/2/3 Handlebars params —
+      // pastel pink/near-white, meant only as this canvas's very-first-paint
+      // placeholder before any card is known). Visibility is driven
+      // separately by scroll position (updateSectionVisibility(), same
+      // file) and flips to opaque the instant scrollY lands past the
+      // posts-tabs section — which on a curtain return happens immediately
+      // via snapTo() above, well before the 450ms timer's first colour
+      // backfill. Reported live as "background is white for a moment even
+      // though the theme is dark" on a homepage curtain return landing past
+      // that section: the canvas becomes visible immediately, painted in
+      // its pastel defaults, and only gets today's actual card colour once
+      // the first backfill finally runs — confirmed via a frame-by-frame
+      // getComputedStyle poll (gradflowOpacity climbing 0→1 while the
+      // scrim lifts, well under the 450ms mark). Calling here closes that
+      // gap instead of just shrinking it.
+      backfill();
       setTimeout(backfill, 450);
       setTimeout(backfill, 1200);
       setTimeout(backfill, 2500);
@@ -446,6 +469,29 @@
     // measured 8122ms, the reported "nothing, then everything pops in".
     // Cleared unconditionally (not just in the origin.scrollY branch): with
     // no stored origin there's no restore to mask in the first place.
+    // Commit the particle layer's hidden state INLINE before dropping the
+    // veil below. html.curtain-restoring's `opacity: 0 !important` (main.css)
+    // is the only thing holding that layer hidden right now — the element's
+    // own inline style still says opacity:1 (particle-morph.hbs), so removing
+    // the class hands it straight back to full opacity. The scenario trigger
+    // that would legitimately hide it can't cover the gap: the particle
+    // system boots through a 100ms-interval retry chain (particle-morph.hbs)
+    // and typically doesn't exist yet at this point, so the resync below
+    // silently no-ops on its `if (__loop)` guard and the real hide lands
+    // ~660ms in — measured as particles sitting at full opacity over the
+    // page, then vanishing. Writing opacity:0 here (transition:none, so it
+    // cannot animate) makes the hidden state survive the veil removal
+    // regardless of when the system finishes booting.
+    // Only when this restore is actually mid-page: __particleLayerHidden is
+    // set by the same head guard that added the veil, under exactly that
+    // condition (scrollY > 100), so it's the correct thing to key on.
+    if (window.__particleLayerHidden) {
+      const pLayer = document.getElementById('particle-morph-demo');
+      if (pLayer) {
+        pLayer.style.transition = 'none';
+        pLayer.style.opacity = '0';
+      }
+    }
     document.documentElement.classList.remove('curtain-restoring');
 
     // PARTICLE RESYNC after a curtain return.
@@ -533,8 +579,33 @@
     // the scrim starts lifting a beat later, there's an already-complete
     // page underneath it — one clean reveal instead of two overlapping ones.
     if (main) gsap.set(main, { opacity: 1, clearProps: 'transform' });
+    if (window.__flashdiagSnap) window.__flashdiagSnap('runCurtainEntrance-end-scrim-lift-scheduled');
     const tl = gsap.timeline();
     tl.to(scrim, { opacity: 0, duration: 0.12, ease: 'power1.out' }, 0.06);
+
+    // TEMPORARY DIAGNOSTIC (2026-08-19) — REMOVE alongside the other
+    // ?flashdiag=1 instrumentation. v1's discrete checkpoints all completed
+    // within ~11ms and showed no anomaly, but a human-visible flash has to
+    // last longer than that — meaning if it's real, it's most likely
+    // happening DURING this scrim fade (0.06s delay + 0.12s duration =
+    // ~180ms, arguably long enough to perceive) rather than in the
+    // synchronous setup before it. Polls every frame for 600ms (comfortably
+    // past the fade) so the actual paint-layer colours during the visible
+    // transition are captured, not just before/after it.
+    // Polls for 2.5s (long past the scrim fade, in case the visible ramp
+    // starts later than assumed) but only RECORDS a row when something
+    // actually changed since the last frame — otherwise a per-frame capture
+    // over that window is ~150 near-identical rows and the one transition
+    // that matters is impossible to spot. window.__flashdiagChanged returns
+    // the row it would push, or null if identical to the previous one.
+    if (window.__flashdiagSnapIfChanged) {
+      const startT = performance.now();
+      const poll = () => {
+        window.__flashdiagSnapIfChanged('poll');
+        if (performance.now() - startT < 2500) requestAnimationFrame(poll);
+      };
+      requestAnimationFrame(poll);
+    }
 
     return true;
   }
