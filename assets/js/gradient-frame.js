@@ -517,10 +517,30 @@ function initFrame(frame) {
       // captured) so it tracks --gradient-frame-edge-height at any viewport.
       endInset: function() { return bands[1].band.offsetHeight; },
       onProgress: shiftKey ? function(t) {
+        // updateColors() only fires on the actual ENTER/EXIT transition, not
+        // every scroll frame this callback runs on: particle colour is baked
+        // once into a WebGL vertex-color buffer (particle-morph.hbs's
+        // applyTheme/generateColors), not recomputed on paint like the
+        // color-mix() rules the attribute below drives — but it is NOT
+        // free, per scroll-scrub-anim.js's own invertParticles (a
+        // near-identical per-frame color-regen call there was measured to
+        // stall the GPU pipeline on old integrated GPUs). Gating on the
+        // attribute's own before/after value, not a separate flag, keeps
+        // this in exact lockstep with data-active-gradient-frame — see
+        // posts-tabs-grid-lab.css's :root[data-active-gradient-frame='lab']
+        // fixed-palette block, which is what --color-particles/-wave
+        // actually need refreshed against once this frame's shift toggles.
+        const wasActive = document.documentElement.getAttribute('data-active-gradient-frame') === shiftKey;
         if (t > 0.001) {
           document.documentElement.setAttribute('data-active-gradient-frame', shiftKey);
-        } else if (document.documentElement.getAttribute('data-active-gradient-frame') === shiftKey) {
+          if (!wasActive && window.particleSystem && window.particleSystem.updateColors) {
+            window.particleSystem.updateColors();
+          }
+        } else if (wasActive) {
           document.documentElement.removeAttribute('data-active-gradient-frame');
+          if (window.particleSystem && window.particleSystem.updateColors) {
+            window.particleSystem.updateColors();
+          }
         }
       } : undefined,
     });

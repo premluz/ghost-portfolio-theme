@@ -318,6 +318,18 @@ class ParticleMorphSystem {
       } else {
         console.warn('[particles-theme] setColors method not found on loop');
       }
+
+      // Lab wave tint (uWaveColor) — same CSS-var-driven pattern as
+      // --color-particles above, its own token so the two can be tuned
+      // independently per theme. Falls back to the current uniform value
+      // (i.e. does nothing) if the var isn't set, rather than a hardcoded
+      // guess — see COLOR-TUNING.md for the full list of what reads what.
+      const waveUniform = this.loop.particles?.material?.uniforms?.uWaveColor;
+      if (waveUniform) {
+        const rawWave = getComputedStyle(document.documentElement)
+          .getPropertyValue('--color-particles-wave').trim();
+        if (rawWave) waveUniform.value.set(rawWave);
+      }
     } else {
       console.warn('[particles-theme] No loop or particleCount available', {
         hasLoop: !!this.loop,

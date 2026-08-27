@@ -1,0 +1,37 @@
+{{!--
+  ICON CLOUD SECTION
+  Rotating sphere of toolkit logos (assets in /content/images/toolkit).
+  Auto-rotates; drag to spin with momentum; tap a logo for a small emoji
+  celebration burst. See icon-cloud.js for the projection math and
+  icon-cloud.css for the sprite styling.
+
+  Hardcoded logo list, same convention as logos-scroll.hbs: Ghost templates
+  cannot glob a filesystem directory, so each <img> is a manual entry
+  matching what's actually in /content/images/toolkit. Add a new logo by
+  adding one .icon-cloud-item block here — the JS distributes however many
+  items exist evenly across the sphere with no count-specific tuning needed.
+--}}
+
+<section class="icon-cloud-section" id="icon-cloud">
+  <div class="icon-cloud-about">
+    <h2 class="">AI enriched workflows</h2>
+    <h4 class="mt-0">I use broad set of tools to accelerate and broaden my capacity across research, design, product and development. Judgment, empathy, craft, coherence. That part stays human.</h4>
+  </div>
+  <div class="icon-cloud">
+    <div class="icon-cloud-inner">
+      <div class="icon-cloud-item"><img src="/content/images/toolkit/claude.svg" alt="Claude" loading="lazy" draggable="false"></div>
+      <div class="icon-cloud-item"><img src="/content/images/toolkit/chatgpt.svg" alt="ChatGPT" loading="lazy" draggable="false"></div>
+      <div class="icon-cloud-item"><img src="/content/images/toolkit/figma.svg" alt="Figma" loading="lazy" draggable="false"></div>
+      <div class="icon-cloud-item"><img src="/content/images/toolkit/gitlab.svg" alt="GitLab" loading="lazy" draggable="false"></div>
+      <div class="icon-cloud-item"><img src="/content/images/toolkit/lovable.svg" alt="Lovable" loading="lazy" draggable="false"></div>
+      <div class="icon-cloud-item"><img src="/content/images/toolkit/obsidian.svg" alt="Obsidian" loading="lazy" draggable="false"></div>
+      <div class="icon-cloud-item"><img src="/content/images/toolkit/storybook.svg" alt="Storybook" loading="lazy" draggable="false"></div>
+      <div class="icon-cloud-item"><img src="/content/images/toolkit/supabase.svg" alt="Supabase" loading="lazy" draggable="false"></div>
+      <div class="icon-cloud-item"><img src="/content/images/toolkit/vercel.svg" alt="Vercel" loading="lazy" draggable="false"></div>
+            <div class="icon-cloud-item"><img src="/content/images/toolkit/obsidian.svg" alt="Obsidian" loading="lazy" draggable="false"></div>
+      <div class="icon-cloud-item"><img src="/content/images/toolkit/storybook.svg" alt="Storybook" loading="lazy" draggable="false"></div>
+      <div class="icon-cloud-item"><img src="/content/images/toolkit/supabase.svg" alt="Supabase" loading="lazy" draggable="false"></div>
+      <div class="icon-cloud-item"><img src="/content/images/toolkit/vercel.svg" alt="Vercel" loading="lazy" draggable="false"></div>
+    </div>
+  </div>
+</section>

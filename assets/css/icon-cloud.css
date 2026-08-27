@@ -1,0 +1,171 @@
+/**
+ * ICON CLOUD — rotating sphere of toolkit logos.
+ * DOM-sprite implementation (absolutely-positioned <img> elements, each
+ * transformed per frame by icon-cloud.js), not canvas/WebGL — the reference
+ * (react-icon-cloud / magicui) uses a <canvas> with manual hit-testing for
+ * hover/click; a DOM sprite gets native hover, focus, and tap targets for
+ * free, which matters more here than raw draw-call count for a 9-logo set.
+ * See icon-cloud.js's own header comment for the projection math.
+ */
+
+.icon-cloud-section {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xl, 48px);
+  flex-wrap: wrap;
+  padding: 0 var(--content-padding);
+  /* Without a real z-index here, the particle canvas (position:fixed,
+     z-index:1) paints above this whole section regardless of DOM order or
+     any z-index:99999 an inner element (.icon-cloud) claims — a static
+     ancestor with z-index:auto can't be escaped by a positioned child.
+     Same fix already applied to every other sibling section that sits over
+     the canvas (.posts-tabs-section, .image-stripe, .profile, .gh-footer). */
+  position: relative;
+  z-index: 2;
+}
+
+.icon-cloud-about {
+  flex: 1 1 320px;
+  min-width: 280px;
+}
+
+@media (max-width: 767px) {
+  .icon-cloud-section {
+    flex-direction: column;
+  }
+
+  .icon-cloud-about {
+    order: 2;
+  }
+
+  .icon-cloud {
+    order: 1;
+    /* Overrides the base rule's touch-action:none (below) — that value
+       exists so a drag gesture rotates the sphere instead of the page
+       scrolling underneath the user's finger, but on mobile drag-to-
+       rotate is disabled entirely (icon-cloud.js gates its pointer
+       listeners behind this same 767px check) — nothing left to protect
+       from scroll interference, so this only needs to stop BLOCKING
+       scroll. The sphere still turns on its own via the unconditional
+       auto-rotation in icon-cloud.js's render loop, untouched by this. */
+    touch-action: auto;
+  }
+}
+
+.icon-cloud {
+  position: relative;
+    z-index: 99999;
+  /* Square: the sphere's own radius is derived from min(width,height) in
+     JS, so a non-square box would just letterbox the sphere rather than
+     stretching it — keeping it square here avoids wasted layout space. */
+  width: min(780px, 80vw);
+  aspect-ratio: 1 / 1;
+  /* Perspective on the CONTAINER, not per-sprite: every sprite's translateZ
+     needs to share one vanishing point for the depth illusion to read as a
+     single rigid sphere rather than N independent floating layers. */
+  perspective: 800px;
+  cursor: grab;
+  /* No native drag ghost/selection while dragging to spin. */
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+}
+
+.icon-cloud:active {
+  cursor: grabbing;
+}
+
+.icon-cloud-inner {
+  position: absolute;
+  inset: 0;
+  z-index: 99999;
+  /* Plain positioning wrapper only. The 3D projection (rotate + perspective
+     divide) is computed in JS, not via CSS 3D transforms — each sprite's
+     own `transform` already holds the fully-projected 2D translate+scale,
+     so this element needs no transform-style/perspective of its own; the
+     container's `perspective` (see .icon-cloud) only feeds the JS math via
+     getComputedStyle, it is not relied on for actual CSS 3D compositing. */
+}
+
+.icon-cloud-item {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-cloud-item-size, 88px);
+  height: var(--icon-cloud-item-size, 88px);
+  margin: calc(var(--icon-cloud-item-size, 48px) / -2) 0 0 calc(var(--icon-cloud-item-size, 48px) / -2);
+  background: var(--glass-bg);
+  border-radius: var(--glass-radius);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: var(--glass-backdrop);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+      box-shadow: var(--glass-liquid-shadow);
+  /* transform is written per-frame by JS (translate3d + scale from the
+     sphere projection); opacity too (depth fade). Both need to be excluded
+     from any transition here — a per-frame write fighting a CSS transition
+     produces visible lag/overshoot, the same class of bug documented for
+     .post-card-hover-glow's own transition split elsewhere in this theme. */
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+
+.icon-cloud-item img {
+  width: 60%;
+  height: 60%;
+  object-fit: contain;
+  pointer-events: none; /* the sprite div is the drag/hover target, not the img */
+  -webkit-user-drag: none;
+}
+
+/* Hover: a slight pop, independent of the sphere's own scale — additive via
+   a second transform layer is not possible here (JS owns `transform`
+   wholesale each frame), so this is a filter/box-shadow highlight instead,
+   which composites safely on top of whatever transform JS is currently
+   writing. */
+.icon-cloud-item:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary), 0 4px 12px color-mix(in srgb, var(--color-primary) 25%, transparent);
+  z-index: 999 !important; /* momentarily above every other sprite's own z-index (JS-assigned per depth) */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon-cloud-inner {
+    /* Auto-rotation stops (see icon-cloud.js's own reduced-motion guard);
+       this only ensures NO leftover CSS transition tries to animate the
+       final static pose into place. */
+    transition: none !important;
+  }
+}
+
+/* ── Celebration burst (tap feedback on a sprite) ──────────────────────
+   Not used by icon-cloud itself — this file also hosts the shared burst
+   keyframes/classes so icon-cloud.js and any future tap-to-celebrate
+   surface can reuse one definition. See icon-cloud.js for the trigger. */
+@keyframes iconCloudBurstPop {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.4) translateY(0); }
+  15%  { opacity: 1; transform: translate(-50%, -50%) scale(1.15) translateY(-4px); }
+  70%  { opacity: 1; transform: translate(-50%, -50%) scale(1) translateY(-10px); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(0.85) translateY(-18px); }
+}
+
+.icon-cloud-burst {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  font-size: 28px;
+  line-height: 1;
+  pointer-events: none;
+  z-index: 1000;
+  animation: iconCloudBurstPop 700ms cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon-cloud-burst {
+    animation-duration: 1ms;
+  }
+}

@@ -238,17 +238,44 @@ function animateH1LetterByLetter(h1El, timeline, startTime = 0.15, blurPx = null
 
     // console.log('[h1-anim] ✓ Text found:', text.substring(0, 40), 'Length:', text.length);
 
-    // Clear the h1 and manually create letter spans
-    h1El.innerHTML = '';
+    // MARKUP-PRESERVING SPLIT.
+    //
+    // This used to read h1El.textContent and rebuild innerHTML from that
+    // flat string, which silently destroyed any HTML the Ghost field
+    // contained: hero_title is rendered with a triple-stache
+    // ({{{@custom.hero_title}}}, hero.hbs) exactly like hero_description,
+    // so <br>, <em>, <span> etc. ARE valid there and did render — for the
+    // few hundred ms before this function flattened them away.
+    //
+    // Walking the tree instead splits only TEXT nodes into .char spans and
+    // leaves every element in place, so a <br> still breaks the line and an
+    // <em> still italicises the characters nested inside it. The returned
+    // `letters` array is in document order regardless of nesting depth,
+    // which is all the stagger below needs.
     const letters = [];
 
-    for (let char of text) {
-      const span = document.createElement('span');
-      span.className = 'char';
-      span.textContent = char;
-      h1El.appendChild(span);
-      letters.push(span);
-    }
+    const splitNode = (node) => {
+      // Snapshot childNodes first: replacing a text node mutates the live
+      // NodeList mid-iteration otherwise.
+      Array.prototype.slice.call(node.childNodes).forEach(function (child) {
+        if (child.nodeType === 3) { // text node
+          const chars = child.textContent;
+          if (!chars.length) return;
+          const frag = document.createDocumentFragment();
+          for (let char of chars) {
+            const span = document.createElement('span');
+            span.className = 'char';
+            span.textContent = char;
+            frag.appendChild(span);
+            letters.push(span);
+          }
+          node.replaceChild(frag, child);
+        } else if (child.nodeType === 1) { // element — recurse, keep it
+          splitNode(child);
+        }
+      });
+    };
+    splitNode(h1El);
 
     // console.log('[h1-anim] ✓ Created', letters.length, 'letter spans manually');
 
@@ -3045,3 +3072,47 @@ document.addEventListener('DOMContentLoaded', async () => {
   })();
 
 });
+
+// ── Footer: copy email to clipboard ─────────────────────────────────────
+// Standalone IIFE (not inside the DOMContentLoaded listener above) so it
+// has its own readiness guard and stays easy to find/remove independently
+// of the rest of that block's unrelated feature init.
+(function initFooterCopyEmail() {
+  function bind() {
+    var btn = document.getElementById('footer-copy-email');
+    if (!btn) return;
+    var email = btn.getAttribute('data-email');
+    var tooltip = btn.querySelector('.nav-tooltip');
+    var defaultText = tooltip ? (tooltip.getAttribute('data-default-text') || tooltip.textContent) : '';
+    var copiedText = tooltip ? (tooltip.getAttribute('data-copied-text') || 'Copied') : 'Copied';
+    var revertTimer = null;
+
+    btn.addEventListener('click', function () {
+      if (!email || !navigator.clipboard) return;
+      navigator.clipboard.writeText(email).then(function () {
+        if (!tooltip) return;
+        tooltip.textContent = copiedText;
+        // No opacity re-trigger needed/possible here: the rule that shows
+        // this tooltip is `:hover .nav-tooltip { opacity: 1 !important }`
+        // (main.css), and an inline style can never beat a stylesheet
+        // !important — a tried tooltip.style.opacity='0' round-trip was a
+        // silent no-op while the button was actually hovered, which is
+        // exactly when a click happens. The text swap alone is the
+        // feedback; the tooltip is already visible from the hover that
+        // preceded the click, so nothing needs re-showing.
+        if (revertTimer) clearTimeout(revertTimer);
+        revertTimer = setTimeout(function () {
+          tooltip.textContent = defaultText;
+        }, 2000);
+      }).catch(function (err) {
+        console.error('[footer-copy-email] clipboard write failed:', err);
+      });
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bind);
+  } else {
+    bind();
+  }
+})();

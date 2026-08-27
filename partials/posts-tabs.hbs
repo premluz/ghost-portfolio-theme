@@ -1,7 +1,46 @@
-{{!-- Both tabs default to @custom.posts_layout (the theme's site-wide
-      setting) — pass layout="grid" or layout="list" on the {{> ...}} call
-      to override just this inclusion, e.g. {{> posts-tabs layout="grid"}}.
-      Applies uniformly to both the featured and experimental tab.
+{{!-- LAYOUT SELECTION — four boolean flags, exactly one truthy per call:
+        layoutGrid="true"       2-up cards
+        layoutList="true"       single-column list rows
+        layoutRhythm="true"     1-2-1 cadence (full-width row, then a pair,
+                                 repeating)
+        layoutCinematic="true"  one big centered hero card per row
+      None passed → falls back to @custom.posts_layout (theme setting).
+
+      Booleans, not a single layout="grid"/"list"/... string, because
+      Ghost's Handlebars has no eq/string-compare helper and themes cannot
+      register custom helpers (see the filter-string note further down
+      this comment for the same constraint) — an if-block can only test
+      one variable's truthiness, never "does this string equal X", so a
+      single multi-value param can't be routed to 4 different outcomes.
+      One boolean per option is the only helper-free mechanism that works.
+
+      itemContent="outside" — optional, orthogonal to the 4 flags above.
+      Selects whether card copy (category/title/testimonial/etc) sits
+      overlaid inside the image or as a separate block below/beside it.
+      Checked with a truthy if-block (same eq-less constraint as the
+      layout flags above — Ghost's Handlebars can't compare string values),
+      so it is always a flip AWAY from that layout's own default, not a
+      literal "outside" flag: pass exactly itemContent="outside" (any
+      other value, including the literal text "inside", is read as truthy
+      too and has the same effect — there is no way to write "explicitly
+      the default" other than omitting the param).
+
+        layoutGrid / layoutRhythm / layoutCinematic — default is INSIDE
+        (overlaid). itemContent="outside" flips to outside/beside.
+        layoutList — default is OUTSIDE (beside, list's original look).
+        itemContent="outside" flips it the other way, to INSIDE (overlaid).
+
+      Only 3 of the resulting 8 combinations have CSS today:
+        layoutGrid + itemContent="outside"
+        layoutRhythm + itemContent="outside"
+        layoutList + itemContent="outside"   (→ inside/overlaid, per above)
+      layoutCinematic + itemContent="outside" has no CSS yet — falls
+      through to unstyled base .posts-grid rules if used.
+
+      Example (call-site syntax, written without braces on purpose — see
+      the WARNING at the end of the next comment block):
+        posts-tabs layoutRhythm="true" itemContent="outside" --}}
+{{!--
 
       WHICH POSTS EACH TAB PULLS — filterFeatured / filterExperimental,
       optional, one per tab. Each takes a COMPLETE Ghost filter string and
@@ -58,7 +97,9 @@
     <div class="posts-tabs-container">
       {{!-- Featured tab --}}
       <div class="posts-tabs-content posts-tabs-content-featured active" data-tab="featured">
-        <div class="posts-grid" data-posts-layout="{{#if layout}}{{layout}}{{else}}{{@custom.posts_layout}}{{/if}}">
+        <div class="posts-grid"
+          data-posts-layout="{{#if layoutCinematic}}cinematic{{else}}{{#if layoutGrid}}cinematic-grid{{else}}{{#if layoutRhythm}}{{#if itemContent}}grid{{else}}cinematic-rhythm{{/if}}{{else}}{{#if layoutList}}list{{else}}{{@custom.posts_layout}}{{/if}}{{/if}}{{/if}}{{/if}}"
+          {{#if itemContent}}{{#if layoutList}}data-item-content="inside"{{else}}{{#unless layoutRhythm}}data-item-content="outside"{{/unless}}{{/if}}{{/if}}>
           <div class="container">
             <div id="work-cards"></div>
             <div class="carousel-track">
@@ -98,7 +139,9 @@
 
       {{!-- Experimental tab --}}
       <div class="posts-tabs-content posts-tabs-content-experimental" data-tab="experimental">
-        <div class="posts-grid" data-posts-layout="{{#if layout}}{{layout}}{{else}}{{@custom.posts_layout}}{{/if}}">
+        <div class="posts-grid"
+          data-posts-layout="{{#if layoutCinematic}}cinematic{{else}}{{#if layoutGrid}}cinematic-grid{{else}}{{#if layoutRhythm}}{{#if itemContent}}grid{{else}}cinematic-rhythm{{/if}}{{else}}{{#if layoutList}}list{{else}}{{@custom.posts_layout}}{{/if}}{{/if}}{{/if}}{{/if}}"
+          {{#if itemContent}}{{#if layoutList}}data-item-content="inside"{{else}}{{#unless layoutRhythm}}data-item-content="outside"{{/unless}}{{/if}}{{/if}}>
           <div class="container">
             <div id="work-cards"></div>
             <div class="carousel-track">

@@ -47,14 +47,59 @@
   pointer-events: none;
 }
 
+/* Lab's frame paints BELOW the particle canvas, not above it.
+   .gradient-frame's base rule (gradient-frame.css) is position:relative +
+   z-index:2, which puts its own opaque inner fill (data-gradient-inner)
+   above #particle-morph-demo / #gpu-canvas at z-index:1 — so the Lab
+   particles were completely hidden for this section's entire scroll range.
+   The fill is wanted, so the fix is the tier, not transparency.
+
+   z-index: auto — NOT 0. Both would drop the frame below the canvas, but
+   position:relative with ANY numeric z-index (0 included) creates a
+   stacking context, and a stacking context is atomic: every descendant is
+   then confined to the parent's rank, so the section's own cards would be
+   dragged below the particle canvas along with the fill. `auto` leaves the
+   frame non-stacking, so its background paints low while its descendants
+   keep ranking globally — which is exactly what lets the cards' own
+   z-index:2 (see the rule below) still beat the canvas at 1.
+   This is the same trap index.hbs's wrapper comment describes: there is no
+   z-index you can give a child that escapes a context its parent created.
+
+   Scoped through .lab-particle-backdrop-wrap so every other
+   .gradient-frame on the site keeps its z-index:2 unchanged. */
+.lab-particle-backdrop-wrap .gradient-frame {
+  z-index: auto;
+}
+
+/* The BANDS need the same treatment, and would be missed easily: they carry
+   their own position:relative + z-index:2 (gradient-frame.css's
+   .gradient-frame-edge), so lowering the frame above is not enough —
+   dropping the frame to z-index:auto REMOVED the stacking context that used
+   to contain them, which means each band now ranks globally on its own and
+   still paints above the particle canvas at z-index:1.
+   z-index:0 rather than auto here, unlike the frame: these have no
+   descendants that need to out-rank anything, so creating a stacking
+   context costs nothing, and 0 keeps them explicitly above
+   .lab-particle-backdrop (also 0, earlier in DOM order) while staying
+   below the canvas.
+   The canvases inside each band need no rule of their own — they are
+   non-positioned, so they paint within whichever context their band
+   establishes. */
+.lab-particle-backdrop-wrap .gradient-frame-edge {
+  z-index: 0;
+}
+
 /* ── FIXED PALETTE for the Lab island — NAV/CHROME HALF ──────────────
    The island itself is NOT painted from here: its background and bands come
-   from data-gradient-inner="#1E1825" on the frame (posts-tabs-grid-lab.hbs).
+   from data-gradient-inner="#1A1123" on the live frame (index.hbs — the
+   original posts-tabs-grid-lab.hbs this block was authored for is dead
+   code, never included on the live homepage; this block was unused until
+   index.hbs's frame was wired to data-gradient-shift-key="lab").
    This block exists only for the page chrome that sits OUTSIDE the frame —
    above all the position:fixed nav, which no subtree rule can reach — so it
    retints to match the island rather than the theme's usual mirror.
-   ⚠ The hex below is a hand-kept duplicate of data-gradient-inner in the
-   partial. Change one, change the other.
+   ⚠ The hex below is a hand-kept duplicate of data-gradient-inner in
+   index.hbs. Change one, change the other.
 
    Scoped to data-active-gradient-frame='lab' (set by gradient-frame.js's
    bindShift onProgress, via this frame's data-gradient-shift-key='lab'),
@@ -76,12 +121,62 @@
    derived from --shift-ink (tokens.css), so the nav pill and badge fills
    follow automatically. */
 :root[data-active-gradient-frame='lab'] {
-  --shift-bg: #1E1825;
+  --shift-bg: #1A1123;
   --shift-ink: #ffffff;
   /* White icons on the island, in both themes — the ramp endpoint the nav
      icons' invert() filter interpolates toward (see tokens.css). */
   --icon-invert-shift: 1;
   --icon-brightness-shift: 1.2;
+
+  /* .statement-heading.text-gradient ("AI experiments, explorations",
+     index.hbs) sits inside this section too, but .text-gradient is NOT
+     shift-aware BY DESIGN (main.css's own comment on that utility: a
+     background-clip:text fill defeats color-mix() --shift-ink blending
+     entirely, so it must never be routed through --shift-ink) — it reads
+     the THEME-scoped gradient primitives instead (--grad-text-1/2/3,
+     tokens.css). Those flip with the site theme independently of this
+     section's own fixed palette, so without an override here the heading
+     would use LIGHT theme's deep-blue stops on this section's fixed dark
+     purple background — low contrast, and inconsistent with everything
+     else in Lab staying fixed. Pinned to dark theme's own stops (tokens.css
+     base :root — dark has no [data-theme='dark'] override block, it IS the
+     default), same values as --grad-brand-1/2/3 default to.
+     Overriding --gradient-text-image directly, not just the three
+     primitives: light theme's own block (tokens.css) replaces the whole
+     composed string with its own 5-stop version rather than deriving from
+     --grad-text-1/2/3, so overriding only the primitives would have no
+     effect while the site is in light mode. Wins over both theme blocks by
+     source order, same mechanism as --shift-bg/--shift-ink above (this
+     file loads after tokens.css). */
+  --gradient-text-image: linear-gradient(100deg, #b9a7ff 28%, #8fd8d2 74%, #6aa9ff 100%);
+  --grad-text-1: #b9a7ff;
+  --grad-text-2: #8fd8d2;
+  --grad-text-3: #6aa9ff;
+
+  /* Particle colour (--color-particles) and Lab wave tint
+     (--color-particles-wave) — read by particle-morph.hbs's applyTheme()
+     via getComputedStyle(document.documentElement), same live-read
+     pattern as every other token in this block, but the VALUE only
+     actually reaches the particle system when applyTheme()/updateColors()
+     is called: unlike color-mix()-driven CSS (ink/border/heading above),
+     particle colour is baked once into a WebGL vertex-color buffer, not
+     recomputed on paint. gradient-frame.js's onProgress for this frame
+     (data-gradient-shift-key="lab") calls updateColors() explicitly
+     alongside setting/removing this selector's own attribute, so the two
+     stay in lockstep — search that file for "particleSystem.updateColors"
+     if this pin ever stops taking visible effect.
+     Pinned to dark theme's own --color-particles value (default.hbs base
+     :root, #1D4551 — no divergence needed from the site's normal dark
+     value, since Lab's fill is already dark). --color-particles-wave is
+     #da70d6 in both themes already (default.hbs) so this line is a no-op
+     today, kept for parity/future-proofing if either theme's value ever
+     diverges. NOTE: scroll-scrub-anim.js's invertParticles can ALSO write
+     --color-particles as an inline style on :root (highest-specificity,
+     beats this rule) while scrolling through .profile specifically — not
+     a conflict with Lab, since that binding is scoped to .profile's own
+     scroll progress and does not fire from this frame's shift. */
+  --color-particles: #1D4551;
+  --color-particles-wave: #da70d6;
 }
 
 .posts-tabs-grid-lab-section {
@@ -90,6 +185,39 @@
   margin: 0;
   position: relative;
   z-index: 2;  /* above #particle-morph-demo / #gpu-canvas (z-index: 1) */
+}
+
+/* #work-grid-lab is the OTHER Lab container: index.hbs renders the lab grid
+   through {{> posts-tabs}} inside this bare div rather than through
+   posts-tabs-grid-lab.hbs's own <section> above, so it never inherited that
+   rule and had no z-index at all — its cards painted at the default level,
+   underneath the particle canvas (z-index:1).
+   Same position:relative + z-index:2 pairing as the section above; the
+   z-index is inert without the positioning. Deliberately NOT merged into
+   one selector with it: the two live in different templates and only one is
+   present on any given page, so keeping them separate keeps each rule
+   readable next to the markup it serves. */
+#work-grid-lab {
+  position: relative;
+  z-index: 2;  /* above #particle-morph-demo / #gpu-canvas (z-index: 1) */
+}
+
+/* Post-card borders (body[data-card-style='outlined'] .post-card,
+   post-card-grid.css) use --glass-border, a FLAT theme-scoped token
+   (white 16% alpha in dark theme, black 16% alpha in light) — same
+   category of problem as --glass-border was for .profile-item before
+   profile.css's own fix (search that file): it does not color-mix
+   against any shift on its own, so on this section's fixed dark-purple
+   background a light-theme visitor would get a near-invisible black-
+   on-dark border instead of a readable one.
+   Same fix, scoped here instead of globally: --glass-border-shift
+   (tokens.css) is the token's "shifted" counterpart, already color-mixed
+   against --profile-shift by .profile-item — reused verbatim, just
+   applied to this section's post-cards instead. Scoped to #work-grid-lab
+   (not body[data-card-style='outlined'] globally) so this only touches
+   Lab's own cards, not every outlined card site-wide. */
+#work-grid-lab .post-card {
+  border-color: color-mix(in srgb, var(--glass-border), var(--glass-border-shift) calc(var(--profile-shift, 0) * 100%));
 }
 
 .posts-tabs-grid-lab-wrapper {

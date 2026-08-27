@@ -186,6 +186,7 @@ class ParticleScrollDirector {
       chase: options.chase || null,
       continuous: options.continuous || null,
       frame: options.frame || null,
+      progressScale: options.progressScale || null,
       ownsPosition: options.ownsPosition || null,
       reverseExit: options.reverseExit || null,
       _shapeEverEntered: false,
@@ -243,8 +244,29 @@ class ParticleScrollDirector {
           const span = r.height + vh;
           raw = span > 0 ? (vh - r.top) / span : 0;
         }
+        // progressScale: stretch this zone's 0-1 range across MORE scroll
+        // than its own element covers. A zone bound to a viewport-tall
+        // element (hero, 100dvh) saturates at t=1 after one viewport of
+        // scroll, even though the choreography is meant to play out over
+        // the several viewports the object stays on screen for — measured
+        // live: hero's rawT reached 3.15 while t sat pinned at 1.0 from
+        // scrollY~690 onward, so every keyframe `at` in 0-1 landed inside
+        // the first third of the visible scroll and the rest was a dead
+        // zone. Dividing here (rather than at the keyframes) keeps `at`
+        // values meaning "fraction of the whole zone" as they do everywhere
+        // else.
+        //
+        // _rawT deliberately keeps the UNSCALED progress: ownsPosition()
+        // predicates (hero's, Lab's) and _sampleContinuous()'s overscroll
+        // maths all reason in element-relative terms, and silently
+        // rescaling underneath them would shift every one of those
+        // thresholds too. Only the clamped value the keyframe samplers see
+        // is scaled.
         zone._rawT = raw;
-        return Math.min(1, Math.max(0, raw));
+        const scaled = (zone.progressScale && zone.progressScale > 0)
+          ? raw / zone.progressScale
+          : raw;
+        return Math.min(1, Math.max(0, scaled));
       }
       zone._lastRect = null;
       zone._rawT = 0;
@@ -295,9 +317,17 @@ class ParticleScrollDirector {
     const frames = zone.timeline.filter((k) => k[channel] !== undefined);
     if (!frames.length) return base;
     const lastAt = frames[frames.length - 1].at;
-    const raw = zone._rawT || 0;
+    // _rawT is UNSCALED element progress while `lastAt` is in scaled
+    // zone-t; with progressScale set the two are that factor apart, so
+    // comparing them directly inflated overscrollPx by the same factor —
+    // measured live at 5.55 rad against a 0.36 target before this was
+    // disabled. Scale raw into the same space as the keyframes first.
+    const scale = (zone.progressScale && zone.progressScale > 0) ? zone.progressScale : 1;
+    const raw = (zone._rawT || 0) / scale;
     if (raw <= lastAt) return base;
-    const overscrollPx = (raw - lastAt) * zone._lastRect.height;
+    // Overscroll distance in px, measured in the zone's own scaled space
+    // so the rate means the same thing regardless of progressScale.
+    const overscrollPx = (raw - lastAt) * zone._lastRect.height * scale;
     return base + overscrollPx * zone.continuous[channel];
   }
 
@@ -406,7 +436,22 @@ class ParticleScrollDirector {
     if (!el) return false;
     const r = el.getBoundingClientRect();
     const vh = window.innerHeight;
-    const margin = vh * 3;
+    // 3 viewports by default, but AT LEAST the zone's own scaled range.
+    //
+    // progressScale stretches a zone's 0-1 across more scroll than its
+    // element covers, and the fixed 3-viewport margin took no account of
+    // that: hero (100dvh element, progressScale 8.2) spans ~7782px of
+    // choreography but went inactive at ~3796px — less than halfway
+    // through its own rotation ramp. Rotation is written by every ACTIVE
+    // zone (see apply()), so it climbed smoothly and then simply stopped
+    // being written mid-ramp, leaving the render loop's ambient spin to
+    // take over from a different value: a visible rotation jump around
+    // the Lab/footer boundary. Scaling the margin with the zone keeps it
+    // live for the whole range it actually choreographs.
+    const scaledSpan = zone.progressScale && zone.progressScale > 1
+      ? r.height * zone.progressScale
+      : 0;
+    const margin = Math.max(vh * 3, scaledSpan);
     return r.bottom > -margin && r.top < vh + margin;
   }
 
@@ -416,14 +461,46 @@ class ParticleScrollDirector {
    * checkShapesEvenWhileHidden() (see that method) so there's one shape-
    * application code path, not two drifting copies.
    */
-  _checkZoneShape(zone, t) {
+  _checkZoneShape(zone, t, isFrontmost) {
     if (!zone.channels.has('shape')) return;
     const sampled = this._sampleShape(zone, t);
     if (sampled) {
+      // Forward sampling stays frontmost-gated: applying a shape here is a
+      // continuous, repeatable write (the same keyframe can re-apply every
+      // frame it's sampled), so a stale non-frontmost zone must not be
+      // allowed to fight the zone actually on screen for the live shape.
+      //
+      // _shapeEverEntered is set ONLY once this zone has actually WON
+      // frontmost while sampled, not merely been sampled — setting it
+      // unconditionally here (as this used to) let a fast scroll gesture
+      // sample this zone as frontmost-eligible on one frame, then lose
+      // frontmost on the very next (a real race on a fast fling straight to
+      // the footer, verified live), which fires the one-shot reverseExit
+      // branch below despite this zone's own forward shape never having
+      // actually been applied yet — latching the WRONG shape (the exit
+      // target, e.g. hero's) and clearing the flag, so the zone then needed
+      // a fresh full re-entry (or a stable frontmost frame) to recover.
+      if (!isFrontmost) return;
       zone._shapeEverEntered = true;
       if (sampled.shape !== zone.shape) {
         zone.shape = sampled.shape;
         this._applyShape(sampled.shape, sampled.shapeKey, sampled.morphMs);
+        // Stale-cache fix: any OTHER zone whose own cached `.shape` still
+        // equals what we just overwrote is now lying about what's live —
+        // e.g. Lab caches 'lab' once shown, then goes silent (non-
+        // frontmost) while operating-model owns the frame and overwrites
+        // the live shape to 'sphere'/etc. Lab's cache never heard about
+        // that, so when the user scrolls back up and Lab is re-sampled at
+        // its own t=0.05 keyframe, `sampled.shape !== zone.shape` reads
+        // 'lab' === 'lab' (false) and the reverse morph is silently
+        // skipped — the live shape stays on whatever operating-model left,
+        // even though Lab is genuinely frontmost again. Invalidating here
+        // (the moment the overwrite happens, not the moment of the missed
+        // re-entry) guarantees the NEXT sample of any zone that used to
+        // show this shape is forced to re-apply it for real.
+        this.zones.forEach((other) => {
+          if (other !== zone && other.shape === sampled.shape) other.shape = null;
+        });
       }
       return;
     }
@@ -434,6 +511,19 @@ class ParticleScrollDirector {
     // per entry: reset immediately so re-entering (scrolling back down) and
     // leaving again fires it again, but lingering just above the threshold
     // doesn't re-apply every frame.
+    //
+    // Deliberately NOT frontmost-gated, unlike the forward-sampling branch
+    // above. reverseExit is edge-triggered and one-shot (guarded by
+    // _shapeEverEntered itself), not a continuous write — gating it on
+    // frontmost was the actual bug PARTICLE-SCROLL-DIRECTOR.md flagged as a
+    // "known limitation": by the exact frame a zone's own t crosses back
+    // below its entrance keyframe, a neighboring zone (e.g. Lab, now filling
+    // most of the viewport) has almost always already won the frontmost
+    // race, so this branch never ran and the zone's shape stayed frozen on
+    // whatever it last applied instead of reversing. reverseExit needs no
+    // such guard: it only fires once per genuine entry, targets a single
+    // explicit shape, and yields immediately after (no per-frame re-writes
+    // to fight a frontmost zone over).
     if (zone._shapeEverEntered && zone.reverseExit) {
       zone._shapeEverEntered = false;
       const rx = zone.reverseExit;
@@ -550,8 +640,11 @@ class ParticleScrollDirector {
     const frontmost = this._frontmostZone();
     this.zones.forEach((zone) => {
       if (!zone.channels.has('shape') || !this._zoneActive(zone)) return;
-      if (!this._isZoneFrontmost(zone, frontmost)) return;
-      this._checkZoneShape(zone, this._zoneProgress(zone));
+      // NOT gated on frontmost here — see _checkZoneShape()'s own doc on why
+      // reverseExit must run regardless of which zone currently "owns" the
+      // frame. isFrontmost is still passed through so forward sampling
+      // keeps its existing frontmost-only behavior.
+      this._checkZoneShape(zone, this._zoneProgress(zone), this._isZoneFrontmost(zone, frontmost));
     });
   }
 
@@ -591,7 +684,6 @@ class ParticleScrollDirector {
     });
 
     const frontmostZone = this._frontmostZone();
-
     this.zones.forEach((zone) => {
       if (!zone.channels.has('position') || !this._zoneActive(zone)) return;
       if (exclusiveOwner && exclusiveOwner !== zone) return;
@@ -726,7 +818,9 @@ class ParticleScrollDirector {
         loop.camera.fov = frameResult.fov;
         loop.camera.updateProjectionMatrix();
       }
-      if (this._isZoneFrontmost(zone, frontmostZone)) this._checkZoneShape(zone, t);
+      // NOT gated on frontmost here either — same reasoning as
+      // checkShapesEvenWhileHidden() above.
+      this._checkZoneShape(zone, t, this._isZoneFrontmost(zone, frontmostZone));
 
       zone.channels.forEach((c) => {
         if (c.slice(0, 6) !== 'style:') return;

@@ -49,7 +49,7 @@
     {{!-- Header area. Keeps the .post-header-layout class: still what
           initPostHeaderAnimation() (main.js) animates in as one blurred
           fade-in unit — see that function for the exact selector chain. --}}
-    <div class="post-header-layout" data-post-hero="wide">
+    <div class="post-header-layout" data-post-hero="contained">
       <div class="post-header-top">
         {{!-- Column 1: logo. Plain in-flow occupant now — no more
               position:absolute/GSAP drop-bounce (initLogomarkAnimation()
@@ -78,6 +78,10 @@
             <span class="text-eyebrow">Client</span>
             <p id="project-client"></p>
           </div>
+            <div class="post-header-meta-row" data-field="date">
+            <span class="text-eyebrow">Date</span>
+            <p id="project-date"></p>
+          </div>
           <div class="post-header-meta-row" data-field="category">
             <span class="text-eyebrow">Category</span>
             <p id="project-category"></p>
@@ -89,10 +93,6 @@
           <div class="post-header-meta-row" data-field="skills">
             <span class="text-eyebrow">Skills</span>
             <p id="project-skills"></p>
-          </div>
-          <div class="post-header-meta-row" data-field="date">
-            <span class="text-eyebrow">Date</span>
-            <p id="project-date"></p>
           </div>
           <div class="post-header-meta-row" data-field="scope">
             <span class="text-eyebrow">Scope</span>
@@ -180,7 +180,7 @@ opaque either way — this only ever touches the side facing the
 
 page. --}}
 
-data-gradient-fade-outer="false"
+data-gradient-fade-outer="true"
 
 {{!-- .posts-tabs-grid-lab-section has no background of its own by
 
@@ -206,7 +206,7 @@ instance was missing it. See gradient-frame.css's own doc on
 
 this attribute for the full stacking-context reasoning. --}}
 
-data-gradient-transparent-middle="false"
+data-gradient-transparent-middle="true"
 
 {{!-- Page-background TOKEN, not a hardcoded hex (2026-08-19). This is the
       frame's own inner fill, which exists to match the page background
@@ -252,9 +252,26 @@ read as a long diagonal sweep rather than a compact stripe. --}}
       problem, applied here directly in the attribute since gradient-
       frame.js passes this string straight through to
       --gradient-frame-edge-height via setProperty() — any valid CSS
-      length works, clamp() included. --}}
+      length works, clamp() included.
 
-data-gradient-edge-height="clamp(320px, 90vw, 800px)"
+      Recalibrated 2026-08-24: the original 90vw preferred value was
+      still too generous on mobile — at a ~520px-wide viewport it computed
+      to ~468px (measured live via getComputedStyle: "height: 468px"),
+      reading as a big empty gap rather than a band. 56vw lands almost
+      exactly on 290px at that same width (confirmed by hand: 0.56 * 520 =
+      291px, the flat value that visually read correctly when tried as a
+      one-off test) while still scaling smoothly rather than jumping at a
+      breakpoint. Floor also lowered 320px -> 180px: at the old 90vw rate
+      the 320px floor rarely bound (90vw cleared it well before typical
+      phone widths), but at 56vw it would have started flooring out
+      narrow phones (e.g. 56vw at 375px = 210px, already below 320px) and
+      silently overriding the formula right where it matters most — 180px
+      sits below every real phone width's 56vw result (210px at 375px)
+      so the formula does the actual work, with the floor only as a true
+      backstop for pathologically narrow viewports. Ceiling (800px)
+      unchanged — that was never the reported problem. --}}
+
+data-gradient-edge-height="clamp(180px, 56vw, 800px)"
 
 {{!-- BASE WAVE — the 4-colour ramp's animated core. --}}
 
@@ -422,7 +439,7 @@ data-gradient-resolution-scale="0.35">
             (main.js), not scroll-revealed by the generic
             IntersectionObserver system (card-scroll-reveal.js), which
             can't fire for something already in the initial viewport. --}}
-      <figure class="post-hero-sticky" data-post-hero="wide" data-skip-reveal>
+      <figure class="post-hero-sticky" data-post-hero="contained" data-skip-reveal>
         <img src="{{feature_image}}" alt="{{title}}" loading="lazy">
       </figure>
     {{/if}}
@@ -555,7 +572,7 @@ data-gradient-resolution-scale="0.35">
             own narrow/main track (text measure) is unaffected; only
             content that explicitly opts into a wider track (kg-width-wide/
             -full, or this new system) actually reaches further. --}}
-      <div class="gh-canvas" data-page-content-width="full">
+      <div class="gh-canvas" data-page-content-width="contained">
         <div class="gh-content">
           {{content}}
         </div>

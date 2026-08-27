@@ -716,7 +716,7 @@ const STYLE_BOKEH = new ParticleStyleDefinition('bokeh', {
                    * smoothstep(1.0, 0.38, g)
                    * uGlowStrength;
 
-        vec3 coreColor = vColor * 1.8;   // HDR-hot centre; ACES rolls it off
+        vec3 coreColor = vColor * uCoreMult;   // HDR-hot centre; ACES rolls it off
 
         float alphaBody = pow(bokeh, 2.0) * 0.9;
         float finalAlpha = min(alphaBody + halo, 1.0);
@@ -730,7 +730,7 @@ const STYLE_BOKEH = new ParticleStyleDefinition('bokeh', {
         // max(): the early discard that used to guarantee finalAlpha > 0
         // moved below (see its comment), so this divide has to defend itself.
         vec3 finalColor = (mix(vColor, coreColor, coreMask * 0.35) * alphaBody
-                          + vColor * 1.5 * halo) / max(finalAlpha, 0.0001);`,
+                          + vColor * uHaloMult * halo) / max(finalAlpha, 0.0001);`,
 });
 
 

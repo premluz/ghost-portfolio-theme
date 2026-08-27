@@ -477,6 +477,14 @@ ${styles.postProjectBlocks()}
       uniform float uSpriteScale;
       uniform float uGlowRadius;
       uniform float uDprNorm;
+      // HDR core/halo overbright — see the uniform's own def comment above
+      // (material uniforms block) for why these exist per-theme.
+      uniform float uCoreMult;
+      uniform float uHaloMult;
+      // Global alpha multiplier, independent of every style: styles own
+      // finalAlpha, so scaling it here dims the whole system without any
+      // style needing to know. 1.0 = untouched.
+      uniform float uGlobalAlpha;
       ${styles.fragmentUniformDeclarations()}
 
       void main() {
@@ -485,6 +493,11 @@ ${styles.postProjectBlocks()}
         // one to run DECLARES finalColor/finalAlpha; later ones mix over
         // them. Nothing about how a particle looks is hardcoded here.
 ${styles.fragmentBodyBlocks()}
+
+        // Applied BEFORE the discard test on purpose: testing the unscaled
+        // value would keep drawing particles that are fully faded out, and
+        // they would pop rather than vanish at the end of a fade.
+        finalAlpha *= uGlobalAlpha;
 
         if (finalAlpha <= 0.004) discard;
         gl_FragColor = vec4(finalColor, finalAlpha);
@@ -513,6 +526,9 @@ ${styles.fragmentBodyBlocks()}
         // Measured coverage before: 9.68%/1.94%/0.66% at dpr 1/1.5/2 —
         // after: near-equal across all three.
         uDprNorm: { value: this.renderer.getPixelRatio() / 2.0 },
+        // Global alpha multiplier — see the fragment shader. Driven by
+        // setGlobalAlpha() below; 1.0 leaves every style untouched.
+        uGlobalAlpha: { value: 1 },
         // 0.6 (was 0.8): finer dots across every shape — the DNA-Capital
         // profile trades dot size for count (see particle-morph.hbs's
         // particleCount). Net fill: 16k x 0.6^2 is slightly BELOW the old
@@ -534,10 +550,32 @@ ${styles.fragmentBodyBlocks()}
         // degraded sketch of it.
         uGlowStrength: { value: window.__lowEndDevice ? 0.6 : 1.0 },
         uGlowRadius: { value: window.__lowEndDevice ? 1.1 : GLOW_RADIUS },
+        // HDR core/halo overbright multiplier — was a hardcoded `1.8`/`1.5`
+        // literal in the bokeh style's fragment body (particle-style-
+        // definitions.js). Same value drives both themes today; on a
+        // near-white light-mode background the overbright reads as a flat
+        // white core instead of a colored glow (dark mode's near-black
+        // backdrop lets ACES roll it into a natural-looking bloom instead).
+        // Per-theme tuning lives in particle-morph.hbs's applyTheme() —
+        // see COLOR-TUNING.md. 1.8 here is the ORIGINAL hardcoded value,
+        // i.e. this uniform changes nothing until applyTheme() sets it.
+        uCoreMult: { value: 1.8 },
+        uHaloMult: { value: 1.5 },
         // Derived from GLOW_RADIUS — the sprite must physically contain the
         // halo (x2 for diameter + margin). Change the radius, not this.
         uSpriteScale: { value: (window.__lowEndDevice ? 1.1 : GLOW_RADIUS) * 2.12 },
-        uWavefront: { value: 0 },              // Driven by Lab section scroll progress
+        // 9999, not 0: this is the raw material default, live for any shape
+        // BEFORE Lab's own wave loop (initLabWave/_startAutonomousWave,
+        // particle-morph-system.js) has ticked even once — that loop parks
+        // this at (shape's maxY + 3) specifically so waveDistance stays
+        // deeply negative and the tint never shows. 0 was only ever safe by
+        // accident for shapes whose particles sit below y~-2; ribbon-
+        // dispersed (hero) spans y~±11, so most of it read
+        // waveDistance > uWaveFalloff immediately on load — a real pink
+        // wash on the hero, not a Lab-only effect. A value this large is
+        // safe for every shape's particles, hero included, with no
+        // per-shape bookkeeping needed.
+        uWavefront: { value: 9999 },           // Driven by Lab section scroll progress
         uWaveFalloff: { value: 2.0 },          // Gradient width around wavefront
         uWaveColor: { value: new THREE.Color(0xda70d6) },  // Orchid (pinkish-purple)
         uPrefersReducedMotion: { value: window.matchMedia('(prefers-reduced-motion: reduce)').matches },
@@ -619,6 +657,24 @@ ${styles.fragmentBodyBlocks()}
    * material state, not uniforms, so they cannot cross-fade; they switch
    * when the style becomes dominant.
    */
+  /**
+   * Global alpha multiplier (0-1) applied on top of whatever the active
+   * styles produce — see uGlobalAlpha in the fragment shader. Deliberately
+   * NOT a style: styles are shape-driven and cross-fade with morphs, while
+   * this is an independent "dim everything" control that must hold steady
+   * across shape changes.
+   *
+   * Distinct from the LAYER opacity (__particleLayerHidden / the canvas's
+   * own CSS opacity): that shows/hides the whole canvas as a unit, whereas
+   * this fades the particles themselves while the layer stays live, so
+   * content behind them stays legible without the system going dark.
+   */
+  setGlobalAlpha(value) {
+    if (!this.particles) return;
+    const u = this.particles.material.uniforms.uGlobalAlpha;
+    if (u) u.value = Math.max(0, Math.min(1, value));
+  }
+
   setStyleAmount(key, value) {
     const style = this.styleRegistry.get && this.styleRegistry.get(key);
     if (!style || !this.particles) return;
@@ -810,10 +866,47 @@ ${styles.fragmentBodyBlocks()}
       const n = Math.min(pos.array.length, this.nextState.positions.length);
       for (let i = 0; i < n; i++) pos.array[i] = this.nextState.positions[i];
       pos.needsUpdate = true;
+      // Sizes: copy the destination's own, or RESET to the uniform default
+      // when it has none. The else-branch is the fix for a real bug — this
+      // used to be `if (sz && this.nextState.sizes)` with no fallback, so a
+      // destination state whose generator returns bare positions (sizes:
+      // null — see ShapeDefinition.generate in shape-definitions.js, which
+      // covers every plain generator including sphereGenerator, i.e. 'lab')
+      // simply left the previous shape's sizes in the buffer.
+      //
+      // That is invisible in most transitions, but not from 'dispersed':
+      // the dispersed variants author sizes up to ~2.0 (dispersed-variants.js),
+      // so morphing dispersed -> lab rendered the orb with roughly double-
+      // size particles. Under additive blending that measured as ~4x mean
+      // luminance and ~2.6x lit coverage at identical geometry, camera,
+      // glow, colour and particle count — the "exaggerated bloom" look.
+      //
+      // Every load starts at 'dispersed' (particle-morph.hbs), so this hits
+      // whenever a page lands directly on a section whose shape lacks sizes
+      // — e.g. a post -> Close curtain return that restores a mid-page
+      // scroll position. It never affected the hero, because the hero
+      // shapes (volatility/helix) DO author real sizes and so always
+      // overwrote the buffer; that asymmetry is exactly why morphing back
+      // to hero "fixed" it and why scrolling to any other shape did not.
+      //
+      // 0.49 is the authored norm, NOT createParticles()'s own 1.0 fallback.
+      // Every generator that DOES author sizes centres on 0.38 + h*0.22
+      // (~0.49 mean, caps at 0.40) — shape-definitions.js. Filling with 1.0
+      // was tried first and is ~2x that linearly, ~4x by sprite area, which
+      // showed up as every no-sizes shape rendering over-saturated even on a
+      // plain load with no navigation. createParticles()'s 1.0 is the older
+      // of the two and is what a no-sizes shape used to get on a fresh
+      // apply; it is left alone here rather than changed in lockstep,
+      // because that path is not implicated in the reported bug and
+      // altering it would change first-load appearance site-wide.
       const sz = geo.attributes.size;
-      if (sz && this.nextState.sizes) {
-        const m = Math.min(sz.array.length, this.nextState.sizes.length);
-        for (let i = 0; i < m; i++) sz.array[i] = this.nextState.sizes[i];
+      if (sz) {
+        if (this.nextState.sizes) {
+          const m = Math.min(sz.array.length, this.nextState.sizes.length);
+          for (let i = 0; i < m; i++) sz.array[i] = this.nextState.sizes[i];
+        } else {
+          sz.array.fill(0.49);
+        }
         sz.needsUpdate = true;
       }
     }
@@ -910,10 +1003,20 @@ ${styles.fragmentBodyBlocks()}
         const n = Math.min(tgt.array.length, state.positions.length);
         for (let i = 0; i < n; i++) tgt.array[i] = state.positions[i];
         tgt.needsUpdate = true;
+        // Same no-sizes fallback as the completion path below: the shader
+        // blends baseSize = mix(size, aTargetSize, uMorphProgress), so
+        // leaving aTargetSize stale when the destination has none makes the
+        // morph animate TOWARD the previous shape's sizes and settle there.
+        // Without the else-branch, dispersed -> lab grew every particle
+        // toward dispersed's own (up to ~2.0) instead of the authored norm.
         const tsz = geo.attributes.aTargetSize;
-        if (tsz && state.sizes) {
-          const m = Math.min(tsz.array.length, state.sizes.length);
-          for (let i = 0; i < m; i++) tsz.array[i] = state.sizes[i];
+        if (tsz) {
+          if (state.sizes) {
+            const m = Math.min(tsz.array.length, state.sizes.length);
+            for (let i = 0; i < m; i++) tsz.array[i] = state.sizes[i];
+          } else {
+            tsz.array.fill(0.49);
+          }
           tsz.needsUpdate = true;
         }
       }
@@ -1240,11 +1343,24 @@ ${styles.fragmentBodyBlocks()}
         rotMouseX = this.mouseX + (fixedMouseX - this.mouseX) * gridAmount;
         rotMouseY = this.mouseY + (fixedMouseY - this.mouseY) * gridAmount;
       }
-      // Rotation strength — how much the cursor tilts the object. Reduced
-      // from Math.PI * 0.5 (±90° across the full mouse range) per explicit
-      // "reduce strength of cursor movement" request, then reduced further
-      // (0.22 → 0.08) per explicit "even subtler" follow-up.
-      const rotStrength = Math.PI * 0.08;
+      // Rotation strength — how much the cursor tilts the object.
+      //
+      // 0 = mouse rotation DISABLED (2026-08-21, explicit request: "turn off
+      // mouse movement interaction with shapes as in rotating/moving").
+      // Zeroing the strength rather than deleting the lines keeps the whole
+      // mechanism — including Grid/Dots' pinned-angle and flatten blends
+      // below, which are expressed in terms of this same rotation — working
+      // unchanged, and makes restoring it a one-value edit.
+      //
+      // History: Math.PI * 0.5 (±90° across the full mouse range), reduced
+      // to 0.22 per "reduce strength of cursor movement", then to 0.08 per
+      // "even subtler". Restore by putting one of those back.
+      //
+      // NOT affected by this: the ambient auto-spin (this.autoRotation
+      // above), the director's scroll-driven rotationYDelta, and the
+      // mouse-follow WAVE (uMouseWorld — a separate, deliberate cursor
+      // interaction that deforms particles without rotating the object).
+      const rotStrength = 0;
       this.particles.rotation.y = this.autoRotation + (rotMouseX * rotStrength);
       this.particles.rotation.x = rotMouseY * rotStrength;
       this.particles.rotation.z = 0;
@@ -1396,7 +1512,25 @@ ${styles.fragmentBodyBlocks()}
     posAttr.needsUpdate = true;
   }
 
+  // Idempotent: a second start() must NOT spawn a second rAF chain.
+  //
+  // animate() re-schedules itself every frame, so each start() call creates
+  // an independent, self-perpetuating loop on the SAME renderer. Two chains
+  // means the scene is drawn twice per frame into one additively-blended
+  // buffer — every particle's contribution counted twice. Nothing about the
+  // state looks wrong (uniforms, material, particle count, camera and glow
+  // are all untouched), which is exactly why this was so hard to see: a
+  // full uniform/material/compositing diff between a good and a bad session
+  // came back identical apart from the clock. The only visible signature is
+  // brightness/density, and the only reliable measurement is render calls
+  // per second — measured 107/s on an affected page against ~60/s expected.
+  //
+  // Guarding here rather than in animate(): animate()'s own rAF re-entry is
+  // legitimate and must stay unguarded, so the check belongs at the entry
+  // point callers use. _animateRAF is cleared by dispose(), so a genuinely
+  // disposed-and-rebuilt loop can still start again.
   start() {
+    if (this._animateRAF) return;
     this.animate();
   }
 
@@ -1410,7 +1544,14 @@ ${styles.fragmentBodyBlocks()}
     if (this._disposed) return;
     this._disposed = true;
 
-    if (this._animateRAF) cancelAnimationFrame(this._animateRAF);
+    // Cleared, not just cancelled — start()'s re-entry guard treats a
+    // non-zero _animateRAF as "a loop is already running", so leaving a
+    // stale id here would silently block any legitimate restart after a
+    // dispose/rebuild.
+    if (this._animateRAF) {
+      cancelAnimationFrame(this._animateRAF);
+      this._animateRAF = 0;
+    }
 
     if (this.particles) {
       this.particles.geometry?.dispose();

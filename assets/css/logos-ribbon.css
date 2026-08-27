@@ -106,27 +106,39 @@
 }
 
 /* ── Individual logo slots ───────────────────────────────────── */
-.logos-ribbon-item {
+.logos-ribbon-item,
+logos-ribbon-item-ai {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   height: 50px;
 }
 
-.logos-ribbon-item img {
+.logos-ribbon-item img,
+logos-ribbon-item-ai img {
   height: 100%;
   width: auto;
   max-width: 350px;
   object-fit: contain;
   object-position: center;
 
-  /* Dark/dim mode: force white */
-  filter: brightness(0) invert(1);
   opacity: 1;
 
   pointer-events: none;
   -webkit-user-drag: none;
 }
+
+.logos-ribbon-item img {
+
+  /* Dark/dim mode: force white */
+  filter: brightness(0) invert(1);
+}
+
+.logos-ribbon-item-ai img {
+
+  max-width: 80px;
+}
+
 
 .logos-ribbon-item:hover img {
   opacity: 1;

@@ -282,7 +282,13 @@ class ScrollScrubAnimationSystem {
       // already defaults gracefully to the normal palette via
       // var(--profile-shift, 0) when nothing writes the property. Nothing
       // else needs reverting either way.)
-       this.initTestimonialsColorInvert();
+      // DISABLED (2026-08-22, explicit request: turn off the testimonials
+      // page invert). This is the real driver — a scroll-scrubbed
+      // BackgroundLayer.bindShift on --gradient-shift-3, entirely separate
+      // from the .invert-wrapper--page/data-invert-timed markup in
+      // testimonials.hbs (also disabled). Removing the wrapper alone left
+      // the invert visible because THIS binding was still running.
+      // this.initTestimonialsColorInvert();
       return;
     }
     if (!window.BackgroundLayer) { console.warn('[profile] BackgroundLayer not loaded'); return; }

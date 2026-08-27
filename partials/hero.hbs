@@ -38,28 +38,9 @@
 
       {{!-- LEFT: text content --}}
       <div class="hero-content">
-
-        {{!-- Top label — "Hello, I'm Prem." --}}
-        <p class="hero-intro text-eyebrow" id="hero-intro">
-          {{#if @custom.hero_name}}{{{@custom.hero_name}}}{{else}}Name{{/if}}
-        </p>
-
-        {{!-- Main headline --}}
-        <h1 class="hero-headline serif" id="hero-headline" data-animate="word">
-          {{#if @custom.hero_title}}{{{@custom.hero_title}}}{{else}}Your Title Here{{/if}}
-        </h1>
-
-        {{!-- Avatar + description on one row. The <p> keeps its own class AND
-              id untouched inside this wrapper: .hero-description is targeted
-              by name in scroll-scrub-anim.js (both the entrance reveal and
-              the scroll-exit slide-down) and in main.js, so wrapping is the
-              safe way to add a sibling — moving or renaming it would silently
-              break those animations. --}}
-        <div class="hero-description-row">
-          {{!-- data-transition matches every other in-site link (page-
-                transition.js), so this gets the same animated navigation as
-                the nav's own About entry rather than a hard page jump. --}}
-          <a href="{{@site.url}}/about" class="hero-avatar" data-transition aria-label="About me">
+        <div class="hero-identity">
+          <div class="hero-avatar-row">
+      <a href="{{@site.url}}/about" class="hero-avatar" data-transition aria-label="About me">
             <img src="/content/images/avatars/prem.jpg"
                  alt="" width="80" height="80" loading="eager" fetchpriority="high" draggable="false">
             {{!-- Reuses .nav-tooltip verbatim (main.css): it is already
@@ -69,19 +50,51 @@
                   tooltip instead of a second near-duplicate style. --}}
             <span class="nav-tooltip">About me</span>
           </a>
-
-          <p class="hero-description" id="hero-description">
-            {{#if @custom.hero_description}}{{{@custom.hero_description}}}{{else}}Your description here.{{/if}}
+       <p class="hero-description2" id="hero-description">
+          I'm Prem<br />
+          Product Design Partner
           </p>
+      </div>
+
+        {{!-- Main headline --}}
+        <h1 class="hero-headline serif" id="hero-headline" data-animate="word">
+          {{#if @custom.hero_title}}{{{@custom.hero_title}}}{{else}}Your Title Here{{/if}}
+        </h1>
 
         </div>
 
-     <!--<div class="hero-tags" id="hero-tags">
+        {{!-- Avatar + description on one row. The <p> keeps its own class AND
+              id untouched inside this wrapper: .hero-description is targeted
+              by name in scroll-scrub-anim.js (both the entrance reveal and
+              the scroll-exit slide-down) and in main.js, so wrapping is the
+              safe way to add a sibling — moving or renaming it would silently
+              break those animations. --}}
+              
+        <div class="hero-description-row">
+          {{!-- data-transition matches every other in-site link (page-
+                transition.js), so this gets the same animated navigation as
+                the nav's own About entry rather than a hard page jump. --}}
+    
+
+           <p class="hero-description" id="hero-description">
+            {{#if @custom.hero_description}}{{{@custom.hero_description}}}{{else}}Your description here.{{/if}}
+          </p>
+   
+        </div>
+
+        
+
+        {{!-- Top label — "Hello, I'm Prem." --}}
+        <p class="hero-intro text-eyebrow" id="hero-intro">
+          {{#if @custom.hero_name}}{{{@custom.hero_name}}}{{else}}Name{{/if}}
+        </p>
+<!--
+     <div class="hero-tags" id="hero-tags">
           <span class="tag">Reasearch</span>
           <span class="tag">Concept</span>
           <span class="tag">Execution</span>
         </div>
-  -->
+-->
 
 
         {{!-- Tag pills/bullets
@@ -102,11 +115,11 @@
               uses <br> for the "-33 → +66" case, which needs to stay on
               one line while the row itself may still wrap at narrow
               widths — a single text node with a space would let the browser
-              break mid-value there instead of only between stat blocks. --}}
+              break mid-value there instead of only between stat blocks. 
         <div class="hero-stats" id="hero-stats">
           <div class="hero-stat">
-            <div class="hero-stat-value">5M</div>
-            <div class="hero-stat-label text-eyebrow">Assets tokenised<br>on-chain</div>
+            <div class="hero-stat-value">+18%</div>
+            <div class="hero-stat-label text-eyebrow">Activation increase</div>
           </div>
           <div class="hero-stat">
             <div class="hero-stat-value">$40M</div>
@@ -116,7 +129,7 @@
             <div class="hero-stat-value">-33 &rarr; +62</div>
             <div class="hero-stat-label text-eyebrow">NPS score</div>
           </div>
-        </div>
+        </div>--}}
 
       </div>{{!-- /.hero-content --}}
 

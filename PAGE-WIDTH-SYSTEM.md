@@ -98,7 +98,7 @@ don't confuse the two.
 | Zone | Width | What lands there |
 |---|---|---|
 | `narrow` (alias of `main`) | `--content-max-width-text` (800px) | body text — `p`, `h2`…, `blockquote`, and anything `.kg-width-narrow` |
-| `contained` | `--content-max-width-wide` (1000px) | **default for images/cards** — any `.kg-card` without a width class |
+| `contained` | `--content-max-width-media` (1440px on the site's default `page_width: contained` setting; 1000/1100/1800px on the narrow/wide/full tiers — see tokens.css's PAGE WIDTH CONFIGURATION block) | **default for images/cards** — any `.kg-card` without a width class |
 | `wide` | `--container` + 200px | `.kg-width-wide` |
 | `full` | remaining `1fr` each side | `.kg-width-full`, galleries |
 

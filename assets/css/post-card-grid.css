@@ -377,9 +377,14 @@ body[data-typography-body='medium'] .posts-tab {
    much larger than .grid-card-content's flat `padding: 2rem 0 0 0`.
    Mirroring that directly: no flex `gap` here at all, just a 2rem
    top-only padding on the content itself provides the entire visual gap,
-   same mechanism as .about-projects-grid. */
+   same mechanism as .about-projects-grid.
+   padding restored to 2rem 0 0 0 (2026-08-25) — had silently drifted to
+   0 0 0 0 at some point, leaving this comment's own stated fix undone:
+   paired cards had NO visible gap between image and description at all,
+   on desktop or mobile, not the smaller-than-intended gap the comment
+   describes. */
 .posts-grid[data-posts-layout='grid'] .post-card-content {
-  padding: 0 0 0 0;
+  padding: 2rem 0 0 0;
   order: 2;
 }
 
@@ -911,7 +916,7 @@ body[data-typography-body='medium'] .posts-tab {
    plus the two overrides below cannot drift.
 
    max-width is dropped to none here: cinematic sizes each card at
-   calc(--content-max-width-wide * 1.2) because it is a single centred
+   calc(--content-max-width-media * 1.2) because it is a single centred
    hero-scale card per row. Two of those side by side would overflow the
    track, so in grid mode the column itself does the sizing. */
 .posts-grid:is([data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .carousel-track {
@@ -982,12 +987,12 @@ body[data-typography-body='medium'] .posts-tab {
 .posts-grid[data-posts-layout='cinematic-rhythm'] .post-card:nth-of-type(3n+1) {
   grid-column: 1 / -1;
   /* Restores the max-width the shared cinematic rule gives every card
-     (calc(--content-max-width-wide * 1.2)), which the two-up override above
+     (calc(--content-max-width-media * 1.2)), which the two-up override above
      sets to `none` — correct for a card filling one narrow column, wrong
      for this one, which spans the whole row and would otherwise stretch
      edge to edge. With the cap back, the card is narrower than its row,
      which is what makes an alignment choice meaningful at all. */
-  max-width: calc(var(--content-max-width-wide) * 1.2);
+  max-width: calc(var(--content-max-width-media) * 1.2);
 }
 
 /* Alternate which side that gap falls on. The shared .post-card rule sets
@@ -1010,7 +1015,7 @@ body[data-typography-body='medium'] .posts-tab {
      scales with the site's own page_width tiers (1000/1100/1800px)
      instead of picking one fixed pixel value that only looks right at one
      tier. */
-  max-width: calc(var(--content-max-width-wide) * 1.2);
+  max-width: calc(var(--content-max-width-media) * 1.2);
   width: 100%;
   margin: 0 auto;
   padding: 0;
@@ -1091,12 +1096,12 @@ body[data-typography-body='medium'] .posts-tab {
      be an image/gradient, not a plain colour. */
   background:
     radial-gradient(
-      ellipse 250% 100% at 0% 150%,
-      rgba(0, 0, 0, 0.99) 0%,
-      rgba(0, 0, 0, 0.75) 65%,
+      ellipse 350% 150% at -20% 150%,
+      rgba(0, 0, 0, 0.99) 25%,
+      rgba(0, 0, 0, 0.75) 55%,
       transparent 95%
     ),
-    linear-gradient(rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.2));
+    linear-gradient(rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.26));
   pointer-events: none;
 }
 
@@ -1136,7 +1141,7 @@ body[data-typography-body='medium'] .posts-tab {
    blended layer entirely until it is actually needed. The delay-free
    0.3s ease-out on both is what makes the fade-out still animate rather
    than snapping the instant visibility flips. */
-.posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-hover-glow {
+.posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm'],[data-posts-layout='list'],[data-posts-layout='grid']) .post-card-hover-glow {
   content: '';
   position: absolute;
   top: 0;
@@ -1155,14 +1160,44 @@ body[data-typography-body='medium'] .posts-tab {
   pointer-events: none;
   scale: 1.71 1.25;
   translate: -20% 10%;
-  transition: opacity var(--duration-standard) var(--ease-standard),
-              visibility var(--duration-standard) var(--ease-standard);
+  /* HOVER-OUT timing lives here, hover-IN on the :hover rule below — the
+     base rule is what the element transitions back TO, so an asymmetric
+     fade is just a matter of declaring different durations in the two
+     places rather than needing any extra state.
+     Out is deliberately much slower (2s vs the standard 300ms in) and on
+     a long-tailed ease-out, so the glow lingers and drifts away instead of
+     snapping off the moment the pointer leaves.
+     visibility is stepped, not eased: it is a discrete property, so it
+     would flip at the midpoint of the timing function and cut the fade in
+     half. `visibility 0s linear 2s` holds it visible for the whole
+     opacity fade and only then hides it — the delay must stay in lockstep
+     with the duration above if either is retuned. */
+  transition: opacity 2s cubic-bezier(0.22, 0.61, 0.36, 1),
+              visibility 0s linear 2s;
 }
 
-.posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-link:hover .post-card-hover-glow {
-  opacity: 1;
+/* Hover-IN keeps the original snappy timing. Without re-declaring
+   `transition` here the element would use the base rule's 2s in BOTH
+   directions — the slow fade is wanted only on the way out. visibility
+   flips immediately (no delay) so the layer is present from the first
+   frame of the fade rather than appearing 2s late. */
+.posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm'],[data-posts-layout='list'],[data-posts-layout='grid']) .post-card-link:hover .post-card-hover-glow {
+  opacity: 0.9;
   visibility: visible;
+  transition: opacity var(--duration-standard) var(--ease-standard),
+              visibility 0s linear 0s;
 }
+
+.posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm'],[data-posts-layout='list'],[data-posts-layout='grid']) .post-card-link:hover .post-card-keyword { 
+
+  color: var(--color-primary);
+
+
+  transition: color var(--duration-standard) var(--ease-standard),
+              visibility 0s linear 0s;
+
+}
+
 
 /* Slow push-in on the media itself, alongside the glow — the reference's
    own paired scale on its image background. Scoped to the real media
@@ -1179,13 +1214,39 @@ body[data-typography-body='medium'] .posts-tab {
   scale: 1.05;
 }
 
+/* .post-card-video has no base rule anywhere in the theme (it is sized by
+   its container), so the hover scale below had nothing to transition
+   against and snapped in both directions while the <img> beside it eased.
+   Matches the transition added to .post-card-image img — same duration,
+   same easing, so image-backed and video-backed cards behave identically. */
+.post-card-video {
+  transition: scale var(--duration-standard) var(--ease-standard);
+}
+
+/* LIST + GRID hover — the same media push-in the cinematic variants get
+   above, extended to the two layouts that had no hover of their own.
+   (.post-card:hover::before, the glow ring further down this file, is
+   unscoped and already applied to every layout — this adds the motion half
+   that was cinematic-only.)
+   Separate rule rather than widening the :is() above: those selectors also
+   drive the hover-glow overlay, which only exists in the cinematic markup,
+   so folding these in would imply a treatment list/grid cannot receive.
+   Transition lives on the base .post-card-image img rule shared by all
+   layouts, so hover-out eases back rather than snapping. */
+.posts-grid:is([data-posts-layout='list'],[data-posts-layout='grid']) .post-card-link:hover .post-card-image img,
+.posts-grid:is([data-posts-layout='list'],[data-posts-layout='grid']) .post-card-link:hover .post-card-video {
+  scale: 1.05;
+}
+
 /* Motion-sensitive users: keep the glow (it is a hover affordance, not
    decoration) but drop the movement — no media push-in, and the animated
    WebP's own frames are the only thing left moving, which we cannot pause
    from CSS. Removing the scale is the part that matters most here. */
 @media (prefers-reduced-motion: reduce) {
   .posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-link:hover .post-card-image img,
-  .posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-link:hover .post-card-video {
+  .posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-link:hover .post-card-video,
+  .posts-grid:is([data-posts-layout='list'],[data-posts-layout='grid']) .post-card-link:hover .post-card-image img,
+  .posts-grid:is([data-posts-layout='list'],[data-posts-layout='grid']) .post-card-link:hover .post-card-video {
     scale: 1;
   }
 }
@@ -1213,7 +1274,7 @@ body[data-typography-body='medium'] .posts-tab {
      wrapped titles early. left/right:0 alone does not win: an explicit
      width on the same element takes precedence over the inset pair. */
   width: 100%;
-  padding: var(--space-lg);
+  padding: var(--space-md);
   /* Hard backstop, not just the conservative title size above — a card
      with a long title AND a long testimonial together could still stack
      past the image's own top edge otherwise (bottom:0 alone puts no
@@ -1234,6 +1295,16 @@ body[data-typography-body='medium'] .posts-tab {
   color: #fff !important;
 }
 
+/* Keyword pills are part of the same over-photo island as title/category
+   above — forced white text regardless of theme, and regardless of their
+   own [data-color] hue variant (those variants use theme-reactive
+   --color-utility-*-subtle-text tokens, which is exactly what needs
+   overriding here). Border/background left at the base rule's neutral
+   glass look; only text needs to stay legible on the photo. */
+.posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-keyword {
+  color: #fff !important;
+}
+
 /* NOT bumped to --text-size-h1 the way 'stacked' mode bumps its own title
    — tried first here, and this data field (meta.longTitle) can be a full
    phrase ("-33 → +62 NPS improvement"), not a short headline like stacked's
@@ -1249,6 +1320,17 @@ body[data-typography-body='medium'] .posts-tab {
 
 .posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-endorser {
   color: rgba(255, 255, 255, 0.6) !important;
+}
+
+/* .post-card-result was MISSING from this island (2026-08-22). Its base
+   rules use --color-on-surface(-variant), which correctly follow the site
+   theme — but here the text sits over a photographed scrim, not over the
+   page background, so in light theme it resolved to a dark ink and became
+   unreadable while every sibling in the same overlay stayed white.
+   Same fixed-white treatment as the testimonial line above (0.85 rather
+   than a flat #fff: this is supporting text, not the title). */
+.posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-result {
+  color: rgba(255, 255, 255, 0.85) !important;
 }
 
 /* Fields the reference screenshot doesn't show for this layout — same
@@ -1348,6 +1430,7 @@ body[data-typography-body='medium'] .posts-tab {
 
   :root[data-theme='dark'] .posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-category,
   :root[data-theme='dark'] .posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-testimonial,
+  :root[data-theme='dark'] .posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-result,
   :root[data-theme='dark'] .posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-endorser {
     color: #d0d0d0 !important;
   }
@@ -1358,10 +1441,171 @@ body[data-typography-body='medium'] .posts-tab {
 
   :root[data-theme='light'] .posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-category,
   :root[data-theme='light'] .posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-testimonial,
+  :root[data-theme='light'] .posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-result,
   :root[data-theme='light'] .posts-grid:is([data-posts-layout='cinematic'],[data-posts-layout='cinematic-grid'],[data-posts-layout='cinematic-rhythm']) .post-card-endorser {
     color: #4a4a4a !important;
   }
 }
+
+/* ── CINEMATIC-GRID, CONTENT OUTSIDE ─────────────────────────────────────
+   data-item-content="outside" (posts-tabs.hbs) — same 2-up card as
+   cinematic-grid above (column count, gaps, max-width, hover glow all
+   inherited unchanged from the :is(...) rules further up this file), but
+   content sits BELOW the image as a normal block instead of overlaid on
+   top of it. This is exactly the treatment the MOBILE block right above
+   already applies unconditionally at 768px — same three moving parts
+   (drop position:absolute, kill the legibility scrim, swap the fixed
+   white text for theme-aware ink) — just applied at every width instead
+   of only below the breakpoint, so it is written once here rather than
+   duplicated: the desktop-only overrides below sit alongside, not instead
+   of, that mobile block. */
+.posts-grid[data-posts-layout='cinematic-grid'][data-item-content='outside'] .post-card-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.posts-grid[data-posts-layout='cinematic-grid'][data-item-content='outside'] .post-card-image {
+  order: 1;
+}
+
+.posts-grid[data-posts-layout='cinematic-grid'][data-item-content='outside'] .post-card-image::after {
+  display: none;
+}
+
+.posts-grid[data-posts-layout='cinematic-grid'][data-item-content='outside'] .post-card-content {
+  order: 2;
+  position: static;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  width: 100%;
+  max-height: none;
+  overflow: visible;
+  padding: var(--space-md) 0 0 0;
+  z-index: auto;
+}
+
+.posts-grid[data-posts-layout='cinematic-grid'][data-item-content='outside'] .post-card-meta {
+  display: block;
+}
+
+/* Same ink-token trap as the mobile block above — --color-on-surface
+   resolves to white here too (background-shift scope), so these use the
+   same fixed light/dark pair keyed off :root[data-theme] rather than a
+   token. Keyword pills included (unlike the mobile block, which predates
+   the pill-forced-white rule added for the overlay case): with content
+   off the photo, pills need to read against the page background, not stay
+   forced white. */
+:root[data-theme='dark'] .posts-grid[data-posts-layout='cinematic-grid'][data-item-content='outside'] .post-card-title {
+  color: #f5f5f5 !important;
+}
+
+:root[data-theme='dark'] .posts-grid[data-posts-layout='cinematic-grid'][data-item-content='outside'] :is(.post-card-category,.post-card-testimonial,.post-card-result,.post-card-endorser,.post-card-keyword) {
+  color: #d0d0d0 !important;
+}
+
+:root[data-theme='light'] .posts-grid[data-posts-layout='cinematic-grid'][data-item-content='outside'] .post-card-title {
+  color: #1a1a1a !important;
+}
+
+:root[data-theme='light'] .posts-grid[data-posts-layout='cinematic-grid'][data-item-content='outside'] :is(.post-card-category,.post-card-testimonial,.post-card-result,.post-card-endorser,.post-card-keyword) {
+  color: #4a4a4a !important;
+}
+
+/* ── LIST, CONTENT INSIDE ────────────────────────────────────────────────
+   data-item-content="inside" (posts-tabs.hbs) — same single-column list
+   rows as 'list' above (track gap, tablet collapse), but card copy
+   overlays the image instead of sitting beside it in its own 34% column.
+   Structurally this is the cinematic family's own overlay treatment
+   (position:absolute content, legibility scrim, forced-white text —
+   see the shared :is(...) cinematic rules earlier in this file) ported
+   onto list's row/sizing instead of duplicating it: image goes full-width
+   (list's own row split and 66/34 flex are overridden away), content
+   pins to the image's bottom-left corner the same way cinematic's does. */
+.posts-grid[data-posts-layout='list'][data-item-content='inside'] .post-card-link {
+  flex-direction: column;
+}
+
+.posts-grid[data-posts-layout='list'][data-item-content='inside'] .post-card-inner {
+  flex-direction: column;
+  gap: 0;
+}
+
+.posts-grid[data-posts-layout='list'][data-item-content='inside'] .post-card-image {
+  flex: none;
+  width: 100%;
+  order: 0;
+  position: relative;
+}
+
+.posts-grid[data-posts-layout='list'][data-item-content='inside'] .post-card-image img {
+  object-fit: cover;
+}
+
+/* Same legibility scrim as the cinematic overlay — .post-card-image::after
+   is otherwise unused in list mode (no rule sets it), so this is additive,
+   not an override. */
+.posts-grid[data-posts-layout='list'][data-item-content='inside'] .post-card-image::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background:
+    radial-gradient(
+      ellipse 350% 150% at -20% 150%,
+      rgba(0, 0, 0, 0.99) 25%,
+      rgba(0, 0, 0, 0.75) 55%,
+      transparent 95%
+    ),
+    linear-gradient(rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.26));
+  pointer-events: none;
+}
+
+.posts-grid[data-posts-layout='list'][data-item-content='inside'] .post-card-content {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 4;
+  width: 100%;
+  flex: none;
+  padding: var(--space-md);
+  max-height: 85%;
+  overflow: hidden;
+  justify-content: flex-end;
+}
+
+/* Deliberately NOT folded into the cinematic family's identical
+   forced-white :is(...) rules earlier in this file, despite the values
+   matching exactly: that same selector list is reused by the 768px block
+   below it, which flips these colours back to theme-aware ink because the
+   cinematic layouts drop their overlay on mobile. This variant keeps its
+   overlay at every width, so joining that group would silently inherit a
+   mobile reset it must not have. The duplication is load-bearing. */
+.posts-grid[data-posts-layout='list'][data-item-content='inside'] :is(.post-card-category,.post-card-title,.post-card-keyword) {
+  color: #fff !important;
+}
+
+.posts-grid[data-posts-layout='list'][data-item-content='inside'] :is(.post-card-testimonial,.post-card-result) {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.posts-grid[data-posts-layout='list'][data-item-content='inside'] .post-card-endorser {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+/* Same "hide what doesn't fit the overlay" precedent as the cinematic
+   family's own equivalent rule. list's base rule already hides
+   client/description (see LIST LAYOUT above) — meta is the only field
+   that needs an explicit call here. */
+.posts-grid[data-posts-layout='list'][data-item-content='inside'] .post-card-meta {
+  display: none;
+}
+
+/* No 1024px block here on purpose: list's own tablet breakpoint only
+   reorders and resizes image/content, never resetting `position`, so the
+   overlay rules above carry through unchanged at every width. */
 
 /* ─────────────────────────────────────────────────────────── */
 /* POST CARD BASE                                              */
@@ -1512,7 +1756,13 @@ body[data-typography-body='medium'] .posts-tab {
      its video OR its image, never a raw image visible first that a video
      then covers/overlaps a beat later. See .card-media-skeleton below. */
   opacity: 0;
-  transition: opacity 0.4s ease;
+  /* `scale` added (was opacity only): the hover push-in on the
+     cinematic/list/grid variants animates `scale`, and without it listed
+     here the change applied instantly in BOTH directions — the effect
+     worked but snapped. opacity keeps its own 0.4s, which is the
+     skeleton -> image resolution (post-and-cards.js), not a hover
+     state, so the two are deliberately different durations. */
+  transition: opacity 0.4s ease, scale var(--duration-standard) var(--ease-standard);
 }
 
 .post-card-image img.is-visible {
@@ -1659,9 +1909,10 @@ body[data-typography-body='medium'] .posts-tab {
 .post-card-title {
   display: block;
   width: 100%;
-  font-size: var(--text-size-h4);
+  font-size: var(--text-size-h3);
   line-height: 1.5 !important; /* was var(--line-spacing-body-normal); token system removed */
-  margin-top: 0;
+  margin: var(--space-xs) 0 var(--space-xs) 0!important;
+  padding-top: 0;
   margin: var(--space-sm) 0;
   word-break: break-word;
   overflow-wrap: break-word;
@@ -1735,9 +1986,11 @@ body[data-typography-body='medium'] .posts-tab {
 }
 
 .post-card-result {
-  font-size: var(--text-size-body);
+  font-size: var(--text-size-h4);
   color: var(--color-on-surface);
-  margin: var(--space-sm) 0 var(--space-md) 0;
+  margin:0 0 0 !important;
+  font-weight: 400;
+  padding: 0;
   line-height: 1.5;
 }
 
@@ -1754,7 +2007,7 @@ body[data-typography-body='medium'] .posts-tab {
 .post-card-description {
   font-size: var(--text-size-body);
   color: var(--color-on-surface-variant);
-  margin: var(--space-sm) 0 var(--space-sm) 0;
+  margin: var(--space-xs) 0 var(--space-sm) 0;
   line-height: 1.5;
 }
 
@@ -1767,7 +2020,9 @@ body[data-typography-body='medium'] .posts-tab {
   flex-wrap: wrap;
   gap: var(--space-sm);
   min-width: 0;
-  margin-top: var(--space-sm);
+  margin-top: 0 !important;
+  padding: 0 !important;
+  z-index: 9999;
 }
 
 .post-card-keywords:empty {
@@ -1784,8 +2039,8 @@ body[data-typography-body='medium'] .posts-tab {
   backdrop-filter: var(--glass-backdrop);
   -webkit-backdrop-filter: var(--glass-backdrop);
   letter-spacing: var(--primitive-letter-spacing-normal);
-  font-size: var(--text-size-xs);
-  color: var(--color-on-surface-variant);
+  font-size: var(--text-size-sm) !important;
+  color: var(--color-on-surface-subtle);
   white-space: nowrap;
 }
 
@@ -2186,10 +2441,21 @@ body[data-card-style='blank'] .post-card-image {
      order:0/order:0 survived into this column layout unchanged, putting
      content (first in post-card.hbs's markup) before the image. Explicit
      order here overrides every layout/card variant uniformly instead of
-     patching nth-of-type(3n+1) as a one-off. */
+     patching nth-of-type(3n+1) as a one-off.
+     gap also wasn't reset here (2026-08-25 fix): the nth-of-type(3n+1)
+     desktop rule sets gap:4rem for its SIDE-BY-SIDE row layout (image
+     left, content right — see that rule further up this file), and
+     flex-direction:column alone doesn't clear a sibling rule's own gap
+     value, so 4rem (64px) survived unchanged into this stacked mobile
+     layout — visibly larger than the paired cards' own image-to-
+     description spacing (padding-based, not gap, see .post-card-content
+     above). Zeroing it here for every card uniformly (not just
+     nth-of-type(3n+1)) is harmless: paired cards' own gap is already 0
+     (that rule's own comment), so this is a no-op restating their value,
+     while actually fixing the one card variant that needed it. */
   .post-card-inner {
     flex-direction: column !important;
-    
+    gap: 0 !important;
   }
 
   .post-card-inner .post-card-image,
@@ -2204,6 +2470,20 @@ body[data-card-style='blank'] .post-card-image {
 
   .post-card-inner .post-card-content {
     order: 1 !important;
+  }
+
+  /* grid layout's full-width row (nth-of-type(3n+1)) sets padding-top:0
+     on its content — correct for its DESKTOP side-by-side row (gap:4rem,
+     just reset above, already provides the spacing there), but once
+     stacked into a column on mobile there is no gap left to carry that
+     job, and the padding-based mechanism paired cards use (see
+     .post-card-content above, 2rem 0 0 0) is what actually needs to
+     apply here too. Scoped to nth-of-type(3n+1) specifically, not the
+     universal .post-card-inner .post-card-content rule above — other
+     layouts (list, carousel, cinematic) already handle their own content
+     padding correctly and don't need this. */
+  .posts-grid[data-posts-layout='grid'] .post-card:nth-of-type(3n+1) .post-card-content {
+    padding-top: 2rem !important;
   }
 
   .work-grid .post-card-link {

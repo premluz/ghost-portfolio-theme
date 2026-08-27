@@ -211,3 +211,32 @@ the `drop-shadow` filter first, hex last.
   `.posts-tabs-grid-lab-section`). Profile is the deliberate exception —
   it's `z-index: 0` so the terrain shape shows through it, not the other
   way around.
+- **A shape can inherit the PREVIOUS shape's particle sizes.** Generators
+  fall into two camps: some author a `sizes` array (helix, volatility,
+  terrain, grid, the dispersed variants), others return bare positions and
+  get `sizes: null` from `ShapeDefinition.generate()` — which includes
+  `sphereGenerator`, and therefore **`lab`**. The morph path in
+  `particle-animation-loop.js` writes the `size` / `aTargetSize` buffers
+  only when the destination actually has sizes; without an `else` it leaves
+  the outgoing shape's values in place. Since every load starts on
+  `'dispersed'` (sizes up to **2.0**, vs an authored norm of ~**0.49**),
+  morphing straight into a no-sizes shape rendered it at roughly 4x
+  luminance under additive blending. Fixed by filling with `0.49` in both
+  places — see COMMON_ISSUES.md "Lab Orb Renders Over-Saturated After
+  Closing a Post". **If you add a generator, either author `sizes` or know
+  you are relying on that fallback.**
+- **Authored particle sizes cluster around `0.38 + h * 0.22`** (~0.38–0.60,
+  caps at 0.40). Treat ~0.49 as the norm when you need a size from nowhere.
+  Note `createParticles()`'s own no-sizes fallback is `1.0`, which is ~2x
+  that linearly and ~4x by sprite area — it applies only on a direct
+  (non-morph) apply, and is deliberately left as-is, so the same shape can
+  legitimately differ slightly between a fresh apply and a post-morph state.
+- **Brightness bugs are measured, not reasoned about.** `AdditiveBlending`
+  means size, count, glow, tint and overdraw all read as "brighter", and
+  the uniforms can be byte-identical while the frame is not. Probe the
+  actual output with `gl.readPixels` (mean luminance + lit-pixel coverage)
+  and compare good vs bad at **matched `innerWidth`/`innerHeight`,
+  `devicePixelRatio` and `scrollY`** — mismatched viewports alone produce a
+  convincing false signal. Also: `console.log` is silenced site-wide unless
+  `window.DEBUG_SCROLL = true` (see `default.hbs`), so a probe that "prints
+  nothing" may simply be gagged.

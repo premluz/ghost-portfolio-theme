@@ -1814,7 +1814,7 @@ p:last-child {
 .field-grid-item {
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
+  gap: var(--space-sm);
   min-width: 0;
   border: 1px solid var(--glass-border);
   border-radius: var(--glass-radius);
@@ -2275,6 +2275,48 @@ p:last-child {
   position: relative;
 }
 
+/* data-card="container" — same glass card look .field-grid/.case-study-item
+   use for their own container mode, applied to the WHOLE section: border/
+   radius/shadow around the section's existing box, plus real vertical
+   padding (the section has none by default — .case-study-columns only
+   ever handles its own HORIZONTAL inset). This boxes whatever
+   data-background/data-gradient-wash paint behind it into a distinct
+   floating card rather than replacing either — all three are additive
+   and can combine (e.g. a colored, washed, bordered card).
+   Padding here is vertical-only (`0 var(--space-lg)` on the block axis,
+   i.e. top/bottom get --space-lg, left/right stay 0) — deliberately NOT
+   the horizontal inset too: .case-study-columns already carries its own
+   `padding: 0 var(--content-padding)`, matched to the content-padding
+   token every other section's horizontal inset uses. Adding a second,
+   DIFFERENT horizontal padding here (--space-lg, a spacing-scale value,
+   not the content-padding token) would stack on top of that and produce
+   an inset wider than any other section on the page for no reason —
+   the card's visible border still needs to sit inside that same
+   horizontal edge, not push further in.
+   margin-left/-right: var(--content-padding) — the card's BORDER itself
+   pulled in from the section's own wide-start/wide-end track edges,
+   same token as the vertical-padding note above, so the card floats with
+   real breathing room instead of its border sitting flush against the
+   same horizontal line .case-study-columns' content already touches.
+   .case-study-section is BOTH a grid item (positioned via grid-column on
+   the page's own track list) and a grid container (grid-template-columns:
+   inherit, base rule above, copies that same resolved track list one
+   level down for .case-study-columns to line up against) — margin here
+   shrinks this box, so the INHERITED named lines (narrow-start,
+   contained-end, wide-start, etc.) resolve slightly narrower inside a
+   card-mode section than in a plain one. Deliberate: the whole content
+   area — card border AND the columns/zones inside it — pulls in together,
+   not just the border floating disconnected from unchanged-width content
+   behind it. */
+.case-study-section[data-card="container"] {
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow), var(--glass-inset-light);
+  padding: var(--space-lg) 0;
+  margin-left: var(--content-padding);
+  margin-right: var(--content-padding);
+}
+
 /* Paint the section's own body when — and only when — data-background is
    set. Scoped to the ATTRIBUTE's presence rather than declared on the base
    rule above, which is the whole distinction: an instance that specifies a
@@ -2696,7 +2738,23 @@ p:last-child {
   max-width: var(--content-max-width-text);
 }
 .case-study-section[data-content-align] > .case-study-columns[data-width="contained"] {
-  max-width: var(--content-max-width-wide);
+  /* Fixed 1440px, not var(--content-max-width-media) — that token was
+     tried first (fixing an earlier bug where it referenced a typo'd,
+     never-defined --content-max-width-contained and silently rendered
+     with NO cap at all), but it scales with the SITE-WIDE page_width
+     setting, not a fixed number: this element's own data-width="contained"
+     picks which TIER of the .gh-canvas zone system a column uses, a
+     per-instance authoring choice, completely independent of the site's
+     global page_width setting despite sharing the word "contained" — the
+     live site currently has page_width="full", which made this resolve to
+     1800px instead of 1440px. Same fix wide already has just below (flat
+     1600px instead of a derived value, for the identical page_width-drift
+     reason — see that rule's own comment) and the same number
+     [data-page-content-width="contained"] already uses elsewhere
+     (main.css, that attribute family) — this makes data-width="contained"
+     mean one fixed width regardless of the site setting, matching how an
+     author would expect a named tier to behave. */
+  max-width: 1440px;
 }
 .case-study-section[data-content-align] > .case-study-columns[data-width="wide"] {
   /* Fixed 1600px, not calc(var(--container) + 200px) — that derived
@@ -2741,14 +2799,37 @@ p:last-child {
 }
 
 .case-study-columns[data-width="narrow"] { grid-column: narrow-start / narrow-end; }
-.case-study-columns[data-width="contained"] { grid-column: contained-start / contained-end; }
 .case-study-columns[data-width="full"] { grid-column: full-start / full-end; }
+
+/* contained WITHOUT data-content-align — same gap the wide rule below was
+   already fixed for: this track (contained-start/-end) has no max-width
+   of its own, so the box just grows to fill whatever the track computes
+   to (--contained: minmax(0, calc(--content-max-width-media - --main)) on
+   .gh-canvas) with no cap. Unlike wide, this wasn't even visibly "wrong"
+   by a measurable stale number — it just had no cap at all where every
+   other tier in this pair of rule-sets (narrow via --content-max-width-
+   text, wide via a flat 1600px) does.
+   Fixed 1440px, not var(--content-max-width-media) — same reasoning as
+   the data-content-align path's own identical rule (~line 2698): that
+   token scales with the site-wide page_width setting, not a fixed number,
+   so data-width="contained" would silently resolve to a different width
+   (1800px on this site's actual "full" page_width setting) depending on
+   an unrelated global toggle, instead of meaning one consistent thing.
+   Explicit max-width added so data-width="contained" behaves the same
+   whether or not the parent .case-study-section also carries
+   data-content-align. Track itself still POSITIONS the box (left-
+   anchored, PAGE-WIDTH-SYSTEM.md), same as wide's own comment below
+   explains for that tier. */
+.case-study-columns[data-width="contained"] {
+  grid-column: contained-start / contained-end;
+  max-width: 1440px;
+}
 
 /* wide WITHOUT data-content-align — the same instance that gets a fixed
    1600px cap when data-content-align IS present (rule above, ~2563) fell
    through to the raw wide-start/wide-end NAMED TRACK here instead, with
    no max-width applied at all: measured live at 2000px (--container +
-   200px - --content-max-width-wide math, .gh-canvas), not 1600px — the
+   200px - --content-max-width-media math, .gh-canvas), not 1600px — the
    exact same value the OTHER rule used to have before being fixed to a
    flat 1600px. Two different real widths for the identical
    data-width="wide" depending on an unrelated sibling attribute
@@ -2809,11 +2890,48 @@ p:last-child {
 .case-study-columns[data-cols="3"][data-col-widths="1/2/1"] { grid-template-columns: 1fr 2fr 1fr; }
 .case-study-columns[data-cols="3"][data-col-widths="1/1/2"] { grid-template-columns: 1fr 1fr 2fr; }
 
+/* RESPONSIVE REFLOW — small-desktop breakpoint, new for this component
+   (no existing @media (max-width: 1280px) anywhere else in this file;
+   the file's other breakpoints are 768/1024px, both tuned for phone/
+   tablet, not for a multi-column editorial grid that's still too
+   cramped at typical laptop widths once a 2-3fr split or the wide/full
+   zone's own real width is accounted for). Same override shape as
+   data-layout="stacked" above (forces grid-template-columns:1fr and
+   drops the gap to --space-lg) — this is that exact behavior, just
+   applied automatically below the breakpoint instead of requiring the
+   author to opt in via data-layout. !important for the same reason
+   data-layout="stacked" needs it: data-col-widths above is a higher-
+   specificity [data-cols][data-col-widths] pair and would otherwise
+   keep winning at any width. Harmless if data-layout="stacked" is ALSO
+   set — both resolve to the identical 1fr/gap values, no conflict. */
+@media (max-width: 1280px) {
+  .case-study-columns {
+    grid-template-columns: 1fr !important;
+    gap: var(--space-lg) !important;
+  }
+}
+
 .case-study-item {
   min-width: 0;
   display: flex;
   flex-direction: column;
   align-self: stretch;
+}
+
+/* data-card="container" — same glass card look .field-grid/.content-grid
+   already use for their own data-card="container" mode (border/radius/
+   shadow/padding, main.css CARD PLACEMENT block), one level up: wraps the
+   WHOLE .case-study-item pane (title + any nested field-grids together)
+   in one card instead of each individual field-grid-item getting its own.
+   No "none" value here (unlike field-grid's container/none pair) — a bare
+   .case-study-item has no card of its own to begin with (today's only
+   behaviour is unstyled), so there's nothing for a "none" variant to
+   opt out of. */
+.case-study-item[data-card="container"] {
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow), var(--glass-inset-light);
+  padding: var(--space-lg);
 }
 
 /* data-bleed — left | right | both (on .case-study-item, optional) —
@@ -2839,6 +2957,34 @@ p:last-child {
 .case-study-item[data-bleed="both"] {
   margin-left: calc(-1 * var(--content-padding));
   margin-right: calc(-1 * var(--content-padding));
+}
+
+/* data-content-width="50"|"75" — caps the item's CONTENT to that % width,
+   not the item's own grid-cell width. max-width:N% on .case-study-item
+   itself would shrink the column .case-study-columns' data-col-widths
+   already sized it to — the item still needs to occupy its full grid cell
+   so sibling columns and the row's own gap stay correct; only what's
+   INSIDE it should narrow. Targeted at the item's direct children (> *),
+   not the item's own box, for exactly that reason — .case-study-item is
+   flex-direction:column, so each child (h2, p, .field-grid, etc.) is
+   already a full-width block by default; capping each one individually
+   reads as "this pane's content is N% as wide," not "this pane is N% as
+   wide." Two fixed values (50/75), same "known values, not open-ended
+   input" contract data-col-widths/data-align/data-offset-* all already
+   use — add more percentages here as real compositions need them.
+   Desktop only (min-width: 1281px, one pixel above .case-study-columns'
+   own 1280px stacking breakpoint above) — on mobile/tablet the item is
+   already a full-bleed single column post-reflow, where a narrowed
+   content column would look like broken layout rather than art
+   direction; this is a desktop-composition-only device, on request. */
+@media (min-width: 1281px) {
+  .case-study-item[data-content-width="50"] > * {
+    max-width: 50%;
+  }
+
+  .case-study-item[data-content-width="75"] > * {
+    max-width: 75%;
+  }
 }
 
 /* VERTICAL ALIGNMENT — align-self on the grid item, independent of
@@ -3102,6 +3248,29 @@ p:last-child {
   }
 
   .content-grid[data-cols-mobile="2"]:not([data-layout="carousel"]) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* .field-grid was missing this collapse entirely — its own doc comment
+     (data-cols-mobile, ~line 1769) already documents "same contract as
+     .content-grid's own mobile override", but only .grid-row (the
+     data-rows/per-row variant, its own rule right above) actually got
+     one; the plain top-level .field-grid[data-cols="N"] case never did.
+     :not([data-cols-mobile="2"]) isn't a carousel-style exemption (no such
+     concept on .field-grid) — it's what BOOSTS this selector's specificity
+     to (0,2,0), tying .field-grid[data-cols="N"] above (also (0,2,0)) so
+     source order (this rule comes later) is what decides, exactly the
+     mechanism .content-grid's own equivalent mobile rule relies on
+     (:not([data-layout="carousel"]) serves the identical dual purpose
+     there). A bare `.field-grid { }` here is only (0,1,0) — strictly
+     weaker than [data-cols="N"]'s (0,2,0) regardless of source order, so
+     it would silently never win; confirmed by walking the cascade rules
+     before shipping this, not by assumption. */
+  .field-grid:not([data-cols-mobile="2"]) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .field-grid[data-cols-mobile="2"] {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -3373,18 +3542,53 @@ kg-gallery-container {
 /* LINKS & INTERACTIVE */
 /* ─────────────────────────────────────────────────────────── */
 
-a {
+/* LINK UNDERLINES — dotted at rest, solid on hover.
+   text-decoration-color was previously `transparent` at rest, so links had
+   no visible affordance until hovered. The line is now always drawn, just
+   in a lighter dotted form.
+   `text-decoration: none` is NOT used here (nor in the footer overrides
+   below): that shorthand resets line/style/colour together, which is what
+   silently suppressed the underline everywhere it appeared.
+   Only the COLOUR transitions — text-decoration-style is a discrete
+   property and cannot animate, so dotted -> solid switches instantly while
+   the colour eases. That reads fine because the two change together; a
+   thickness transition would be the alternative but it shifts baseline
+   spacing on some fonts. */
+/* Scoped to PROSE contexts, not to `a` globally.
+   Excluding components by class was tried first and cannot work here: the
+   nav's own items are bare classless <a> elements (aria-label="Home" etc.),
+   so any blanket rule underlines the whole navigation, while the real
+   inline links in the footer carry .text-gradient and would need
+   re-including anyway. Opting IN per container is both safer and closer to
+   intent — an underline marks a link inside running text, and standalone
+   <a> elements that act as buttons/cards/nav never want one.
+   Add a container here to extend it. */
+:is(
+  .footer-description,
+  .post-content, .post-body, .page-content,
+  .prose, .statement-description, .hero-description,
+  .about-content, .profile-paragraph, .testimonial-quote
+) a {
   color: var(--color-link);
-  text-decoration: none;
   transition: color var(--duration-fast) var(--ease-standard),
               text-decoration-color var(--duration-fast) var(--ease-standard);
   text-decoration-line: underline;
-  text-decoration-color: transparent;
+  text-decoration-style: dotted;
+  /* currentColor at reduced alpha rather than a fixed token, so the dotted
+     rest state stays legible against whatever the link's own colour is —
+     including inside inverted/shifted sections where --color-link changes. */
+  text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
   text-underline-offset: 0.25em;
 }
 
-a:hover {
+:is(
+  .footer-description,
+  .post-content, .post-body, .page-content,
+  .prose, .statement-description, .hero-description,
+  .about-content, .profile-paragraph, .testimonial-quote
+) a:hover {
   /* color: var(--color-link-hover); */
+  text-decoration-style: solid;
   text-decoration-color: var(--color-link-hover);
 }
 
@@ -3671,7 +3875,7 @@ html {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 196px; /* was 280px — 30% less per explicit request */
+  height: 137px; /* was 196px (itself 30% less than an earlier 280px) — another 30% off per explicit request. All 5 .nav-blur-layer masks below use percentage-based gradient stops, not fixed px offsets, so they rescale proportionally with this height automatically — no other value needs touching. */
   /* Back to -1 (2026-08-09), matching both snapshots. It had been raised to
      9999 while this element was temporarily a sibling of <nav> rather than
      a child: as a direct child of <body>, -1 means "behind the page's root
@@ -4648,6 +4852,15 @@ body.post-template.nav-collapsing .nav-post-controls {
   opacity: 1 !important;
 }
 
+/* .nav-tooltip has no generic `:hover .nav-tooltip` trigger — every
+   consumer (.nav-menu a, .nav-icon-btn, .tab-switch-btn, .hero-avatar) adds
+   its own :hover rule above/below, and .footer-social-btn was missing from
+   that list, so the tooltip's opacity:0 !important default never lifted
+   regardless of hover. */
+.footer-social-btn:hover .nav-tooltip {
+  opacity: 1 !important;
+}
+
 /* Nav icon buttons have no scale transform on active — prevents
    the "press" blink on the logo and theme toggle during click. */
 .nav-icon-btn:active {
@@ -5516,6 +5729,28 @@ body.page-contact .nav-wrapper {
   margin-top: var(--space-2xl);
 }
 
+/* Footer instance of .post-nav-section (default.hbs, the two static panes
+   under "Let's make it happen"). Two overrides needed here, neither
+   belonging on the shared rule above:
+
+   text-align: left — .footer-signup-section sets text-align:center for its
+   own heading/description/button, and .post-nav-eyebrow/-title correctly
+   have no alignment of their own (they inherit whatever context they're
+   used in, e.g. post-navigation.hbs's own left-aligned page footer). The
+   footer's centered context was the wrong inherited value for these,
+   not a missing declaration on the shared component — reset locally.
+
+   padding: content-padding — every other full-bleed element in this
+   section (.footer-description, the button) sits inside .footer-content,
+   which the base rule above already respects via width:100% inheriting
+   that ancestor's own gutter. This block-level element needs its OWN
+   horizontal inset because .post-nav-card fills to 100% of whatever
+   contains it, unlike the text elements which just wrap. */
+.footer-nav-panes {
+  text-align: left;
+  padding: 0 var(--content-padding);
+}
+
 /* Two cards (prev + next) side by side once there's room; column above
    stays the single-card/mobile default. */
 @media (min-width: 900px) {
@@ -5527,6 +5762,7 @@ body.page-contact .nav-wrapper {
   .post-nav-section .post-nav-card {
     flex: 1 1 50%;
     width: auto;
+
   }
 }
 
@@ -5665,6 +5901,11 @@ body.page-contact .nav-wrapper {
   .post-nav-card {
     flex-direction: column;
     min-height: auto;
+    /* --space-md (was --space-lg, the base rule's value) — .post-nav-inner
+       sets gap:inherit, so this is also where its own image-to-text gap
+       comes from. --space-lg's 24px read as too loose once the card
+       stacks to a single column on phones. */
+    gap: var(--space-md);
   }
 
   .post-nav-image-container {
@@ -5697,7 +5938,7 @@ body.page-contact .nav-wrapper {
   background-repeat: no-repeat;
   background-position: center;
   background-attachment: fixed;
-  min-height: 1280px;
+  min-height: 1440px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -5901,8 +6142,8 @@ body.page-contact .nav-wrapper {
   font-size: var(--text-size-body);
   font-style: normal;
   line-height: 1.4;
-  color: var(--color-on-surface) !important;
-  margin: var(--space-sm) 0;
+  color: var(--color-on-surface-subtle) !important;
+  margin: var(--space-sm) 0 var(--space-sm) 0;
   transition: color 0.3s ease;
 }
 
@@ -5942,7 +6183,7 @@ body.page-contact .nav-wrapper {
 /* Endorser name */
 .post-card-endorser {
   font-size: var(--text-size-small) !important;
-  color: var(--color-text-secondary, rgba(255, 255, 255, 0.6));
+  color: var(--color-on-surface-subtle) !important;
   margin: 0 0 var(--space-sm) 0;
   transition: color 0.3s ease;
   font-weight: var(--text-weight-thin);
@@ -6754,12 +6995,12 @@ body[data-typography-body='medium'] .posts-tab {
      math produces, with no overflow risk. */
   --gap: max(4vmin, 20px);
   --main: min(var(--content-max-width-text), 100% - var(--gap) * 2);
-  --container: 1280px;
+  --container: 1440px;
   /* CONTAINED zone (added 2026-08-05): a step between the text measure and
      the wide zone, so body text and images no longer have to share one
      width. Text stays in `main`/`narrow` (unchanged measure — existing
      posts don't reflow); images default here instead, widening from the
-     text measure to --content-max-width-wide. `narrow-start/-end` are
+     text measure to --content-max-width-media. `narrow-start/-end` are
      aliases for the same track as `main-start/-end` — the zone scale reads
      narrow → contained → wide → full (matching the data-*-width attribute
      scale), while every existing `main-start / main-end` rule in this file
@@ -6769,8 +7010,8 @@ body[data-typography-body='medium'] .posts-tab {
      target width (see the left-anchoring comment on grid-template-columns
      below) — halving here would make each zone reach only half its
      intended width past --main. --contained's target total width is
-     --content-max-width-wide, so the track itself is the FULL difference. */
-  --contained: minmax(0, calc(var(--content-max-width-wide) - var(--main)));
+     --content-max-width-media, so the track itself is the FULL difference. */
+  --contained: minmax(0, calc(var(--content-max-width-media) - var(--main)));
   /* --wide's target total width is (container + 200px) — same total this
      produced before left-anchoring, just reached via one track instead of
      two halves. 200px, not a bare 200: the unitless form here made this
@@ -6780,7 +7021,7 @@ body[data-typography-body='medium'] .posts-tab {
      just filled the canvas width. Verified with CSS.supports-style
      parsing: the unitless variant is rejected outright, the px variant
      parses. Long-standing, predates the contained zone. */
-  --wide: minmax(0, calc(var(--container) + 200px - var(--content-max-width-wide)));
+  --wide: minmax(0, calc(var(--container) + 200px - var(--content-max-width-media)));
   /* Floor dropped to 0 (was var(--gap)) — .kg-width-full/.kg-gallery-card
      already carry their own explicit content-padding (below), so this
      track no longer needs to reserve a minimum width itself. At/near
@@ -6895,7 +7136,7 @@ body[data-page-width='full'] .gh-canvas {
   /* main-start/main-end (was wide-start/wide-end) — that put body text in
      the SAME grid span as .kg-width-wide (the wide zone PLUS the main
      column combined, per the named-line math above), so text and "wide"
-     images rendered at the identical width (measured 1280px = 1280px on a
+     images rendered at the identical width (measured 1440px = 1440px on a
      live post) — the whole narrow-text/wide-image contrast this grid
      exists for wasn't actually happening. main-start/main-end is just the
      inner --main track (clamped to --content-max-width-text). */
@@ -7379,8 +7620,7 @@ html.invert-timed-active {
      #page-backdrop for --page) reads from the border box via inset:0,
      unaffected by padding, so it stays genuinely full-bleed while the
      grid children pull in symmetrically. */
-  padding-left: var(--content-padding);
-  padding-right: var(--content-padding);
+
 }
 
 /* Re-establish the same "fill whatever span the grid gave you" default
@@ -7613,12 +7853,15 @@ html.invert-timed-active {
    shape, untouched). Fixed-width logo + meta columns, title takes the
    remaining space — matches the reference composition (logo mark, a
    narrow eyebrow+value meta list, then the large H1 alongside it).
-   On mobile (768px, same breakpoint every other reflow rule in this file
-   uses), logo + meta STAY side by side (2 columns, auto + 1fr) —
-   matching the desktop pairing — with only the title dropping to its own
-   full-width row below both; title's grid-column:1/-1 is what spans it
-   across whatever column count is active, so this rule doesn't need its
-   own separate override at this breakpoint. */
+   Below 1280px (raised from 768px — was the only breakpoint in this file
+   tuned for a small-desktop cutoff rather than phone/tablet; matches
+   .case-study-columns' own 1280px reflow, added for the identical "still
+   cramped at laptop widths" reason), logo + meta STAY side by side
+   (2 columns, auto + 1fr) — matching the desktop pairing — with only the
+   title dropping to its own full-width row below both; title's
+   grid-column:1/-1 is what spans it across whatever column count is
+   active, so this rule doesn't need its own separate override at this
+   breakpoint. */
 .post-header-top {
   display: grid;
   grid-template-columns: auto minmax(160px, 220px) 1fr;
@@ -7626,7 +7869,7 @@ html.invert-timed-active {
   align-items: start;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1280px) {
   .post-header-top {
     grid-template-columns: auto 1fr;
     gap: var(--space-lg);
@@ -7641,10 +7884,25 @@ html.invert-timed-active {
   display: flex;
 }
 
+/* Desktop (>1280px): single-column stack of eyebrow+value rows in a
+   narrow (160-220px) column — plenty for one field per row at that
+   width. Below 1280px, once the meta column widens to 1fr alongside the
+   logo (.post-header-top's own breakpoint above), six stacked rows
+   (client/category/timeline/skills/date/scope) run needlessly tall in
+   the newly-generous width; 2 columns fills that width instead. */
 .post-header-meta {
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
+}
+
+@media (max-width: 1280px) {
+  .post-header-meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: var(--space-lg);
+    row-gap: var(--space-md);
+  }
 }
 
 .post-header-meta-row {
@@ -7668,7 +7926,7 @@ html.invert-timed-active {
 
 /* Override page-width constraints for fullscreen post hero — releases
    .container from the site-wide page_width cap (body[data-page-width='X']
-   .container below, 1280/1600/1800px) so a fullscreen-hero post isn't
+   .container below, 1440/1600/1800px) so a fullscreen-hero post isn't
    squeezed to the same width as a normal page. Capped at --max-width
    (tokens.css) rather than released to fully unconstrained, so it still
    doesn't stretch to the raw viewport edge on ultra-wide monitors. */
@@ -7815,7 +8073,7 @@ html.invert-timed-active {
      full-bleed (see that class's own rule, just above). Applying the same
      calc(-50vw + 50%) breakout a second time here double-applied it:
      verified live, the "already full-bleed" parent made this element
-     compute back DOWN to the constrained (1280px-ish) width instead of
+     compute back DOWN to the constrained (1440px-ish) width instead of
      staying at the viewport edge — the two breakouts effectively
      cancelled out. width:100% now correctly just fills the already-
      full-bleed parent.
@@ -7880,7 +8138,7 @@ body[data-page-width='narrow'] .post[data-post-hero='respects_page_width'] .post
 
 body[data-page-width='contained'] .post[data-post-hero='respects_page_width'] > .post-header,
 body[data-page-width='contained'] .post[data-post-hero='respects_page_width'] .post-layout {
-  max-width: 1280px;
+  max-width: 1440px;
 }
 
 body[data-page-width='wide'] .post[data-post-hero='respects_page_width'] > .post-header,
@@ -7904,7 +8162,7 @@ body[data-page-width='narrow'] .post[data-post-hero='respects_page_width'] .post
 }
 
 body[data-page-width='contained'] .post[data-post-hero='respects_page_width'] .post-image {
-  max-width: 1280px;
+  max-width: 1440px;
 }
 
 body[data-page-width='wide'] .post[data-post-hero='respects_page_width'] .post-image {
@@ -7936,7 +8194,7 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-i
 .post[data-post-hero='narrow'] > .post-header,
 .post[data-post-hero='narrow'] .post-layout { max-width: 700px; }
 .post[data-post-hero='contained'] > .post-header,
-.post[data-post-hero='contained'] .post-layout { max-width: 1280px; }
+.post[data-post-hero='contained'] .post-layout { max-width: 1440px; }
 .post[data-post-hero='wide'] > .post-header,
 .post[data-post-hero='wide'] .post-layout { max-width: 1600px; }
 
@@ -7949,7 +8207,7 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-i
 }
 
 .post[data-post-hero='narrow'] .post-image { max-width: 700px; }
-.post[data-post-hero='contained'] .post-image { max-width: 1280px; }
+.post[data-post-hero='contained'] .post-image { max-width: 1440px; }
 .post[data-post-hero='wide'] .post-image { max-width: 1600px; }
 
 /* .post-header-layout[data-post-hero] — post.hbs, INDEPENDENT of the
@@ -7962,7 +8220,7 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-i
    already 100% inert on post.hbs regardless, serving only page.hbs/
    page-about.hbs's own .post-header/.post-image. Safe to add this
    without touching a single existing selector.
-   Same narrow/contained/wide/full 700/1280/1600/1800px scale as the
+   Same narrow/contained/wide/full 700/1440/1600/1800px scale as the
    article-level tier, but scoped to JUST the header row — the article
    itself can stay "full" (unconstrained body content) while the header
    independently pins to any of these, or vice versa. "full" here means
@@ -7979,7 +8237,7 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-i
 }
 
 .post-header-layout[data-post-hero='narrow'] { max-width: 700px; }
-.post-header-layout[data-post-hero='contained'] { max-width: 1280px; }
+.post-header-layout[data-post-hero='contained'] { max-width: 1440px; }
 .post-header-layout[data-post-hero='wide'] { max-width: 1600px; }
 
 /* .post-hero-sticky[data-post-hero] — the actual hero <figure>, matching
@@ -8017,7 +8275,7 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-i
 }
 
 .post-hero-sticky[data-post-hero='narrow'] { max-width: 700px; }
-.post-hero-sticky[data-post-hero='contained'] { max-width: 1280px; }
+.post-hero-sticky[data-post-hero='contained'] { max-width: 1440px; }
 .post-hero-sticky[data-post-hero='wide'] { max-width: 1600px; }
 
 /* .post-body-area[data-page-hero] — same independent-tier treatment,
@@ -8036,7 +8294,7 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-i
 }
 
 .post-body-area[data-page-hero='narrow'] { max-width: 700px; }
-.post-body-area[data-page-hero='contained'] { max-width: 1280px; }
+.post-body-area[data-page-hero='contained'] { max-width: 1440px; }
 .post-body-area[data-page-hero='wide'] { max-width: 1600px; }
 
 .post-footer {
@@ -8178,9 +8436,9 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-i
 /* .content-grid/.field-grid WIDTH (2026-08-11 rewrite) — was pinned to the
    .gh-content named-line zone tracks (contained-start/-end,
    main-start/-end), whose actual pixel widths come from
-   --content-max-width-wide (1000px default) — a COMPLETELY different
+   --content-max-width-media (1000px default) — a COMPLETELY different
    number from [data-page-content-width]'s own contained/wide values
-   (1280px/1600px, hardcoded, main.css below) despite the matching names.
+   (1440px/1600px, hardcoded, main.css below) despite the matching names.
    .kg-width-wide adds a THIRD number on top (max-width:1800px against a
    wide-start/-end track sized from --container+200px). Three scales,
    same words, none agreeing — confirmed live by comparing computed
@@ -8199,7 +8457,7 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-i
 .gh-content > .field-grid {
   grid-column: full-start / full-end;
   width: 100%;
-  max-width: 1280px; /* same literal value as [data-page-content-width="contained"] */
+  max-width: 1440px; /* same literal value as [data-page-content-width="contained"] */
   margin-inline: auto;
 }
 
@@ -8428,7 +8686,7 @@ body[data-page-width='full'] .post[data-post-hero='respects_page_width'] .post-i
   margin-top: 0;
   margin-left: 0;
   margin-right: 0;
-  margin-bottom: var(--content-padding);
+  margin-bottom: 20vh;
   width: 100%;
   padding: 0 var(--content-padding);
   display: flex;
@@ -8458,7 +8716,24 @@ body.page-contact .gh-footer {
   /*background: var(--surface-1); */
   border-radius: var(--radius-lg);
   padding: var(--space-lg) 0;
-    margin-bottom: var(--content-padding);
+    margin-bottom: 0;
+}
+
+/* Mobile: generous breathing room top and bottom. The footer is the page's
+   closing block and the desktop-proportioned --space-lg (~24px) read as
+   cramped once everything stacks into one column.
+   20vh, not a --space token: this is a deliberate proportional gap sized
+   against the viewport rather than a step on the spacing scale (~169px on a
+   844px-tall phone). dvh rather than vh would track mobile browser chrome,
+   but the difference is absorbed here — this is open space, not a layout
+   constraint, so a stable value is preferable to one that reflows as the
+   URL bar hides.
+   Vertical only: the horizontal 0 is deliberate, since .footer-content
+   inside supplies the gutter via --content-padding. */
+@media (max-width: 768px) {
+  .footer-bg {
+    padding: 20vh 0;
+  }
 }
 
 /* Footer respecting page width — .gh-footer itself is the single source of
@@ -8551,6 +8826,85 @@ body.page-contact .gh-footer {
   color: var(--color-on-surface-variant);
 }
 
+/* Wraps .footer-cta-text + .footer-social so the text can centre against
+   the ICON ROW's own width, not .footer-signup-section's full width — the
+   two previously drifted apart because .footer-cta-text inherited that
+   ancestor's text-align:center (full section width) while .footer-social
+   is a flex row with no justify-content (natural/left width), so "centre"
+   meant two different things for the two lines. width:fit-content collapses
+   this wrapper to the icon row's actual width (the wider of the two
+   children), giving both a shared axis to centre against. */
+.footer-cta-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: fit-content;
+  margin: 0 auto;
+}
+
+.footer-cta-text {
+  /* Was .footer-button (an <a> styled as a button). Replaced with plain
+     text per explicit request — the actual calls to action now live in
+     .footer-social below. font/weight match the button's own former label
+     size so the line doesn't visually shrink where the button used to be. */
+  font-size: var(--text-size-body);
+  font-weight: var(--text-weight-bold);
+  color: var(--color-on-surface);
+  margin: 0;
+  text-align: center;
+}
+
+/* Circular icon row — LinkedIn / copy-email / message. Sized and shaped
+   like .nav-icon-btn (36px, radius-full) but with a visible ring instead of
+   a fully transparent hit target: nav icons sit against the nav's own
+   glass-liquid backdrop and don't need one, but these sit on the plain
+   footer background and were unreadable as hit targets without an edge. */
+.footer-social {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+
+.footer-social-btn {
+  position: relative; /* anchors .nav-tooltip */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-outline-variant);
+  background: transparent;
+  color: var(--color-icon);
+  cursor: pointer;
+  padding: 0;
+  transition: border-color var(--duration-fast) var(--ease-standard),
+              background-color var(--duration-fast) var(--ease-standard),
+              transform var(--duration-fast) var(--ease-standard);
+}
+
+.footer-social-btn:hover {
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+
+.footer-social-btn:active {
+  transform: scale(0.94);
+}
+
+/* Inline SVGs now (default.hbs), not <img> — the source .svg files were
+   fixed-colour brand logos (LinkedIn blue, and two unrelated brands'
+   marks wrongly matched by "mail"/"message" filenames) that couldn't be
+   themed via a CSS filter without also distorting their actual brand hue.
+   Genuine icon SVGs with stroke/fill="currentColor" just inherit the
+   button's own `color` (--color-icon, set on .footer-social-btn below) —
+   no filter needed, same mechanism .nav-icon-btn's inline SVGs use. */
+.footer-social-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
 .footer-button {
   padding: var(--space-sm) var(--space-lg);
   display: flex;
@@ -8598,9 +8952,14 @@ body.page-contact .gh-footer {
 
 .footer-nav a {
   color: var(--color-link);
+  /* Kept: .footer-nav items are navigation, not prose links. The dotted
+     underline is scoped to prose containers (see the `a` rule above) and
+     never reaches here, but the explicit reset guards against a future
+     container being added to that list. */
   text-decoration: none;
   font-size: var(--text-size-sm);
-  transition: color var(--duration-fast) var(--ease-standard);
+  transition: color var(--duration-fast) var(--ease-standard),
+              text-decoration-color var(--duration-fast) var(--ease-standard);
 }
 
 .footer-nav a:hover {
@@ -8638,7 +8997,7 @@ body.page-contact .gh-footer {
 
 .footer-credit a {
   color: var(--color-link);
-  text-decoration: none;
+  text-decoration: none; /* navigation, not prose — see .footer-nav a */
   transition: color var(--duration-fast) var(--ease-standard);
 }
 
@@ -8725,7 +9084,7 @@ body.page-contact .gh-footer {
 
 /* PAGE WIDTH CONFIGURATION */
 body[data-page-width='contained'] .container {
-  max-width: 1280px;
+  max-width: 1440px;
 }
 
 body[data-page-width='wide'] .container {
@@ -9168,7 +9527,7 @@ div[class*="sodo-search-overlay"],
 /* Hero text respects page width (rest position only — .hero-bg stays
    viewport-wide so the scroll-exit slide isn't clipped early). */
 body[data-page-width='contained'] .hero-container {
-  max-width: 1280px;
+  max-width: 1440px;
 }
 
 body[data-page-width='wide'] .hero-container {
@@ -9218,7 +9577,7 @@ body[data-page-width='full'] .hero-container {
 }
 
 body[data-page-width='contained'] .hero[data-home-hero-width='respect_page_width'] .hero-container {
-  max-width: 1280px;
+  max-width: 1440px;
 }
 
 body[data-page-width='wide'] .hero[data-home-hero-width='respect_page_width'] .hero-container {
@@ -9261,7 +9620,7 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
   z-index: 0;
 }
 
-.hero[data-home-hero-width='contained'] .hero-container { max-width: 1280px; }
+.hero[data-home-hero-width='contained'] .hero-container { max-width: 1440px; }
 .hero[data-home-hero-width='wide'] .hero-container { max-width: 1600px; }
 /* 'full' (the default — package.json) had no absolute pin of its own,
    unlike its contained/wide siblings above — .hero-container's base rule
@@ -9320,7 +9679,7 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
   }
 
   .hero.no-cover .hero-content {
-    margin-left: calc(31% + var(--space-2xl));
+    margin-left: calc(33% + var(--space-xl));
     width: calc(66% - var(--space-2xl));
   }
 }
@@ -9357,15 +9716,20 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
      block + the .char spans' natural inline display flows/wraps normally,
      same as it did before letter-splitting existed. */
   display: block;
-  /* min() overflow guard: the headline is split into 2-word lines, and the
-     longest realistic line measures ~6.9em in this serif ("Technically
-     fluent "). Capping font-size at available-width / 7.1 means the line
-     FITS BY CONSTRUCTION at every viewport — the previous fixed token size
-     clipped the headline's right edge on narrower desktop windows the
-     moment the copy got longer. If future copy has a longer 2-word line,
-     raise the 7.1 divisor to that line's em-width + ~0.2 headroom. */
+  /* --text-size-h1, not h2. This is the page's primary headline, but it was
+     rendering at the h2 token — capping at 80px where h1 reaches 128px, a
+     ~38% shortfall that left visible empty space to the right no matter how
+     wide its container was.
+     The comment that used to sit here described a min() width-divisor guard
+     (font-size: available-width / 7.1) that no longer exists in this rule,
+     and whose premise no longer holds either: it existed because the
+     headline was split into forced 2-word lines with white-space:nowrap, so
+     one long line could overflow. That splitting was removed (see
+     scroll-scrub-anim.js initHero() and the nowrap note below) — the
+     headline now wraps normally, so overflow is not possible and no
+     width-derived cap is needed. */
   font-size: var(--text-size-h2);
-  line-height: var(--text-line-height-h1) !important;
+  line-height: var(--text-line-height-h2) !important;
   letter-spacing: var(--text-letter-spacing-h1);
   color: var(--color-primary, #4a9e5c);
   margin-top: 0 !important;
@@ -9400,7 +9764,12 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
      REVEAL_START), so a brief pre-reveal blank state is already the
      expected, designed-for baseline here, not a regression.) */
   opacity: 0;
-  max-width: 700px !important
+  /* max-width: 700px !important — REMOVED. This was the real constraint on
+     the headline's width: an !important hard cap (and missing its trailing
+     semicolon, which is why it did not show up in a `max-width: …;` grep).
+     Raising the font-size token alone could never fill the hero while this
+     stood, since the text simply wrapped inside a 700px box. The headline
+     now takes the full width of .hero-content like its siblings. */
 }
 
 /* Belt-and-suspenders for the same gap the comment above describes: on this
@@ -9506,6 +9875,71 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
   display: block;
 }
 
+/* Wraps the avatar + h1 (hero.hbs). This element previously carried
+   `class="layout: flex; flex-direction: row"` — CSS declarations written
+   into a class attribute, which is inert: it matched no selector and the
+   two children simply stacked in normal flow with no spacing, since the
+   headline sets `margin: 0 !important`. Now a real class with a real gap. */
+/* Avatar + description on one row (hero.hbs). Was an inline
+   style="display:flex; gap:24px; align-items:center" — moved to a class so
+   the description can be given flex:1. Without that it sized to its own
+   content and stopped short of the hero's right edge even with its own
+   max-width removed, because a flex item's default is flex-grow:0. */
+.hero-avatar-row {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  width: 100%;
+}
+
+.hero-avatar-row .hero-description {
+  flex: 1;
+  min-width: 0; /* lets it shrink below content width instead of overflowing */
+}
+
+.hero-identity {
+  display: flex;
+  flex-direction: column;
+  /* stretch, NOT flex-start: flex-start shrink-wraps each child to its own
+     content width, so the headline and description could never fill the
+     hero regardless of their own width rules. stretch lets them take the
+     full column; anything that still needs to be narrower sets its own
+     max-width rather than relying on the parent to shrink it. */
+  align-items: stretch;
+  gap: var(--space-lg);
+  width: 100%;
+}
+
+/* Apple-style squircle, not a circle.
+   CSS border-radius draws a circular-arc corner; Apple's is a continuous
+   (superelliptic) curve, where the straight edge blends into the corner
+   instead of meeting it at a tangent discontinuity. There is no native CSS
+   for this, so the shape comes from an SVG path in a mask — a superellipse
+   approximated with cubic segments whose control points are pulled toward
+   the corners (the 0.13/0.37 factors), which is what produces the
+   characteristic smoothing.
+   Applied to the <img> rather than the link because the link must not clip:
+   .nav-tooltip sits below and wider than the 80px box, and overflow:hidden
+   here previously made it render nothing (see the note on .hero-avatar). */
+.hero-avatar img {
+  border-radius: 0;
+  -webkit-mask-image: var(--squircle-mask);
+  mask-image: var(--squircle-mask);
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+/* No mask support (older Safari/Firefox builds): fall back to a generous
+   border-radius. Visibly a plain rounded square rather than a squircle, but
+   the same silhouette family — never the full circle it used to be. */
+@supports not ((mask-image: none) or (-webkit-mask-image: none)) {
+  .hero-avatar img {
+    border-radius: 22.37%;
+  }
+}
+
 /* .nav-tooltip supplies the LOOK but not the trigger — every reveal rule for
    it is scoped to a nav ancestor (.nav-menu a:hover, .nav-icon-btn:hover),
    none of which match here, so without this the tooltip sat at opacity:0 on
@@ -9526,7 +9960,7 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
      numbers on the BODY axis, so the body-size setting moves it */
   /* Missing semicolon fixed 2026-08-07 — without it the line-height below
      was swallowed into this declaration and silently never applied. */
-  font-size: var(--text-size-h5);
+  font-size: var(--text-size-h4);
   line-height: var(--text-line-height-body, 1.8);
  /* color: var(--color-on-surface-variant, #d0d0d0); */
    color: var(--color-on-surface-subtle);
@@ -9534,7 +9968,9 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
   /* Prevent hyphenation and word breaks */
   hyphens: none;
   word-break: keep-all;
-  max-width: 760px;
+  /* max-width: 760px removed — the description now runs the full width of
+     .hero-content along with the headline. Restore the cap here if the
+     measure ever needs limiting again. */
   /* See the comment on .hero-headline above — same fix, same reason. */
   opacity: 0;
 }
@@ -9562,7 +9998,7 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: var(--space-lg);
-  margin-top: var(--space-lg);
+  margin-top: var(--space-md);
   opacity: 0;
   width: 100%;
 }
@@ -9919,7 +10355,14 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
        something a wider geometric guard can fix without also shrinking the
        default at narrower widths (confirmed: a flat width-based guard here
        would undercut the existing clamp's own min() at ~320px). */
-    font-size: min(clamp(calc(6.5rem * min(var(--type-scale-heading, 1), 1)), calc(13vw * min(var(--type-scale-heading, 1), 1)), var(--text-size-h1)), 12dvh) !important;
+    /* Floor 2.5rem (was 6.5rem = 104px). The old floor exceeded every
+       phone's 13vw term (~42-56px at 320-430px wide), so clamp() always
+       returned the floor and the headline rendered at an IDENTICAL ~101px
+       on every phone — pinned by the 12dvh cap below, never by width. The
+       vw term was inert and the headline simply did not scale down.
+       2.5rem matches --type-h1-size's own recalibrated mobile floor
+       (tokens.css); this rule was missed in that pass. */
+    font-size: min(clamp(calc(2.5rem * min(var(--type-scale-heading, 1), 1)), calc(13vw * min(var(--type-scale-heading, 1), 1)), var(--text-size-h1)), 12dvh) !important;
   }
 }
 
@@ -10555,7 +10998,7 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
 /* Header respects page width even though the section itself is full-bleed
    (the horizontal-scroll track below needs the full viewport). */
 body[data-page-width='contained'] .testimonials-section[data-testimonials-layout="scroll"] .testimonials-header {
-  max-width: 1280px;
+  max-width: 1440px;
 }
 
 body[data-page-width='wide'] .testimonials-section[data-testimonials-layout="scroll"] .testimonials-header {
@@ -11289,7 +11732,7 @@ body[data-page-width='narrow'] [data-home-content-width="respect_page_width"] {
 }
 
 body[data-page-width='contained'] [data-home-content-width="respect_page_width"] {
-  max-width: 1280px;
+  max-width: 1440px;
 }
 
 body[data-page-width='wide'] [data-home-content-width="respect_page_width"] {
@@ -11326,7 +11769,7 @@ body[data-page-width='full'] [data-home-content-width="respect_page_width"] {
   margin-left: auto;
   margin-right: auto;
   width: 100%;
-  max-width: 1280px;
+  max-width: 1440px;
 }
 
 [data-home-content-width="wide"] {
@@ -11356,7 +11799,7 @@ body[data-page-width='full'] [data-home-content-width="respect_page_width"] {
   width: 100%;
 }
 
-/* narrow: a step BELOW contained (1280) — added 2026-08-05 alongside the
+/* narrow: a step BELOW contained (1440) — added 2026-08-05 alongside the
    post-page Side-column layout, which needs a text measure narrower than
    the contained tier. Same shape as every other tier here, no new
    mechanism. */
@@ -11365,7 +11808,7 @@ body[data-page-width='narrow'] [data-page-content-width="respect_page_width"] {
 }
 
 body[data-page-width='contained'] [data-page-content-width="respect_page_width"] {
-  max-width: 1280px;
+  max-width: 1440px;
 }
 
 body[data-page-width='wide'] [data-page-content-width="respect_page_width"] {
@@ -11408,22 +11851,32 @@ body[data-page-width='full'] [data-page-content-width="respect_page_width"] {
    Unlike "respect_page_width", these never move if the global setting
    changes. Same 1400/1600 values as the site-wide "contained"/"wide"
    tiers, just applied unconditionally. */
+/* margin-inline:auto on all three, same as the "full" tier above already
+   carries: without it a capped box sits flush-left in whatever container
+   it lands in rather than centered on the page. This is the tiers' own
+   OUTER box centering — it does not affect .gh-canvas's internal
+   left-anchored zone grid (see that rule's own 2026-08-06 comment), which
+   keeps body content lined up with the post header as before; the canvas
+   simply centers as a unit. */
 [data-page-content-width="narrow"] {
 
   width: 100%;
   max-width: 700px;
+  margin-inline: auto;
 }
 
 [data-page-content-width="contained"] {
 
   width: 100%;
-  max-width: 1280px;
+  max-width: 1440px;
+  margin-inline: auto;
 }
 
 [data-page-content-width="wide"] {
- 
+
   width: 100%;
   max-width: 1600px;
+  margin-inline: auto;
 }
 
 /* Footer — respect page width constraint */
@@ -11437,7 +11890,7 @@ body[data-page-width='narrow'] .gh-footer[data-footer-width="respect_page_width"
 }
 
 body[data-page-width='contained'] .gh-footer[data-footer-width="respect_page_width"] {
-  max-width: 1280px;
+  max-width: 1440px;
 }
 
 body[data-page-width='wide'] .gh-footer[data-footer-width="respect_page_width"] {
@@ -11468,7 +11921,7 @@ body[data-page-width='full'] .gh-footer[data-footer-width="respect_page_width"] 
   margin-left: auto;
   margin-right: auto;
   width: 100%;
-  max-width: 1280px;
+  max-width: 1440px;
 }
 
 .gh-footer[data-footer-width="wide"] {
@@ -11936,7 +12389,7 @@ body[data-page-width='full'] .gh-footer[data-footer-width="respect_page_width"] 
 }
 
 .word-animation-text {
-  width: clamp(600px, 90vw, 1280px);
+  width: clamp(600px, 90vw, 1440px);
   text-align: center;
   font-size: clamp(calc(2rem * var(--type-scale-heading, 1)), calc(6vw * var(--type-scale-heading, 1)), calc(3.5rem * var(--type-scale-heading, 1)));
   font-weight: 500;
@@ -12954,7 +13407,7 @@ textarea::placeholder {
 /* Operating model respects page width — nothing in this section slides
    off-screen, so it can simply be capped and centered like .container. */
 body[data-page-width='contained'] .om-columns {
-  max-width: 1280px;
+  max-width: 1440px;
 }
 
 body[data-page-width='wide'] .om-columns {
@@ -13031,6 +13484,7 @@ body[data-page-width='full'] .om-columns {
   display: flex;
   flex-direction: column;
   gap: var(--space-2xl);
+  padding-top: 400px;
 }
 
 /* .om-card / .om-card-metric are shared with operating-model-stacked.css,

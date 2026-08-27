@@ -295,7 +295,7 @@
   --glass-inset-light: inset 0 1px 0 rgba(255, 255, 255, 0.12);
   --glass-inset-light-hover: inset 0 1px 0 rgba(255, 255, 255, 0.18);
   --glass-inset-dark: inset 0 -1px 0 rgba(0, 0, 0, 0.12);
-  --glass-radius: var(--radius-md);
+  --glass-radius: var(--radius-lg);
 
   /* STATE LAYER */
   --state-layer-color: var(--color-on-surface);
@@ -337,18 +337,30 @@
   --type-h1-size: clamp(calc(2.5rem * var(--type-scale-heading)), calc(12vw * var(--type-scale-heading)), calc(8rem * var(--type-scale-heading)));
   --type-h2-size: clamp(calc(2rem * var(--type-scale-heading)), calc(9vw * var(--type-scale-heading)), calc(5rem * var(--type-scale-heading)));
   --type-h3-size: clamp(calc(1.775rem * var(--type-scale-heading)), calc(3.4vw * var(--type-scale-heading)), calc(2.8rem * var(--type-scale-heading)));
-  --type-h4-size: clamp(calc(1.125rem * var(--type-scale-heading)), calc(1.6vw * var(--type-scale-heading)), calc(2.2rem * var(--type-scale-heading)));
-  /* h3/h4's vw term (2.4vw/1.6vw, gentle) only overtakes their floor above
-     ~700-1050px — same "floor dominates too wide a range" shape as h1/
-     display above, but in the opposite direction: these floors are too
-     CLOSE to (or under, once --type-scale-heading goes compact/0.7) body
-     text size rather than too far above it. Bumped on mobile only, where
-     the floor is what actually renders; ≥768px numerically unchanged. */
+  /* h4 wrapped in max(clamp(...), --type-body-size + 2px) (2026-08-25):
+     this comment already predicted the exact failure mode below ("under
+     body once --type-scale-heading goes compact") but the fix was never
+     actually made — confirmed live, --type-scale-heading: 0.6 (the
+     'compact' tier, tokens.css PAGE WIDTH... no, TYPE SIZE section) puts
+     h4's floor at 1.125rem * 0.6 = 10.8px, under the 16px flat body size,
+     at EVERY viewport width, not just mobile. The clamp()'s own min/vw/max
+     terms are unchanged — max() only ever intervenes as an outer floor
+     when the heading-scale setting would otherwise put h4 under body;
+     the mobile override just below (≤768px block) uses the identical
+     max(scaled, body+2px) shape so the two stay in agreement rather than
+     one being floored and the other not. +2px, not 0: sizes exactly equal
+     reads as no visible hierarchy, not merely "not smaller." */
+  --type-h4-size: max(clamp(calc(1.125rem * var(--type-scale-heading)), calc(1.6vw * var(--type-scale-heading)), calc(2.2rem * var(--type-scale-heading))), calc(var(--type-body-size) + 2px));
+  /* h3's vw term (2.4vw, gentle) only overtakes its floor above ~1050px —
+     same "floor dominates too wide a range" shape as h1/display above,
+     but in the opposite direction: this floor is too CLOSE to body text
+     size rather than too far above it. Bumped on mobile only, where the
+     floor is what actually renders; ≥768px numerically unchanged. */
   --type-h5-size: clamp(calc(0.9rem * var(--type-scale-heading)), calc(1.4vw * var(--type-scale-heading)), calc(1.4rem * var(--type-scale-heading)));
   --type-h6-size: clamp(calc(0.7875rem * var(--type-scale-heading)), calc(1.15vw * var(--type-scale-heading)), calc(1.1rem * var(--type-scale-heading)));
   --type-body-lg-size: clamp(calc(1.125rem * var(--type-scale-body)), calc(1.5vw * var(--type-scale-body)), calc(1.375rem * var(--type-scale-body)));
-  --type-body-size: clamp(calc(0.9375rem * var(--type-scale-body)), calc(1rem * var(--type-scale-body)), calc(1rem * var(--type-scale-body)));
-  --type-body-sm-size: clamp(calc(0.775rem * var(--type-scale-body)), calc(0.85vw * var(--type-scale-body)), calc(0.8375rem * var(--type-scale-body)));
+  --type-body-size: clamp(calc(0.9375rem * var(--type-scale-body)), calc(1.2rem * var(--type-scale-body)), calc(1rem * var(--type-scale-body)));
+  --type-body-sm-size: clamp(calc(0.775rem * var(--type-scale-body)), calc(1vw * var(--type-scale-body)), calc(0.8375rem * var(--type-scale-body)));
   --type-label-size: clamp(calc(0.75rem * var(--type-scale-body)), calc(1vw * var(--type-scale-body)), calc(0.875rem * var(--type-scale-body)));
   --type-label-sm-size: clamp(calc(0.6875rem * var(--type-scale-body)), calc(0.9vw * var(--type-scale-body)), calc(0.8125rem * var(--type-scale-body)));
   --type-caption-size: clamp(calc(0.625rem * var(--type-scale-body)), calc(1.6vw * var(--type-scale-body)), calc(0.65rem * var(--type-scale-body)));
@@ -374,7 +386,7 @@
   --type-h3-line-height: 1.15;   /* tightened 1.2 → 1.15 */
   --type-h3-letter-spacing: 0em;
 
-  --type-h4-line-height: 1;      /* live-calibrated */
+  --type-h4-line-height: 1.6;      /* live-calibrated */
   --type-h4-letter-spacing: 0em;
 
   --type-h5-line-height: 1.2;    /* tightened 1.3 → 1.2 */
@@ -523,9 +535,9 @@
      Retune page backgrounds HERE — and remember the anti-flash hexes in
      default.hbs (+ theme.js fallback) are pre-CSS copies that must be
      updated by hand alongside (see COMMON_ISSUES.md). */
-  --theme-light-bg: #FAFAF8;
+  --theme-light-bg: #f1f1ea;
   --theme-light-ink: #1a1a1a;
-  --theme-dark-bg: #141217;
+  --theme-dark-bg: #151417;
   --theme-dark-ink: var(--primitive-neutral-0);
 
   /* SHIFT PALETTE — targets for the reusable section palette-flip transition
@@ -651,11 +663,18 @@
      the padding a full-bleed section already carries doesn't eat into
      that 1920px rather than sitting outside it. */
   --max-width: calc(1920px + var(--content-padding) * 2);
-  --content-padding: clamp(1rem, 6rem, 6rem);
+  /* Middle term is the PREFERRED value and must be viewport-relative for a
+     clamp to do anything — it was `6rem`, a fixed length, so this resolved
+     to 6rem (96px) at EVERY width including phones, where that is ~25% of
+     a 390px screen per side. The 1rem floor was clearly the intent and was
+     unreachable. 5vw keeps the desktop end at the same 6rem cap (reached
+     at 1920px) while letting narrow viewports fall toward the floor;
+     ≤768px is pinned to exactly 1rem by the mobile block below. */
+  --content-padding: clamp(1rem, 5vw, 6rem);
 
   /* Content width — easily configurable by page_width setting */
   --content-max-width-text: 800px;
-  --content-max-width-wide: 1000px;
+  --content-max-width-media: 1000px;
 
   /* RADIUS */
   --radius-sm: var(--primitive-radius-2);
@@ -664,6 +683,20 @@
   --radius-xl: var(--primitive-radius-5);
   --radius-2xl: var(--primitive-radius-6);
   --radius-full: var(--primitive-radius-full);
+
+  /* SQUIRCLE — Apple-style continuous corner curvature.
+     border-radius draws a circular arc, so the straight edge meets the
+     corner at a tangent discontinuity you can see at large radii. Apple's
+     shape is a superellipse: the curve starts easing earlier and blends
+     into the edge. No CSS primitive exists for it, so this is an SVG path
+     used as a mask-image.
+     The path is a unit square (0-100 viewBox, stretched via mask-size) with
+     each corner a pair of cubic segments. The control-point factors are what
+     create the smoothing: the curve leaves the edge at ~37% of the corner
+     span and the handles sit at ~13%, approximating iOS's own continuous
+     curvature closely enough to be indistinguishable at avatar sizes.
+     Consumers set mask-size/repeat themselves — see .hero-avatar img. */
+  --squircle-mask: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M0,50 C0,13.3 13.3,0 50,0 C86.7,0 100,13.3 100,50 C100,86.7 86.7,100 50,100 C13.3,100 0,86.7 0,50 Z" fill="black"/></svg>');
 
   /* MOTION */
   --duration-fast: var(--primitive-duration-fast);
@@ -841,15 +874,61 @@
    h3 keeps clear separation from body throughout — that's the one boundary
    that must never collapse. All floors here dominate the full ≤768px range
    (verified against each one's own vw term at exactly 768px); ≥768px is
-   governed by the base clamp()s above, unchanged. */
+   governed by the base clamp()s above, unchanged.
+
+   h4 FIXED (2026-08-25, take 2): the first pass here set a flat 18px
+   (1.125rem) — correct in isolation (matches desktop's own h4 at the
+   768px boundary, no jump crossing it) but STILL violates "never smaller
+   than body" on the live site, which has type_size_headings="compact"
+   (--type-scale-heading: 0.6). h4's formula multiplies its whole value by
+   that scale like every other heading level does, and 18px * 0.6 = 10.8px
+   — well under the 16px flat mobile body size. h1/h2/h3 never hit this:
+   their base values (88/64/44px) are large enough that even the most
+   aggressive scale tier still clears body; h4 sits too close to body's
+   own size to survive ANY sub-1 heading-scale multiplier. (h6 has the
+   identical arithmetic problem at compact scale — NOT touched here: this
+   block's own comment already states h6 is meant to render "clearly
+   below body," so a small h6 is the stated design intent, not a bug the
+   way "h4 must never be smaller than body" is.)
+   Wrapped in max(scaled-value, --type-body-size + 2px), same shape the
+   BASE (desktop) --type-h4-size clamp above got at the same time (it had
+   the identical under-body problem at ≥768px too, not just here — see
+   that rule's own updated comment): h4 still SCALES with
+   --type-scale-heading exactly as before (a 'large' or 'standard'
+   heading-size setting still makes h4 bigger, consistent with every
+   other heading level continuing to respond to that setting) — the
+   max() only ever intervenes as a FLOOR, guaranteeing "never smaller
+   than body" holds at every type_size_headings tier (0.6/1/1.15) and
+   every viewport width, not only the one combination (scale=1.0,
+   ≤768px) this value happened to be checked against the first time. */
+/* MOBILE HEADING SCALE -20% (2026-08-25): uniform reduction across every
+   level in this block (h1/h2/h3/h4/h6 — h5 is exempt, it already just
+   references --type-body-size directly, no independent scale of its
+   own to reduce) and across all 3 type_size_headings tiers (compact/
+   standard/large) — each literal number below (min/preferred-vw/max) is
+   simply its PREVIOUS value * 0.8, with --type-scale-heading's own
+   multiplication left completely unchanged, so the 3 tiers still scale
+   correctly relative to EACH OTHER, just 20% smaller overall on mobile.
+   Could not be done by scaling --type-scale-heading itself inside this
+   block: the three :root:has(body[data-type-size-headings='...'])
+   tier-setters (below, TYPE SIZE section) have higher CSS specificity
+   than a plain :root selector regardless of media query or source order
+   (same :has()-outranks-:root mechanism the Lab fixed-palette work
+   elsewhere in this codebase relies on), so an override here would be
+   silently ignored — had to touch each literal instead.
+   Deliberately NOT also reducing the desktop base clamps above by 20% to
+   keep the two aligned at the 768px boundary — this creates a real, one-
+   time visible size step crossing 768px (each heading reads slightly
+   BIGGER stepping from mobile into desktop), accepted on request as a
+   mobile-specific reduction rather than a boundary-continuous one. */
 @media (max-width: 768px) {
   :root {
-    --type-h1-size: clamp(calc(5.5rem * var(--type-scale-heading)), calc(10vw * var(--type-scale-heading)), calc(6rem * var(--type-scale-heading)));
-    --type-h2-size: clamp(calc(4rem * var(--type-scale-heading)), calc(8vw * var(--type-scale-heading)), calc(4rem * var(--type-scale-heading)));
-    --type-h3-size: clamp(calc(2.75rem * var(--type-scale-heading)), calc(2.4vw * var(--type-scale-heading)), calc(2.75rem * var(--type-scale-heading)));
-    --type-h4-size: clamp(calc(1.5rem * var(--type-scale-heading)), calc(1.6vw * var(--type-scale-heading)), calc(1.5rem * var(--type-scale-heading)));
+    --type-h1-size: clamp(calc(4.4rem * var(--type-scale-heading)), calc(8vw * var(--type-scale-heading)), calc(4.8rem * var(--type-scale-heading)));
+    --type-h2-size: clamp(calc(3.2rem * var(--type-scale-heading)), calc(6.4vw * var(--type-scale-heading)), calc(3.2rem * var(--type-scale-heading)));
+    --type-h3-size: clamp(calc(2.2rem * var(--type-scale-heading)), calc(1.92vw * var(--type-scale-heading)), calc(2.2rem * var(--type-scale-heading)));
+    --type-h4-size: max(calc(0.9rem * var(--type-scale-heading)), calc(var(--type-body-size) + 2px));
     --type-h5-size: var(--type-body-size);
-    --type-h6-size: clamp(calc(1.15rem * var(--type-scale-heading)), calc(1.15vw * var(--type-scale-heading)), calc(1.15rem * var(--type-scale-heading)));
+    --type-h6-size: clamp(calc(0.92rem * var(--type-scale-heading)), calc(0.92vw * var(--type-scale-heading)), calc(0.92rem * var(--type-scale-heading)));
 
     /* Prose rhythm steps down on phones — same ladder, ~60-70% of desktop,
        still all multiples of 8 so the repeating-gap property is preserved.
@@ -862,6 +941,46 @@
     --prose-flow-md: 1.5rem;    /* 24px */
     --prose-flow-lg: 2.5rem;    /* 40px */
     --prose-flow-xl: 3.5rem;    /* 56px */
+
+    /* ── Mobile spacing + radius ──────────────────────────────────────
+       Same pattern as the type re-tier above: override the TOKEN in this
+       one block rather than adding per-component mobile rules, so every
+       consumer (--content-padding alone has 111 uses) moves together and
+       there is a single place to retune.
+
+       content-padding: flat 1rem on phones. The base clamp's 5vw term
+       would give ~20px at 390px, close but drifting per device; a fixed
+       value is the standard gutter and keeps every section's inset
+       identical regardless of screen width.
+
+       space-xl/2xl/3xl: the large end of the scale is desktop-proportioned
+       and dominates on phones — space-xl's own 8vw term (31px at 390px)
+       loses to its 2rem floor, so it was effectively a flat 32px with the
+       vw term inert, and 2xl/3xl are larger still. These are the gaps that
+       read as oversized in stacked mobile layouts (e.g. .carousel-track's
+       gap: var(--space-2xl)). Small steps (2xs-md) are left alone: they
+       are already phone-appropriate and are what most component padding
+       uses.
+
+       radius: collapse to ONE value on phones. sm/md/lg are 8/12/32px —
+       that 32px lg reads as a very different language from the other two
+       at small sizes, and the mix is visible when cards, media and inputs
+       sit adjacent in a single column. xl/2xl are unused sitewide (0
+       references) so they are not re-declared here. */
+    --content-padding: 1rem;
+
+    --space-xl: 1.5rem;    /* 24px — was clamp(2rem, 8vw, 4rem) => 32px flat */
+    /* 2xl/3xl walked back up from 2rem/2.5rem: those were tuned for
+       component padding, but 2xl is also the gap BETWEEN post cards
+       (.carousel-track, post-card-grid.css) and 32px read as too tight
+       for full-bleed cards stacked in one column — adjacent cards need
+       clearly more separation than the space inside them. */
+    --space-2xl: 3rem;     /* 48px — was clamp(3rem, 12vw, 6rem) => 48px flat */
+    --space-3xl: 3.5rem;   /* 56px — was clamp(4rem, 16vw, 8rem) => 64px flat */
+
+    --radius-sm: 0.75rem;  /* 12px */
+    --radius-md: 0.75rem;  /* 12px */
+    --radius-lg: 0.75rem;  /* 12px */
   }
 }
 
@@ -870,16 +989,39 @@
 /* PAGE WIDTH CONFIGURATION — Adjust content width tokens per page_width setting */
 /* ═══════════════════════════════════════════════════════════════════════════ */
 
+/* All three blocks below were scoped to :root[data-page-width='...'] until
+   this pass — :root matches <html>, but data-page-width is set on <body>
+   (default.hbs), never on <html>. None of these three overrides had EVER
+   actually applied, on any setting, predating this session entirely: every
+   other consumer of data-page-width in main.css correctly targets `body`,
+   only this trio didn't. --content-max-width-text/-media silently resolved
+   to their base :root values (800px/1000px) regardless of the site's real
+   page_width setting until now. Custom properties set on body are still
+   inherited normally by every descendant that reads them (.case-study-
+   columns, .post-card, .gh-canvas, the modal image cap — confirmed none of
+   those consumers sit outside <body>), so this is a pure selector fix, not
+   a behavior redesign.
+
+   Contained mode (the theme's own default page_width setting, package.json)
+   was ALSO simply missing its own block until this pass (only wide/full
+   had one at all) — added alongside the body-scoping fix rather than as a
+   separate change. Only --content-max-width-media gets a contained-tier
+   value; --content-max-width-text is left unset on purpose and keeps
+   falling through to the base 800px, matching 'narrow'. */
+body[data-page-width='contained'] {
+  --content-max-width-media: 1440px;
+}
+
 /* Wide mode — more spacious text and images */
-:root[data-page-width='wide'] {
+body[data-page-width='wide'] {
   --content-max-width-text: 780px;
-  --content-max-width-wide: 1100px;
+  --content-max-width-media: 1100px;
 }
 
 /* Full mode — maximum width for both */
-:root[data-page-width='full'] {
+body[data-page-width='full'] {
   --content-max-width-text: 850px;
-  --content-max-width-wide: 1800px;
+  --content-max-width-media: 1800px;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════ */
@@ -1185,13 +1327,13 @@
    on <body> (where Ghost renders the attribute) would be invisible to
    them. Browsers without :has() get scale 1 = the standard look. */
 /* Type size (body & UI text) */
-:root:has(body[data-type-size='compact'])  { --type-scale-body: 0.92; }
+:root:has(body[data-type-size='compact'])  { --type-scale-body: 0.9; }
 :root:has(body[data-type-size='standard']) { --type-scale-body: 1; }
 :root:has(body[data-type-size='large'])    { --type-scale-body: 1.12; }
 /* Type size (headings) — separate axis, same multipliers */
 /* Wider steps than the body axis on purpose: at display sizes a ±8%
    change is imperceptible — headings need visibly distinct tiers. */
-:root:has(body[data-type-size-headings='compact'])  { --type-scale-heading: 0.7; }
+:root:has(body[data-type-size-headings='compact'])  { --type-scale-heading: 0.6; }
 :root:has(body[data-type-size-headings='standard']) { --type-scale-heading: 1; }
 :root:has(body[data-type-size-headings='large'])    { --type-scale-heading: 1.15; }
 /* legacy single-axis values (pre-split, meant "everything") */

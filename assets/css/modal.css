@@ -302,7 +302,7 @@
    for the narrower text column, or a flat px value. */
 .gallery-modal-image {
   width: 100%;
-  max-width: var(--modal-image-max-width, var(--content-max-width-wide));
+  max-width: var(--modal-image-max-width, var(--content-max-width-media));
   height: auto;
   object-fit: contain;
 }

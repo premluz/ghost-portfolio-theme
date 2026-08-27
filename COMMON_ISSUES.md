@@ -722,6 +722,76 @@ returned TO.
 
 ---
 
+### Lab Orb Renders Over-Saturated After Closing a Post — Morph Never Resets `size` for Shapes With No Authored Sizes (2026-08-20)
+**Problem**: after a post → Close curtain return that lands mid-page, the Lab orb rendered
+markedly brighter and denser than normal — "like bloom exaggerated". A plain refresh did **not**
+fix it; opening the site in a new tab did. Browser-back was fine; only the nav Close button
+reproduced it. Scrolling on to the operating-model globe did **not** fix it — **only** morphing
+back to the hero shape did.
+
+**Root Cause**: on morph completion, `_advanceMorph()` copied the destination's per-particle sizes
+**only if that destination had any**:
+
+```javascript
+const sz = geo.attributes.size;
+if (sz && this.nextState.sizes) {   // ← no else: buffer left untouched
+```
+
+`ShapeDefinition.generate()` (`shape-definitions.js`) returns `sizes: null` for every plain
+generator — including `sphereGenerator`, i.e. **`lab`**. So morphing *into* `lab` left whatever
+sizes the previous shape had in the buffer.
+
+Every load starts at `'dispersed'` (`particle-morph.hbs`), and the dispersed variants author sizes
+up to **2.0** (`dispersed-variants.js`) against an authored norm of ~0.49. `gl_PointSize` scales
+linearly with size and sprite *area* with its square, so under `AdditiveBlending` the orb rendered
+at roughly **4x mean luminance and 2.6x lit coverage** — at identical geometry, camera, glow,
+colour and particle count.
+
+`setState()` had the same gap for `aTargetSize`, so the morph also *animated toward* the stale
+sizes rather than merely settling on them.
+
+**Why only the hero shape fixed it** (the clue that cracked this): `volatility` and `helix` DO
+author real sizes, so they always overwrote the buffer. Any shape without sizes — `lab`, and the
+GLB card shapes — inherited instead. That asymmetry is the whole tell.
+
+**Solution**: give both write sites an explicit no-sizes fallback:
+```javascript
+if (sz) {
+  if (this.nextState.sizes) { /* copy */ }
+  else { sz.array.fill(0.49); }
+  sz.needsUpdate = true;
+}
+```
+**File**: `assets/js/particle-animation-loop.js` — `_advanceMorph()` completion block *and*
+`setState()`'s `aTargetSize` block.
+
+**0.49, not 1.0**: filling with `1.0` (matching `createParticles()`'s own fallback) was tried first
+and caused a *worse* regression — every no-sizes shape over-saturated even with no navigation at
+all. Every generator that authors sizes centres on `0.38 + h * 0.22` (~0.49 mean, caps 0.40), so
+1.0 is ~2x too large linearly and ~4x by sprite area. `createParticles()`'s own `1.0` was
+deliberately left alone: that path is not implicated and changing it would alter first-load
+appearance site-wide.
+
+**Verified**: measured at matched viewport, DPR and scrollY — `lum` 13.0 → ~3.0, `litPct` 13.4 →
+~5.0, restoring parity with a never-navigated page.
+
+**General lesson**: a conditional buffer write with no `else` silently inherits the previous state.
+That is invisible whenever the values happen to be similar, and only shows up on the one transition
+where they are not — here, exclusively from `dispersed`, which is exactly the state every page load
+starts in and therefore exactly what a curtain return morphs out of.
+
+**Debugging lesson (this one cost ~10 wrong theories)**: every hypothesis derived from *reading*
+this code was wrong — duplicate canvases, duplicate render loops, camera/FOV, particle count, glow
+compounding, `uTime` phase, `uWavefront` phase, depth-test ordering. What worked was (a) a
+`gl.readPixels` probe measuring **mean luminance and lit coverage of the actual frame**, and (b)
+taking the *behavioural asymmetry* seriously — "only the hero shape fixes it" pointed straight at
+the one property hero shapes set and others don't. Two measurement traps to avoid repeating: the
+console is monkey-patched and silently drops `console.log` unless `window.DEBUG_SCROLL = true`, and
+any good-vs-bad comparison **must** match `innerWidth`/`innerHeight`, `devicePixelRatio` and
+`scrollY` — an early pair differed on viewport alone and produced a completely false signal.
+
+---
+
 ## Navigation
 
 ### Nav Blinks Intermittently While Scrolling (2026-08-07)

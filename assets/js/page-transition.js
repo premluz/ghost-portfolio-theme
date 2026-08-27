@@ -331,7 +331,6 @@
   // curtain return. Restores the saved scroll position BEFORE fading
   // anything in, so there's no visible scroll-to-top-then-jump flash.
   function runCurtainEntrance() {
-    if (window.__flashdiagSnap) window.__flashdiagSnap('runCurtainEntrance-start');
     let isCurtainReturn = false;
     try { isCurtainReturn = sessionStorage.getItem('curtainReturn') === '1'; } catch (err) {}
     console.log('[curtain-return] isCurtainReturn:', isCurtainReturn);
@@ -579,33 +578,8 @@
     // the scrim starts lifting a beat later, there's an already-complete
     // page underneath it — one clean reveal instead of two overlapping ones.
     if (main) gsap.set(main, { opacity: 1, clearProps: 'transform' });
-    if (window.__flashdiagSnap) window.__flashdiagSnap('runCurtainEntrance-end-scrim-lift-scheduled');
     const tl = gsap.timeline();
     tl.to(scrim, { opacity: 0, duration: 0.12, ease: 'power1.out' }, 0.06);
-
-    // TEMPORARY DIAGNOSTIC (2026-08-19) — REMOVE alongside the other
-    // ?flashdiag=1 instrumentation. v1's discrete checkpoints all completed
-    // within ~11ms and showed no anomaly, but a human-visible flash has to
-    // last longer than that — meaning if it's real, it's most likely
-    // happening DURING this scrim fade (0.06s delay + 0.12s duration =
-    // ~180ms, arguably long enough to perceive) rather than in the
-    // synchronous setup before it. Polls every frame for 600ms (comfortably
-    // past the fade) so the actual paint-layer colours during the visible
-    // transition are captured, not just before/after it.
-    // Polls for 2.5s (long past the scrim fade, in case the visible ramp
-    // starts later than assumed) but only RECORDS a row when something
-    // actually changed since the last frame — otherwise a per-frame capture
-    // over that window is ~150 near-identical rows and the one transition
-    // that matters is impossible to spot. window.__flashdiagChanged returns
-    // the row it would push, or null if identical to the previous one.
-    if (window.__flashdiagSnapIfChanged) {
-      const startT = performance.now();
-      const poll = () => {
-        window.__flashdiagSnapIfChanged('poll');
-        if (performance.now() - startT < 2500) requestAnimationFrame(poll);
-      };
-      requestAnimationFrame(poll);
-    }
 
     return true;
   }

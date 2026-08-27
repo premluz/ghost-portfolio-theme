@@ -57,19 +57,19 @@
         <div class="om-card om-card-metric om3-card">
           <div class="metric-content">
             <span class="metric-eyebrow text-eyebrow">Assets tokenised on-chain</span>
-            <span class="metric-value">5M</span>
+            <span class="metric-value text-gradient">5M</span>
           </div>
         </div>
         <div class="om-card om-card-metric om3-card">
           <div class="metric-content">
             <span class="metric-eyebrow text-eyebrow">IoT devices Connected</span>
-            <span class="metric-value">240M</span>
+            <span class="metric-value text-gradient">240M</span>
           </div>
         </div>
         <div class="om-card om-card-metric om3-card">
           <div class="metric-content">
             <span class="metric-eyebrow text-eyebrow">Regions supported</span>
-            <span class="metric-value">180+</span>
+            <span class="metric-value text-gradient">180+</span>
           </div>
         </div>
       </div>
@@ -78,19 +78,19 @@
         <div class="om-card om-card-metric om3-card">
           <div class="metric-content">
             <span class="metric-eyebrow text-eyebrow">Design Systems</span>
-            <span class="metric-value">0&rarr;1</span>
+            <span class="metric-value text-gradient">0&rarr;1</span>
           </div>
         </div>
         <div class="om-card om-card-metric om3-card">
           <div class="metric-content">
             <span class="metric-eyebrow text-eyebrow">Architecture simplified</span>
-            <span class="metric-value">10&rarr;3</span>
+            <span class="metric-value text-gradient">10&rarr;3</span>
           </div>
         </div>
         <div class="om-card om-card-metric om3-card">
           <div class="metric-content">
             <span class="metric-eyebrow text-eyebrow">Systems consolidated</span>
-            <span class="metric-value">3&rarr;1</span>
+            <span class="metric-value text-gradient">3&rarr;1</span>
           </div>
         </div>
       </div>
@@ -99,19 +99,19 @@
         <div class="om-card om-card-metric om3-card">
           <div class="metric-content">
             <span class="metric-eyebrow text-eyebrow">Founding designer</span>
-            <span class="metric-value">0&rarr;1</span>
+            <span class="metric-value text-gradient">0&rarr;1</span>
           </div>
         </div>
         <div class="om-card om-card-metric om3-card">
           <div class="metric-content">
             <span class="metric-eyebrow text-eyebrow">Design team scaled</span>
-            <span class="metric-value">1&rarr;5</span>
+            <span class="metric-value text-gradient">1&rarr;5</span>
           </div>
         </div>
         <div class="om-card om-card-metric om3-card">
           <div class="metric-content">
             <span class="metric-eyebrow text-eyebrow">Dev velocity</span>
-            <span class="metric-value">2x</span>
+            <span class="metric-value text-gradient">2x</span>
           </div>
         </div>
       </div>
@@ -225,25 +225,20 @@
 
     const morphFor = (group) => {
       const shape = group.getAttribute('data-morph-shape');
-      if (!shape || !window.particleSystem?.morphTo) return;
-
-      // Route through __particleApply instead of calling morphTo() directly
-      // (2026-08-10). This observer used to hit window.particleSystem
-      // straight, which bypasses PARTICLE_SCENARIOS entirely — so when
-      // 'operating-model' was set to 'hide', every other path respected it
-      // but these three category morphs (sphere / triple-sphere / torus)
-      // still ran and re-showed the layer on scroll-up. Those are exactly
-      // the shapes that kept appearing.
-      //
-      // __particleApply resolves the same 'operating-model' scenario key the
-      // director's own zone uses, so a 'hide' here means "don't show, don't
-      // morph" and any future scenario that DOES want this section visible
-      // gets these morphs back automatically, with no change needed here.
-      // The console.log below is the section's own long-standing trace, kept.
-      console.log('[om] morph →', shape, '(category:', group.getAttribute('data-category') + ')');
-      if (typeof window.__particleApply === 'function') {
-        window.__particleApply(window.particleSystem, 'operating-model', shape, 400);
-      } else {
+      if (shape && window.particleSystem?.morphTo) {
+        console.log('[om] morph →', shape, '(category:', group.getAttribute('data-category') + ')');
+        // TEMPORARY DIAGNOSTIC (2026-08-10) — REMOVE with the matching
+        // [PDIAG] block in default.hbs's __particleApply. This call goes
+        // STRAIGHT to the shared system, bypassing __particleApply and so
+        // ignoring PARTICLE_SCENARIOS' 'hide' entirely; logging it shows
+        // whether it is what makes the layer reappear on scroll-up.
+        if (/[?&]pdiag=1/.test(location.search)) {
+          const l = document.getElementById('particle-morph-demo');
+          console.error('[PDIAG-OM] direct morphTo(' + shape + ')' +
+            '  layerOpacity=' + (l ? (l.style.opacity || '(unset)') : 'n/a') +
+            '  hidden=' + !!window.__particleLayerHidden +
+            '  scrollY=' + Math.round(window.scrollY));
+        }
         window.particleSystem.morphTo(shape, 400);
       }
     };
@@ -268,6 +263,26 @@
     }, { rootMargin: '0px 0px -50% 0px', threshold: 0 });
 
     cardGroups.forEach((group) => groupObserver.observe(group));
+
+    // Products header only: reveal the moment its own card group ENTERS the
+    // viewport (rootMargin 0, not the -50% mid-viewport crossing above) —
+    // "should appear as it enters viewport", not wait for the group's top
+    // to reach the middle. Deliberately separate from groupObserver rather
+    // than changing its shared rootMargin: that would also pull the
+    // particle morph (morphFor, same callback) earlier, which wasn't asked
+    // for. revealHeader() is idempotent (revealedHeaders guard), so firing
+    // here ahead of groupObserver's own later crossing is safe — no double
+    // reveal. Systems/teams headers are untouched, still driven solely by
+    // groupObserver.
+    const firstGroup = cardGroups[0];
+    if (firstGroup) {
+      const firstHeaderObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) revealHeader(entry.target.getAttribute('data-category'));
+        });
+      }, { rootMargin: '0px', threshold: 0 });
+      firstHeaderObserver.observe(firstGroup);
+    }
 
     // CURTAIN-RETURN RESYNC.
     //

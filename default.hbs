@@ -73,158 +73,6 @@
       if (metaTheme) metaTheme.setAttribute('content', bg);
       var metaScheme = document.querySelector('meta[name="color-scheme"]');
       if (metaScheme) metaScheme.setAttribute('content', colorScheme);
-
-      // TEMPORARY DIAGNOSTIC (2026-08-19, v2) — REMOVE once the curtain-
-      // return white-flash bug is understood. ?flashdiag=1 only.
-      // v1 tracked --profile-shift/--gradient-shift-N and disproved that
-      // theory (every snapshot read 0 across a real repro) — see the
-      // console.table output already collected. v2 instead reads the
-      // ACTUAL rendered background-color of every candidate paint layer
-      // directly via getComputedStyle, since that's ground truth regardless
-      // of which custom property (if any) is actually responsible.
-      // #page-backdrop may not exist yet at the earliest checkpoints (it's
-      // in <body>, this runs in <head>) — guarded per-call.
-      if (/[?&]flashdiag=1/.test(location.search)) {
-        window.__flashdiag = window.__flashdiag || [];
-        window.__flashdiagSnap = function (point) {
-          var htmlEl = document.documentElement;
-          var bodyEl = document.body;
-          var backdropEl = document.getElementById('page-backdrop');
-          var scrimEl = document.getElementById('pt-scrim');
-          var gradflowEl = document.querySelector('.gradflow-page-bg');
-          window.__flashdiag.push({
-            t: Math.round(performance.now()),
-            point: point,
-            scrollY: window.scrollY,
-            scrimOpacity: scrimEl ? getComputedStyle(scrimEl).opacity : '-',
-            // COMPUTED opacity is the animating value; INLINE is what JS
-            // actually wrote. If inline reads '1' while computed is still
-            // climbing, the CSS transition is running (instant path failed).
-            // If BOTH read '1' from the first sample, opacity is not what's
-            // fading — the visible ramp is then the colour crossfade
-            // (gradflow-color-crossfade.js, 700ms) instead.
-            gfOpacityComputed: gradflowEl ? getComputedStyle(gradflowEl).opacity : '-',
-            gfOpacityInline: gradflowEl ? (gradflowEl.style.opacity || '(unset)') : '-',
-            gfDisplay: gradflowEl ? getComputedStyle(gradflowEl).display + '/' + getComputedStyle(gradflowEl).visibility : '-',
-            // The OTHER things layered over the gradflow canvas. If none of
-            // the gradflow fields animate but one of these does, the "fade
-            // in" being seen is that element revealing the canvas, not the
-            // canvas itself appearing. html.curtain-restoring hides .home
-            // (main.css) and is dropped by runCurtainEntrance.
-            homeOpacity: (function () {
-              var h = document.querySelector('.home');
-              return h ? getComputedStyle(h).opacity : '-';
-            })(),
-            htmlClasses: document.documentElement.className || '(none)',
-            // Live shader uniform (what the colour system THINKS is set).
-            gfColor1: (function () {
-              try {
-                var c = document.querySelector('.gradflow-page-bg-canvas');
-                var u = c && c.__gradflowHandle && c.__gradflowHandle.__debugColor1;
-                return u ? u.join(',') : (c && c.__gradflowHandle ? 'handle-no-debug' : 'no-handle');
-              } catch (err) { return 'err'; }
-            })(),
-            // GROUND TRUTH: the actual pixel currently rendered in the
-            // canvas's own drawing buffer, read back from the GPU. Unlike
-            // every other field here this cannot be fooled by opacity, by
-            // uniforms that were set but never drawn, or by a frame that
-            // hasn't been rendered yet — if this is transparent/black the
-            // canvas is genuinely painting nothing on screen, whatever the
-            // CSS says. preserveDrawingBuffer is NOT set on this context, so
-            // a readback outside the render tick can legitimately come back
-            // cleared; treated as informative, not authoritative, for that
-            // reason — a STABLE non-zero value is the meaningful signal.
-            gfPixel: (function () {
-              try {
-                var c = document.querySelector('.gradflow-page-bg-canvas');
-                if (!c) return '-';
-                var gl = c.getContext('webgl2', { preserveDrawingBuffer: true })
-                      || c.getContext('webgl', { preserveDrawingBuffer: true });
-                if (!gl) return 'no-gl';
-                var px = new Uint8Array(4);
-                gl.readPixels(Math.floor(c.width / 2), Math.floor(c.height / 2), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
-                return px[0] + ',' + px[1] + ',' + px[2] + ' a' + px[3];
-              } catch (err) { return 'err:' + err.message; }
-            })(),
-          });
-        };
-        // Records only when something actually changed since the last row —
-        // see the poll in page-transition.js for why (a per-frame capture
-        // over a 2.5s window is otherwise ~150 identical rows).
-        window.__flashdiagSnapIfChanged = function (point) {
-          var arr = window.__flashdiag;
-          var beforeLen = arr.length;
-          window.__flashdiagSnap(point);
-          if (beforeLen === 0) return;
-          var prev = arr[beforeLen - 1];
-          var next = arr[arr.length - 1];
-          var same = Object.keys(next).every(function (k) {
-            return k === 't' || k === 'point' || String(prev[k]) === String(next[k]);
-          });
-          if (same) arr.pop();
-        };
-        window.__flashdiagSnap('head-inline-script-end');
-      }
-      // TEMPORARY DIAGNOSTIC (2026-08-19) — REMOVE with the rest of the
-      // ?flashdiag=1 instrumentation.
-      // Standalone timeline recorder for the "gradflow fades in on curtain
-      // return" report. Deliberately OUTSIDE the ?flashdiag=1 gate above:
-      // a curtain return lands on a plain '/' with no query string, so
-      // anything defined inside that gate simply does not exist on the page
-      // where the problem happens (which is why the first version of this
-      // never ran). Auto-starts below off the curtainReturn sessionStorage
-      // flag instead. Records every frame for 4s — longer than the earlier
-      // 600ms/2.5s windows, which may have ended before the reported ~1s
-      // sequence finished — and prints a compact table of only the rows
-      // where the composited result actually changed.
-      window.__gfWatch = function (ms) {
-        var rows = [];
-        var t0 = performance.now();
-        var lastKey = '';
-        (function step() {
-          var el = document.querySelector('.gradflow-page-bg');
-          var cv = document.querySelector('.gradflow-page-bg-canvas');
-          var px = '-';
-          try {
-            if (cv) {
-              var gl = cv.getContext('webgl2', { preserveDrawingBuffer: true })
-                    || cv.getContext('webgl', { preserveDrawingBuffer: true });
-              if (gl) {
-                var b = new Uint8Array(4);
-                gl.readPixels(Math.floor(cv.width / 2), Math.floor(cv.height / 2), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, b);
-                px = b[0] + ',' + b[1] + ',' + b[2] + ' a' + b[3];
-              }
-            }
-          } catch (e) { px = 'err'; }
-          var scrimEl2 = document.getElementById('pt-scrim');
-          var row = {
-            t: Math.round(performance.now() - t0),
-            gfOpacity: el ? getComputedStyle(el).opacity : '-',
-            gfPixel: px,
-            scrim: scrimEl2 ? getComputedStyle(scrimEl2).opacity : '-',
-            particles: (function () {
-              var p = document.getElementById('particle-morph-demo') || document.getElementById('gpu-canvas');
-              return p ? getComputedStyle(p).opacity : '-';
-            })(),
-          };
-          // Ignore 1-unit shader jitter so it doesn't force a row every frame.
-          var key = row.gfOpacity + '|' + row.gfPixel.replace(/\d+/g, function (n) { return Math.round(n / 8); }) + '|' + row.scrim + '|' + row.particles;
-          if (key !== lastKey) { lastKey = key; rows.push(row); }
-          if (performance.now() - t0 < (ms || 4000)) requestAnimationFrame(step);
-          else { console.table(rows); window.__gfWatchRows = rows; }
-        })();
-        return 'watching ' + (ms || 4000) + 'ms — table prints when done';
-      };
-      // Auto-start on a curtain return: this is a real navigation, so
-      // anything started by hand on the post page is gone by now. The flag
-      // is still in sessionStorage at this point (page-transition.js's
-      // runCurtainEntrance consumes it later, on DOMContentLoaded), so
-      // reading it here is the earliest reliable "this load is a return".
-      try {
-        if (sessionStorage.getItem('curtainReturn') === '1') {
-          document.addEventListener('DOMContentLoaded', function () { window.__gfWatch(4000); });
-        }
-      } catch (e) {}
     })();
   </script>
   <script src="{{asset "js/device-capability.js"}}?v={{@site.updated_at}}"></script>
@@ -348,6 +196,7 @@
   <link rel="stylesheet" href="{{asset "css/main.css"}}?v={{@site.updated_at}}">
   <link rel="stylesheet" href="{{asset "css/modal.css"}}?v={{@site.updated_at}}">
   <link rel="stylesheet" href="{{asset "css/logos-scroll.css"}}?v={{@site.updated_at}}">
+  <link rel="stylesheet" href="{{asset "css/icon-cloud.css"}}?v={{@site.updated_at}}">
   <link rel="stylesheet" href="{{asset "css/logos-ribbon.css"}}?v={{@site.updated_at}}">
   <link rel="stylesheet" href="{{asset "css/image-stripe.css"}}?v={{@site.updated_at}}">
   <link rel="stylesheet" href="{{asset "css/posts-tabs-grid.css"}}?v={{@site.updated_at}}">
@@ -400,6 +249,12 @@
         --publication-icon: url('{{@site.icon}}');
       {{/if}}
       --color-particles: #1D4551; /* darkened further (~30%) from #296274 — still reading too bright */
+      /* Lab section's scroll-driven wave tint (uWaveColor, particle-
+         animation-loop.js) — read by particle-morph.hbs's applyTheme() on
+         theme change. Orchid is the ORIGINAL hardcoded value (was the same
+         hex for both themes before this token existed); change per-theme
+         here instead of touching the JS default. See COLOR-TUNING.md. */
+      --color-particles-wave: #da70d6; /* Orchid — original hardcoded value */
     }
 
     :root[data-theme='light'] {
@@ -421,6 +276,10 @@
          KEEP IN SYNC with PARTICLE_NORMAL.light AND PARTICLE_SHIFTED.dark in
          scroll-scrub-anim.js, which both mirror this literal. */
       --color-particles: #082A3C; /* was #17516E, itself darkened from #2787B7 */
+      /* Lab wave tint, light mode — see the dark-mode token's own comment
+         above for what this drives. Same Orchid as dark mode by default
+         (no change in behaviour); tune independently here. */
+      --color-particles-wave: #da70d6; /* Orchid — original hardcoded value */
     }
 
     :root[data-theme='dim'] {
@@ -833,18 +692,87 @@
   </main>
 
 
+
+
+
+
   <footer class="gh-footer" id="footer" data-footer-width="{{@custom.footer_width}}">
     <div class="footer-bg">
       <div class="footer-content">
+                 
+
         <div class="footer-signup-section">
           <!--<h2 class="footer-title">{{@site.title}}</h2>-->
 
-          <h2 class="footer-title" data-animate="letter">Building something<br />complex?</h2>
-                 <p class="footer-description">I can help you get it right and ship it faster.</p>
-          <a href="/contact" data-transition class="button footer-button" aria-label="Email">
-           Let's make it happen
-          </a>
-          <p> <a href="/about" class="">How I work</a> • <a href="https://www.linkedin.com/in/premluczak/" target="_blank" class="">LinkedIn</a></p>
+
+
+          <h2 class="footer-title pt16  mt-prose-flow-lg" data-animate="letter">Building something<br />complex?</h2>
+          
+      
+           <div class="footer-cta-group">
+                <p class="footer-cta-text">Let's make it happen</p>
+            <div class="footer-social">
+            <a href="https://www.linkedin.com/in/premluczak/" target="_blank" rel="noopener" class="footer-social-btn" aria-label="Connect on LinkedIn">
+              {{!-- Inline SVG with fill="currentColor", not the img-based
+                    icons/linkedin.svg asset: that file hardcodes fill="#0A66C2"
+                    (LinkedIn brand blue), so it could never pick up
+                    --color-icon/theme changes the way .nav-icon-btn's own
+                    inline SVGs do (see navigation.hbs's prev/next buttons for
+                    the same pattern: stroke="currentColor" there, fill here
+                    since this mark is a solid shape, not an outline). --}}
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.446-2.136 2.94v5.666H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 1 1 0-4.125 2.062 2.062 0 0 1 0 4.125zM7.114 20.452H3.558V9h3.556v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+              </svg>
+              <span class="nav-tooltip">Connect on LinkedIn</span>
+            </a>
+            {{!-- Not an href=mailto: link — the tooltip must SWAP text to
+                  "Copied" after click (main.js), which a plain navigating
+                  link can't do without also leaving the page. A <button>
+                  with the copy handled entirely in JS keeps the user here. --}}
+            <button type="button" class="footer-social-btn" id="footer-copy-email" data-email="prem.luczak@gmail.com" aria-label="Copy email to clipboard">
+              {{!-- Not icons/mail.svg — that file is the Mail.Ru logo (picked
+                    up by filename, wrong brand entirely), fixed fill, and
+                    not this glyph. Plain envelope outline instead, same
+                    stroke="currentColor" pattern as .nav-icon-btn's inline
+                    SVGs (navigation.hbs). --}}
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="20" height="20">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l9 6 9-6M4 6h16a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V7a1 1 0 011-1z"/>
+              </svg>
+              <span class="nav-tooltip" data-default-text="Copy email to clipboard" data-copied-text="Copied">Copy email to clipboard</span>
+            </button>
+            <a href="/contact" data-transition class="footer-social-btn" aria-label="Send a message">
+              {{!-- Not icons/message.svg — that file is the Minutemailer logo
+                    (same filename-match problem as mail.svg above). Plain
+                    chat-bubble outline instead. --}}
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="20" height="20">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+              </svg>
+              <span class="nav-tooltip">Send a message</span>
+            </a>
+            </div>
+          </div>
+       <div class="footer-meta">
+            <p class="footer-meta-text">Designed and built in the browser. The challenge was restraint.</p>
+          </div>
+
+
+          {{!-- Circular icon buttons, same shape as .nav-icon-btn, wrapped in
+                .footer-social so the sitewide link-underline rule (main.css,
+                the `a` rule scoped to prose containers) never reaches these
+                — they were already on that rule's exclusion precedent before
+                this markup existed. Each reuses .nav-tooltip verbatim, same
+                as .hero-avatar, for one consistent tooltip look sitewide. --}}
+         
+
+          {{!-- Two static panes, reusing .post-nav-section's markup verbatim
+                (see partials/post-navigation.hbs, where the same structure is
+                built by JS from the Content API). Hardcoded here on purpose:
+                these are fixed destinations, not the adjacent-post pagination
+                that partial computes, so there is nothing to fetch. Sharing
+                the classes means they inherit that component's grid, hover
+                and image treatment with no new CSS. --}}
+
+        
           <!-- <form class="footer-form" data-members-form>
             <input
               type="email"
@@ -873,9 +801,7 @@
             <p>&copy; {{date format="YYYY"}} <strong>{{@site.title}}</strong> • Powered by <a href="https://ghost.org" target="_blank" rel="noopener">Ghost</a></p>
           </div>-->
 
-          <div class="footer-meta">
-            <p class="footer-meta-text">Designed and built in the browser. The challenge was restraint.</p>
-          </div>
+   
         </div>
       </div>
       
@@ -1027,7 +953,7 @@
     // change, since the choreography in particle-morph.hbs is gated on it.
     // 'volatility' mounts the ground-plane lattice and no coil forms in the
     // hero; the coil shapes don't mount the lattice.
-    window.HERO_PARTICLE_MODE = 'ribbon-dispersed-pulse';
+    window.HERO_PARTICLE_MODE = 'ribbon-dispersed';
     // Resolver was previously unable to return anything but
     // 'ribbon-dispersed': BOTH ternary arms were that literal, and the
     // condition tested `m === 'ribbon-dispersed'` twice (never comparing
@@ -1052,7 +978,7 @@
       //   'helix'            = original DNA-style double tube.
       //   'hero-helix'       = tilted, tapering halftone coil.
       //   'volatility'       = ground-plane lattice.
-      const VALID = ['ribbon-dispersed-pulse', 'ribbon-dispersed-pulse', 'helix', 'hero-helix', 'volatility'];
+      const VALID = ['ribbon-dispersed', 'ribbon-dispersed', 'helix', 'hero-helix', 'volatility'];
       const m = window.HERO_PARTICLE_MODE;
       return VALID.includes(m) ? m : 'ribbon-dispersed';
     };
@@ -1075,7 +1001,14 @@
         'lab-exit': 'hide',
       },
       'hero-footer': {                // particles in hero, footer, Lab entrance + operating-model entrance
-        'hero-exit': 'hide', // re-enabled after comparing visible-'dots'/'terrain' live — back to fading out on exit
+        // 'hero-exit': 'hide', // DISABLED: hero's exit keyframe now morphs
+        // straight into 'lab' (particle-morph.hbs) instead of dissolving to
+        // the terrain surface, so the layer must STAY VISIBLE through it —
+        // 'hide' here would fade out at exactly the moment the sphere is
+        // supposed to appear. With no entry, __particleApply falls through
+        // to the keyframe's own builtin shape, which is what makes the
+        // hero -> lab morph actually show. Restore this line to go back to
+        // fading out on hero exit.
         // 'operating-model' (the entrance key) was intentionally ABSENT here
         // until 2026-08-10, which un-hid the layer for that section's own
         // sphere/triple-sphere/torus category-morph system (see
@@ -1086,14 +1019,14 @@
         // — they are simply not visible. Deliberately left in place rather
         // than stripped out, so removing this one line restores the old
         // behaviour exactly.
-        'operating-model': 'hide',
-        'operating-model-exit': 'hide',
-        'helix-section': 'hide',
+       // 'operating-model': 'hide',
+        //'operating-model-exit': 'hide',
+       // 'helix-section': 'hide',
         profile: 'hide', 'profile-exit': 'hide',
         stats: 'hide',
         'work-grid': 'hide', 'work-cards': 'hide',
        // lab: 'hide',
-        'lab-exit': 'hide',
+        //'lab-exit': 'hide',
         testimonials: 'hide',
         'footer-exit': 'hide',
         // hero + footer absent → their built-in shapes (volatility/helix, grid)
@@ -1552,6 +1485,25 @@
         below and otherwise leaves a --page instance with no shift at all: a
         static instance carries no motion, so it is applied before that
         guard and works regardless. --}}
+  {{!-- MODE SELECTION — data-invert-mode="scrub" | "timed" | "static"
+
+        One attribute with three values, because the three modes are mutually
+        exclusive. They were originally three independent boolean attributes
+        (data-invert-static / data-invert-timed / neither-for-scrub), which
+        let a single element carry contradictory ones — hence the defensive
+        :not() chains and the "timed wins" tiebreak still visible below.
+        A single valued attribute makes them exclusive by construction.
+
+          scrub   progress follows scroll position through the block
+                  (BackgroundLayer.bindShift) — the original default
+          timed   fades in on entry, out on leave, symmetric, re-triggers
+          static  pinned on, no animation, no observer
+
+        BACK-COMPAT: the old boolean attributes still work exactly as before.
+        Each selector below matches either the new mode value OR the legacy
+        attribute when no data-invert-mode is present, so nothing needed
+        changing at the call sites. Omitting both still means scrub. Prefer
+        data-invert-mode for anything new. --}}
   <script>
     (function () {
       // Static instances first — deliberately ABOVE both guards below, since
@@ -1560,7 +1512,10 @@
       // :not([data-invert-timed]) so an element carrying both attributes
       // resolves predictably (timed wins) instead of being pinned to 1 here
       // and then having nothing left for the fade to animate.
-      document.querySelectorAll('.invert-wrapper--page[data-invert-static]:not([data-invert-timed])').forEach(function (el) {
+      document.querySelectorAll(
+        '.invert-wrapper--page[data-invert-mode="static"],' +
+        '.invert-wrapper--page[data-invert-static]:not([data-invert-timed]):not([data-invert-mode])'
+      ).forEach(function (el) {
         var sBg = el.getAttribute('data-shift-bg');
         var sInk = el.getAttribute('data-shift-ink');
         if (sBg) document.documentElement.style.setProperty('--shift-bg', sBg);
@@ -1576,7 +1531,10 @@
       // the value change intact. Needs no BackgroundLayer either — the whole
       // animation is the registered-@property transition in CSS; this only
       // decides WHEN to flip the class.
-      var timed = document.querySelectorAll('.invert-wrapper--page[data-invert-timed]');
+      var timed = document.querySelectorAll(
+        '.invert-wrapper--page[data-invert-mode="timed"],' +
+        '.invert-wrapper--page[data-invert-timed]:not([data-invert-mode])'
+      );
       if (timed.length) {
         // Colours are applied at TRIGGER time (inside the observer below),
         // not up-front here. --shift-bg/--shift-ink are single :root
@@ -1657,12 +1615,34 @@
 
       if (!window.BackgroundLayer) return;
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-      document.querySelectorAll('.invert-wrapper--page:not([data-invert-static]):not([data-invert-timed])').forEach(function (el) {
+      document.querySelectorAll(
+        '.invert-wrapper--page[data-invert-mode="scrub"],' +
+        '.invert-wrapper--page:not([data-invert-mode]):not([data-invert-static]):not([data-invert-timed])'
+      ).forEach(function (el) {
         var bg = el.getAttribute('data-shift-bg');
         var ink = el.getAttribute('data-shift-ink');
-        if (bg) document.documentElement.style.setProperty('--shift-bg', bg);
-        if (ink) document.documentElement.style.setProperty('--shift-ink', ink);
-        window.BackgroundLayer.bindShift(el, '--gradient-shift-3', { quantize: 0.05 });
+        // Colours applied ON PROGRESS, not at init — same rule the timed
+        // branch above already follows, and for the same reason.
+        //
+        // --shift-bg/--shift-ink are single :root properties shared by every
+        // --page instance. Writing them here at init meant the LAST scrub
+        // wrapper on the page won globally and permanently, so with two
+        // wrappers on one page the earlier one's colours never applied:
+        // reported as "the first one not working, the second does".
+        //
+        // Writing them only while this block's own shift is actually
+        // ramping (t > 0) makes the colours follow whichever block the
+        // viewer has reached, which is the only correct rule while the
+        // properties remain page-global. At t === 0 this block has nothing
+        // to say, so it stays silent and leaves the slot to whoever does.
+        window.BackgroundLayer.bindShift(el, '--gradient-shift-3', {
+          quantize: 0.05,
+          onProgress: function (t) {
+            if (t <= 0) return;
+            if (bg) document.documentElement.style.setProperty('--shift-bg', bg);
+            if (ink) document.documentElement.style.setProperty('--shift-ink', ink);
+          },
+        });
       });
     })();
   </script>
@@ -1769,6 +1749,7 @@
   <script src="{{asset "js/sticky-nav.js"}}"></script>
   <script src="{{asset "js/word-animation.js"}}"></script>
   <script src="{{asset "js/logos-scroll.js"}}"></script>
+  <script src="{{asset "js/icon-cloud.js"}}"></script>
   <script src="{{asset "js/horiz-scroll.js"}}"></script>
   <script src="{{asset "js/horizontal-scroll.js"}}"></script>
   <!-- <script src="{{asset "js/testimonials-scroll.js"}}"></script> -->
@@ -1792,8 +1773,7 @@
        backend (GPU or legacy THREE.js) — nothing GPU-specific needs to be
        rebuilt for scroll triggers to keep working here. -->
  <!-- {{> gpu-particle-integration}} -->
-{{> particle-morph}}
-
+ {{> particle-morph}}
   <!-- Bottom fade gradient pane - creates illusion of content fading in -->
   <div class="bottom-fade-pane"></div>
 

@@ -99,7 +99,6 @@
     var handle = canvas.__gradflowHandle;
     var drawn = handle ? handle.hasDrawnRealColor === true : false;
     if (shown && !drawn) shown = false;
-    if (window.__flashdiagSnap) window.__flashdiagSnap('visibility-call instant=' + instant + ' shown=' + shown + ' last=' + lastShown + ' drawn=' + drawn);
     if (shown === lastShown && !instant) return;
     lastShown = shown;
     if (instant) {
@@ -142,7 +141,6 @@
     var rgbs = extractRgbs(cards[index].getAttribute('data-gradient-css') || '');
     if (!rgbs.length) return; // no color set on this card (yet, or ever) — keep showing whatever's current
     currentCardIndex = index;
-    if (window.__flashdiagSnap) window.__flashdiagSnap('applyCard(' + index + ')');
     crossfadeTo(tonesFrom(rgbs));
     // Re-run the visibility check so a canvas held back by the gate is
     // released as soon as it has a real frame. Called unconditionally, not

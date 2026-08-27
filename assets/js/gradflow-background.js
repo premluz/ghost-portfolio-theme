@@ -262,15 +262,6 @@ async function initGradFlowBackground(canvas, configInput) {
   }
 
   return {
-    // TEMPORARY DIAGNOSTIC (2026-08-19) — REMOVE with the rest of the
-    // ?flashdiag=1 instrumentation. Reads the LIVE u_color1 uniform, i.e.
-    // the colour actually being painted right now, so a capture can tell a
-    // colour crossfade (gradflow-color-crossfade.js's 700ms tween) apart
-    // from a CSS opacity fade. Nothing else exposes the live uniforms.
-    get __debugColor1() {
-      var v = program.uniforms.u_color1 && program.uniforms.u_color1.value;
-      return v ? [Math.round(v[0] * 255), Math.round(v[1] * 255), Math.round(v[2] * 255)] : null;
-    },
     // Only the four colors — speed/scale/type/noise are structural and a
     // caller changing those should mount a new gradient instead.
     setColors(next) {
