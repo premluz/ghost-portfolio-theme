@@ -36,7 +36,26 @@ class ScrollScrubAnimationSystem {
     // that updates ScrollTriggers, so the two cannot desynchronize —
     // GSAP's canonical fix for exactly this failure mode. Gated to
     // low-end so capable machines keep untouched native scrolling.
-    if (window.__lowEndDevice && ScrollTrigger.normalizeScroll) {
+    // NEVER on touch devices (2026-08-29). normalizeScroll replaces native
+    // touch scrolling with a synthetic, main-thread-driven version, and on
+    // phones that reads as: first swipe is swallowed (or moves a few px)
+    // and only the SECOND one actually scrolls — worst over interactive
+    // elements like the homepage cards, where it has to disambiguate
+    // tap-from-drag before it will commit to a scroll.
+    //
+    // Mobile was never the target of this fix: the failure mode described
+    // above is a DESKTOP one (old integrated GPUs starving main-thread rAF
+    // while the compositor scrolls on). Phones were caught only because
+    // device-capability.js flags `hardwareConcurrency <= 4` as low-end,
+    // which is true of a large share of current mid-range Androids and
+    // older iPhones — hardware that scrolls natively just fine.
+    //
+    // matchMedia('(pointer: coarse)') rather than a UA sniff or a width
+    // check: it asks the only question that matters here — is the primary
+    // input a finger? — and stays correct on tablets, touch laptops in
+    // tablet mode, and whatever ships next.
+    var isTouchPrimary = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    if (window.__lowEndDevice && !isTouchPrimary && ScrollTrigger.normalizeScroll) {
       ScrollTrigger.normalizeScroll(true);
       console.log('[scroll-scrub-anim] low-end device: ScrollTrigger.normalizeScroll enabled');
     }

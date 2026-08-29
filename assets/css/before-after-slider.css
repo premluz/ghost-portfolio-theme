@@ -23,12 +23,17 @@
   overflow: hidden;
   border-radius: var(--radius-lg);
   cursor: ew-resize;
-  /* touch-action:none, not pan-y — a vertical scroll gesture starting on
-     the slider would otherwise fight the horizontal drag on mobile;
-     disabling all default touch handling here is what makes the pointer
-     events below receive the raw drag instead of the browser
-     intercepting it as a page scroll. */
-  touch-action: none;
+  /* pan-y (was `none`): `none` disabled ALL default touch handling on the
+     whole slider surface, so a vertical scroll gesture that began anywhere
+     on it was swallowed rather than scrolling the page — very noticeable
+     in a post, where this element is often full-width and takes most of
+     the screen. pan-y hands vertical scrolling back to the browser while
+     still reserving horizontal movement for the drag.
+     The handle keeps `touch-action: none` of its own (below) so a
+     deliberate horizontal drag from the handle is unaffected; before-after
+     JS also ignores touch pointerdown on the surface for the same reason
+     (see before-after-slider.js). */
+  touch-action: pan-y;
   -webkit-user-select: none;
   user-select: none;
 }
@@ -65,6 +70,20 @@
   transform: translateX(-50%);
   cursor: ew-resize;
   transition: background-color 0.2s ease;
+  /* The one place that still disables default touch handling. The root is
+     `pan-y` so vertical scrolling works from the image surface (see its
+     own comment); the handle is the deliberate drag affordance, so it
+     keeps the raw pointer stream. Without this it would inherit pan-y and
+     a horizontal drag from the handle would be interpreted as a scroll. */
+  touch-action: none;
+  /* Widens the 2px line's TOUCH TARGET to ~44px without changing its
+     appearance: the padding is transparent and the visible 2px is drawn by
+     background-clip:content-box. ::before/::after are both already taken
+     on this element (the circle and the arrow glyph), so a pseudo-element
+     hit area was not available here. */
+  padding: 0 21px;
+  box-sizing: content-box;
+  background-clip: content-box;
 }
 
 /* Hover and active-drag both switch the line + handle fill to

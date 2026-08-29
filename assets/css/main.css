@@ -1205,7 +1205,8 @@ h1 .char {
 }
 
 .footer-title {
-  font-size: clamp(calc(1.5rem * var(--type-scale-heading, 1)), calc(11vw * var(--type-scale-heading, 1)), calc(16rem * var(--type-scale-heading, 1)));
+ /* font-size: clamp(calc(1.5rem * var(--type-scale-heading, 1)), calc(11vw * var(--type-scale-heading, 1)), calc(16rem * var(--type-scale-heading, 1)));*/
+ font-size: var(--text-size-h1);
   line-height: 1 !important;
   letter-spacing: var(--text-letter-spacing-h1);
   margin: 0 0 var(--space-sm) 0;
@@ -4172,7 +4173,22 @@ html {
   align-items: center;
   padding: var(--space-xs) var(--space-xs) var(--space-xs) var(--space-xs);
   gap: var(--space-xs);
-  border-radius: var(--glass-radius);
+  /* --radius-full, not --glass-radius: this is a pill and must stay fully
+     round at EVERY breakpoint. --glass-radius resolves to --radius-lg,
+     which the ≤768px block in tokens.css re-tiers to 12px along with
+     --radius-sm/-md (a deliberate consolidation for cards and media, where
+     a 32px corner reads wrong at phone sizes) — that flattened the nav
+     pill's ends on mobile as a side effect. Pinning the value here keeps
+     the card consolidation intact while leaving this component alone.
+     radius-full is clamped by the shorter axis, so an over-large value
+     simply yields a perfect semicircular cap at any pill height.
+     --glass-liquid-radius is re-pointed too: .glass-liquid sits on THIS
+     same element and declares its own border-radius from that variable, so
+     setting only the longhand here would leave the outcome to cascade
+     order. Overriding the variable makes both agree, and the ::before/
+     ::after glass layers (border-radius: inherit) follow automatically. */
+  --glass-liquid-radius: var(--radius-full);
+  border-radius: var(--radius-full);
   border: 0.5px solid var(--glass-border-thin);
   background-color: var(--glass-bg);
   backdrop-filter: var(--glass-backdrop);
@@ -5637,7 +5653,13 @@ body.page-contact .nav-wrapper {
     max-width: 100%;
     margin-inline: auto;
     justify-content: center;
-    padding: var(--space-sm) var(--space-md);
+    /* Vertical padding matches the desktop base rule's --space-xs rather
+       than --space-sm: the icons are the same 36px at every breakpoint, so
+       a larger vertical pad here only made the mobile pill taller than the
+       desktop one for no reason — part of the size change seen when the
+       collapsed pane expands. Horizontal keeps --space-md so the row still
+       has comfortable end-caps on a narrow screen. */
+    padding: var(--space-xs) var(--space-md);
   }
 
   /* The collapsed-state width rules (see "HIDE-THEN-SHRINK" above, ~line
@@ -5655,6 +5677,18 @@ body.page-contact .nav-wrapper {
   body.page-contact.nav-collapsing .gh-navigation[data-nav-hide-mode="stagger"] .nav-wrapper {
     width: fit-content;
     margin-inline: auto;
+    /* Cancel the width tween too, not just the target values. The base
+       rule (see HIDE-THEN-SHRINK, ~line 5088) declares
+       `transition: width 0.4s ...`, and that survives this override —
+       so with both ends at fit-content the pane still ANIMATED between
+       whatever two content-driven sizes it happened to have, which is
+       the residual size-jump on mobile. On desktop the tween is the whole
+       point (two known px widths); here there are no px targets left to
+       interpolate, so the transition has nothing meaningful to do and
+       only smears the icon swap into a visible resize.
+       `gap` keeps its own transition — it is unaffected by this and still
+       animates cleanly. */
+    transition: gap 0.4s cubic-bezier(0.2, 0, 0, 1) 0s;
   }
 
 }
@@ -5663,11 +5697,10 @@ body.page-contact .nav-wrapper {
   /* .nav-logo font-size override removed — the base var(--text-size-h5)
      clamp already scales it; a fixed 18px here pinned the logo while
      everything else scaled. */
-  .nav-icon-btn {
-    width: 36px;
-    height: 36px;
-  }
-
+  /* .nav-icon-btn width/height override removed — it restated the base
+     rule's own 36px, so it changed nothing while implying this breakpoint
+     resized the buttons. The SVG step-down below is the only real change
+     here. */
   .nav-icon-btn svg {
     width: 18px;
     height: 18px;
@@ -6145,6 +6178,13 @@ body.page-contact .nav-wrapper {
   color: var(--color-on-surface-subtle) !important;
   margin: var(--space-sm) 0 var(--space-sm) 0;
   transition: color 0.3s ease;
+  /* display:inline (was the <p> default, block) — .post-card-endorser
+     right below is also flipped to inline, so the two flow as one
+     continuous line ("<quote>" — Name) instead of stacking on separate
+     lines. The testimonial keeps its OWN top/bottom margin since it still
+     needs to clear whatever sits above/below the combined line; the
+     endorser's margin is zeroed out below so it doesn't double up. */
+  display: inline;
 }
 
 .post-card-testimonial:empty {
@@ -6180,17 +6220,36 @@ body.page-contact .nav-wrapper {
   content: '\201D';
 }
 
-/* Endorser name */
+/* Endorser name — flows on the SAME line as .post-card-testimonial (inline
+   above), continuing straight on from its closing quote mark. */
 .post-card-endorser {
   font-size: var(--text-size-small) !important;
   color: var(--color-on-surface-subtle) !important;
-  margin: 0 0 var(--space-sm) 0;
+  /* margin-bottom removed (was var(--space-sm)): with both elements now
+     inline, that margin would sit mid-line rather than below it and does
+     nothing useful there — .post-card-testimonial's own margin already
+     provides the space below the combined line. */
+  margin: 0;
   transition: color 0.3s ease;
   font-weight: var(--text-weight-thin);
+  display: inline;
 }
 
 .post-card-endorser:empty {
   display: none;
+}
+
+/* Separator between the testimonial's closing quote and the endorser name.
+   Pseudo-element, not a literal character in post-card.hbs or a JS-written
+   string: post-and-cards.js sets this element's text via a plain
+   `el.textContent = ...` assignment (see .post-card-testimonial::before's
+   own comment for why), which would wipe out any hardcoded separator the
+   moment real data loads. Same :empty-safe trick as the quote marks above
+   — :empty only checks real child/text nodes, so this pseudo-element stays
+   invisible along with the rest of the endorser until it has content. */
+.post-card-endorser:not(:empty)::before {
+  content: '\2014';
+  margin: 0 0.4em;
 }
 
 /* Light theme colors */
@@ -7418,6 +7477,49 @@ body[data-page-width='full'] .gh-canvas {
   --color-on-surface: color-mix(in srgb, var(--gradient-frame-ink-base), var(--shift-ink, white) calc(var(--profile-shift, 0) * 100%));
   --color-on-surface-variant: color-mix(in srgb, var(--gradient-frame-ink-variant-base), var(--shift-ink, white) calc(var(--profile-shift, 0) * 100%));
   --color-primary: color-mix(in srgb, var(--gradient-frame-ink-primary-base), var(--shift-ink, white) calc(var(--profile-shift, 0) * 100%));
+}
+
+/* FIXED BACKGROUND, NO INK SET -> DO NOT TOUCH THE INK (2026-08-29).
+   Requires data-shift-bg. A wrapper with NEITHER attribute is a plain
+   "invert this section" request and still flips bg AND ink together, which
+   is coherent by construction; neutralising ink there would leave theme
+   ink on an opposite-palette background, i.e. broken contrast.
+   Re-points --shift-ink at the theme's OWN current ink, which makes every
+   color-mix(base, --shift-ink, N%) a no-op: mixing a colour with itself
+   returns that colour at any percentage. The text therefore keeps exactly
+   what the active theme gives it while the BACKGROUND still shifts.
+
+   Why this and not gating the three declarations above on
+   [data-shift-ink]: those are only the wrapper's own local tokens. A
+   --page instance sets --profile-shift:unset (see .invert-wrapper--page)
+   so it inherits the shift from :root instead, and roughly twenty
+   SITE-WIDE rules elsewhere in this file independently mix toward
+   --shift-ink whenever --profile-shift is non-zero (nav, headings, body
+   copy, links, icons...). Gating locally would leave all of those still
+   shifting. Neutralising the VALUE fixes every consumer at once, present
+   and future, without touching a single one of them.
+
+   --shift-ink is otherwise always defined per theme in tokens.css (dark
+   site -> light ink, light site -> dark ink), which is correct for a block
+   inverting to the opposite palette but wrong for one pinning a fixed
+   background — e.g. data-shift-bg="#210C27" with no ink set, where the
+   theme's ink is already the intended colour. The var(--shift-ink, white)
+   fallbacks in those rules never fire, because the property is never
+   unset; only overriding its value works.
+
+   Scoped to the wrapper (and :root for --page, applied in JS — see
+   default.hbs) so unrelated shift consumers keep their own behaviour. */
+.invert-wrapper[data-shift-bg]:not([data-shift-ink]) {
+  /* --gradient-frame-ink-base, NOT --color-on-surface: the latter is
+     itself redefined on .invert-wrapper above IN TERMS OF --shift-ink, so
+     pointing --shift-ink back at it forms a cycle (a custom property that
+     participates in its own definition is invalid at computed-value time,
+     and BOTH properties would drop out). --gradient-frame-ink-base is the
+     theme's real ink captured at :root by gradient-frame.css for exactly
+     this reason — see its own comment about blending "without
+     self-reference". It is also the same base these color-mix()es already
+     start from, so mixing it with itself is a guaranteed identity. */
+  --shift-ink: var(--gradient-frame-ink-base);
 }
 
 /* PER-INSTANCE COLOUR OVERRIDES — two independent attributes:

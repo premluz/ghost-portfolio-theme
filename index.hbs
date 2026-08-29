@@ -56,11 +56,28 @@
   
 {{> posts-tabs layoutRhythm="true" itemContent="outside" filterFeatured="featured:true+tag:hash-work+tag:featured" }}
 
-    
-  
+
+<div class="invert-wrapper invert-wrapper--page invert-wrapper--full"
+     data-shift-bg="#210C27" data-invert-scrub>
+
+  <section class="statement-slide" style="min-height: 100vh; margin-top: 0; margin-bottom: 0;">
+    <div class="statement-container">
+      <h2 class="statement-heading text-gradient">AI experiments, <br />explorations</h2>
+      <h4 class="mt-0">Deep explorations of subjects I find genuinely interesting, paired with prototypes built in real dev environments.<br /> </h4>
+    </div>
+  </section>
+
+  <div id="work-grid-lab">
+  {{> posts-tabs layoutRhythm="true"  itemContent="outside" filterFeatured="featured:true+tag:hash-work+tag:experimental" }}
+  </div>
+
+</div>
+
+
+
 {{> testimonials }}
 
-    
+
 
 
     {{!--

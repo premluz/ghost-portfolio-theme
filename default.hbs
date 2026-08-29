@@ -1519,7 +1519,13 @@
         var sBg = el.getAttribute('data-shift-bg');
         var sInk = el.getAttribute('data-shift-ink');
         if (sBg) document.documentElement.style.setProperty('--shift-bg', sBg);
+        else document.documentElement.style.setProperty('--shift-bg', 'var(--shift-bg-theme)');
+        // Three-way, matching the timed and scrub branches — see the scrub
+        // branch's comment for why the no-attributes case must CLEAR rather
+        // than skip (shared :root property, previous wrapper's value leaks).
         if (sInk) document.documentElement.style.setProperty('--shift-ink', sInk);
+        else if (sBg) document.documentElement.style.setProperty('--shift-ink', 'var(--gradient-frame-ink-base)');
+        else document.documentElement.style.removeProperty('--shift-ink');
         document.documentElement.style.setProperty('--gradient-shift-3', '1');
       });
 
@@ -1591,7 +1597,30 @@
               var tBg = entry.target.getAttribute('data-shift-bg');
               var tInk = entry.target.getAttribute('data-shift-ink');
               if (tBg) root.style.setProperty('--shift-bg', tBg);
+              else root.style.setProperty('--shift-bg', 'var(--shift-bg-theme)');
+              // No data-shift-ink -> neutralise the ink shift instead of
+              // leaving :root's theme value in place. --shift-ink is always
+              // defined per theme (tokens.css) as the OPPOSITE palette's
+              // ink, and ~20 site-wide rules in main.css mix toward it
+              // whenever --profile-shift is non-zero — so "-bg only" was
+              // still re-pointing every heading, paragraph, link and icon.
+              // Pointing it at --gradient-frame-ink-base (the theme's real
+              // ink, captured at :root by gradient-frame.css) makes each of
+              // those color-mix()es an identity: the background shifts, the
+              // text stays exactly as the active theme has it.
+              // Mirrors the CSS rule for non---page wrappers
+              // (.invert-wrapper:not([data-shift-ink]), main.css); this
+              // branch is needed because --page promotes the property to
+              // :root, out of that selector's reach.
+              // Gated on tBg: neutralise ink only for a FIXED-background
+              // wrapper. With neither attribute set this is a plain
+              // "invert this section" request, where bg and ink must flip
+              // together — neutralising there would put theme ink on an
+              // opposite-palette background. Mirrors the CSS selector
+              // .invert-wrapper[data-shift-bg]:not([data-shift-ink]).
               if (tInk) root.style.setProperty('--shift-ink', tInk);
+              else if (tBg) root.style.setProperty('--shift-ink', 'var(--gradient-frame-ink-base)');
+              else root.style.removeProperty('--shift-ink');
               root.classList.add('invert-timed-active');
               root.style.setProperty('--gradient-shift-3', '1');
             } else {
@@ -1639,8 +1668,26 @@
           quantize: 0.05,
           onProgress: function (t) {
             if (t <= 0) return;
-            if (bg) document.documentElement.style.setProperty('--shift-bg', bg);
-            if (ink) document.documentElement.style.setProperty('--shift-ink', ink);
+            var root = document.documentElement;
+            // Cleared when absent, not just skipped — same shared-:root
+            // leak as --shift-ink below. The bare wrapper on the homepage
+            // was inheriting the PREVIOUS wrapper's fixed #210C27 instead
+            // of falling back to the theme's own inverted background.
+            if (bg) root.style.setProperty('--shift-bg', bg);
+            else root.style.setProperty('--shift-bg', 'var(--shift-bg-theme)');
+            // Three-way, same as the timed branch above — and it must CLEAR
+            // the property in the no-attributes case, not just skip it.
+            // --shift-ink is a single :root property shared by every --page
+            // wrapper, so `if (ink)` alone left whatever the previous
+            // wrapper wrote still in place. A fixed-background wrapper
+            // earlier on the page neutralises --shift-ink to the theme's own
+            // ink (see below); that value then persisted into this bare
+            // "invert the section" wrapper and silently suppressed its
+            // inversion — the reported "theme not reverting" on the
+            // homepage, where exactly that pair sits one after the other.
+            if (ink) root.style.setProperty('--shift-ink', ink);
+            else if (bg) root.style.setProperty('--shift-ink', 'var(--gradient-frame-ink-base)');
+            else root.style.removeProperty('--shift-ink');
           },
         });
       });

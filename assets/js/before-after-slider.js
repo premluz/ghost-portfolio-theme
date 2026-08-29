@@ -123,6 +123,15 @@ function initSlider(root) {
   handle.addEventListener('pointerdown', onPointerDown);
   root.addEventListener('pointerdown', function(e) {
     if (e.target === handle) return;
+    // Touch: only the HANDLE starts a drag, never the rest of the surface.
+    // This element is often full-width and tall in a post, so a vertical
+    // scroll gesture that happens to begin on it was being consumed
+    // outright — onPointerDown calls preventDefault() unconditionally, so
+    // the first swipe moved the slider a few px instead of scrolling the
+    // page, and only a second swipe (started off the image) got through.
+    // With a mouse the same behaviour is harmless and genuinely useful —
+    // click-anywhere-to-jump — so it is kept for fine pointers.
+    if (e.pointerType === 'touch') return;
     onPointerDown(e);
   });
   // Move/up listen on window, not root: once dragging starts, the
