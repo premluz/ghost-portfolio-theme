@@ -54,23 +54,36 @@
 
 
   
-{{> posts-tabs layoutRhythm="true" itemContent="outside" filterFeatured="featured:true+tag:hash-work+tag:featured" }}
+{{> posts-tabs layoutList="true" itemContent="outside"   filterFeatured="featured:true+tag:hash-work+tag:featured" }}
 
 
 <div class="invert-wrapper invert-wrapper--page invert-wrapper--full"
-     data-shift-bg="#210C27" data-invert-scrub>
+ data-shift-bg="#120D1C" data-content-theme="dark-ink" data-invert-scrub>
 
-  <section class="statement-slide" style="min-height: 100vh; margin-top: 0; margin-bottom: 0;">
-    <div class="statement-container">
-      <h2 class="statement-heading text-gradient">AI experiments, <br />explorations</h2>
-      <h4 class="mt-0">Deep explorations of subjects I find genuinely interesting, paired with prototypes built in real dev environments.<br /> </h4>
+  {{!-- Bespoke to this section only — do NOT reuse .statement-slide/
+        -container/-heading (main.css): those are shared by
+        partials/statement-slide.hbs, card-description-statement.hbs,
+        operating-model.hbs, work-projects.hbs, image-stripe.hbs and others,
+        so changing them here would ripple everywhere. .statement-lab-*
+        exists so this "AI experiments" intro can diverge freely. --}}
+  <section class="statement-lab-slide">
+    {{!-- .statement-lab-outer mirrors .hero-container's own box (width/
+          max-width/padding, all driven by body[data-page-width]) so
+          .statement-lab-container's 33%-margin-left below resolves against
+          the SAME width .hero-content's does — without this wrapper the
+          33% was relative to the full-bleed <section>, not the hero's
+          page-width-constrained column, and landed ~24px off. --}}
+    <div class="statement-lab-outer">
+      <div class="statement-lab-container">
+        <h2 class="statement-lab-heading text-gradient">AI experiments, <br />explorations</h2>
+        <h4 class="mt-0">Deep explorations of subjects I find genuinely interesting, paired with prototypes built in real dev environments.<br /> </h4>
+      </div>
     </div>
   </section>
 
   <div id="work-grid-lab">
-  {{> posts-tabs layoutRhythm="true"  itemContent="outside" filterFeatured="featured:true+tag:hash-work+tag:experimental" }}
+  {{> posts-tabs layoutList="true" itemContent="outside"  filterFeatured="featured:true+tag:hash-work+tag:experimental" }}
   </div>
-
 </div>
 
 

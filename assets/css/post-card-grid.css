@@ -563,8 +563,8 @@ body[data-typography-body='medium'] .posts-tab {
 
 .posts-grid[data-posts-layout='list'] .post-card-content {
   /* Paired with .post-card-image's 66% above — was flex:0.7 */
-  flex: 1 1 34%;
-  width: 34%;
+  flex: 1 1 24%;
+  width: 24%;
   display: flex;
   flex-direction: column;
   /* flex-end, not center: content should sit at the bottom of the row,
@@ -1909,7 +1909,7 @@ body[data-typography-body='medium'] .posts-tab {
 .post-card-title {
   display: block;
   width: 100%;
-  font-size: var(--text-size-h3);
+  font-size: var(--text-size-h4);
   line-height: 1.5 !important; /* was var(--line-spacing-body-normal); token system removed */
   margin: var(--space-xs) 0 var(--space-xs) 0!important;
   padding-top: 0;
@@ -2456,6 +2456,28 @@ body[data-card-style='blank'] .post-card-image {
   .post-card-inner {
     flex-direction: column !important;
     gap: 0 !important;
+  }
+
+  /* Image-to-text spacing, unified across layouts (2026-08-30).
+     The gap:0 !important above is correct for the layouts that space
+     image from content with PADDING (grid/rhythm's .post-card-content
+     `padding: 2rem 0 0 0`), but 'list' spaces them with a real `gap` —
+     which that blanket rule silently zeroed, leaving image and text
+     touching. Meanwhile grid/rhythm's 2rem padding survived untouched and
+     read as too generous once stacked.
+     Normalising on ONE value applied as padding-top gives both layouts the
+     same rhythm: list gets its separation back, grid/rhythm loses the
+     excess. --space-md matches what list's own (now-overridden) mobile
+     rule already asked for. */
+  .post-card-inner .post-card-content {
+    padding-top: var(--space-md) !important;
+  }
+
+  /* ...except where content is OVERLAID on the image (absolutely
+     positioned, bottom:0) — there is no stacked gap to create, and a
+     padding-top would just push the text off its own bottom alignment. */
+  .posts-grid[data-item-content='inside'] .post-card-inner .post-card-content {
+    padding-top: 0 !important;
   }
 
   .post-card-inner .post-card-image,

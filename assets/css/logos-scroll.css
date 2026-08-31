@@ -4,13 +4,13 @@
 
 .logos-scroll-section {
   position: relative;
-  left: 50%;
+  left: var(--content-padding);
   right: 50%;
   margin-left: -50vw;
   margin-right: -50vw;
   overflow: hidden;
   padding: clamp(24px, 4vw, 40px) 0;
-  margin-top: 60px;
+x;
   opacity: 1;
   transition: opacity 0.3s ease;
 }
@@ -22,7 +22,7 @@
 .logos-scroll-container {
   display: flex;
   gap: clamp(12px, 12px, 24px);
-  padding: 0 var(--content-padding);
+  padding: 0;
   will-change: transform;
   animation: logos-marquee 20s linear infinite;
 }
@@ -36,12 +36,32 @@
   100% { transform: translateX(-50%); }
 }
 
+/* STATIC STATE — two independent triggers converge here (see
+   logos-scroll.hbs's own doc): the noScroll="true" template param (applied
+   server-side, before JS ever runs) and logos-scroll.js's own runtime
+   measurement (the real logos already fit the container, so there's
+   nothing to scroll). Both just need "stop animating, hide the seam-
+   hiding duplicate set, left-align what's left" — one class, one place
+   that does it, regardless of which trigger asked for it.
+   [data-logo-duplicate] items stay in the DOM rather than being removed:
+   the runtime trigger can flip back on resize (content that fit now
+   overflows), and re-showing an existing element is simpler/cheaper than
+   re-inserting removed nodes. */
+.logos-scroll-section.is-static .logos-scroll-container {
+  animation: none;
+  justify-content: flex-start;
+}
+
+.logos-scroll-section.is-static .logo-item[data-logo-duplicate] {
+  display: none;
+}
+
 .logo-item {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 160px !important;
+  width: 100px !important;
   height: 60px;
 }
 

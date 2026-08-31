@@ -195,10 +195,18 @@
     }
   }
 
-  function runTransition(href) {
+  function runTransition(href, mediaSrc) {
     if (animating) return;
     animating = true;
     armLoadingBar();
+
+    // Warm the destination while the exit animation is still playing — the
+    // real navigation still waits for the animation, but the network work it
+    // kicks off doesn't have to wait for THAT too. runCurtainExit has done
+    // this on the return leg for a while; the forward leg was warming
+    // nothing at all, so every post open paid full network cost on arrival.
+    prefetchHref(href);
+    preloadImage(mediaSrc);
 
     const pageContent = document.querySelector('main');
 
@@ -254,6 +262,31 @@
       const link = document.createElement('link');
       link.rel = 'prefetch';
       link.href = href;
+      document.head.appendChild(link);
+    } catch (err) {}
+  }
+
+  // Warms the destination post's HERO IMAGE, not just its HTML. prefetchHref
+  // above only fetches the document; the feature image is by far the heaviest
+  // above-the-fold asset on a post page, so leaving it to be discovered after
+  // parse is what made an "already loaded" post still show a visible load.
+  //
+  // The card that was just clicked renders the SAME {{feature_image}} URL as
+  // the post hero (post-card.hbs / post.hbs — identical bare URL, no size
+  // params), so this is usually already a cache hit; the preload just makes
+  // that explicit and covers the case where the card was still lazy.
+  // rel="preload" (not prefetch) because this is a high-priority asset for a
+  // navigation we KNOW is about to happen. Failures are inert — no preload
+  // means no head start, never a broken transition.
+  function preloadImage(src) {
+    try {
+      if (!src) return;
+      if (document.querySelector(`link[rel="preload"][href="${src}"]`)) return;
+      const link = document.createElement('link');
+      link.rel = 'preload';
+      link.as = 'image';
+      link.href = src;
+      link.fetchPriority = 'high';
       document.head.appendChild(link);
     } catch (err) {}
   }
@@ -577,8 +610,73 @@
     // now too (see IS_CURTAIN_RETURN in post-and-cards.js), so by the time
     // the scrim starts lifting a beat later, there's an already-complete
     // page underneath it — one clean reveal instead of two overlapping ones.
-    if (main) gsap.set(main, { opacity: 1, clearProps: 'transform' });
+    // SLIDE-UP ENTRANCE on the return leg, matching runLandingAnimation()'s
+    // <main> entrance below (y:80 -> 0, duration 0.2, power1.out) so closing
+    // a post reveals the page the same way arriving at one does, instead of
+    // popping it in flat.
+    //
+    // Opacity still SNAPS to 1 rather than fading. That is deliberate and
+    // predates this slide: main used to fade in step with the scrim, which
+    // meant the scrim was dissolving while main (and its cards, still
+    // resolving metadata-gated reveals) was mid-fade — you'd see the page's
+    // still-loading state bleed through the curtain. The scrim lifting IS
+    // the fade here; main only needs to be settled underneath it. Card
+    // image/video reveals are instant on this path too (IS_CURTAIN_RETURN in
+    // post-and-cards.js), so the scrim lifts on an already-complete page.
+    //
+    // clearProps: 'transform' on completion, NOT just at the start — GSAP
+    // writes an inline transform for `y` even at y:0 (matrix(1,0,0,1,0,0),
+    // not none), and ANY non-none transform on an ancestor creates a new
+    // containing block for its position:fixed descendants. <main> wraps
+    // .home (default.hbs), which contains several fixed layers (.hero, the
+    // gradient canvases), so leaving the identity matrix in place would
+    // silently re-root them to <main> — the same bug runLandingAnimation()
+    // documents on work/about/contact. The transform therefore exists only
+    // for the 0.2s of the tween and is removed the moment it lands.
     const tl = gsap.timeline();
+
+    // Fired at the MIDPOINT of the slide below, for entrance animations that
+    // should play against a page the viewer can actually see rather than
+    // during the veiled restore. The hero H1's letter-by-letter reveal
+    // (scroll-scrub-anim.js initHero) is the one consumer today: initHero
+    // runs unconditionally on every load path, so on a curtain return its
+    // ~400ms stagger used to run and COMPLETE while html.curtain-restoring
+    // still had .home at opacity:0 — measured finishing at ~1022ms with the
+    // scroll restore not landing until ~1085ms, i.e. the whole animation
+    // played invisibly and burned main-thread time during the window the
+    // reveal backfills (LOADING.md §5) are already documented as starved in.
+    //
+    // Emitted on the tween's own progress rather than a setTimeout so it
+    // stays locked to the animation if its duration/ease ever change, and
+    // is dispatched exactly once. Listeners must also handle NEVER receiving
+    // it — this only fires on the curtain path — so the consumer keys off
+    // window.__curtainReturnLoad to decide whether to wait for it at all.
+    let midpointFired = false;
+    const fireMidpoint = () => {
+      if (midpointFired) return;
+      midpointFired = true;
+      try {
+        window.__curtainRevealMidpoint = true;
+        window.dispatchEvent(new CustomEvent('curtain:reveal-midpoint'));
+      } catch (err) {}
+    };
+
+    if (main) {
+      gsap.set(main, { opacity: 1, y: 80 });
+      tl.to(main, {
+        y: 0,
+        duration: 0.2,
+        ease: 'power1.out',
+        clearProps: 'transform',
+        onUpdate: function () {
+          if (this.progress() >= 0.5) fireMidpoint();
+        },
+      }, 0);
+    } else {
+      // No <main> means no slide to hang the midpoint off — fire immediately
+      // so a waiting listener is never stranded.
+      fireMidpoint();
+    }
     tl.to(scrim, { opacity: 0, duration: 0.12, ease: 'power1.out' }, 0.06);
 
     return true;
@@ -640,7 +738,12 @@
       } catch (err) {}
     }
 
-    runTransition(href);
+    // The clicked card's own <img> carries the same URL the destination post
+    // renders as its hero, so it doubles as the preload hint (see
+    // preloadImage). A video card or a card with no media just yields
+    // undefined, which preloadImage ignores.
+    const cardImg = link.querySelector('img') || link.closest('article, .post-card')?.querySelector('img');
+    runTransition(href, cardImg?.currentSrc || cardImg?.src);
   });
 
   // ── Escape key (post close button) ──────────────────────────────────────

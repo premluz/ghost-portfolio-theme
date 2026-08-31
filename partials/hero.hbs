@@ -50,11 +50,13 @@
                   tooltip instead of a second near-duplicate style. --}}
             <span class="nav-tooltip">About me</span>
           </a>
-       <p class="hero-description2" id="hero-description">
+      <p class="hero-description2" id="hero-description">
           I'm Prem<br />
           Product Design Partner
           </p>
       </div>
+
+
 
         {{!-- Main headline --}}
         <h1 class="hero-headline serif" id="hero-headline" data-animate="word">
@@ -73,21 +75,19 @@
         <div class="hero-description-row">
           {{!-- data-transition matches every other in-site link (page-
                 transition.js), so this gets the same animated navigation as
-                the nav's own About entry rather than a hard page jump. --}}
+                the nav's own About entry rather than a hard page jump.
     
 
            <p class="hero-description" id="hero-description">
             {{#if @custom.hero_description}}{{{@custom.hero_description}}}{{else}}Your description here.{{/if}}
-          </p>
+          </p> --}}
    
         </div>
 
         
 
-        {{!-- Top label — "Hello, I'm Prem." --}}
-        <p class="hero-intro text-eyebrow" id="hero-intro">
-          {{#if @custom.hero_name}}{{{@custom.hero_name}}}{{else}}Name{{/if}}
-        </p>
+     
+        
 <!--
      <div class="hero-tags" id="hero-tags">
           <span class="tag">Reasearch</span>
@@ -133,6 +133,7 @@
 
       </div>{{!-- /.hero-content --}}
 
+
     </div>{{!-- /.hero-container --}}
 
     {{!-- RIGHT: image — inside hero-bg so it respects background --}}
@@ -162,6 +163,30 @@
     </div>
   </div>{{!-- /.hero-bg --}}
 
+
 </section>{{!-- /.hero --}}
 
 {{!-- Animation handled by unified scroll-scrub-anim.js via data-animate attribute --}}
+
+{{!-- Logos strip — a normal-flow SIBLING of .hero, not a descendant (moved
+      back out 2026-08-30: nesting inside .hero added no benefit once this
+      is position:fixed anyway, and kept the misleading impression that
+      .hero's own stacking context mattered here — it never did once this
+      left normal flow).
+      Wrapped in its own <section>, positioned independently (main.css,
+      .hero-logos-section) rather than by logos-scroll.css, which stays
+      generic/reusable for any other call site.
+      position:fixed + a z-index ABOVE navigation.hbs's whole nav group
+      (.gh-navigation, position:fixed, z-index:10001, with
+      .nav-progressive-blur nested inside it) is what's required to render
+      on top of that blur — stacking contexts are atomic, so nothing can
+      sit strictly BETWEEN the blur (nested at z-index:-1 inside
+      .gh-navigation) and the nav pill above it without also being a DOM
+      child of .gh-navigation itself. See main.css's own comment on
+      .hero-logos-section for the exact z-index chosen and why.
+      Fixed positioning means this does not scroll away with hero content
+      on its own; scroll-scrub-anim.js's hero exit stagger (initHero())
+      fades it out as you scroll past hero instead — see that file. --}}
+<section class="hero-logos-section">
+  {{> logos-scroll}}
+</section>

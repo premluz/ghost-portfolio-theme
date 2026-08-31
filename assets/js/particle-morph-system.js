@@ -319,6 +319,13 @@ class ParticleMorphSystem {
         console.warn('[particles-theme] setColors method not found on loop');
       }
 
+      // Blending mode is theme-dependent too, not just the colour: additive
+      // blending sums light into the background, which reads as glow on the
+      // dark theme but washes the whole shape toward white on the light one
+      // no matter what colour the particles are. See applyThemeBlending()'s
+      // own comment in particle-animation-loop.js.
+      if (this.loop.applyThemeBlending) this.loop.applyThemeBlending();
+
       // Lab wave tint (uWaveColor) — same CSS-var-driven pattern as
       // --color-particles above, its own token so the two can be tuned
       // independently per theme. Falls back to the current uniform value

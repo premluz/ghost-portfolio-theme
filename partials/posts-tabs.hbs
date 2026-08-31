@@ -19,21 +19,31 @@
       overlaid inside the image or as a separate block below/beside it.
       Checked with a truthy if-block (same eq-less constraint as the
       layout flags above — Ghost's Handlebars can't compare string values),
-      so it is always a flip AWAY from that layout's own default, not a
-      literal "outside" flag: pass exactly itemContent="outside" (any
-      other value, including the literal text "inside", is read as truthy
-      too and has the same effect — there is no way to write "explicitly
-      the default" other than omitting the param).
+      so any non-empty value reads as "outside"; the literal text "inside"
+      would ALSO be truthy and still mean outside. To get a layout's own
+      default, omit the param entirely.
 
         layoutGrid / layoutRhythm / layoutCinematic — default is INSIDE
         (overlaid). itemContent="outside" flips to outside/beside.
-        layoutList — default is OUTSIDE (beside, list's original look).
-        itemContent="outside" flips it the other way, to INSIDE (overlaid).
+        layoutList — default is INSIDE (overlaid) too.
+        itemContent="outside" flips to outside/beside (list's original
+        look: image left, copy in a separate block to the right).
+
+      itemContent="outside" therefore means OUTSIDE in every layout
+      (2026-08-30). It used to be defined as "flip away from this layout's
+      default", which for layoutList inverted the word: passing "outside"
+      produced the overlaid INSIDE style and omitting it gave outside —
+      the opposite of every other layout and of the param's own name.
+      Both list styles already existed in CSS (bare
+      [data-posts-layout='list'] is beside/outside, plus a full
+      [data-item-content='inside'] block for overlaid), so only this
+      mapping changed, not the styling.
 
       Only 3 of the resulting 8 combinations have CSS today:
         layoutGrid + itemContent="outside"
         layoutRhythm + itemContent="outside"
-        layoutList + itemContent="outside"   (→ inside/overlaid, per above)
+        layoutList (omitted → inside/overlaid, and "outside" → beside;
+                    both are styled)
       layoutCinematic + itemContent="outside" has no CSS yet — falls
       through to unstyled base .posts-grid rules if used.
 
@@ -99,7 +109,7 @@
       <div class="posts-tabs-content posts-tabs-content-featured active" data-tab="featured">
         <div class="posts-grid"
           data-posts-layout="{{#if layoutCinematic}}cinematic{{else}}{{#if layoutGrid}}cinematic-grid{{else}}{{#if layoutRhythm}}{{#if itemContent}}grid{{else}}cinematic-rhythm{{/if}}{{else}}{{#if layoutList}}list{{else}}{{@custom.posts_layout}}{{/if}}{{/if}}{{/if}}{{/if}}"
-          {{#if itemContent}}{{#if layoutList}}data-item-content="inside"{{else}}{{#unless layoutRhythm}}data-item-content="outside"{{/unless}}{{/if}}{{/if}}>
+          {{#if layoutList}}{{#unless itemContent}}data-item-content="inside"{{/unless}}{{else}}{{#if itemContent}}{{#unless layoutRhythm}}data-item-content="outside"{{/unless}}{{/if}}{{/if}}>
           <div class="container">
             <div id="work-cards"></div>
             <div class="carousel-track">
@@ -141,7 +151,7 @@
       <div class="posts-tabs-content posts-tabs-content-experimental" data-tab="experimental">
         <div class="posts-grid"
           data-posts-layout="{{#if layoutCinematic}}cinematic{{else}}{{#if layoutGrid}}cinematic-grid{{else}}{{#if layoutRhythm}}{{#if itemContent}}grid{{else}}cinematic-rhythm{{/if}}{{else}}{{#if layoutList}}list{{else}}{{@custom.posts_layout}}{{/if}}{{/if}}{{/if}}{{/if}}"
-          {{#if itemContent}}{{#if layoutList}}data-item-content="inside"{{else}}{{#unless layoutRhythm}}data-item-content="outside"{{/unless}}{{/if}}{{/if}}>
+          {{#if layoutList}}{{#unless itemContent}}data-item-content="inside"{{/unless}}{{else}}{{#if itemContent}}{{#unless layoutRhythm}}data-item-content="outside"{{/unless}}{{/if}}{{/if}}>
           <div class="container">
             <div id="work-cards"></div>
             <div class="carousel-track">

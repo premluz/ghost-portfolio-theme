@@ -593,17 +593,59 @@ class ScrollScrubAnimationSystem {
       // on exact script-load timing, not any conditional logic. Poll instead,
       // same pattern as waitForParticleSystemThenMorph just above.
       let letterAnimAttempts = 0;
-      const runLetterReveal = () => {
+      // `deferred` = this call is running LONG after entranceTl was created
+      // (the curtain-return wait below). entranceTl is shared with the
+      // intro/description/avatar/stats fades and starts playing immediately,
+      // so by the time the midpoint fires (~1.3s) its playhead is already
+      // way past REVEAL_START — tweens added at that position land behind
+      // the playhead and GSAP snaps them straight to their end state.
+      // Traced exactly that: 102 spans appearing at opacity 1..1 with no
+      // stagger at all. A deferred run therefore needs its OWN timeline,
+      // starting at 0, so the stagger actually plays.
+      const runLetterReveal = (deferred) => {
         if (window.animateH1LetterByLetter) {
-          window.animateH1LetterByLetter(heading, entranceTl, REVEAL_START);
+          const targetTl = deferred ? gsap.timeline() : entranceTl;
+          window.animateH1LetterByLetter(heading, targetTl, deferred ? 0 : REVEAL_START);
         } else if (letterAnimAttempts++ < 25) { // 25 * 20ms = 500ms
-          setTimeout(runLetterReveal, 20);
+          setTimeout(() => runLetterReveal(deferred), 20);
         } else {
           console.warn('[scroll-scrub-anim] animateH1LetterByLetter never became available — hero heading shown without letter reveal');
           gsap.set(heading, { opacity: 1, visibility: 'visible' });
         }
       };
-      runLetterReveal();
+      // CURTAIN RETURN: hold the letter reveal until the page is actually
+      // visible. On that path this whole block runs while
+      // html.curtain-restoring still has .home at opacity:0 — traced with
+      // the stagger completing at ~1022ms and the scroll restore landing at
+      // ~1085ms, so every letter had finished animating before anything was
+      // on screen. Waiting for page-transition.js's 'curtain:reveal-midpoint'
+      // (fired halfway through <main>'s slide-up) puts the stagger where it
+      // can be seen, and keeps it off the main thread during the restore's
+      // backfill passes.
+      //
+      // Everything else — fresh load, cached load, same-site nav — is
+      // unchanged and still starts immediately; those paths never fire this
+      // event, which is exactly why the wait is gated on
+      // __curtainReturnLoad (default.hbs head, set before any script runs
+      // and only cleared on real user input) rather than on the event.
+      //
+      // The timeout is a failsafe, not the mechanism: if the midpoint never
+      // arrives (no <main>, an aborted timeline, a GSAP failure) the reveal
+      // still runs rather than leaving the H1 stranded at opacity 0 — the
+      // same "failsafes are a backstop" rule LOADING.md §9 states for veils.
+      if (window.__curtainReturnLoad && !window.__curtainRevealMidpoint) {
+        let letterRevealStarted = false;
+        const startLetterReveal = () => {
+          if (letterRevealStarted) return;
+          letterRevealStarted = true;
+          window.removeEventListener('curtain:reveal-midpoint', startLetterReveal);
+          runLetterReveal(true);
+        };
+        window.addEventListener('curtain:reveal-midpoint', startLetterReveal);
+        setTimeout(startLetterReveal, 1500);
+      } else {
+        runLetterReveal(false);
+      }
       if (intro) {
         gsap.set(intro, { y: 0, filter: 'blur(0px)' });
         entranceTl.fromTo(intro, { opacity: 0 }, { opacity: 1, duration: 0.4, ease: 'power2.out' }, REVEAL_START);
@@ -620,6 +662,15 @@ class ScrollScrubAnimationSystem {
       if (avatar) {
         entranceTl.fromTo(avatar, { opacity: 0 }, { opacity: 1, duration: 0.4, ease: 'power2.out' }, REVEAL_START + 0.1);
       }
+      // .hero-description2 (hero.hbs's current active "I'm Prem / Product
+      // Design Partner" line) sits in .hero-avatar-row right next to the
+      // avatar above — same opacity:0 pre-hide (main.css), same offset, so
+      // it fades in as part of the same visual unit/beat as the avatar
+      // rather than staggering separately.
+      const description2 = hero.querySelector('.hero-description2');
+      if (description2) {
+        entranceTl.fromTo(description2, { opacity: 0 }, { opacity: 1, duration: 0.4, ease: 'power2.out' }, REVEAL_START + 0.1);
+      }
       // Stats row (hero.hbs) carries the same opacity:0 pre-hide as
       // avatar/description (main.css) — same reveal, one beat later so it
       // reads as the last piece of the hero settling in rather than
@@ -627,6 +678,17 @@ class ScrollScrubAnimationSystem {
       const stats = hero.querySelector('.hero-stats');
       if (stats) {
         entranceTl.fromTo(stats, { opacity: 0 }, { opacity: 1, duration: 0.4, ease: 'power2.out' }, REVEAL_START + 0.2);
+      }
+      // Logos strip (hero.hbs's .hero-logos-section) — carries the same
+      // opacity:0 pre-hide as stats/avatar/description (main.css), one
+      // beat after stats, matching the exit stagger's own ordering
+      // (scroll-scrub-anim.js's exitTl further down this file).
+      // Queried from `document`, not `hero`: this section is a normal-flow
+      // SIBLING of .hero in the markup (hero.hbs), not a descendant, so
+      // hero.querySelector() can never find it.
+      const heroLogos = document.querySelector('.hero-logos-section');
+      if (heroLogos) {
+        entranceTl.fromTo(heroLogos, { opacity: 0 }, { opacity: 1, duration: 0.4, ease: 'power2.out' }, REVEAL_START + 0.25);
       }
     });
 
@@ -781,6 +843,23 @@ class ScrollScrubAnimationSystem {
         );
       }
 
+      // .hero-description2 — same row as the avatar (hero.hbs), same
+      // entrance offset (REVEAL_START + 0.1 above), so it exits at the SAME
+      // position/values here too — one visual unit with the avatar, not
+      // staggered against it.
+      const description2 = hero.querySelector('.hero-description2');
+      if (description2) {
+        exitTl.fromTo(description2,
+          { y: 0 },
+          { y: 160, duration: 0.5, ease: 'power2.in' },
+          0.1
+        ).fromTo(description2,
+          { opacity: 1 },
+          { opacity: 0, duration: 0.3, ease: 'power1.out' },
+          0.1
+        );
+      }
+
       // Stats row (2026-08-11) — next step in the stagger after description/
       // avatar, mirroring its own entrance offset (REVEAL_START + 0.2, one
       // beat behind description/avatar's + 0.1) — same relative order, same
@@ -796,6 +875,40 @@ class ScrollScrubAnimationSystem {
           { opacity: 0, duration: 0.3, ease: 'power1.out' },
           0.15
         );
+      }
+
+      // Logos strip (hero.hbs's .hero-logos-section) — deliberately NOT part
+      // of exitTl above: exitTl is scrub:true, tying every tween 1:1 to
+      // scroll position across hero's 80% range, but per explicit request
+      // this strip instead plays a one-shot stagger (fade + slide down,
+      // rightmost item first toward leftmost) the moment scroll leaves the
+      // very top of the page, and reverses the same way back to the top —
+      // not a scroll-position scrub. A separate, non-scrubbed ScrollTrigger
+      // achieves that: toggleActions plays forward once past `start` and
+      // reverses once scrolled back above it, rather than chasing scroll
+      // distance like exitTl's own tweens do.
+      // Queried from `document`, not `hero`: this section is a normal-flow
+      // SIBLING of .hero, not a descendant (see the matching entrance tween
+      // above for the full explanation).
+      const heroLogos = document.querySelector('.hero-logos-section');
+      if (heroLogos) {
+        const logoItems = Array.from(heroLogos.querySelectorAll('.logo-item:not([data-logo-duplicate])')).reverse();
+        if (logoItems.length) {
+          gsap.timeline({
+            scrollTrigger: {
+              trigger: hero,
+              start: 'top top-=1', // fires as soon as the page scrolls off the very top
+              toggleActions: 'play none none reverse',
+              markers: false
+            }
+          }).to(logoItems, {
+            opacity: 0,
+            y: 40,
+            duration: 0.3,
+            ease: 'power1.out',
+            stagger: 0.06
+          }, 0);
+        }
       }
     }
   }

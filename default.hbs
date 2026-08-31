@@ -265,7 +265,16 @@
         --color-primary: #60A26B;
       {{/if}}
       */
-      /* Light mode reads on a ~L*98 backdrop, so contrast comes from how far
+      /* Briefly changed to a light grey (#9CA3AF) on 2026-08-31 to soften
+         the bloom, then reverted the SAME DAY — the actual particle DOTS
+         need to stay dark to read against the light backdrop (light dots
+         on a light background is close to invisible); only the glow/halo
+         AROUND them was too heavy. Core and halo share this one colour in
+         the shader (particle-style-definitions.js's default style has no
+         separate halo-colour uniform), so the halo's weight is tuned via
+         particle-morph.hbs's HALO_MULT_LIGHT_MULT instead of a colour
+         change here.
+         Light mode reads on a ~L*98 backdrop, so contrast comes from how far
          BELOW the page the particle sits — the darker this is, the more each
          unit of sprite alpha buys. Measured against dark mode as the target
          (dark: mean deltaL of the hottest 1% = 22.4, share of pixels past a
@@ -1335,8 +1344,18 @@
   {{!-- The volatility surface is now a morph SHAPE inside the particle system
        (shape-definitions.js 'volatility') — the standalone canvas layer
        (volatility-surface.js, kept on disk) is no longer loaded. --}}
+  {{!-- string-tune + string-tune-3d — DISABLED (2026-08-29, perf).
+       ~82 KB from unpkg on every page load. Their ONLY consumer was
+       assets/js/particle-morph-init.js, which is not loaded by any
+       template (verified) — the particle system is driven by
+       particle-morph.hbs + particle-morph-system.js instead, neither of
+       which touches StringTune. Nothing else references StringTune,
+       String3D or ThreeJSProvider anywhere in the theme.
   <script src="https://unpkg.com/@fiddle-digital/string-tune@1.1.47/dist/index.js"></script>
   <script src="https://unpkg.com/string-tune-3d@0.0.9/dist/index.js"></script>
+  --}}
+  {{!-- split-type IS live: heading-animations, main, post-and-cards and
+       scroll-scrub-anim all use SplitType. --}}
   <script src="https://unpkg.com/split-type@0.3.4/umd/index.min.js"></script>
   <script src="{{asset "js/preloader.js"}}"></script>
   <script src="{{asset "js/intro.js"}}"></script>
@@ -1410,7 +1429,13 @@
         var bg = el.getAttribute('data-shift-bg');
         var ink = el.getAttribute('data-shift-ink');
         if (bg) el.style.setProperty('--shift-bg', bg);
-        if (ink) el.style.setProperty('--shift-ink', ink);
+        // "invert" is a keyword, not a colour — writing it literally would
+        // make --shift-ink an invalid colour and every color-mix() reading
+        // it would drop out. Nothing to write: the CSS neutralisation rule
+        // (.invert-wrapper[data-shift-bg]:not([data-shift-ink])) already
+        // fails to match once the attribute is present, so the inherited
+        // theme --shift-ink survives, which IS the inverted ink.
+        if (ink && ink !== 'invert') el.style.setProperty('--shift-ink', ink);
       });
     })();
   </script>
@@ -1504,6 +1529,51 @@
         attribute when no data-invert-mode is present, so nothing needed
         changing at the call sites. Omitting both still means scrub. Prefer
         data-invert-mode for anything new. --}}
+  {{!-- data-shift-bg-light (2026-08-31) — THEME-RESPONSIVE colour, opts a
+        --page instance OUT of scroll/time-based inversion entirely.
+
+          data-shift-bg="#071E1B"         colour served in DARK theme
+          data-shift-bg-light="#F2EFE9"   colour served in LIGHT theme
+
+        data-shift-bg alone (no -light sibling) keeps its existing meaning
+        on every branch below: a single fixed colour the section shifts TO,
+        regardless of theme, via whatever scrub/timed/static animation the
+        element's other attributes select. Adding -light changes the
+        QUESTION being answered from "what colour does this scroll/time
+        transition reveal" to "what colour does this theme serve" — there
+        is no transition to speak of, so it is handled here, once, ahead of
+        every mode branch, and excluded from all of them (the :not() below)
+        rather than teaching each branch a theme-aware variant of its own
+        animation.
+        Static, not live-updating on an in-page theme toggle: matches every
+        other --shift-bg/--shift-ink write on this page, none of which
+        re-run on 'themechange' either — a toggle mid-scroll already
+        requires a fresh look at the section to see any of these colours
+        change, same as page background/particle colour elsewhere. --}}
+  <script>
+    (function () {
+      var isLightTheme = document.documentElement.getAttribute('data-theme') === 'light';
+      document.querySelectorAll('.invert-wrapper--page[data-shift-bg-light]').forEach(function (el) {
+        var darkBg = el.getAttribute('data-shift-bg');
+        var lightBg = el.getAttribute('data-shift-bg-light');
+        var bg = isLightTheme ? lightBg : darkBg;
+        var ink = el.getAttribute('data-shift-ink');
+        var root = document.documentElement;
+        if (bg) root.style.setProperty('--shift-bg', bg);
+        else root.style.setProperty('--shift-bg', 'var(--shift-bg-theme)');
+        // Same three-way ink resolution as the static/timed/scrub branches
+        // below (see the timed branch's own long comment on the "invert"
+        // keyword and the neutralise-vs-flip distinction) — a theme-
+        // responsive background still needs the same contrast handling.
+        if (ink === 'invert') root.style.removeProperty('--shift-ink');
+        else if (ink) root.style.setProperty('--shift-ink', ink);
+        else if (bg) root.style.setProperty('--shift-ink', 'var(--gradient-frame-ink-base)');
+        else root.style.removeProperty('--shift-ink');
+        root.style.setProperty('--gradient-shift-3', '1');
+      });
+    })();
+  </script>
+
   <script>
     (function () {
       // Static instances first — deliberately ABOVE both guards below, since
@@ -1512,9 +1582,13 @@
       // :not([data-invert-timed]) so an element carrying both attributes
       // resolves predictably (timed wins) instead of being pinned to 1 here
       // and then having nothing left for the fade to animate.
+      // :not([data-shift-bg-light]) — theme-responsive instances are fully
+      // handled by their own script block above; matching them again here
+      // would immediately overwrite that resolved colour with the plain
+      // data-shift-bg (dark-only) reading.
       document.querySelectorAll(
-        '.invert-wrapper--page[data-invert-mode="static"],' +
-        '.invert-wrapper--page[data-invert-static]:not([data-invert-timed]):not([data-invert-mode])'
+        '.invert-wrapper--page[data-invert-mode="static"]:not([data-shift-bg-light]),' +
+        '.invert-wrapper--page[data-invert-static]:not([data-invert-timed]):not([data-invert-mode]):not([data-shift-bg-light])'
       ).forEach(function (el) {
         var sBg = el.getAttribute('data-shift-bg');
         var sInk = el.getAttribute('data-shift-ink');
@@ -1523,7 +1597,9 @@
         // Three-way, matching the timed and scrub branches — see the scrub
         // branch's comment for why the no-attributes case must CLEAR rather
         // than skip (shared :root property, previous wrapper's value leaks).
-        if (sInk) document.documentElement.style.setProperty('--shift-ink', sInk);
+        // "invert" keyword — see the timed branch below.
+        if (sInk === 'invert') document.documentElement.style.removeProperty('--shift-ink');
+        else if (sInk) document.documentElement.style.setProperty('--shift-ink', sInk);
         else if (sBg) document.documentElement.style.setProperty('--shift-ink', 'var(--gradient-frame-ink-base)');
         else document.documentElement.style.removeProperty('--shift-ink');
         document.documentElement.style.setProperty('--gradient-shift-3', '1');
@@ -1537,9 +1613,13 @@
       // the value change intact. Needs no BackgroundLayer either — the whole
       // animation is the registered-@property transition in CSS; this only
       // decides WHEN to flip the class.
+      // :not([data-shift-bg-light]) — theme-responsive instances are fully
+      // handled by their own script block above (static colour, no
+      // observer); excluded here so the enter/leave IntersectionObserver
+      // below never overwrites that resolved colour mid-scroll.
       var timed = document.querySelectorAll(
-        '.invert-wrapper--page[data-invert-mode="timed"],' +
-        '.invert-wrapper--page[data-invert-timed]:not([data-invert-mode])'
+        '.invert-wrapper--page[data-invert-mode="timed"]:not([data-shift-bg-light]),' +
+        '.invert-wrapper--page[data-invert-timed]:not([data-invert-mode]):not([data-shift-bg-light])'
       );
       if (timed.length) {
         // Colours are applied at TRIGGER time (inside the observer below),
@@ -1618,7 +1698,16 @@
               // together — neutralising there would put theme ink on an
               // opposite-palette background. Mirrors the CSS selector
               // .invert-wrapper[data-shift-bg]:not([data-shift-ink]).
-              if (tInk) root.style.setProperty('--shift-ink', tInk);
+              // data-shift-ink="invert" — a KEYWORD, not a colour: keep the
+              // theme's own inverted ink (the value :root already holds)
+              // while data-shift-bg pins a fixed background. Without it a
+              // fixed-bg wrapper always neutralises ink (see below), which
+              // is right for a light-ish fixed colour but wrong for a very
+              // dark one like #071E1B, where the text must flip to stay
+              // readable. removeProperty (not a value) is what restores the
+              // theme's own --shift-ink from tokens.css.
+              if (tInk === 'invert') root.style.removeProperty('--shift-ink');
+              else if (tInk) root.style.setProperty('--shift-ink', tInk);
               else if (tBg) root.style.setProperty('--shift-ink', 'var(--gradient-frame-ink-base)');
               else root.style.removeProperty('--shift-ink');
               root.classList.add('invert-timed-active');
@@ -1644,9 +1733,11 @@
 
       if (!window.BackgroundLayer) return;
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      // :not([data-shift-bg-light]) — same exclusion as the static/timed
+      // branches above: theme-responsive instances need no scrub binding.
       document.querySelectorAll(
-        '.invert-wrapper--page[data-invert-mode="scrub"],' +
-        '.invert-wrapper--page:not([data-invert-mode]):not([data-invert-static]):not([data-invert-timed])'
+        '.invert-wrapper--page[data-invert-mode="scrub"]:not([data-shift-bg-light]),' +
+        '.invert-wrapper--page:not([data-invert-mode]):not([data-invert-static]):not([data-invert-timed]):not([data-shift-bg-light])'
       ).forEach(function (el) {
         var bg = el.getAttribute('data-shift-bg');
         var ink = el.getAttribute('data-shift-ink');
@@ -1685,7 +1776,9 @@
             // "invert the section" wrapper and silently suppressed its
             // inversion — the reported "theme not reverting" on the
             // homepage, where exactly that pair sits one after the other.
-            if (ink) root.style.setProperty('--shift-ink', ink);
+            // "invert" keyword — see the timed branch above.
+            if (ink === 'invert') root.style.removeProperty('--shift-ink');
+            else if (ink) root.style.setProperty('--shift-ink', ink);
             else if (bg) root.style.setProperty('--shift-ink', 'var(--gradient-frame-ink-base)');
             else root.style.removeProperty('--shift-ink');
           },
@@ -1776,21 +1869,30 @@
   <script src="{{asset "js/gesture-detector.js"}}"></script>
   <script src="{{asset "js/particle-gesture-controller.js"}}"></script> -->
 
-  <!-- GPU Particle System (Production Setup) -->
+  <!-- GPU Particle System — DISABLED (2026-08-29, perf).
+       These 12 files (~45 KB gzipped, 12 requests) load on every page but
+       nothing ever instantiates the system: {{> gpu-particle-integration}}
+       is itself commented out further down this file, and that partial is
+       the ONLY place window.gpuParticleSystem is created. Verified: every
+       other reference is a defensive `!!window.gpuParticleSystem` check
+       (particle-morph.hbs) that correctly reads false and falls through to
+       the legacy THREE.js path, which is what actually renders today.
+       Note gpu-particle-system.test.js was shipping to production here too.
+       Re-enable by uncommenting BOTH this block and the integration partial
+       — one without the other does nothing.
   <script src="{{asset "js/gpu-particles/gpu-shader-compiler.js"}}"></script>
   <script src="{{asset "js/gpu-particles/gpu-compute-engine.js"}}"></script>
   <script src="{{asset "js/gpu-particles/gpu-renderer.js"}}"></script>
-  <!-- Week 2: Morphing & Shape Loading -->
   <script src="{{asset "js/gpu-particles/gpu-particle-state.js"}}"></script>
   <script src="{{asset "js/gpu-particles/shape-loader.js"}}"></script>
   <script src="{{asset "js/gpu-particles/gpu-morph-controller.js"}}"></script>
-  <!-- Week 3: Scroll, Registry, Monitoring, Fallback, Tests -->
   <script src="{{asset "js/gpu-particles/gpu-scroll-driver.js"}}"></script>
   <script src="{{asset "js/gpu-particles/gpu-shape-registry.js"}}"></script>
   <script src="{{asset "js/gpu-particles/gpu-performance-monitor.js"}}"></script>
   <script src="{{asset "js/gpu-particles/gpu-fallback.js"}}"></script>
   <script src="{{asset "js/gpu-particles/gpu-particle-system.test.js"}}"></script>
   <script src="{{asset "js/gpu-particles/gpu-particle-system.js"}}"></script>
+  -->
 
   <script src="{{asset "js/main.js"}}?v={{@site.updated_at}}"></script>
   <script src="{{asset "js/sticky-nav.js"}}"></script>

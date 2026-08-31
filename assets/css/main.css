@@ -7525,6 +7525,13 @@ body[data-page-width='full'] .gh-canvas {
 /* PER-INSTANCE COLOUR OVERRIDES — two independent attributes:
      data-shift-bg="#123456"   the colour this block's background shifts TO
      data-shift-ink="#ffffff"  the colour its text/icons shift TO
+     data-shift-ink="invert"   KEYWORD, not a colour: keep the theme's own
+                               inverted ink while data-shift-bg pins a fixed
+                               background. Use when the fixed colour is dark
+                               on a light site (or vice versa) and the text
+                               must flip to stay readable — without it, a
+                               fixed-bg wrapper leaves ink at the theme's
+                               value (see the neutralisation rule below).
    Either may be set alone: -bg only for a pure background change (text keeps
    the theme's own shift ink), -ink only to re-point text without touching
    the background, both for full control — the only combination that is
@@ -7745,6 +7752,12 @@ html.invert-timed-active {
      data-content-theme="dark"     always dark,  regardless of active theme
      data-content-theme="light"    always light, regardless of active theme
 
+   Each also has an INK-ONLY twin — "invert-ink" / "dark-ink" / "light-ink"
+   — that recolours text/icons/borders but paints NO background panel. Use
+   those when the background already comes from somewhere else (an
+   .invert-wrapper's data-shift-bg, a gradient frame, a parent's fill);
+   the painting variants would cover it at inset:0.
+
    How the three differ is ONE declaration each (the --ct-bg/--ct-ink pair
    at the bottom); everything above it is shared machinery.
 
@@ -7768,7 +7781,10 @@ html.invert-timed-active {
    .invert-wrapper is left untouched; the two coexist. */
 [data-content-theme="invert"],
 [data-content-theme="dark"],
-[data-content-theme="light"] {
+[data-content-theme="light"],
+[data-content-theme="invert-ink"],
+[data-content-theme="dark-ink"],
+[data-content-theme="light-ink"] {
   position: relative; /* anchors ::before below */
   /* Ink is a color-mix() at a FIXED 100% rather than a plain assignment so
      these stay drop-in compatible with the same --gradient-frame-ink-*-base
@@ -7798,7 +7814,10 @@ html.invert-timed-active {
 
 [data-content-theme="invert"] > *,
 [data-content-theme="dark"] > *,
-[data-content-theme="light"] > * {
+[data-content-theme="light"] > *,
+[data-content-theme="invert-ink"] > *,
+[data-content-theme="dark-ink"] > *,
+[data-content-theme="light-ink"] > * {
   position: relative;
   z-index: 1;
 }
@@ -7815,6 +7834,77 @@ html.invert-timed-active {
 [data-content-theme="invert"] { --ct-bg: var(--case-study-bg, var(--shift-bg));       --ct-ink: var(--shift-ink); }
 [data-content-theme="dark"]   { --ct-bg: var(--case-study-bg, var(--theme-dark-bg));  --ct-ink: var(--theme-dark-ink); }
 [data-content-theme="light"]  { --ct-bg: var(--case-study-bg, var(--theme-light-bg)); --ct-ink: var(--theme-light-ink); }
+
+/* .text-gradient follows the pinned polarity too. --gradient-text-image is
+   itself theme-overridden (tokens.css: the light block redefines it), so
+   without this a "dark"/"dark-ink" block kept the LIGHT gradient — dark
+   navy stops sitting on a dark panel, invisible — while every plain-ink
+   sibling around it correctly flipped. The -dark/-light tokens are fixed
+   per polarity and identical in every theme block, so pinning is safe.
+   "invert"/"invert-ink" is NOT handled here: unlike dark/light it has no
+   fixed polarity to pin — it means "whatever the theme currently isn't",
+   which changes with the theme. Those two would need the OPPOSITE of the
+   active --gradient-text-image, and CSS has no way to express that without
+   a per-theme rule; left as-is rather than half-solved. Note the same gap
+   exists for .invert-wrapper, which flips ink and surfaces via
+   --profile-shift but never touches the text gradient either.
+
+   --grad-text-1/2/3 are set alongside for any consumer reading the
+   primitives directly rather than the composed string — same belt-and-
+   braces as posts-tabs-grid-lab.css's own fixed-palette override, which
+   documents this identical problem. */
+[data-content-theme="dark"],
+[data-content-theme="dark-ink"] {
+  --gradient-text-image: var(--gradient-text-image-dark);
+  --grad-text-1: #b9a7ff;
+  --grad-text-2: #8fd8d2;
+  --grad-text-3: #6aa9ff;
+}
+
+[data-content-theme="light"],
+[data-content-theme="light-ink"] {
+  --gradient-text-image: var(--gradient-text-image-light);
+  --grad-text-1: #1d5f8a;
+  --grad-text-2: #4b3f9e;
+  --grad-text-3: #16706a;
+}
+
+/* INK-ONLY variants — recolour text/icons/borders, paint NO background.
+   Deliberately set only --ct-ink and never --ct-bg, which is what keeps
+   them out of the ::before panel rule above (that rule is scoped to the
+   three painting values only).
+   For a block already sitting on a background somebody else supplies — an
+   .invert-wrapper's data-shift-bg, a gradient frame, a parent section's own
+   fill. Using the painting variant there covered that background with its
+   own panel at inset:0, and reaching for --case-study-bg:transparent to
+   stop it left the ink flipped over the PAGE's colour instead (white text
+   on a light page). These give the ink flip with nothing to undo. */
+[data-content-theme="invert-ink"] { --ct-ink: var(--shift-ink); }
+[data-content-theme="dark-ink"]   { --ct-ink: var(--theme-dark-ink); }
+[data-content-theme="light-ink"]  { --ct-ink: var(--theme-light-ink); }
+
+/* ...and everything ELSE the theme reverses, minus the background.
+   --ct-ink above only reaches --color-on-surface/-variant/-primary, so
+   text flipped while pane borders, glass fills and icons stayed on the
+   underlying theme's values — visibly wrong against a dark fixed
+   background (dark-on-dark hairlines, light-mode glass on a green panel).
+   --profile-shift IS the theme's own reversal switch: ~20 site-wide rules
+   in this file plus the token pairs in tokens.css (--surface-1/-shift,
+   --glass-bg/-shift, the icon invert ramp, nav tints) all blend toward
+   their "-shift" twin as it goes 0 -> 1. Setting it here opts these blocks
+   into that whole system rather than re-listing its members.
+   --glass-border is the one exception worth doing by hand: unlike
+   --glass-bg it is a flat token, and only two files (profile.css,
+   posts-tabs-grid-lab.css) blend it per-consumer — redefining it once here
+   fixes every OTHER consumer, .field-grid-item's own hairline included.
+   NO --ct-bg is set, so the ::before panel rule still does not match and
+   the background underneath is left completely alone. */
+[data-content-theme="invert-ink"],
+[data-content-theme="dark-ink"],
+[data-content-theme="light-ink"] {
+  --profile-shift: 1;
+  --glass-border: var(--glass-border-shift);
+}
 
 /* ── POST PAGE LAYOUT GRID (post.hbs) ────────────────────────────
    Page-level grid: the side rail runs alongside BOTH the header and the
@@ -8975,9 +9065,20 @@ body.page-contact .gh-footer {
   justify-content: center;
   width: 44px;
   height: 44px;
+  /* --radius-full, NOT --glass-radius: these are circles. --glass-radius
+     resolves to --radius-lg, which the ≤768px block in tokens.css re-tiers
+     to 12px — same trap the nav pill hit, so the radius is pinned here
+     while the rest of the glass treatment comes from the shared tokens. */
   border-radius: var(--radius-full);
-  border: 1px solid var(--color-outline-variant);
-  background: transparent;
+  /* Glass surface — same token set .icon-cloud-item uses (icon-cloud.css),
+     so both read as one material. All four are theme-aware: --glass-bg is
+     a color-mix off --glass-bg-base and --glass-border has its own light-
+     theme override, so these need no per-theme handling here. */
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: var(--glass-backdrop);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  box-shadow: var(--glass-liquid-shadow);
   color: var(--color-icon);
   cursor: pointer;
   padding: 0;
@@ -8988,7 +9089,12 @@ body.page-contact .gh-footer {
 
 .footer-social-btn:hover {
   border-color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  /* Tint mixed INTO --glass-bg, not replacing it: a flat
+     color-mix(primary, transparent) here overwrote the glass surface set on
+     the base rule, so hovering visibly dropped the frosted layer (the
+     backdrop-filter stayed, but with nothing tinted over it the button read
+     as a plain outline again). Mixing keeps the glass and adds the accent. */
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--glass-bg));
 }
 
 .footer-social-btn:active {
@@ -9771,18 +9877,19 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
    full viewport. */
 @media (min-width: 1025px) {
   .hero.no-cover {
-    height: 70dvh;
-    min-height: 80dvh;
+    height: 100dvh;
+    min-height: 100dvh;
   }
 
   .hero.no-cover .hero-bg {
-    height: 80dvh !important;
-    min-height: 80dvh;
+    height: 100dvh !important;
+    min-height: 100dvh;
   }
 
   .hero.no-cover .hero-content {
-    margin-left: calc(33% + var(--space-xl));
-    width: calc(66% - var(--space-2xl));
+   /* margin-left: calc(33% + var(--space-xl));
+    width: calc(46% - var(--space-2xl));*/
+     width: 26%;
   }
 }
 
@@ -9830,7 +9937,7 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
      scroll-scrub-anim.js initHero() and the nowrap note below) — the
      headline now wraps normally, so overflow is not possible and no
      width-derived cap is needed. */
-  font-size: var(--text-size-h2);
+  font-size: var(--text-size-h3);
   line-height: var(--text-line-height-h2) !important;
   letter-spacing: var(--text-letter-spacing-h1);
   color: var(--color-primary, #4a9e5c);
@@ -10056,6 +10163,16 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
   top: calc(100% + 4px) !important;url(https://prems.me/content/images/size/w2400/2026/07/zTransfer--1-.png)
 }
 
+/* Supporting description (hero.hbs's .hero-description2, current active
+   "I'm Prem / Product Design Partner" paragraph in .hero-avatar-row) —
+   same opacity:0 pre-hide contract as .hero-avatar/.hero-headline,
+   revealed/hidden by scroll-scrub-anim.js's initHero() alongside the
+   avatar it sits next to. Without this it rendered at full opacity
+   immediately on load, unlike every other hero element. */
+.hero-description2 {
+  opacity: 0;
+}
+
 /* Supporting description */
 .hero-description {
   /* body copy — retiered off --text-size-h5 (heading axis) to the same
@@ -10164,6 +10281,77 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
   -webkit-backdrop-filter: blur(8px);
   /* Initial state for GSAP (each tag animated individually) */
   opacity: 1;
+}
+
+/* ── Hero logos strip (hero.hbs's .hero-logos-section, wrapping
+      {{> logos-scroll}}) ──────────────────────────────────────────
+   A normal-flow SIBLING of .hero (moved back out 2026-08-30 — an earlier
+   version nested it inside .hero, which was unnecessary once this is
+   position:fixed and only muddied the reasoning: .hero's own stacking
+   context never actually mattered here, because fixed positioning takes
+   this out of normal flow/stacking entirely regardless of which element
+   it happens to be a DOM descendant of).
+   Positioning owned HERE, in hero's own stylesheet section, not in
+   logos-scroll.css — that file stays generic/reusable for any other call
+   site (about.hbs includes the same partial directly, un-wrapped, as a
+   plain in-flow section).
+   position:fixed: needs to visually sit ON TOP of navigation.hbs's
+   .nav-progressive-blur, itself position:fixed and a genuine DOM CHILD of
+   .gh-navigation (fixed, z-index:10001) — confirmed live via injected
+   diagnostics, not assumed. Stacking contexts are atomic: the ENTIRE
+   .gh-navigation group, from its blur (nested at z-index:-1) up to its
+   highest child, occupies one slot at rank 10001 in the root ordering.
+   Nothing can sit strictly BETWEEN the blur and the nav pill above it
+   without also being a DOM child of .gh-navigation — a root-level sibling
+   can only clear the WHOLE group or sit entirely behind it, no middle
+   ground. Chosen: clear the whole group.
+   z-index 10003 — one past .scroll-progress's own 10002, itself one past
+   .gh-navigation's 10001. This also renders above the nav PILL/buttons
+   wherever they would overlap — accepted, since the only alternative
+   (nesting this as an actual DOM child of .gh-navigation) is far more
+   invasive than a CSS-only placement. In practice the nav pill is
+   top-docked on desktop and this strip is bottom-pinned, so overlap is
+   rare to begin with. */
+.hero-logos-section {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10003;
+  padding: 0 var(--content-padding) var(--space-md) var(--content-padding);
+  pointer-events: none; /* decorative row; do not intercept clicks/scroll meant for the page beneath */
+  /* Same pre-hide pattern as .hero-stats/.hero-description etc. above:
+     opacity:0 by default, revealed by scroll-scrub-anim.js's initHero()
+     entrance stagger (REVEAL_START + 0.25, one step after .hero-stats) —
+     see that file for the corresponding fade-in tween. Without this the
+     strip would flash visible before JS has run, ahead of the rest of the
+     hero's own staggered reveal. */
+  opacity: 0;
+}
+
+/* Logo images themselves stay interactive-looking (hover dims per
+   logos-scroll.css) even though the ROW is pointer-events:none above —
+   re-enable on the items a layer down so :hover still fires per-logo. */
+.hero-logos-section .logo-item {
+  pointer-events: auto;
+}
+
+/* logos-scroll.css's own .logos-scroll-section does a viewport-breakout
+   (left:50%/-50vw margins) and adds its own top/bottom margin, both
+   written assuming it is a normal-flow block inside a constrained page
+   container — correct for about.hbs's own plain call site, wrong here:
+   this wrapper is already position:fixed and full-width via left:0/right:0
+   above, so the breakout math would offset it based on the WRAPPER's own
+   box instead of the page, and the margins would just push it out of the
+   fixed box's visible area for no reason. Neutralised only in THIS
+   nesting (.hero-logos-section is unique to hero.hbs); the base rule
+   (logos-scroll.css) is untouched for about.hbs's own inclusion. */
+.hero-logos-section .logos-scroll-section {
+  position: static;
+  left: auto;
+  right: auto;
+  margin: 0;
+  padding: 0;
 }
 
 /* ── Right: image wrapper (golden ratio ~38.2%) ────────────────── */
@@ -13297,6 +13485,85 @@ textarea::placeholder {
   line-height: 1.6 !important; /* was var(--line-spacing-body-relaxed); token system removed */
 }
 
+/* STATEMENT-LAB — bespoke to index.hbs's "AI experiments, explorations"
+   intro only. Deliberately NOT sharing .statement-slide/-container/-heading
+   above: those classes are reused by partials/statement-slide.hbs,
+   card-description-statement.hbs, operating-model.hbs, work-projects.hbs
+   and image-stripe.hbs, so any divergence needed here would either fork
+   those templates' shared look or force a bespoke override selector
+   anyway. min-height/margins were inline styles on the <section> in
+   index.hbs (min-height:100vh, margin-top/-bottom:0) — moved here per the
+   no-inline-styles rule; values unchanged. */
+.statement-lab-slide {
+  width: 100%;
+  min-height: 100vh;
+  margin-top: 0;
+  margin-bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Replicates .hero-container's own box (main.css ~9612) — same padding and
+   the same page-width-driven max-width — so .statement-lab-container's
+   33% margin-left below resolves against the identical width
+   .hero-content's does. Without matching this outer box first, the 33%
+   was relative to the full-bleed <section> instead of the hero's actual
+   (narrower, page-width-constrained) column, and the two didn't line up. */
+.statement-lab-outer {
+  width: 100%;
+  padding: 0 var(--content-padding);
+  margin: 0 auto;
+}
+
+body[data-page-width='contained'] .statement-lab-outer {
+  max-width: 1440px;
+}
+
+body[data-page-width='wide'] .statement-lab-outer {
+  max-width: 1600px;
+}
+
+body[data-page-width='full'] .statement-lab-outer {
+  max-width: 1800px;
+}
+
+.statement-lab-container {
+  width: 100%;
+  text-align: left;
+}
+
+/* Match .hero.no-cover .hero-content's desktop position exactly (main.css,
+   @media min-width:1025px, ~9783): margin-left pushes the text to where the
+   hero's own text visually sits (33% + space-xl), not just .hero's base
+   padding. Same values, same breakpoint, resolved against the same outer
+   width via .statement-lab-outer above, so the two columns line up.
+   Below 1025px .hero itself has no no-cover override either, so the plain
+   full-width column here already matches. */
+@media (min-width: 1025px) {
+  .statement-lab-container {
+    margin-left: calc(33% + var(--space-xl));
+    width: calc(66% - var(--space-2xl));
+  }
+}
+
+.statement-lab-heading {
+  display: block;
+  font-size: var(--text-size-h1);
+  margin: 0 0 var(--space-md) 0;
+  color: var(--color-on-surface);
+  text-align: left;
+  word-spacing: normal;
+  white-space: normal;
+  padding: 0;
+}
+
+@media (max-width: 768px) {
+  .statement-lab-slide {
+    min-height: 100svh;
+  }
+}
+
 @media (max-width: 1024px) {
   .statement-heading {
     font-size: clamp(calc(1.6rem * var(--type-scale-heading, 1)), calc(7vw * var(--type-scale-heading, 1)), calc(3rem * var(--type-scale-heading, 1))) !important;
@@ -13315,6 +13582,14 @@ textarea::placeholder {
 
   .statement-slide.statement-slide-main {
     min-height: 100svh;
+  }
+
+  /* Same responsive clamp as .statement-heading above — this is a plain
+     H1, so without an explicit shrink it stays at var(--text-size-h1) on
+     tablet/mobile and can overflow. */
+  .statement-lab-heading {
+    font-size: clamp(calc(1.6rem * var(--type-scale-heading, 1)), calc(7vw * var(--type-scale-heading, 1)), calc(3rem * var(--type-scale-heading, 1))) !important;
+    line-height: 1.3;
   }
 }
 
@@ -13337,6 +13612,11 @@ textarea::placeholder {
 
   .statement-description {
     font-size: clamp(calc(0.875rem * var(--type-scale-body, 1)), calc(3.5vw * var(--type-scale-body, 1)), calc(1.1rem * var(--type-scale-body, 1))) !important;
+  }
+
+  .statement-lab-heading {
+    font-size: var(--text-size-h1) !important;
+    line-height: var(--text-line-height-h1) !important;
   }
 }
 
@@ -13694,26 +13974,30 @@ html.no-anim { scroll-behavior: auto !important; }
 html.no-anim #particle-morph-demo { display: none !important; }
 
 /* Hero-only particle canvas offset (read by particle-animation-loop.js).
-   Negative values move the rendered particle layer left/up in screen pixels.
-   Magnitude increases from desktop to tablet — the shape slides further
-   left as the viewport narrows down to 769px. Below that (phones),
+   Negative values move the rendered particle layer left/up in screen
+   pixels, positive values move it right/down.
+   Flipped to the RIGHT side of the screen (was -420px/-460px, i.e. left) —
+   magnitude kept the same, just the sign, so the shape sits the same
+   distance from centre as before, mirrored. Below 769px (phones),
    explicitly recentered: the camera frustum at phone aspect ratios is
-   narrow enough that any further left-shift pushes the whole shape off
-   the left edge entirely (verified — it disappeared completely at 768px
-   and 390px before this was capped). particle-animation-loop.js's
-   _getHeroZoomFov() separately narrows the camera FOV (a render parameter,
-   not a canvas transform) continuously down to the narrowest phone widths
-   — that keeps applying even while centered, since a centered shape can't
-   be zoomed off-frame the way an offset one can. */
+   narrow enough that any further shift pushes the whole shape off the
+   edge entirely (verified — it disappeared completely at 768px and 390px
+   before this was capped) — that constraint applies symmetrically, so the
+   phone tier stays 0px regardless of which side desktop/tablet use.
+   particle-animation-loop.js's _getHeroZoomFov() separately narrows the
+   camera FOV (a render parameter, not a canvas transform) continuously
+   down to the narrowest phone widths — that keeps applying even while
+   centered, since a centered shape can't be zoomed off-frame the way an
+   offset one can. */
 @media (min-width: 1025px) {
   body:has(.hero) #particle-morph-demo #particles canvas {
-    --particle-hero-canvas-left: -420px;
+    --particle-hero-canvas-left: 720px;
     --particle-hero-canvas-top: 0px;
   }
 }
 @media (min-width: 769px) and (max-width: 1024px) {
   body:has(.hero) #particle-morph-demo #particles canvas {
-    --particle-hero-canvas-left: -460px;
+    --particle-hero-canvas-left: 460px;
     --particle-hero-canvas-top: 0px;
   }
 }

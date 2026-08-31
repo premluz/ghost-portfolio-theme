@@ -440,7 +440,7 @@ data-gradient-resolution-scale="0.35">
             IntersectionObserver system (card-scroll-reveal.js), which
             can't fire for something already in the initial viewport. --}}
       <figure class="post-hero-sticky" data-post-hero="contained" data-skip-reveal>
-        <img src="{{feature_image}}" alt="{{title}}" loading="lazy">
+        <img src="{{feature_image}}" alt="{{title}}" loading="eager" fetchpriority="high" decoding="async">
       </figure>
     {{/if}}
 
@@ -576,6 +576,41 @@ data-gradient-resolution-scale="0.35">
         <div class="gh-content">
           {{content}}
         </div>
+        {{!-- LAZY-LOAD THE BODY IMAGES.
+
+              {{content}} is Ghost-rendered editor HTML, so its <img> tags
+              come out as bare `<img src>` with no loading attribute — the
+              browser therefore fetches every one of them immediately, at
+              parse time, regardless of where they sit on the page. Measured
+              on this template: 25 images, only 6 lazy; the un-lazy ones are
+              all body content well below the fold, and they saturate the
+              connection alongside the hero. Under an 800kbps throttle the
+              162KB hero took 12.3s to arrive because 15 other images had
+              already started before it finished.
+
+              This runs INLINE, immediately after the content it fixes, and
+              deliberately NOT on DOMContentLoaded — by then the preload
+              scanner has already queued every one of these fetches and the
+              attribute has no effect. Executing here, mid-parse, the nodes
+              above exist but the images below the fold have not been
+              committed to yet.
+
+              The hero (.post-hero-sticky img, above this block) is
+              untouched: it stays loading="eager" fetchpriority="high" so
+              this only ever REMOVES competition from it, never delays it.
+              Anything already carrying an explicit loading attribute is
+              left alone rather than overridden. --}}
+        <script>
+          (function () {
+            try {
+              var imgs = document.querySelectorAll('.gh-content img:not([loading])');
+              for (var i = 0; i < imgs.length; i++) {
+                imgs[i].setAttribute('loading', 'lazy');
+                imgs[i].setAttribute('decoding', 'async');
+              }
+            } catch (err) {}
+          })();
+        </script>
       </div>
     </div>
   </div>

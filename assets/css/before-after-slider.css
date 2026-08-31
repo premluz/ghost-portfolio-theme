@@ -60,30 +60,42 @@
   top: 0;
   bottom: 0;
   left: 50%;
-  width: 2px;
-  /* Rest = --color-surface-variant (the "next" surface step up from
-     --color-surface, tokens.css) — a neutral dark panel tone, not the
-     --color-on-surface ink token this used before. Matches the handle
-     circle's own rest fill below; the divider line and the circle
-     always share one fill color at any given state. */
-  background: var(--color-surface-variant);
+  /* Touch/click target only — ~44px wide, invisible (no background here;
+     the visible 2px line is a separate ::before/::after-free child drawn
+     below via .before-after-slider-handle-line, since background-clip:
+     content-box on THIS element rendered the fill across the full padded
+     box instead of clipping to the 2px content box — reported as "the
+     line is 40-50px fat" — rather than chase why that clip failed to
+     apply, painting on a dedicated child sidesteps it entirely. */
+  width: 44px;
   transform: translateX(-50%);
   cursor: ew-resize;
-  transition: background-color 0.2s ease;
   /* The one place that still disables default touch handling. The root is
      `pan-y` so vertical scrolling works from the image surface (see its
      own comment); the handle is the deliberate drag affordance, so it
      keeps the raw pointer stream. Without this it would inherit pan-y and
      a horizontal drag from the handle would be interpreted as a scroll. */
   touch-action: none;
-  /* Widens the 2px line's TOUCH TARGET to ~44px without changing its
-     appearance: the padding is transparent and the visible 2px is drawn by
-     background-clip:content-box. ::before/::after are both already taken
-     on this element (the circle and the arrow glyph), so a pseudo-element
-     hit area was not available here. */
-  padding: 0 21px;
-  box-sizing: content-box;
-  background-clip: content-box;
+}
+
+/* The actual visible divider line — a real 2px-wide child instead of this
+   element's own background, so its size can never be affected by the
+   parent's touch-target padding/width (see that element's own comment). */
+.before-after-slider-handle-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  /* Rest = --color-surface-variant (the "next" surface step up from
+     --color-surface, tokens.css) — a neutral dark panel tone, not the
+     --color-on-surface ink token this used before. Matches the handle
+     circle's own rest fill below; the divider line and the circle
+     always share one fill color at any given state. */
+  background: var(--color-surface-variant);
+  transition: background-color 0.2s ease;
+  pointer-events: none;
 }
 
 /* Hover and active-drag both switch the line + handle fill to
@@ -107,8 +119,8 @@
    (JS-toggled on the root, see before-after-slider.js) is what keeps
    the accent held for the whole gesture regardless of exact pointer
    position. */
-.before-after-slider:hover .before-after-slider-handle,
-.before-after-slider.is-dragging .before-after-slider-handle {
+.before-after-slider:hover .before-after-slider-handle-line,
+.before-after-slider.is-dragging .before-after-slider-handle-line {
   background: var(--before-after-accent, var(--color-secondary));
 }
 

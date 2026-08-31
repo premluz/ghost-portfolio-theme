@@ -353,27 +353,11 @@ async function initParticleMorphModular() {
         // for the same clamp reason EXIT_SPAN is (see above); at 1.0 the
         // helix holds its form for the hero's entire height.
         const SHAPE_EXIT_AT = 1.0;
-        // Fraction of the zone by which the object has finished drifting to
-        // Lab's centre position. MUST be < SHAPE_EXIT_AT so it arrives
-        // before the morph rather than during it — the gap between the two
-        // is how long it sits settled at the destination beforehand.
-        // NOTE this is a fraction of the hero zone AFTER progressScale, so
-        // it must be re-checked whenever that changes. Lab takes over at
-        // whatever hero-t its own element reaches 0.02 at — measured live
-        // at scrollY 3294, which with progressScale 8.2 (zone spans ~7782px)
-        // is hero-t ~0.42. 0.85 was correct for the old scale of 3.2 but
-        // landed at ~6615px here, i.e. the drift was only half done when
-        // Lab claimed the object — the 3.79-unit jump in the logs. 0.35
-        // finishes around 2724px, leaving ~570px settled at Lab's entry
-        // position before the handover.
-        const CENTER_BY = 0.35;
-        // Lab's own entrance position (its at:0.00 `position` keyframe, see
-        // the 'lab' zone below). Hero drifts to THIS y, not to 0, so the
-        // object is already sitting where Lab expects it when the shape
-        // morphs — otherwise the handover jumps from hero's raised exit
-        // position back down to Lab's low entrance. Keep in sync with that
-        // keyframe if it moves.
-        const LAB_ENTRY_Y = -6.0;
+        // CENTER_BY / LAB_ENTRY_Y removed (2026-08-30): they drove the old
+        // x/y drift toward Lab's entrance position, which read as "moves
+        // down and right" on scroll — removed per explicit request in
+        // favour of up-only motion (see frame() below). The Lab handoff can
+        // now snap instead of arriving pre-positioned; accepted tradeoff.
         const ROTATION_SAMPLES = 9;
         const heroKeyframes = Array.from({ length: ROTATION_SAMPLES + 1 }, (_, i) => {
           const at = (i / ROTATION_SAMPLES) * EXIT_SPAN;
@@ -597,51 +581,34 @@ async function initParticleMorphModular() {
           // for as long as _zoneActive()'s generous margin keeps it live.
           frame: (l, t) => {
             if (!heroStillRelevant()) return null;
-            // Centring runs on its OWN fraction, not EXIT_SPAN's: the
-            // object must have arrived at Lab's position BEFORE the shape
-            // morphs, otherwise Lab's own frame() (positionBase [0,0,0])
-            // takes over on the handover frame and the object snaps from
-            // hero's left canvas offset to centre in one step — the jump
-            // this drift replaces. CENTER_BY is a fraction of the zone, so
-            // it sits ahead of SHAPE_EXIT_AT with a margin to settle.
-            const centerFrac = Math.min(1, t / CENTER_BY);
-            // smoothstep — eases out of the start AND into the arrival,
-            // with the bulk of the travel spread across the middle. A plain
-            // easeOutCubic was tried first and front-loads too hard (85% of
-            // the distance covered by t=0.2, then a long crawl), which
-            // reads as a quick dart followed by nothing rather than the
-            // steady approach wanted here.
-            const centerEase = centerFrac * centerFrac * (3 - 2 * centerFrac);
+            // UP-ONLY on scroll (2026-08-30, explicit request): no
+            // horizontal drift and no downward dip. Previously this eased
+            // BOTH axes toward Lab's entrance position ([0, -6, 0]) so the
+            // handover never jumped — x drifted from the hero's left
+            // canvas offset toward 0 (read as moving RIGHT), and y was
+            // pulled from its risen position back DOWN to -6 (read as
+            // moving DOWN) via a smoothstep blend keyed off the removed
+            // CENTER_BY/LAB_ENTRY_Y constants. Removing that drift means
+            // the Lab handoff may now snap/jump instead of being
+            // seamless — accepted tradeoff, chosen over reintroducing
+            // either direction of drift.
             if (t < EXIT_SPAN) {
               const off = l._getHeroCanvasOffset();
               const frac = Math.min(1, t / EXIT_SPAN);
               const zoomedZ = heroBaseCameraZ * ZOOM_FACTOR;
-              // BOTH axes converge on Lab's own entrance position, so the
-              // handover is continuous rather than a jump. Hero's natural
-              // y (off.y + upward travel) ends several units ABOVE Lab's
-              // entrance keyframe (LAB_ENTRY_Y, its at:0.00 position), so
-              // without this the object leapt back down at the morph.
-              const heroY = off.y + frac * TRAVEL_Y;
               heroFrameFrozen = {
-                positionBase: [
-                  off.x * (1 - centerEase),
-                  heroY + (LAB_ENTRY_Y - heroY) * centerEase,
-                  0,
-                ],
+                // x frozen at the hero's own canvas offset — no drift.
+                // y rises from that offset by TRAVEL_Y (already "upward"
+                // per its own comment) and never reverses direction.
+                positionBase: [off.x, off.y + frac * TRAVEL_Y, 0],
                 cameraZ: heroBaseCameraZ + (zoomedZ - heroBaseCameraZ) * (frac * frac),
                 fov: l._getHeroZoomFov(window.innerWidth),
               };
-            } else if (heroFrameFrozen) {
-              // Past EXIT_SPAN the buildup is frozen, but the drift must
-              // keep going — it finishes at CENTER_BY, which is later.
-              // Re-reading the live offset each frame (rather than scaling
-              // the frozen value) keeps this correct if the canvas offset
-              // changes underneath, e.g. on resize.
-              const off = l._getHeroCanvasOffset();
-              const heroY = off.y + TRAVEL_Y; // frac is pinned at 1 here
-              heroFrameFrozen.positionBase[0] = off.x * (1 - centerEase);
-              heroFrameFrozen.positionBase[1] = heroY + (LAB_ENTRY_Y - heroY) * centerEase;
             }
+            // Past EXIT_SPAN: no else-branch needed any more — there is no
+            // ongoing drift to keep applying once the buildup completes, so
+            // heroFrameFrozen simply holds its last computed value as
+            // frame() keeps returning it unchanged.
             return heroFrameFrozen;
           },
         });
@@ -1766,18 +1733,32 @@ setTimeout(initParticleMorphModular, localStorage.getItem('preloader_seen') ? 0 
   //   strength 2.0, radius 2.8  -> core 42.8, coverage 1.39%   (blown cores)
   //   strength 1.0, radius 5.2  -> core 24.2, coverage 2.29%   (chosen)
   // Dark mode is untouched by both multipliers (x1.0).
+  // Was dropped 1.0 -> 0.25 (2026-08-31) to fix "too strong" light-mode
+  // bloom, then reverted back to 1.0 the same day per explicit request —
+  // the actual bloom-strength fix approach changed direction to CORE_MULT_
+  // LIGHT_MULT/HALO_MULT_LIGHT_MULT below (tune the particles' own colour/
+  // brightness before additive summation) rather than fading overall glow
+  // strength/alpha, which also worked but wasn't the preferred lever. The
+  // dark->light "bloom persists after toggle" bug this comment used to
+  // reference was separately fixed for real via loop.applyThemeBlending()
+  // now being called from this same function (see further down) — additive
+  // vs normal blending was the actual stuck-state cause, not this value.
   var GLOW_STRENGTH_LIGHT_MULT = 1.0;
 
   // Light-mode halo footprint, as a multiple of the base GLOW_RADIUS
-  // (particle-animation-loop.js). 5.2 / 2.8 — see the measurements above.
-  // COST: sprite area scales with the square of this (setGlowRadius keeps
-  // uSpriteScale = radius * 2.12 in lockstep), so light mode pays ~3.4x the
-  // per-particle fill of dark mode. Deliberate and bounded: it multiplies
-  // whatever base radius this device got, and low-end devices start from a
-  // much smaller one (1.1 vs 2.8), so a low-end light sprite still ends up
-  // SMALLER than a normal dark-mode sprite is today — the weakest GPUs
-  // never see the full cost.
-  var GLOW_RADIUS_LIGHT_MULT = 5.2 / 2.8;
+  // (particle-animation-loop.js).
+  // Was 5.2/2.8 (~1.86x dark mode's own radius) — that coverage fix solved
+  // "light mode barely visible" but is exactly what made every particle
+  // read as a soft, blown-up, blurry blob instead of a crisp dot: sprite
+  // area scales with the SQUARE of this multiplier, so 1.86x radius was
+  // ~3.4x the per-particle fill of dark mode. Screenshotted side-by-side
+  // 2026-08-31 — dark mode is "crisp with subtle aura", light mode was
+  // visibly soft/blurry by comparison. Dropped to 1.0 (matches dark mode's
+  // own sprite size exactly) to fix the crispness gap; visibility is
+  // carried by CORE_MULT_LIGHT_MULT/HALO_MULT_LIGHT_MULT instead (weaker
+  // additive contrast doesn't need a bigger sprite to be visible dark on
+  // light, only enough alpha/colour weight in the same footprint).
+  var GLOW_RADIUS_LIGHT_MULT = 1.0;
 
   // HDR core/halo overbright trim, light mode only (see the applyTheme()
   // block below that reads these). 1.0 = untouched (original hardcoded
@@ -1796,8 +1777,19 @@ setTimeout(initParticleMorphModular, localStorage.getItem('preloader_seen') ? 0 
   // white source: that one controls a single particle's own colour choice,
   // this controls how bright ANY particle's glow gets before summing with
   // its neighbours). Dark mode is never touched by either multiplier.
-  var CORE_MULT_LIGHT_MULT = 0.7;
-  var HALO_MULT_LIGHT_MULT = 0.7;
+  // CORE raised 0.7 -> 1.0 (2026-08-31, paired with GLOW_RADIUS_LIGHT_MULT
+  // dropping to 1.0 above): with the sprite no longer inflated to ~1.86x
+  // dark mode's radius, the dots need their full core weight to read as
+  // crisply as dark mode's own dots do — this was compensating for a
+  // now-removed coverage boost, not an independent trim.
+  var CORE_MULT_LIGHT_MULT = 1.0;
+  // HALO kept low, 0.35 (2026-08-31) — this is now what makes light mode
+  // match dark mode's "crisp dot, SUBTLE aura" feel: a small, tight sprite
+  // (GLOW_RADIUS_LIGHT_MULT 1.0) with a light halo weight reads as a sharp
+  // core with a soft ring around it, not a blown-up blurry blob. Only
+  // scales the halo term (particle-style-definitions.js,
+  // `vColor * uHaloMult * halo`) — core dot visibility above is untouched.
+  var HALO_MULT_LIGHT_MULT = 0.35;
 
   function applyTheme() {
     var isLight = document.documentElement.getAttribute('data-theme') === 'light';
@@ -1862,6 +1854,24 @@ setTimeout(initParticleMorphModular, localStorage.getItem('preloader_seen') ? 0 
         .getPropertyValue('--color-particles-wave').trim();
       if (rawWave) u.uWaveColor.value.set(rawWave);
     }
+
+    // Blending mode (2026-08-31 fix): additive blending sums particle light
+    // into the background — reads as bloom/glow on dark's near-black
+    // backdrop, but washes the whole shape toward white on light's
+    // near-white one, independent of anything the glow-strength/radius/
+    // core/halo multipliers above tune. particle-animation-loop.js's
+    // applyThemeBlending() sets NormalBlending for light / AdditiveBlending
+    // for dark, but this function was the only theme-change entry point
+    // that never called it (its own doc comment refers to a DIFFERENT,
+    // no-longer-loaded updateColors() in particle-morph-system.js that did)
+    // — so blending only ever got set correctly once, at page-load init,
+    // and stayed stuck at that value through every later toggle. Confirmed
+    // as the actual cause of "toggling dark->light leaves dark's bloom,
+    // but a fresh light-mode load looks correct": a fresh load's init call
+    // reads isLight right for that page's own starting theme; a toggle
+    // changed data-theme but never re-ran this, so an AdditiveBlending
+    // material carried over unchanged into light mode.
+    if (loop.applyThemeBlending) loop.applyThemeBlending();
 
     // Defensive: enforce the single-pipeline invariants in case any other
     // code (old cached JS, console experiments) flipped them.

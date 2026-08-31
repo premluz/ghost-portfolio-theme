@@ -540,6 +540,20 @@
   --theme-dark-bg: #151417;
   --theme-dark-ink: var(--primitive-neutral-0);
 
+  /* CROSS-THEME TEXT GRADIENTS — same contract as the -ink/-bg pairs above:
+     one fixed value per polarity, identical in every theme block, so they
+     can be pinned regardless of the active theme.
+     Needed because --gradient-text-image itself IS theme-overridden (the
+     light block redefines it), so a block that pins dark ink via
+     data-content-theme="dark-ink" would otherwise keep the LIGHT gradient
+     on its .text-gradient spans — dark navy stops on a dark panel.
+     Values are copied from each theme's own --gradient-text-image
+     literally rather than referencing --grad-text-1/2/3, because those
+     primitives are themselves theme-overridden and would re-introduce the
+     same problem. Keep in sync if either theme's gradient is retuned. */
+  --gradient-text-image-dark: linear-gradient(100deg, #b9a7ff 28%, #8fd8d2 74%, #6aa9ff 100%);
+  --gradient-text-image-light: linear-gradient(100deg, #1d5f8a 0%, #4b3f9e 30%, #1f2a44 55%, #16706a 78%, #1d5f8a 100%);
+
   /* SHIFT PALETTE — targets for the reusable section palette-flip transition
      (see profile.css "reversed-palette-on-entry" + background-layer.js).
      A section scrubs --profile-shift 0→1 and its surfaces/text blend toward
@@ -670,7 +684,7 @@
      unreachable. 5vw keeps the desktop end at the same 6rem cap (reached
      at 1920px) while letting narrow viewports fall toward the floor;
      ≤768px is pinned to exactly 1rem by the mobile block below. */
-  --content-padding: clamp(1rem, 5vw, 6rem);
+  --content-padding: clamp(1rem, 3vw, 6rem);
 
   /* Content width — easily configurable by page_width setting */
   --content-max-width-text: 800px;
@@ -1075,6 +1089,18 @@ body[data-page-width='full'] {
   /* CONTENT */
   --color-on-surface: var(--theme-light-ink);
   --color-on-surface-variant: #4a4a4a;
+
+  /* PARTICLES — dark teal on the light theme, not the base #5ad8ff.
+     The particle material switches from additive to NORMAL blending on
+     this theme (applyThemeBlending, particle-animation-loop.js) because
+     additive sums toward white and washed the shape out against a light
+     page. With normal blending the colour is shown literally rather than
+     summed, so a pale cyan reads as barely-there — it needs to be dark
+     enough to have contrast against the background on its own.
+     #082A3C matches the value scroll-scrub-anim.js already uses for the
+     light site (PARTICLE_NORMAL.light), so the scroll-driven tint and the
+     base colour now agree instead of the base being an outlier. */
+  --color-particles: #082A3C;
   --color-on-surface-subtle: #6b7d7d;
 
   /* Navigation */

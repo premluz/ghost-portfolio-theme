@@ -602,6 +602,12 @@ ${styles.fragmentBodyBlocks()}
     });
 
     this.particles = new THREE.Points(geo, mat);
+    // Material is constructed with AdditiveBlending above (the dark-theme
+    // default); correct it immediately if the light theme is active, so the
+    // very first painted frame is right rather than waiting for a theme
+    // CHANGE to fire updateColors(). Also re-applies on every rebuild
+    // (instant shape swaps call createParticles again with a fresh mat).
+    this.applyThemeBlending();
 
     // Seed the object transform with the hero canvas offset on FIRST creation.
     // Without this, particles are born at (0,0,0) — the dispersed cloud renders
@@ -688,9 +694,16 @@ ${styles.fragmentBodyBlocks()}
       const dominant = value > 0.5;
       const mat = this.particles.material;
       if (style.materialState.blending) {
+        // Non-dominant fallback is the THEME default, not a hardcoded
+        // AdditiveBlending: on the light theme additive washes the whole
+        // shape toward white (see applyThemeBlending), so a style merely
+        // dropping below dominance used to silently undo that correction.
+        const themeDefault = document.documentElement.getAttribute('data-theme') === 'light'
+          ? THREE.NormalBlending
+          : THREE.AdditiveBlending;
         const want = dominant
           ? (style.materialState.blending === 'normal' ? THREE.NormalBlending : THREE.AdditiveBlending)
-          : THREE.AdditiveBlending;
+          : themeDefault;
         if (mat.blending !== want) mat.blending = want;
       }
     }
@@ -724,6 +737,34 @@ ${styles.fragmentBodyBlocks()}
       maxY = Math.max(maxY, y);
     }
     return { minY, maxY };
+  }
+
+  /**
+   * Blending mode by theme. AdditiveBlending ADDS light to whatever is
+   * behind it, which is what produces the glow/bloom — correct against the
+   * dark theme's near-black background, but on the light theme every
+   * particle drives its pixels toward white regardless of --color-particles,
+   * so the shape washes out and blends into the page instead of reading as
+   * a coloured object.
+   *
+   * NormalBlending composites the particle's own colour over the background
+   * instead of summing, so light mode keeps the shape legible and the
+   * colour honest. The glow doesn't disappear — the fragment shader's own
+   * alpha falloff still produces a soft edge; it just stops being additive.
+   *
+   * Called on theme change (particle-morph-system.js's updateColors) as
+   * well as at init. Per-style materialState.blending (see setStyleAmount)
+   * still wins where a style explicitly asks for one — this only sets the
+   * default the styles start from.
+   */
+  applyThemeBlending() {
+    if (!this.particles || !this.particles.material) return;
+    var isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    var want = isLight ? THREE.NormalBlending : THREE.AdditiveBlending;
+    if (this.particles.material.blending !== want) {
+      this.particles.material.blending = want;
+      this.particles.material.needsUpdate = true;
+    }
   }
 
   setColors(colors) {

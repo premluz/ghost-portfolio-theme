@@ -55,6 +55,18 @@ function initSlider(root) {
   var handle = root.querySelector('.before-after-slider-handle');
   if (!beforeUrl || !afterUrl || !beforeLayer || !afterLayer || !handle) return;
 
+  // The visible 2px divider line is injected here, not part of the pasted
+  // markup (see this file's own doc comment above) — before-after-
+  // slider.css's own .before-after-slider-handle-line comment explains why
+  // this moved off the handle's own background: background-clip:content-box
+  // failed to actually confine the fill to the 2px content box, rendering
+  // as the full ~44px touch-target box instead ("line appears fat").
+  if (!handle.querySelector('.before-after-slider-handle-line')) {
+    var line = document.createElement('div');
+    line.className = 'before-after-slider-handle-line';
+    handle.appendChild(line);
+  }
+
   beforeLayer.style.backgroundImage = 'url("' + beforeUrl.replace(/["\\]/g, '\\$&') + '")';
   afterLayer.style.backgroundImage = 'url("' + afterUrl.replace(/["\\]/g, '\\$&') + '")';
 
@@ -207,8 +219,52 @@ function initSlider(root) {
   idleFrame = requestAnimationFrame(idleTick);
 }
 
+// VIEWPORT-GATED INIT.
+//
+// initSlider() paints two full-size images as CSS background-image AND
+// fires a `new Image()` dimension probe — three eager fetches per slider,
+// none of which loading="lazy" can reach (backgrounds and Image() are
+// both outside its scope). This post carries EIGHT slider blocks, all far
+// below the fold, so a plain init-everything-on-DOMContentLoaded pass put
+// ~16 full-size images on the wire during initial parse, competing with
+// the hero for bandwidth. Measured under an 800kbps throttle: the 162KB
+// hero took 12.3s to arrive with 15 other images starting before it
+// finished; old.jpg and new.jpg (a slider pair) alone held the connection
+// for 8.4s and 7.7s.
+//
+// Deferring per-slider until it approaches the viewport keeps the fetches
+// but moves them off the critical path. rootMargin gives them a screen of
+// runway so the images are ready before the slider is actually looked at
+// — this trades nothing visually, it only stops them racing the hero.
+//
+// initSlider is unchanged and still idempotent (its own dataset guard), so
+// the MutationObserver rescan below stays correct: newly added sliders get
+// observed rather than initialized immediately.
+var observer = null;
+if (window.IntersectionObserver) {
+  observer = new IntersectionObserver(function (entries) {
+    for (var i = 0; i < entries.length; i++) {
+      if (entries[i].isIntersecting) {
+        var el = entries[i].target;
+        observer.unobserve(el);
+        initSlider(el);
+      }
+    }
+  }, { rootMargin: '100% 0px' });
+}
+
 function initAll() {
-  document.querySelectorAll('.before-after-slider').forEach(initSlider);
+  document.querySelectorAll('.before-after-slider').forEach(function (el) {
+    // No IntersectionObserver (or already initialized): fall back to the
+    // original immediate init rather than leaving an inert slider.
+    if (!observer || el.dataset.basInitialized) {
+      initSlider(el);
+      return;
+    }
+    if (el.dataset.basObserved) return;
+    el.dataset.basObserved = 'true';
+    observer.observe(el);
+  });
 }
 
 if (document.readyState === 'loading') {

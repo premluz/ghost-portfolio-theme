@@ -2,9 +2,32 @@
   LOGOS SCROLL SECTION
   Infinite scrolling logos with fade-in entrance animation
   Uses GSAP for smooth animation and seamless looping
+
+  noScroll — optional. Ghost's Handlebars has no eq/string-compare helper
+    (see posts-tabs.hbs's own doc on this same constraint), so this is a
+    plain truthy flag, not a scroll="false" string comparison — passing
+    noScroll="true" (or any non-empty value) forces the static/no-marquee
+    rendering unconditionally; omitting it (every existing call site today)
+    changes nothing.
+    Independent of this flag, logos-scroll.js ALSO measures at runtime
+    whether the real (non-duplicated) logos already fill the container —
+    if they do, there is nothing to scroll, so it disables the marquee
+    itself regardless of what this param says. noScroll="true" is for
+    forcing the static look even when the logos would otherwise overflow
+    and could scroll; the runtime check is for the opposite case (logos
+    fit, so scrolling would be pointless motion). Both paths converge on
+    the same 'is-static' class (see logos-scroll.css's own doc for why one
+    class serves two different triggers cleanly).
+
+  The duplicate set below (for the seamless marquee loop) is only rendered
+  when noScroll is not set — a static/non-scrolling layout has no seam to
+  hide, so shipping a second copy of every logo would be dead markup. The
+  RUNTIME "logos already fit" case still gets the duplicate set in the DOM
+  (this Handlebars branch can't know that ahead of time), but
+  logos-scroll.js hides it via CSS when it decides not to scroll.
 --}}
 
-<section class="logos-scroll-section" id="logos-scroll">
+<section class="logos-scroll-section{{#if noScroll}} is-static{{/if}}" id="logos-scroll">
   <div class="logos-scroll-container">
     {{!-- Duplicate logos for seamless infinite scroll --}}
     {{!-- First set --}}
@@ -24,21 +47,23 @@
     <div class="logo-item" data-logo="TheBodyShop">
       <img src="/content/images/logos/Tracr.svg" alt="The Body Shop" class="logo-image" loading="lazy" data-skip-reveal>
     </div>
+    {{#unless noScroll}}
     {{!-- Duplicate set for seamless loop --}}
-    <div class="logo-item" data-logo="GalaChain">
+    <div class="logo-item" data-logo="GalaChain" data-logo-duplicate>
       <img src="/content/images/logos/GalaChain.svg" alt="GalaChain" class="logo-image" loading="lazy" data-skip-reveal>
     </div>
-    <div class="logo-item" data-logo="PlayStation">
+    <div class="logo-item" data-logo="PlayStation" data-logo-duplicate>
       <img src="/content/images/logos/PlayStation.svg" alt="PlayStation" class="logo-image" loading="lazy" data-skip-reveal>
     </div>
-    <div class="logo-item" data-logo="Vodafone">
+    <div class="logo-item" data-logo="Vodafone" data-logo-duplicate>
       <img src="/content/images/logos/Vodafone.svg" alt="Vodafone" class="logo-image" loading="lazy" data-skip-reveal>
     </div>
-    <div class="logo-item" data-logo="Deutsche_Bank">
+    <div class="logo-item" data-logo="Deutsche_Bank" data-logo-duplicate>
       <img src="/content/images/logos/Deutsche_Bank.svg" alt="Deutsche Bank" class="logo-image" loading="lazy" data-skip-reveal>
     </div>
-    <div class="logo-item" data-logo="TheBodyShop">
+    <div class="logo-item" data-logo="TheBodyShop" data-logo-duplicate>
       <img src="/content/images/logos/Tracr.svg" alt="The Body Shop" class="logo-image" loading="lazy" data-skip-reveal>
     </div>
+    {{/unless}}
   </div>
 </section>
