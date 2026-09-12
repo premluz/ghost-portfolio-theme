@@ -49,7 +49,7 @@
     {{!-- Header area. Keeps the .post-header-layout class: still what
           initPostHeaderAnimation() (main.js) animates in as one blurred
           fade-in unit — see that function for the exact selector chain. --}}
-    <div class="post-header-layout" data-post-hero="contained">
+    <div class="post-header-layout" data-post-hero="wide">
       <div class="post-header-top">
         {{!-- Column 1: logo. Plain in-flow occupant now — no more
               position:absolute/GSAP drop-bounce (initLogomarkAnimation()
@@ -60,19 +60,44 @@
           <div class="logomark-container" id="logomark-container">
             <img class="logomark-image" id="logomark-image" alt="Project logo" />
           </div>
+          {{!-- Year, under the logo — HIDDEN 2026-09-04 (explicit request).
+                Was: extracted from the same `date` field .post-header-meta's
+                own "Date" row used to show (displayProjectMetadata() below,
+                meta.date), parsed down to a bare 4-digit year. Commented out
+                rather than deleted so it's restorable; displayProjectMetadata()
+                still runs its population block unconditionally — with the
+                element absent, getElementById returns null and that block's
+                own `if (!logoYearEl) return`-style guard already no-ops it.
+          <div class="post-header-logo-year" id="post-header-logo-year" style="display:none;"></div>
+          --}}
         </div>
 
-        {{!-- Column 2: meta list (Client / Category / Timeline / Skills /
-              Date / Role / Scope), eyebrow+value rows — same visual
-              pattern as the (unused) .role-overview-block below,
-              populated by displayProjectMetadata()'s new fields section.
-              Each row hidden individually when its own field is empty.
-              date/role/scope added 2026-08-16: these came from
-              codeinjection_head with no active place to render (the
-              separate .role-overview-block/.post-summary-band system that
-              would normally take them is fully commented out) — added
-              here instead of resurrecting that block, since this one's
-              already live with no extra animation system needed. --}}
+        {{!-- Column 2: title + description. --}}
+        <div class="post-header-title">
+          <span class="text-eyebrow post-title-eyebrow" id="post-title-eyebrow" style="display:none;"></span>
+          <h1 class="post-title">{{title}}</h1>
+          {{#if custom_excerpt}}
+            <p class="post-excerpt">{{custom_excerpt}}</p>
+          {{/if}}
+          <div class="post-meta">
+            {{!-- Keywords pills from projectMeta — HIDDEN 2026-09-04
+                  (explicit request). Commented out rather than deleted so
+                  it's restorable; main.js's population block is already
+                  guarded with `if (postKeywordsEl)`, so with the element
+                  absent it just no-ops.
+            <div class="post-keywords" id="post-keywords"></div>
+            --}}
+          </div>
+        </div>
+
+        {{!-- Column 3 (meta list: Client / Category / Timeline / Skills /
+              Date / Scope) — RESTORED 2026-09-05 (explicit request),
+              reordered from its original middle slot (logo/meta/title) to
+              last (logo/title/meta). Was hidden 2026-09-02 by commenting
+              out this same block; .post-header-top's grid track order
+              below now matches this markup order. displayProjectMetadata()
+              below already runs this column's population loop
+              unconditionally regardless of where in the DOM it lives.
         <div class="post-header-meta" id="post-header-meta">
           <div class="post-header-meta-row" data-field="client">
             <span class="text-eyebrow">Client</span>
@@ -98,19 +123,38 @@
             <span class="text-eyebrow">Scope</span>
             <p id="project-scope"></p>
           </div>
-        </div>
+        </div> --}}
 
-        {{!-- Column 3: title + description, as before. --}}
-        <div class="post-header-title">
-          <h1 class="post-title">{{title}}</h1>
-          {{#if custom_excerpt}}
-            <p class="post-excerpt">{{custom_excerpt}}</p>
-          {{/if}}
-          <div class="post-meta">
-            {{!-- Keywords pills from projectMeta --}}
-            <div class="post-keywords" id="post-keywords"></div>
-          </div>
-        </div>
+
+    {{!-- data-cols-mobile="3": generic .field-grid mechanism (main.css,
+          same contract as the existing data-cols-mobile="2") — desktop
+          uses data-cols="1" (stacked rows), mobile opts into all three
+          stat tiles in one row instead of .field-grid's own default
+          mobile collapse to a single column.
+          Populated from projectMeta.metric1/metric2/metric3 (post
+          codeinjection_head), each "Title;value" (semicolon-separated,
+          eyebrow title first). Hidden by default (style="display:none"
+          on the outer grid and each item) — displayProjectMetadata()
+          below reveals the whole grid only if at least one metric
+          parses, and each item individually only if ITS OWN metric is
+          present, same "hide, don't leave an empty label" contract every
+          other field on this page already uses. --}}
+    <div class="field-grid post-header-stats-grid mt-0" id="post-header-stats-grid" data-cols="1" data-cols-mobile="3" data-card="none" style="display:none;">
+      <div class="field-grid-item" id="post-header-metric-1" style="display:none;">
+        <p class="text-eyebrow mb-0" id="post-header-metric-1-title"></p>
+        <h2 class="h2 mt-0 pt0 text-gradient" id="post-header-metric-1-value"></h2>
+      </div>
+      <div class="field-grid-item mt-prose-flow-sm" id="post-header-metric-2" style="display:none;">
+        <p class="text-eyebrow mb-0" id="post-header-metric-2-title"></p>
+        <h2 class="h2 mt-0 pt0 text-gradient" id="post-header-metric-2-value"></h2>
+      </div>
+      <div class="field-grid-item mt-prose-flow-sm" id="post-header-metric-3" style="display:none;">
+        <p class="text-eyebrow mb-0" id="post-header-metric-3-title"></p>
+        <h2 class="h2 mt-0 pt0 text-gradient" id="post-header-metric-3-value"></h2>
+      </div>
+    </div>
+
+
       </div>
     </div>
 
@@ -439,7 +483,7 @@ data-gradient-resolution-scale="0.35">
             (main.js), not scroll-revealed by the generic
             IntersectionObserver system (card-scroll-reveal.js), which
             can't fire for something already in the initial viewport. --}}
-      <figure class="post-hero-sticky" data-post-hero="contained" data-skip-reveal>
+      <figure class="post-hero-sticky" data-post-hero="wide" data-skip-reveal>
         <img src="{{feature_image}}" alt="{{title}}" loading="eager" fetchpriority="high" decoding="async">
       </figure>
     {{/if}}
@@ -572,7 +616,7 @@ data-gradient-resolution-scale="0.35">
             own narrow/main track (text measure) is unaffected; only
             content that explicitly opts into a wider track (kg-width-wide/
             -full, or this new system) actually reaches further. --}}
-      <div class="gh-canvas" data-page-content-width="contained">
+      <div class="gh-canvas" data-page-content-width="wide">
         <div class="gh-content">
           {{content}}
         </div>
@@ -672,6 +716,82 @@ data-gradient-resolution-scale="0.35">
         row.style.display = 'none';
       }
     });
+
+    // Eyebrow above the case-study title — same projectCategory value the
+    // (now hidden) header-meta "Category" row shows, reusing the shared
+    // .text-eyebrow utility class rather than a one-off style. Hidden
+    // (display:none, post.hbs's own inline default) when no category is
+    // set, same "hide, don't leave an empty label" contract every field
+    // on this page already uses.
+    const titleEyebrowEl = document.getElementById('post-title-eyebrow');
+    if (titleEyebrowEl) {
+      if (meta.projectCategory) {
+        titleEyebrowEl.textContent = meta.projectCategory;
+        titleEyebrowEl.style.display = '';
+      } else {
+        titleEyebrowEl.style.display = 'none';
+      }
+    }
+
+    // Post-header stats grid (post-header-stats-grid) — 3 optional metric
+    // tiles, each from meta.metric1/metric2/metric3, "Title;value"
+    // (semicolon-separated, eyebrow title first — e.g. "Workflow
+    // efficiency;3x"). Malformed input (no semicolon, or an empty title/
+    // value on either side of it) is treated as absent rather than
+    // guessed at. Each tile hides independently if ITS OWN metric field
+    // is absent/malformed; the whole grid hides if none of the three
+    // parsed, so an old post with no metricN fields at all shows nothing
+    // extra instead of three empty tiles.
+    const metricFields = [
+      ['metric1', 'post-header-metric-1'],
+      ['metric2', 'post-header-metric-2'],
+      ['metric3', 'post-header-metric-3'],
+    ];
+    let anyMetricShown = false;
+    metricFields.forEach(([key, itemId]) => {
+      const itemEl = document.getElementById(itemId);
+      if (!itemEl) return;
+      const titleEl = document.getElementById(itemId + '-title');
+      const valueEl = document.getElementById(itemId + '-value');
+      const raw = meta[key];
+      const parts = typeof raw === 'string' ? raw.split(';') : null;
+      const title = parts && parts[0] && parts[0].trim();
+      const value = parts && parts[1] && parts[1].trim();
+      if (title && value) {
+        titleEl.textContent = title;
+        valueEl.textContent = value;
+        itemEl.style.display = '';
+        anyMetricShown = true;
+        console.log('[metadata] Set ' + key + ':', title, value);
+      } else {
+        itemEl.style.display = 'none';
+      }
+    });
+    const statsGridEl = document.getElementById('post-header-stats-grid');
+    if (statsGridEl) {
+      statsGridEl.style.display = anyMetricShown ? '' : 'none';
+    }
+
+    // Year under the logo (post-header-logo-year) — parsed from the same
+    // meta.date value the (now hidden) header-meta "Date" row used to
+    // show verbatim. Regex, not Date.parse(): meta.date can be freeform
+    // text ("March 2024", a range, etc.) rather than a real date string,
+    // and Date.parse() either throws or silently returns Invalid Date for
+    // most of those — a bare 4-digit run starting 19 or 20 is a much more
+    // reliable "find the year in this text" than trying to parse it as an
+    // actual date. Hidden (display:none, post.hbs's own inline default)
+    // when no year is found, same "hide, don't leave an empty label"
+    // contract every field on this page already uses.
+    const logoYearEl = document.getElementById('post-header-logo-year');
+    if (logoYearEl) {
+      const yearMatch = typeof meta.date === 'string' && meta.date.match(/\b(19|20)\d{2}\b/);
+      if (yearMatch) {
+        logoYearEl.textContent = yearMatch[0];
+        logoYearEl.style.display = '';
+      } else {
+        logoYearEl.style.display = 'none';
+      }
+    }
 
     // Stagger fade-in for .post-header-meta-row, same shape as the
     // (dead, see .post-side's own doc) .role-overview-block stagger

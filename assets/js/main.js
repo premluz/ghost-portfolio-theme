@@ -2668,8 +2668,15 @@ function waitForPreloader() {
   return new Promise(resolve => {
     if (!document.getElementById('preloader')) { resolve(); return; }
     // Skip path adds page-ready synchronously before setTimeout — check first
-    // to avoid missing the preloader:done event that already fired
-    if (document.documentElement.classList.contains('page-ready')) { resolve(); return; }
+    // to avoid missing the preloader:done event that already fired.
+    // __preloaderDoneFired covers the same hazard on the FULL-run path:
+    // preloader.js now boots synchronously as soon as its elements exist
+    // (default.hbs ~1369) instead of on DOMContentLoaded, so it can dispatch
+    // preloader:done before this file (~1838) has parsed. CustomEvents do
+    // not replay for late subscribers, so without this the promise below
+    // would only ever settle via its own 12s safety timeout.
+    if (window.__preloaderDoneFired
+        || document.documentElement.classList.contains('page-ready')) { resolve(); return; }
     window.addEventListener('preloader:done', resolve, { once: true });
     // Safety: resolve after 12 s no matter what
     setTimeout(resolve, 12000);

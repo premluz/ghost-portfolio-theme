@@ -583,6 +583,21 @@ class ParticleScrollDirector {
     const viewportCenter = vh / 2;
     this.zones.forEach((zone) => {
       if (!zone.element) return; // whole-page zones don't compete for "front"
+      // A zone with NEITHER a shape NOR a position channel has nothing to
+      // contribute either arbitration this result feeds (_isZoneFrontmost
+      // gates both, via _checkZoneShape and apply()'s position-write
+      // block) — it exists purely as a scroll-position marker (e.g.
+      // testimonials, registered with an empty keyframe array to fade the
+      // particle layer via a separate alpha system, not the director).
+      // Letting such a zone still WIN "frontmost" purely by being
+      // physically centred blocks every other zone's legitimate, already-
+      // due write for as long as it stays there — reproduced live: Lab's
+      // own exit-to-ribbon keyframe had genuinely fired (t past its `at`,
+      // confirmed via the registered timeline) but was silently dropped
+      // because testimonials, contributing no shape/position of its own,
+      // occupied the frontmost slot the whole time its element passed
+      // through the viewport center.
+      if (!zone.channels.has('shape') && !zone.channels.has('position')) return;
       if (!this._zoneActive(zone)) return;
       const el = this._resolveElement(zone);
       if (!el) return;
@@ -777,11 +792,32 @@ class ParticleScrollDirector {
       // live at the footer — mesh position froze at operating-model's own
       // final keyframe ({x:4,y:14,z:0}) forever, because Map insertion
       // order put operating-model's write AFTER footer's every frame.
-      if (
-        zone.channels.has('position') &&
-        (!exclusiveOwner || exclusiveOwner === zone) &&
-        this._isZoneFrontmost(zone, frontmostZone)
-      ) {
+      // _isZoneFrontmost is now SKIPPED once exclusiveOwner has resolved to
+      // a specific zone (this one or another) — it only decides FALLBACK
+      // arbitration for zones with no ownsPosition, exactly as its own doc
+      // above says ("...for zones that never opted into that explicit
+      // mechanism"). ANDing it in unconditionally meant a zone could WIN
+      // ownsPosition and still have its write silently dropped by frontmost
+      // disagreeing — which is exactly backwards, since ownsPosition is the
+      // more explicit, more authoritative signal of the two.
+      //
+      // Concretely: hero is bound to `.hero`, an element that sits at the
+      // very top of the page — once scrolled deep into Lab's range (Lab's
+      // OWN element now centred in the viewport), _frontmostZone() reports
+      // Lab as closest to viewport-center regardless of who legitimately
+      // OWNS position. Reproduced live scrolling back up out of Lab: hero's
+      // ownsPosition correctly flipped true and frame() computed the right
+      // offset (traced: x=9.8218 available) the instant the reverse morph
+      // started, but the write was refused because _isZoneFrontmost(hero,
+      // lab) was false for the whole ~590ms Lab's element stayed nearer
+      // center — .position.set() simply wasn't called with hero's value
+      // until scrolling far enough that Lab finally lost the frontmost
+      // contest, at which point it jumped straight there. A dead window
+      // ending in a hard snap: the reported "pulled left, then back right".
+      const positionGate = exclusiveOwner
+        ? exclusiveOwner === zone
+        : this._isZoneFrontmost(zone, frontmostZone);
+      if (zone.channels.has('position') && positionGate) {
         const v = this._sample(zone, 'position', t);
         if (v) {
           const base = (frameResult && frameResult.positionBase) || [0, 0, 0];

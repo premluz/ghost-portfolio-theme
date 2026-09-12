@@ -1,28 +1,54 @@
+{{!-- Load scrim — a SIBLING of #particle-morph-demo, deliberately NOT
+      nested inside it.
+
+      #particle-morph-demo is position:fixed + z-index:1, which makes it a
+      STACKING CONTEXT: any z-index on a descendant is resolved only within
+      that context and can never escape its parent's level of 1. While the
+      scrim lived inside it, its own z-index:999998 was therefore
+      meaningless — it still painted at level 1, below .hero (z-index:2,
+      main.css ~9711, set so hero text renders above the particle canvas).
+      Result: the scrim never actually covered the hero at all; the only
+      thing hiding hero content was the hero's own opacity:0, so the
+      moment that flipped to 1 it appeared instantly regardless of what
+      the scrim was doing. Confirmed live via a computed-style ancestor
+      walk (scrim z 999998 -> parent #particle-morph-demo z 1) plus
+      elementFromPoint over the avatar returning the hero IMG, not the
+      scrim.
+
+      As a top-level sibling it participates in the root stacking context,
+      where its z-index actually competes with .hero and the nav.
+
+      150vh tall (not 100%) with the color fading out over its BOTTOM 40% —
+      the reveal (preloader.js's _finish(), and the fade-in trigger further
+      down this file) translates it upward by its own height rather than
+      fading opacity, so the soft lower edge sweeps up through the viewport
+      ahead of the opaque body and content is revealed progressively rather
+      than popping in when a flat opacity fade hits zero. See
+      .particles-load-scrim / .is-revealed in main.css. --}}
 <div id="particle-morph-demo" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; opacity: 1; pointer-events: none;">
   <div id="particles" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></div>
-  {{!-- Covers the particle canvas until the system is ready, then fades
-        away — a flat solid-color div, not the canvas's own opacity. A
-        WebGL canvas that's actively re-rendering every frame is expensive
-        to ALSO animate opacity on (the browser has to composite an
-        alpha-blended, per-frame-changing layer); a plain div's opacity is
-        cheap regardless of what's happening underneath. See the fade-in
-        trigger further down this file for where this actually fades. --}}
-  <div id="particles-load-scrim" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; background: var(--color-background); opacity: 1;"></div>
 </div>
 <script>
   // Failsafe — same principle as every other pre-paint veil on this site
   // (landing-pending/main-pending/curtain-restoring, see LOADING.md): a
   // veil must never depend solely on one path to clear it. This scrim is
   // normally cleared either by the skip-path fade-in trigger further down
-  // this file, or by preloader.js's _runParticles() on a full run — if
+  // this file, or by preloader.js's _finish()/_hide() on a full run — if
   // BOTH of those fail to fire for any reason (a stalled GLB/video fetch,
   // a thrown error somewhere in the particle bootstrap chain), the scrim
   // would otherwise sit at opacity:1 forever, permanently hiding the
   // particles behind a solid color — strictly worse than having no scrim
   // at all. Force-clear after 6s regardless of what else has or hasn't run.
+  // Adds .is-revealed too (main.css — translates the scrim off-screen)
+  // for the same reason the other two entry points do: an opacity-only
+  // clear here would leave the (still full-height, still on top of its
+  // own resting position) scrim technically invisible but still occupying
+  // layout/paint — the class keeps this path visually consistent with the
+  // normal reveal instead of being a degraded special case.
   setTimeout(function () {
     var scrim = document.getElementById('particles-load-scrim');
     if (scrim && getComputedStyle(scrim).opacity !== '0') {
+      scrim.classList.add('is-revealed');
       if (window.gsap) window.gsap.to(scrim, { opacity: 0, duration: 0.4 });
       else scrim.style.opacity = '0';
     }
@@ -470,7 +496,22 @@ async function initParticleMorphModular() {
           // same failure the comment above describes for the pre-morph
           // window — fixed there via ownsPosition, missed here because the
           // predicate itself could not see an in-flight morph.
-          const becomingHero = loop.nextState && loop.nextState.id === base;
+          // 'ribbon' added 2026-09-01: the SAME in-flight-morph gap this
+          // predicate already fixed once for footer -> hero, now found on
+          // Lab -> hero. Lab's reverseExit (its setZone call below) morphs
+          // to 'ribbon', not `base` ('ribbon-dispersed') directly, so for
+          // the whole ~400ms 'lab' -> 'ribbon' morph, nextState.id was
+          // 'ribbon' while base was 'ribbon-dispersed' — becomingHero
+          // stayed false, hero refused position, and nothing else claimed
+          // it either (Lab's own frame() only applies while Lab genuinely
+          // owns position, which it had already released). Instrumented
+          // directly: frame() returned x:null for 2939-3056ms (currentState
+          // still 'lab', nextState 'ribbon' the whole time), then x:9.8218
+          // the instant currentState flipped to 'ribbon' at morph
+          // completion — the dead window ending in a hard snap, at the
+          // SAME `t` value throughout (0.3007), proving it was never about
+          // scroll position, only about this shape check.
+          const becomingHero = loop.nextState && (loop.nextState.id === base || loop.nextState.id === 'ribbon');
           if (becomingHero) return !window.__particleLayerHidden;
           // The MIRROR of becomingHero: something other than hero is being
           // morphed to, so hero must release position at the START of that
@@ -496,7 +537,20 @@ async function initParticleMorphModular() {
             && loop.nextState.id !== base
             && loop.nextState.id !== heroExitShape;
           if (becomingOther) return false;
-          const handedOff = cur && cur.id !== base && cur.id !== heroExitShape && cur.id !== 'dispersed';
+          // 'ribbon' added 2026-09-01: Lab's own reverseExit (its setZone
+          // call below) hands the shape to 'ribbon' when scrolling back up
+          // out of Lab — NOT to `base` ('ribbon-dispersed') and NOT to
+          // heroExitShape ('terrain'), so it fell through every exclusion
+          // here and handedOff evaluated true even though this IS hero
+          // regaining control. heroStillRelevant() then returned false,
+          // frame() returned null, and the object was left holding only its
+          // raw keyframe position ([-5,0,0], heroKeyframes[0] above) with
+          // none of frame()'s canvas-offset contribution added back in —
+          // measured live: particles sitting at x:-5 at scrollY 0 after a
+          // Lab visit, vs the correct x:4.822 a fresh load produces. Same
+          // family of bug the comment below already documents for the
+          // forward handover, just missed on the reverse leg.
+          const handedOff = cur && cur.id !== base && cur.id !== heroExitShape && cur.id !== 'dispersed' && cur.id !== 'ribbon';
           // Lab's zone taking over ends hero's claim outright, whatever the
           // shape says. This became necessary when hero's exit shape was
           // changed from 'terrain' to 'lab': heroExitShape is excluded from
@@ -523,7 +577,22 @@ async function initParticleMorphModular() {
           // way back. Lab has no shape of its own to position any more (its
           // keyframes are commented out above), so if hero's shape is what
           // is showing, hero should be placing it.
-          const heroShapeCurrent = cur && cur.id === base;
+          // 'ribbon' included here too (2026-09-01), same reasoning as
+          // handedOff above: it's Lab's reverseExit target, i.e. hero
+          // regaining control, not some other zone's shape. Missing it here
+          // left a real gap even after fixing handedOff — labZone._rawT
+          // lags a beat behind the shape morph completing while scrolling
+          // up (it only crosses below 0.02 slightly LATER than the shape
+          // finishes becoming 'ribbon'), so for that ~170ms window
+          // heroShapeCurrent was false, this line's condition was true, and
+          // it forced a `return false` regardless of what handedOff said —
+          // overriding that fix. Measured directly: x sat pinned at 0 for
+          // 3057.9ms-3227.3ms (shape already 'ribbon' the whole time), then
+          // hard-snapped straight to 4.8218 in a single frame — no
+          // interpolation, a visible jump right when scrolling stops
+          // relative to a still-center object. That dead window, ending in
+          // a snap, is the "pulled left then back right" this fixes.
+          const heroShapeCurrent = cur && (cur.id === base || cur.id === 'ribbon');
           const labZone = window.particleScrollDirector
             && window.particleScrollDirector.zones.get('lab');
           if (!heroShapeCurrent && labZone && labZone._rawT >= 0.02) return false;
@@ -592,43 +661,87 @@ async function initParticleMorphModular() {
             // the Lab handoff may now snap/jump instead of being
             // seamless — accepted tradeoff, chosen over reintroducing
             // either direction of drift.
-            if (t < EXIT_SPAN) {
-              const off = l._getHeroCanvasOffset();
-              const frac = Math.min(1, t / EXIT_SPAN);
-              const zoomedZ = heroBaseCameraZ * ZOOM_FACTOR;
-              heroFrameFrozen = {
-                // x frozen at the hero's own canvas offset — no drift.
-                // y rises from that offset by TRAVEL_Y (already "upward"
-                // per its own comment) and never reverses direction.
-                positionBase: [off.x, off.y + frac * TRAVEL_Y, 0],
-                cameraZ: heroBaseCameraZ + (zoomedZ - heroBaseCameraZ) * (frac * frac),
-                fov: l._getHeroZoomFov(window.innerWidth),
-              };
-            }
-            // Past EXIT_SPAN: no else-branch needed any more — there is no
-            // ongoing drift to keep applying once the buildup completes, so
-            // heroFrameFrozen simply holds its last computed value as
-            // frame() keeps returning it unchanged.
+            //
+            // ALWAYS RECOMPUTED (2026-09-01) — no longer gated behind
+            // `if (t < EXIT_SPAN)` with heroFrameFrozen caching the value
+            // past that point. That caching assumed frame() would only
+            // ever be reached with t climbing forward from 0, so "freeze
+            // once built up" was safe. It breaks on the REVERSE path:
+            // scrolling up out of Lab, heroStillRelevant() correctly
+            // starts returning true again (once shape becomes 'ribbon',
+            // Lab's reverseExit target) while heroRawT — and therefore
+            // scaled `t` — is still large (measured ~2.3-2.5, versus
+            // EXIT_SPAN's 0.65), so the old `if` never re-entered and this
+            // kept returning whatever heroFrameFrozen last held from
+            // BEFORE hero released ownership on the way down — stale, and
+            // not necessarily this session's actual resting value. Traced
+            // directly: heroOwns flipped true at 3059ms but x sat pinned
+            // at the stale value until 3225ms, then hard-snapped to
+            // 4.8218 in a single frame — the "pulled left, then back
+            // right" on scroll-up.
+            //
+            // Math.min(1, t/EXIT_SPAN) already clamps frac to 1 for any
+            // t >= EXIT_SPAN, so computing this unconditionally produces
+            // the IDENTICAL terminal value the old frozen cache was
+            // trying to preserve — there was never a need for the cache;
+            // the formula is already its own fixed point past EXIT_SPAN.
+            const off = l._getHeroCanvasOffset();
+            const frac = Math.min(1, t / EXIT_SPAN);
+            const zoomedZ = heroBaseCameraZ * ZOOM_FACTOR;
+            heroFrameFrozen = {
+              // x frozen at the hero's own canvas offset — no drift.
+              // y rises from that offset by TRAVEL_Y (already "upward"
+              // per its own comment) and never reverses direction.
+              positionBase: [off.x, off.y + frac * TRAVEL_Y, 0],
+              cameraZ: heroBaseCameraZ + (zoomedZ - heroBaseCameraZ) * (frac * frac),
+              fov: l._getHeroZoomFov(window.innerWidth),
+            };
             return heroFrameFrozen;
           },
         });
       }
 
       // On cached/refresh visits, reveal particles immediately — no observer
-      // needed. Fades the dedicated scrim (see its markup above), NOT
+      // needed. Reveals the dedicated scrim (see its markup above), NOT
       // system.fadeController — that's shared with every other particle
       // transition on this page (scroll-triggered dissolve/assemble morphs,
       // hero-exit, etc. — see dissolveAndAssemble() in particle-morph-
       // system.js), so redirecting IT here would touch all of those too.
-      // 150ms (the old duration, animating the canvas's own opacity via
-      // fadeController) read as janky — likely the cost of animating
-      // opacity on a WebGL canvas that's simultaneously re-rendering every
-      // frame, on top of the particle system's own startup work. A flat
-      // div's opacity is cheap regardless; slower/eased here reads as a
-      // deliberate reveal instead of a rushed one.
+      //
+      // WAS documented as "only runs on pages with no #preloader element"
+      // — wrong, corrected 2026-09-02. __preloaderRunning is ALSO never
+      // set on the homepage's own cameFromSameSite skip-path
+      // (preloader.js) — only the full-run branch sets it — so this
+      // fallback used to fire there too, well after preloader.js's own
+      // (fast) skip-path had already run, gated behind the particle
+      // system's own async THREE.js/GLB boot instead. Confirmed live: the
+      // scrim sat fully opaque over the whole page (nav included, even
+      // though nav's own z-index is higher — screenshot showed a solid
+      // frame with nothing rendered) for as long as that boot took, then
+      // this branch finally cleared it — reported as "nav not visible,
+      // then fades in" on a curtain-return, worse on post pages (slower
+      // boot) than About.
+      //
+      // preloader.js's cameFromSameSite branch now reveals the scrim
+      // itself, immediately, matching what its full-run branch's
+      // _finish() already does — so on the homepage this fallback should
+      // no longer be the thing that reveals it. Left in place regardless,
+      // same "a veil must never depend on only one path to clear it"
+      // principle as the 6s failsafe just above: if preloader.js's own
+      // reveal is ever skipped, removed, or races behind this file's own
+      // script load order, this is still there to catch it.
+      //
+      // .is-revealed (main.css) translates the scrim up by its own 150vh
+      // height instead of fading its opacity — same reveal treatment as
+      // preloader.js's version, so the two entry points read as one
+      // consistent motion regardless of which page loads first. Opacity is
+      // still written alongside it: every other consumer of this element
+      // (the 6s failsafe just above, __preloaderRunning's gate) reads
+      // opacity as the "is this scrim actually gone" signal.
       if (!window.__preloaderRunning) {
         const loadScrim = document.getElementById('particles-load-scrim');
         if (loadScrim) {
+          loadScrim.classList.add('is-revealed');
           if (window.gsap) {
             gsap.to(loadScrim, { opacity: 0, duration: 0.6, ease: 'power2.out' });
           } else {
@@ -693,16 +806,23 @@ async function initParticleMorphModular() {
       // instead travel like a piece of the page — entering from below as
       // the Lab section does, riding up with it, leaving at the top.
       //
-      // Bound to the .gradient-frame WRAPPER around the whole Lab island
-      // (posts-tabs-grid-lab.hbs — it wraps the "Explorations, AI
-      // experiments" statement heading AND #work-grid-lab together), not to
-      // #work-grid-lab itself, so the sphere starts arriving as soon as
-      // that heading's gradient band comes into view rather than waiting
-      // for the card grid below it — asked for explicitly: "should come in
-      // view much earlier, as soon as our gradient wrapper starts". Found
-      // via closest() from #work-grid-lab rather than a bare
-      // '.gradient-frame' selector since that class is reused elsewhere
-      // (profile.hbs) and querying it directly could grab the wrong one.
+      // Bound to the WRAPPER around the whole Lab island (index.hbs — it
+      // wraps the "AI experiments, explorations" statement heading AND
+      // #work-grid-lab together), not to #work-grid-lab itself, so the
+      // sphere starts arriving as soon as that heading comes into view
+      // rather than waiting for the card grid below it — asked for
+      // explicitly: "should come in view much earlier, as soon as our
+      // gradient wrapper starts".
+      // RETARGETED 2026-08-31: was closest('.gradient-frame'), matching an
+      // assumed posts-tabs-grid-lab.hbs structure this page never actually
+      // used — index.hbs's real markup has no .gradient-frame anywhere near
+      // #work-grid-lab, so labWrapper was always null and this WHOLE zone
+      // (position AND shape, including any shape keyframe edits here) has
+      // been silently dead on this page. index.hbs's actual shared ancestor
+      // of the heading + #work-grid-lab is
+      // .invert-wrapper.invert-wrapper--page.invert-wrapper--full — that is
+      // the real structural match for "wraps the heading and the grid
+      // together" this comment already describes, just the wrong class name.
       //
       // Position AND shape — the old IntersectionObserver that used to own
       // the morph to 'lab' (plus its ad hoc "scrolling up out of lab"
@@ -711,7 +831,7 @@ async function initParticleMorphModular() {
       // for the same section at once.
       if (window.particleScrollDirector) {
         const labSection = document.querySelector('#work-grid-lab');
-        const labWrapper = labSection && labSection.closest('.gradient-frame');
+        const labWrapper = labSection && labSection.closest('.invert-wrapper--page');
         if (labWrapper) {
           // World units: at camera z=8 / fov 75 the viewport is ~12.3 units
           // tall, so half that (~6.1) is the bottom edge. The start
@@ -802,13 +922,42 @@ async function initParticleMorphModular() {
           const HOLD_PX = 1800;
           const labWrapperRect = labWrapper.getBoundingClientRect();
           const labHoldFrac = labWrapperRect.height > 0 ? HOLD_PX / labWrapperRect.height : 0;
+          // UNREACHABLE-KEYFRAME FIX (2026-09-02) — `0.60 + labHoldFrac`
+          // (and `1.00 + labHoldFrac`, `1 + labHoldFrac`) all exceed 1 on
+          // this page's actual content length (labHoldFrac measured ~0.7),
+          // but _zoneProgress() clamps every zone's `t` to [0, 1] and this
+          // zone has no `progressScale` (unlike hero's 8.2, which exists
+          // for exactly this — stretching a zone's 0-1 across MORE scroll
+          // than its element covers) to let it read higher. _sampleShape()
+          // can only ever pick a keyframe whose `at` is <= the current t,
+          // so a keyframe placed past 1 could NEVER become active —
+          // confirmed live: currentState stayed 'lab' all the way to
+          // scrollY 7655 (well past the intended exit), only changing once
+          // FOOTER's own separate entrance keyframe took over. The forward
+          // exit this was meant to trigger has been dead code since it was
+          // written, unrelated to anything changed this session.
+          //
+          // rescale maps the OLD design's [0, 1 + labHoldFrac] keyframe
+          // range linearly onto the zone's actual reachable [0, 1] — i.e.
+          // divides every `at` by (1 + labHoldFrac). Preserves both the
+          // ORDER (exit still fires after the hold, position keyframe still
+          // fires after the shape one) and the RELATIVE weighting HOLD_PX
+          // was designed to express (a bigger hold still pushes the exit
+          // proportionally later within the now-reachable range), instead
+          // of a plain clamp — which would have collapsed the two now-
+          // unreachable keyframes to the same t=1 and erased the gap
+          // between them entirely.
+          const rescale = (v) => v / (1 + labHoldFrac);
           window.particleScrollDirector.setZone('lab', [
-            // Position keyframes disabled with the frame() below: without
-            // frame(), positionBase falls back to [0,0,0] and these would
-            // still drag the object onto Lab's own coordinates — the same
-            // jump by a different route. With both off the zone writes no
-            // position at all and hero's placement carries through.
-            // { at: 0.00, position: [0, -6.0, 0] },
+            // RESTORED 2026-09-01 as FLAT keyframes (explicit request:
+            // particles should stay centered, no movement at all through
+            // Lab — not the original design's y-climb from -6 to 14,
+            // deliberately dropped here). A position channel must exist for
+            // the director to apply frame()'s positionBase reset at all
+            // (particle-scroll-director.js only writes position when
+            // zone.channels.has('position') is true) — frame() alone,
+            // restored below, was previously dead code without this.
+            { at: 0.00, position: [0, 0, 0] },
             // TEMPORARILY DISABLED alongside hero's own exit-shape keyframe
             // (see particle-morph.hbs's heroKeyframes section): with hero no
             // longer morphing on exit, THIS was still claiming 'lab' the
@@ -827,15 +976,44 @@ async function initParticleMorphModular() {
             // is the ONLY trigger for reverseExit. At 0.00, with t clamped
             // to [0,1], `t < 0` is impossible — reverseExit could never fire
             // and scrolling back up left the sphere on screen forever.
-            // { at: 0.02, shape: 'lab' },
-            // { at: 0.50, position: [0,  0.0, 0] },
+            // RESTORED 2026-08-31 (explicit request): without this, hero's
+            // own shape (HERO_PARTICLE_MODE, default.hbs — currently
+            // 'ribbon-dispersed') simply carried through into Lab's own
+            // range untouched, so Lab visually showed the hero ribbon
+            // instead of its own morphing-sphere identity ('lab' —
+            // shape-definitions.js's LAB constant, a continuously-deforming
+            // orb via uOrbAmp/uOrbFreq/uOrbSpeed, see that file's own doc).
+            // Comment out this single line again to go back to "ribbon
+            // carries through" for experimentation — nothing else here
+            // needs to change.
+            { at: 0.02, shape: 'lab' },
+            // Rescaled to 0.5 * rescale(1) so it stays strictly BEFORE the
+            // exit keyframe below after rescaling — at the original
+            // unscaled 0.50 it would otherwise land AFTER an exit keyframe
+            // compressed down to ~0.35, inverting the sequence (position
+            // keyframe firing ahead of the shape-exit it's meant to follow).
+            { at: 0.50 * rescale(1), position: [0, 0.0, 0] },
             // Exit keyframes pushed out by labHoldFrac (HOLD_PX worth of
             // zone-t) — the shape-hide trigger AND the final position
             // keyframe move together, so the object keeps climbing at the
             // same rate through the held-open window instead of stalling
-            // at its t=0.60 position while the hide waits.
-            { at: 0.60 + labHoldFrac, shape: 'terrain', shapeKey: 'lab-exit', morphMs: 400 },
-            // { at: 1.00 + labHoldFrac, position: [0, 14.0, 0] },
+            // at its t=0.60 position while the hide waits. Both RESCALED
+            // (see rescale() above) — their original values (0.60+
+            // labHoldFrac, 1.00+labHoldFrac) exceed the zone's own
+            // reachable t range of [0,1] and were never actually sampled.
+            //
+            // 'ribbon', not 'terrain' (2026-09-02, explicit request):
+            // scrolling DOWN out of Lab should morph back to the ribbon,
+            // matching what scrolling UP out of Lab already does
+            // (reverseExit below) — leave -> ribbon either direction, only
+            // re-entering Lab (the { at: 0.02, shape: 'lab' } keyframe
+            // above, direction-agnostic) goes back to the sphere. Paired
+            // with removing 'lab-exit': 'hide' from the 'hero-footer'
+            // scenario (default.hbs) — without that removal this shape is
+            // moot, since the scenario override was making the layer fade
+            // out entirely on this exit rather than morphing to anything.
+            { at: rescale(0.60 + labHoldFrac), shape: 'ribbon', shapeKey: 'lab-exit', morphMs: 400 },
+            { at: rescale(1.00 + labHoldFrac), position: [0, 0.0, 0] },
           ], {
             element: labWrapper,
             morphMs: 800,
@@ -861,71 +1039,83 @@ async function initParticleMorphModular() {
             // zone claims exclusive ownership here and hero's own placement
             // carries through, which is what the CENTER_BY drift targets.
             //
-            // Original body kept below for restoration alongside the
-            // frame()/position keyframes.
-            // ownsPosition: function () {
-            // // labHoldFrac (1800px) is wide enough to reach into
-            // // operating-model's OWN entrance range, and this zone is
-            // // registered first (Map insertion order) — the director's
-            // // "first zone whose ownsPosition() is true wins" tie-break
-            // // (particle-scroll-director.js's exclusiveOwner pass) meant
-            // // Lab silently kept exclusive position ownership through
-            // // operating-model's whole early range, blocking its position
-            // // keyframes (including the products-trigger drift) from ever
-            // // being applied.
-            // //
-            // // First attempt released on operating-model's own `top <=
-            // // innerHeight` (_zoneProgress()'s _rawT>=0 threshold) — too
-            // // early: that's true the instant operating-model's top merely
-            // // touches the viewport's bottom edge, which happens while Lab
-            // // is still fully on screen. Refined to operating-model's own
-            // // t=0.02 threshold instead (where its entrance shape keyframe
-            // // fires). BOTH attempts also referenced `operatingModel` —
-            // // declared in a wholly SEPARATE `if (typeof gsap...)` block
-            // // further down this file, not this one — throwing
-            // // "operatingModel is not defined" on every single frame.
-            // // That exception aborted applyPositionEvenWhileHidden()'s
-            // // whole zones.forEach mid-iteration (see the stack trace:
-            // // thrown from inside the Map.forEach callback), which is the
-            // // actual, confirmed cause of the one-frame freeze — not
-            // // anything about the omT threshold value itself. Query fresh
-            // // here instead of depending on the other block's const.
-            // const omEl = document.getElementById('operating-model');
-            // if (omEl) {
-            // const r = omEl.getBoundingClientRect();
-            // const vh = window.innerHeight;
-            // const span = r.height + vh;
-            // const omT = span > 0 ? (vh - r.top) / span : 0;
-            // if (omT >= 0.02) return false;
-            // }
-            // return this._rawT >= 0 && this._rawT <= 1 + labHoldFrac;
-            // },
-            // TEMPORARILY DISABLED — this is the reposition that jumps.
+            // RESTORED 2026-09-01 (explicit request: particles should
+            // stay centered, no left drift). This was disabled alongside
+            // Lab's shape keyframe ({ at: 0.02, shape: 'lab' }, above) —
+            // that keyframe was restored 2026-08-31 but this half of the
+            // pair was missed, which is exactly why the drift reappeared:
+            // hero's frame() freezes positionBase at its own canvas offset
+            // (particle-animation-loop.js's _getHeroCanvasOffset(), -420px
+            // world units on desktop) once hero's exit range completes, and
+            // nothing downstream ever reset it — Lab, operating-model,
+            // footer all inherited that stale left offset with no opinion
+            // of their own.
             //
-            // It existed to place the Lab sphere correctly the instant it
-            // became visible: it pins positionBase to the origin and resets
-            // cameraZ/fov to the loop's canonical base values, undoing
-            // hero's own canvas offset and zoom in a single frame. That was
-            // right while Lab morphed into its own shape there — the reset
-            // happened under cover of the morph.
+            // ownsPosition and frame() are restored TOGETHER, same as the
+            // comment here always said they must be: frame() alone (no
+            // exclusive ownership) let some other zone's position win by
+            // the director's tie-break while Lab silently still claimed a
+            // reset, and ownsPosition alone (no frame()) fell back to
+            // positionBase [0,0,0] with no morph to mask the jump — both
+            // documented failure modes above, both require the other half
+            // present to avoid.
             //
-            // With Lab's shape keyframe now commented out, hero's shape
-            // simply continues through this range, so there is no morph to
-            // mask the reset and it reads as a bare positional jump. Hero's
-            // own frame() keeps placing the object instead, which is what
-            // the drift to Lab's entry position (CENTER_BY, above) already
-            // aims at.
-            //
-            // Restore alongside Lab's `{ at: 0.02, shape: 'lab' }` keyframe
-            // — the two belong together.
-            // frame: function (l) {
-            //   return {
-            //     positionBase: [0, 0, 0],
-            //     cameraZ: l._heroBaseCameraZ,
-            //     fov: l._baseFov,
-            //   };
-            // },
-            reverseExit: { shape: 'terrain', shapeKey: 'lab-exit', morphMs: 400 },
+            // cameraZ/fov reset intentionally LEFT OUT — this pass is about
+            // position drift only, not camera zoom, which is a separate,
+            // unrequested behavior change.
+            ownsPosition: function () {
+              const omEl = document.getElementById('operating-model');
+              if (omEl) {
+                const r = omEl.getBoundingClientRect();
+                const vh = window.innerHeight;
+                const span = r.height + vh;
+                const omT = span > 0 ? (vh - r.top) / span : 0;
+                if (omT >= 0.02) return false;
+              }
+              // Same early-release as the operating-model check above, for
+              // the SAME reason, against the footer instead.
+              //
+              // HOLD_PX (1800) is a fixed pixel distance, but the threshold
+              // it feeds — `1 + labHoldFrac` — is a FRACTION of Lab's own
+              // wrapper height, and that height varies with how much
+              // content the page actually has (post-card count, etc.).
+              // Measured live on this page: labHoldFrac ~0.7, so the
+              // threshold reaches _rawT 1.7 — comfortably past where the
+              // footer begins (_rawT measured 1.54 there). Lab's own
+              // ownsPosition kept returning true all the way down, so
+              // exclusiveOwner stayed Lab and footer's own position
+              // keyframes ([0,-2.5,0] etc., below) were silently discarded
+              // — the particles sat centred at Lab's [0,0,0] instead of
+              // footer's own placement, changing how the footer's grid
+              // shape reads (reported: much larger/closer than before).
+              // Releasing once footer is genuinely near removes the
+              // dependency on HOLD_PX happening to end in time.
+              const footerEl = document.getElementById('footer');
+              if (footerEl) {
+                const r = footerEl.getBoundingClientRect();
+                const vh = window.innerHeight;
+                const span = r.height + vh;
+                const footerT = span > 0 ? (vh - r.top) / span : 0;
+                if (footerT >= 0.02) return false;
+              }
+              return this._rawT >= 0 && this._rawT <= 1 + labHoldFrac;
+            },
+            frame: function () {
+              return { positionBase: [0, 0, 0] };
+            },
+            // Scrolling back UP out of Lab's own entrance morphs into
+            // 'ribbon' (hero's shape family) instead of 'terrain' (2026-08-31,
+            // explicit request) — reads as "leaving Lab restores the ribbon"
+            // rather than dissolving to the ground-plane surface. Own
+            // shapeKey ('lab-reverse-exit'), deliberately NOT 'lab-exit':
+            // that key is set to 'hide' in PARTICLE_SCENARIOS (default.hbs)
+            // for the FORWARD exit's fade-out request — reusing it here would
+            // make scrolling back up fade out too, instead of showing ribbon.
+            // Left absent from PARTICLE_SCENARIOS entirely, same pattern as
+            // hero's own disabled 'hero-exit' entry: with no scenario override,
+            // __particleApply falls through to this keyframe's own builtin
+            // shape ('ribbon'), which is what actually makes it show.
+            reverseExit: { shape: 'ribbon', shapeKey: 'lab-reverse-exit', morphMs: 1400 },
           });
         }
 
@@ -1048,8 +1238,31 @@ async function initParticleMorphModular() {
       // would fight every scenario-driven hide. This scales the particles'
       // own alpha while the layer stays exactly as it was.
       (function initPostsTabsFade() {
-        const sections = document.querySelectorAll('.posts-tabs-section, .testimonials-section');
-        if (!sections.length) return;
+        // TWO INDEPENDENT GROUPS, not one flat list. The page has a real,
+        // deliberately-bright gap between the first .posts-tabs-section
+        // (featured work grid) and the second (#work-grid-lab's Lab grid)
+        // — the "AI experiments, explorations" heading (.statement-lab-
+        // slide) sits between them and is NOT itself a tracked section, so
+        // particles should stay visible there. The earlier "one continuous
+        // span from first to last section" fix (for the DIFFERENT, much
+        // narrower 160px gap between the Lab grid and testimonials)
+        // treated this whole page as a single span and incorrectly dimmed
+        // the heading's gap too — measured live: dim from the featured
+        // grid's own top straight through to testimonials' end, sweeping
+        // in the ~700px heading region along with it.
+        //
+        // Both posts-tabs instances share id="work" (duplicate IDs, a
+        // pre-existing markup issue out of scope here), so they can't be
+        // told apart by selector — distinguished instead by DOM position:
+        // the Lab instance is nested inside #work-grid-lab, the featured
+        // one is not.
+        const allTracked = document.querySelectorAll('.posts-tabs-section, .testimonials-section');
+        if (!allTracked.length) return;
+        const groups = [[], []]; // [0] = featured work grid alone, [1] = Lab grid + testimonials (continuous)
+        allTracked.forEach((el) => {
+          groups[el.closest('#work-grid-lab') || el.matches('.testimonials-section') ? 1 : 0].push(el);
+        });
+        const sections = groups.filter((g) => g.length);
         // Resolved per call, not captured: window.particleSystem can be
         // replaced (GPU/legacy swap, re-init), and a captured reference
         // would silently drive a dead loop.
@@ -1131,23 +1344,34 @@ async function initParticleMorphModular() {
         // frame, matching what the director's own zones already cost.
         const evaluate = () => {
           const vh = window.innerHeight;
-          let anyActive = false;
-          for (const s of sections) {
-            const r = s.getBoundingClientRect();
-            // Active once the section's TOP has risen above the fade-out
-            // line, and until its BOTTOM passes the fade-in line. Both are
-            // measured from the viewport bottom/top respectively, so a
-            // positive value means "trigger this many px early".
-            // vh + FADE_OUT_AT, not vh - : subtracting inverted the sign, so
-            // a MORE negative value raised the trigger line and fired the
-            // fade EARLIER — at -1000 the threshold sat at r.top <= 1949,
-            // already true on page load, so the particles were dimmed
-            // before any scrolling. Adding makes negative mean "wait until
-            // the section is this far into view", as documented above.
-            const startedOut = r.top <= vh + FADE_OUT_AT;
-            const finishedIn = r.bottom <= FADE_IN_AT;
-            if (startedOut && !finishedIn) { anyActive = true; break; }
-          }
+          // CONTINUOUS SPAN WITHIN EACH GROUP, groups OR'd together.
+          //
+          // The old per-section check (any ONE section satisfying
+          // startedOut && !finishedIn) treated every tracked section as an
+          // independent island — between the Lab grid and testimonials
+          // (measured live: 160px gap), the first's own finishedIn could go
+          // true before the next's own startedOut went true, and
+          // `anyActive` dropped to false in the 460px scroll range between
+          // them. Alpha genuinely tweened 0 -> 1 -> 0 there (traced: 0 at
+          // scrollY 3100, 1 at 3300-3500, 0 again at 3700).
+          //
+          // Treating ALL tracked sections as ONE flat continuous span (the
+          // first fix) closed that gap but then swallowed a much larger,
+          // DELIBERATELY bright gap too: the ~700px "AI experiments,
+          // explorations" heading sitting between the featured work grid
+          // and the Lab grid, which is not itself a tracked section and
+          // should stay lit. Splitting into groups (see the featured/Lab
+          // split above) keeps each real cluster continuous internally
+          // while treating the gap BETWEEN groups as a genuine break — any
+          // one group being active is enough to dim, matching the original
+          // per-section OR at the group level instead of the section level.
+          const anyActive = sections.some((group) => {
+            const first = group[0].getBoundingClientRect();
+            const last = group[group.length - 1].getBoundingClientRect();
+            const startedOut = first.top <= vh + FADE_OUT_AT;
+            const finishedIn = last.bottom <= FADE_IN_AT;
+            return startedOut && !finishedIn;
+          });
           const target = anyActive ? FADE_TO : 1;
           if (target !== pendingTarget) {
             pendingTarget = target;

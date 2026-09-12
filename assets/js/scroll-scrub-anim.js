@@ -554,6 +554,39 @@ class ScrollScrubAnimationSystem {
       };
       waitForParticleSystemThenMorph();
 
+      // FRESH PRELOADER RUN: skip the reveal animation entirely — the
+      // preloader's own scrim (particles-load-scrim, main.css) is what
+      // uncovers the hero now (a slide, see .particles-load-scrim.is-
+      // revealed), so a SECOND reveal animation underneath it was
+      // redundant motion the viewer never actually watched happen; it just
+      // meant the hero was already mid-fade by the time the scrim cleared,
+      // or (worse) still at partial opacity if the scrim cleared early.
+      // Every element below still gets built into entranceTl exactly as on
+      // every other path (same fromTo calls, same letter split via
+      // animateH1LetterByLetter) — only the OUTCOME differs: instead of
+      // playing, the timeline is immediately jumped to progress 1, so
+      // everything lands at its resting state with zero visible motion.
+      // Reusing the exact same construction (rather than a parallel
+      // gsap.set-only branch) guarantees this can never drift out of sync
+      // with what the animated path considers "resting" — one definition
+      // of the end state, not two that have to be kept matching by hand.
+      //
+      // Gated on __preloaderSkipped being falsy — preloader.js (see its
+      // skip-path branches) ONLY ever sets this flag to `true`; on a
+      // genuine full run it is never set at all and stays undefined, never
+      // `false`. So the check has to be a falsy test, not `=== false`.
+      // window.__preloaderSkipped falsy is exactly "this load DID go
+      // through the full preloader sequence" — same-site nav, cached
+      // visits, and curtain returns all set it to `true` and keep the
+      // existing animated entrance, since none of those paths have a scrim
+      // to reveal through — the reveal animation is still the only thing
+      // that shows the hero on those routes. document.getElementById(
+      // 'preloader') is also checked: a page with no preloader element at
+      // all (non-homepage) must never take this branch either, since
+      // nothing there ever sets the flag and it would otherwise falsely
+      // read as "fresh preloader run".
+      const isFreshPreloaderRun = !window.__preloaderSkipped && !!document.getElementById('preloader');
+
       // Entrance: h1 gets a letter-by-letter reveal — same treatment
       // .page-title gets on About/Contact (animateH1LetterByLetter, main.js
       // — per-character opacity stagger, no position/blur movement).
@@ -690,6 +723,35 @@ class ScrollScrubAnimationSystem {
       if (heroLogos) {
         entranceTl.fromTo(heroLogos, { opacity: 0 }, { opacity: 1, duration: 0.4, ease: 'power2.out' }, REVEAL_START + 0.25);
       }
+
+      // Jump straight to the resting state on a fresh preloader run (see
+      // isFreshPreloaderRun above) — entranceTl is fully built at this
+      // point (every fromTo above has already been added, including the
+      // letter-by-letter split via runLetterReveal), so .progress(1)
+      // resolves every tween to its END value in one synchronous step
+      // with no visible motion. The scrim's own slide (particles-load-
+      // scrim, main.css) is what the viewer actually sees uncover the
+      // hero; this just means there's nothing left to animate underneath
+      // it once that happens.
+      if (isFreshPreloaderRun) {
+        entranceTl.progress(1);
+
+        // HERO IS NOW VISIBLE — tell preloader.js it may start the scrim
+        // slide. The scrim's whole purpose is to uncover a hero that is
+        // already there; without this handshake it slid over an empty page
+        // and the hero popped in ~260ms AFTER the slide had finished
+        // (traced: slide done 1641ms, hero visible 1902ms). That happens
+        // because preloader.js now loads early — before this file has even
+        // been fetched — so it cannot simply assume the hero is ready by
+        // the time its own fade-in ends.
+        //
+        // Sticky flag alongside the event, same pattern preloader.js uses
+        // for __preloaderDoneFired: preloader.js may reach its wait AFTER
+        // this fires, and a CustomEvent does not replay for late
+        // subscribers.
+        window.__heroReady = true;
+        window.dispatchEvent(new CustomEvent('hero:ready'));
+      }
     });
 
     // Exit: individual hero elements animate out on scroll
@@ -761,6 +823,34 @@ class ScrollScrubAnimationSystem {
       }
 
       const exitTl = gsap.timeline({
+        // immediateRender: false is LOAD-BEARING, not a tuning knob.
+        //
+        // Every .fromTo() below declares { opacity: 1 } as its FROM state
+        // (the hero at rest, before it scrolls away). GSAP applies a
+        // fromTo's from-value to the live element the moment the tween is
+        // INSERTED — a zero-duration render — regardless of where on the
+        // timeline it is scheduled or whether its ScrollTrigger has fired.
+        //
+        // This timeline is built synchronously in initHero(), while the
+        // entrance timeline is built ~10ms later inside the
+        // gsap.delayedCall(0.01, ...) above. So on a fresh load the order
+        // was: exit's from-states force .hero-headline/.hero-description/
+        // .hero-avatar/.hero-description2 to opacity:1 (while the preloader
+        // scrim is still fading, so it looks like the hero is appearing) →
+        // scrim clears, hero visible → entranceTl is created and ITS
+        // from-states snap the same four elements back to opacity:0 → they
+        // vanish → the entrance finally plays and fades them in for real.
+        // Reported as "image, description and h1 start showing, then
+        // disappear, then start showing again", 100% reproducible on a
+        // fresh load, absent on same-site nav (different entrance path).
+        // Traced: exit created 4234ms, scrim clear 4311ms, entrance created
+        // 4322ms, vanish visible 4351ms, real fade-in 4688ms.
+        //
+        // With immediateRender: false the from-states are applied only when
+        // the scrub actually renders this timeline — i.e. when the hero is
+        // genuinely being scrolled away — which is the only moment they
+        // were ever meant to describe.
+        immediateRender: false,
         scrollTrigger: {
           trigger: hero,
           start: 'top top',
@@ -769,7 +859,41 @@ class ScrollScrubAnimationSystem {
           // wrapper's own scrollTrigger above for why (0.5 caused "no
           // animation, then abrupt appearance" during very slow scrolling).
           scrub: true,
-          markers: false
+          markers: false,
+          // RESTING-STATE RESTORE — the necessary counterpart to
+          // immediateRender: false above.
+          //
+          // Skipping the insertion-time render is what stops the load flash,
+          // but it also means these tweens have no committed from-state to
+          // scrub back TO. That is invisible on a normal load (the entrance
+          // sets opacity:1 itself, and you always pass through progress 0
+          // on the way down), but it strands the hero on the curtain-return
+          // path: closing a post from mid-page restores at e.g. scrollY 788,
+          // where this trigger legitimately evaluates to progress 1 and
+          // applies the exit's END state — then scrolling UP to the hero
+          // returns progress to 0 with nothing to restore, leaving the
+          // headline at opacity 0 and the avatar/description stuck at
+          // whatever partial value they held. Measured: head 0, avatar 0.76
+          // at scrollY 0, with all three hero triggers correctly reporting
+          // progress 0 — i.e. the scrub was right, the target state was
+          // simply never defined.
+          //
+          // onLeaveBack fires exactly when the playhead crosses back above
+          // `start`, which IS the hero's resting state, so this writes the
+          // same values the entrance would have left behind. Cheap, and
+          // idempotent on repeat crossings.
+          onLeaveBack: () => {
+            const restingTargets = [
+              hero.querySelector('.hero-intro'),
+              heading,
+              hero.querySelector('.hero-description'),
+              hero.querySelector('.hero-avatar'),
+              hero.querySelector('.hero-description2'),
+              hero.querySelector('.hero-stats'),
+              document.querySelector('.hero-logos-section'),
+            ].filter(Boolean);
+            if (restingTargets.length) gsap.set(restingTargets, { opacity: 1, y: 0 });
+          }
         }
       });
 
@@ -791,11 +915,11 @@ class ScrollScrubAnimationSystem {
       if (intro) {
         exitTl.fromTo(intro,
           { y: 0 },
-          { y: 160, duration: 0.5, ease: 'power2.in' },
+          { y: 160, duration: 0.5, ease: 'power2.in', immediateRender: false },
           0
         ).fromTo(intro,
           { opacity: 1 },
-          { opacity: 0, duration: 0.3, ease: 'power1.out' },
+          { opacity: 0, duration: 0.3, ease: 'power1.out', immediateRender: false },
           0
         );
       }
@@ -803,11 +927,11 @@ class ScrollScrubAnimationSystem {
       // Headline slides down off screen
       exitTl.fromTo(heading,
         { y: 0 },
-        { y: 220, duration: 0.5, ease: 'power2.in' },
+        { y: 220, duration: 0.5, ease: 'power2.in', immediateRender: false },
         0.05
       ).fromTo(heading,
         { opacity: 1 },
-        { opacity: 0, duration: 0.3, ease: 'power1.out' },
+        { opacity: 0, duration: 0.3, ease: 'power1.out', immediateRender: false },
         0.05
       );
 
@@ -816,11 +940,11 @@ class ScrollScrubAnimationSystem {
       if (description) {
         exitTl.fromTo(description,
           { y: 0 },
-          { y: 160, duration: 0.5, ease: 'power2.in' },
+          { y: 160, duration: 0.5, ease: 'power2.in', immediateRender: false },
           0.1
         ).fromTo(description,
           { opacity: 1 },
-          { opacity: 0, duration: 0.3, ease: 'power1.out' },
+          { opacity: 0, duration: 0.3, ease: 'power1.out', immediateRender: false },
           0.1
         );
       }
@@ -834,11 +958,11 @@ class ScrollScrubAnimationSystem {
       if (avatar) {
         exitTl.fromTo(avatar,
           { y: 0 },
-          { y: 160, duration: 0.5, ease: 'power2.in' },
+          { y: 160, duration: 0.5, ease: 'power2.in', immediateRender: false },
           0.1
         ).fromTo(avatar,
           { opacity: 1 },
-          { opacity: 0, duration: 0.3, ease: 'power1.out' },
+          { opacity: 0, duration: 0.3, ease: 'power1.out', immediateRender: false },
           0.1
         );
       }
@@ -851,11 +975,11 @@ class ScrollScrubAnimationSystem {
       if (description2) {
         exitTl.fromTo(description2,
           { y: 0 },
-          { y: 160, duration: 0.5, ease: 'power2.in' },
+          { y: 160, duration: 0.5, ease: 'power2.in', immediateRender: false },
           0.1
         ).fromTo(description2,
           { opacity: 1 },
-          { opacity: 0, duration: 0.3, ease: 'power1.out' },
+          { opacity: 0, duration: 0.3, ease: 'power1.out', immediateRender: false },
           0.1
         );
       }
@@ -868,11 +992,11 @@ class ScrollScrubAnimationSystem {
       if (stats) {
         exitTl.fromTo(stats,
           { y: 0 },
-          { y: 160, duration: 0.5, ease: 'power2.in' },
+          { y: 160, duration: 0.5, ease: 'power2.in', immediateRender: false },
           0.15
         ).fromTo(stats,
           { opacity: 1 },
-          { opacity: 0, duration: 0.3, ease: 'power1.out' },
+          { opacity: 0, duration: 0.3, ease: 'power1.out', immediateRender: false },
           0.15
         );
       }
@@ -1445,9 +1569,25 @@ function initScrollScrubAnimSystem() {
     return;
   }
 
-  // Case 2: cached visit — preloader was skipped, page-ready already set
-  if (window.__preloaderSkipped || document.documentElement.classList.contains('page-ready')) {
-    console.log('[scroll-scrub-anim] preloader skipped (cached) — initializing immediately');
+  // Case 2: preloader:done has ALREADY happened — either it was skipped
+  // outright (cached/same-site visit), or the full sequence ran and
+  // dispatched before this file was even parsed.
+  //
+  // __preloaderDoneFired is the sticky flag preloader.js maintains for
+  // exactly this "late subscriber" case, and checking it here is load-
+  // bearing: preloader.js (default.hbs ~1369) now boots synchronously the
+  // moment its elements exist, rather than on DOMContentLoaded, so on a
+  // fresh load it can dispatch preloader:done well BEFORE this file
+  // (~1799, behind three.js/GSAP/string-tune) has run at all. A
+  // CustomEvent does not replay for listeners registered afterwards, so
+  // without this check Case 3 below would wait forever for an event that
+  // already fired — leaving the hero stranded at opacity:0 through the
+  // entire scrim reveal and only rescued by the 8s fallback. Traced
+  // exactly that: head=0 avatar=0 for the whole slide, never recovering.
+  if (window.__preloaderSkipped
+      || window.__preloaderDoneFired
+      || document.documentElement.classList.contains('page-ready')) {
+    console.log('[scroll-scrub-anim] preloader already done/skipped — initializing immediately');
     initScrollScrubAnimSystem();
     return;
   }

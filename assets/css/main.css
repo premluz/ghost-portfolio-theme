@@ -605,6 +605,7 @@ html.page-ready main > *:not(#preloader):not(.home):not(.gradflow-page-bg) {
   background: transparent;
   opacity: 0;
   animation: preloaderFadeIn 0.4s ease-out forwards;
+   
 }
 
 .preloader-content {
@@ -613,6 +614,76 @@ html.page-ready main > *:not(#preloader):not(.home):not(.gradflow-page-bg) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+}
+
+/* Base state is the text's RESTING state after the fade-in, not opacity:0 —
+   the h4 markup itself must never require JS to become visible (same "no
+   opacity of its own" pitfall documented in LOADING.md §1). preloader.js
+   adds .is-visible after a frame to trigger the actual fade-in tween; if JS
+   never runs at all the text is still on screen at opacity:1, just without
+   the soft fade. */
+.preloader-text {
+  color: var(--color-on-surface);
+  text-align: center;
+  padding: 0 var(--content-padding);
+  opacity: 1;
+}
+
+.preloader-text.pl-text-fade-in {
+  opacity: 0;
+  transition: opacity 0.5s ease-out;
+}
+
+.preloader-text.pl-text-fade-in.is-visible {
+  opacity: 1;
+}
+
+/* Preload/particle-canvas scrim (particle-morph.hbs). 150vh — 50% taller
+   than any viewport — so its opaque top portion still fully covers the
+   screen after the translate below has run; a 100%-tall scrim sliding up
+   by its own height would uncover its own top edge before fully leaving,
+   flashing the canvas underneath at the wrong moment.
+
+   The gradient's opaque stop sits at 60%, not 0% — leaves a real solid
+   block up top (matching the flat scrim this replaced) with only the
+   BOTTOM 40% fading out, so the reveal is a soft edge sweeping through the
+   viewport rather than the whole scrim being translucent throughout. */
+.particles-load-scrim {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 150vh;
+  pointer-events: none;
+  background: linear-gradient(to bottom, var(--color-background) 60%, transparent 100%);  
+  transform: translateY(0);
+  transition: transform 0.6s ease-in-out;
+  /* MUST beat .hero's z-index:2 (main.css ~9711) — this element's parent,
+     #particle-morph-demo (particle-morph.hbs), is only z-index:1, so
+     without setting this explicitly the scrim painted BELOW the hero the
+     entire time regardless of its own opacity/transform. The hero content
+     going static (scroll-scrub-anim.js's isFreshPreloaderRun) exposed
+     this: it snapped straight to opacity:1 and rendered on top of the
+     scrim immediately, with the slide underneath having no visible effect
+     at all — confirmed via computed z-index (scrim: auto, inherited "1"
+     from its parent; hero: "2"). Below .preloader's own 999999 — the
+     preloader text still needs to render on top of this scrim, not under
+     it — but above every other layer on the page, matching this
+     element's actual job of covering the whole page during load. */
+  z-index: 999998;
+}
+
+/* Reveal: translate the whole scrim up by its own height so the
+   transparent lower edge sweeps upward through the viewport ahead of the
+   opaque body — content becomes visible progressively behind that soft
+   edge, not all at once the way a flat opacity fade would reveal it.
+   Opacity is intentionally NOT part of this transition; every consumer
+   (preloader.js's _finish()/_hide(), the fade-in trigger and 6s failsafe
+   further down this file) still gates on opacity reaching 0 as the
+   reliable "fully hidden" signal, so this class only ever gets added
+   alongside (never instead of) an opacity:0 write on the same element. */
+.particles-load-scrim.is-revealed {
+  transform: translateY(-150vh);
 }
 
 /* Indeterminate loading bar (2026-08-06). Was a determinate 0→100% width
@@ -1117,7 +1188,7 @@ html.page-ready main > *:not(#preloader):not(.home):not(.gradflow-page-bg) {
 }
 
 .intro-content {
-  position: relative;
+  position: relati\ve;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1380,7 +1451,7 @@ p:last-child {
 
 .content-grid[data-card="container"][data-color='blue'],
 .field-grid[data-card="container"][data-color='blue'] {
-  background: var(--color-utility-blue-subtle-bg);
+  background: linear-gradient(180deg, var(--color-utility-blue-subtle-bg), transparent);
   border-color: var(--color-utility-blue-subtle-border);
 }
 
@@ -1819,7 +1890,7 @@ p:last-child {
   min-width: 0;
   border: 1px solid var(--glass-border);
   border-radius: var(--glass-radius);
-  box-shadow: var(--glass-shadow), var(--glass-inset-light);
+  /*box-shadow: var(--glass-shadow), var(--glass-inset-light);*/
   padding: var(--space-lg);
 }
 
@@ -1879,7 +1950,6 @@ p:last-child {
    doesn't cascade this onto unrelated text. */
 .field-grid-item > p {
   margin: 0;
-  font-size: var(--text-size-small);
   color: var(--color-on-surface-subtle);
 }
 
@@ -1987,8 +2057,11 @@ p:last-child {
       </div>
     </section>
 
-  data-width         narrow | contained | wide | full  (default: wide on
-                      .case-study-section; on .case-study-columns,
+  data-width         narrow | contained | wide | full  (default: FULL on
+                      .case-study-section — changed 2026-09-04, was
+                      "wide" — a bare <section class="case-study-section">
+                      with no data-width now reaches the viewport edge
+                      with no attribute needed; on .case-study-columns,
                       default is "fill the section" — see that element's
                       own note above). Same four zones .kg-width-* already
                       uses — narrow matches body-text measure, contained
@@ -2006,17 +2079,22 @@ p:last-child {
                       columns="narrow" for a full-bleed background with
                       body-text-width content inside it).
   data-content-align  left | center | right  (on .case-study-section,
-                      optional) — horizontal position of a narrower
+                      optional; default: CENTER — changed 2026-09-04, was
+                      flush-left) — horizontal position of a narrower
                       .case-study-columns within a wider section (e.g.
                       section="full" + columns="contained"). Every named
                       width-zone shares the same LEFT-anchored start line
                       by default (see .case-study-section's own data-width
-                      rules), so without this a narrower columns element
-                      always sits flush-left — this opts into centering
-                      or right-aligning it instead. Omit for today's
-                      default (flush-left, zero risk to existing
-                      sections). Not the same as .case-study-item's own
-                      data-align (vertical, top|middle|bottom) — see that
+                      rules), so a narrower columns element needs this
+                      mechanism to sit anywhere but flush-left — it now
+                      centers automatically with no attribute needed;
+                      set left|right explicitly to override. Only has a
+                      visible effect when .case-study-columns ALSO
+                      declares its own (narrower) data-width — a columns
+                      element with no data-width fills the section and has
+                      nothing to center within it. Not the same as
+                      .case-study-item's own data-align (vertical,
+                      top|middle|bottom) — see that
                       attribute's own note on why the name differs
                       despite the similar job.
   data-layout         columns | stacked  (on .case-study-columns; default:
@@ -2237,7 +2315,14 @@ p:last-child {
 
 .case-study-section {
 
-  grid-column: wide-start / wide-end;
+  /* Default width is FULL, not "wide" — changed 2026-09-04 (explicit
+     request) so a bare <section class="case-study-section"> with no
+     data-width needs no attribute at all to reach the viewport edge.
+     data-width="narrow"/"contained"/"wide" below still override this by
+     matching on the attribute's presence, same as before; data-width=
+     "full" is now redundant with the base rule but kept as an explicit,
+     harmless override for clarity in markup. */
+  grid-column: full-start / full-end;
   /* Nested grid inheriting the SAME named tracks one level deeper — same
      mechanism .gh-content already uses relative to .gh-canvas
      (grid-template-columns: inherit copies the computed track list, and
@@ -2728,17 +2813,25 @@ p:last-child {
    .gh-canvas itself computes from (--content-max-width-text/-wide,
    --container+200), and justify-self positions the resulting (now
    explicitly sized, no longer line-pinned) box within the section's own
-   full span. Omit data-content-align entirely to keep today's default
-   (flush-left via the named-line system, zero risk to any existing
-   section — this selector only matches when BOTH attributes are
-   present). */
-.case-study-section[data-content-align] > .case-study-columns[data-width] {
+   full span.
+   DEFAULT changed 2026-09-04 (explicit request): CENTER, not flush-left
+   — a .case-study-columns[data-width] narrower than its section centers
+   automatically with no data-content-align attribute needed at all (the
+   rules below match on the bare .case-study-section > .case-study-
+   columns[data-width] combinator, not gated behind [data-content-align]
+   presence). data-content-align="left"/"right" still override this via
+   higher specificity; "center" is now redundant with the default but
+   valid to set explicitly for clarity. This is a behavior change for any
+   already-published section with a narrower columns width and no
+   data-content-align set — those now center instead of sitting
+   flush-left. */
+.case-study-section > .case-study-columns[data-width] {
   grid-column: 1 / -1;
 }
-.case-study-section[data-content-align] > .case-study-columns[data-width="narrow"] {
+.case-study-section > .case-study-columns[data-width="narrow"] {
   max-width: var(--content-max-width-text);
 }
-.case-study-section[data-content-align] > .case-study-columns[data-width="contained"] {
+.case-study-section > .case-study-columns[data-width="contained"] {
   /* Fixed 1440px, not var(--content-max-width-media) — that token was
      tried first (fixing an earlier bug where it referenced a typo'd,
      never-defined --content-max-width-contained and silently rendered
@@ -2757,7 +2850,7 @@ p:last-child {
      author would expect a named tier to behave. */
   max-width: 1440px;
 }
-.case-study-section[data-content-align] > .case-study-columns[data-width="wide"] {
+.case-study-section > .case-study-columns[data-width="wide"] {
   /* Fixed 1600px, not calc(var(--container) + 200px) — that derived
      value resolves to 2000px whenever the page-width setting is "full"
      (--container: 1800px there, main.css .gh-canvas), which is barely
@@ -2774,11 +2867,18 @@ p:last-child {
    needed, the max-width simply never constrains it below the section's
    own width. */
 
+/* Default is "center" — changed 2026-09-04 (explicit request) so a bare
+   .case-study-section with a narrower .case-study-columns[data-width]
+   inside it centers that columns element with no data-content-align
+   attribute needed. data-content-align="left"/"right" below still
+   override this via higher specificity (attribute-value selector beats
+   the bare-element one); "center" is now redundant with this default but
+   kept as an explicit, harmless override for clarity in markup. */
+.case-study-section > .case-study-columns[data-width] {
+  justify-self: center;
+}
 .case-study-section[data-content-align="left"] > .case-study-columns[data-width] {
   justify-self: start;
-}
-.case-study-section[data-content-align="center"] > .case-study-columns[data-width] {
-  justify-self: center;
 }
 .case-study-section[data-content-align="right"] > .case-study-columns[data-width] {
   justify-self: end;
@@ -3273,6 +3373,23 @@ p:last-child {
 
   .field-grid[data-cols-mobile="2"] {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .field-grid[data-cols-mobile="3"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  /* .post-header-stats-grid: scoping hook (post.hbs) so this shrink only
+     hits the post-header's own 3-up mobile stats — NOT .text-eyebrow
+     generally, which stays at its normal size everywhere else it's used.
+     At a 1/3-viewport column width, the default eyebrow size/tracking
+     wraps multi-word labels ("Architecture simplified") into 2-3 lines
+     and the third column's text clips past the viewport edge (confirmed
+     live, 390px). Smaller size + tighter tracking, not a layout change —
+     the 3-column grid itself (data-cols-mobile="3" above) is untouched. */
+  .post-header-stats-grid .text-eyebrow {
+    font-size: 0.625rem !important;
+    letter-spacing: 0.02em !important;
   }
 }
 
@@ -3856,11 +3973,14 @@ html {
    CONSTANT blur radius's opacity in/out (::before/::after below do that,
    for the color tint); it can't make the blur radius itself increase
    continuously, which is what reads as "content gradually blurring toward
-   the bar" rather than "a blurred sheet fading in". These 5 elements fake
-   continuous variable blur the way sites like Linear/Vercel do it: each
-   blurs a different, increasing amount and is masked to a different band;
-   painted together (weakest/farthest first, strongest/closest-to-the-bar
-   last, so overlaps compound toward the bar) they read as one smooth ramp.
+   the bar" rather than "a blurred sheet fading in". 8 layers (2026-09-08 —
+   was 5 hand-tuned ones; see the removed .nav-blur-layer-1..5 comment
+   further down), generated by assets/js/page-top-blur.js and shared with
+   the site-wide top blur (.page-top-blur, default.hbs): each blurs a
+   different, doubling amount (0.078125px -> 10px) and is masked to a
+   different overlapping band; painted together (weakest/farthest first,
+   strongest/closest-to-the-bar last, so overlaps compound toward the bar)
+   they read as one smooth ramp with no visible seams.
    No background-color of their own — purely blur, layered underneath
    ::before/::after's tint (z-index below, see .nav-progressive-blur below).
    Bottom-anchored on EVERY viewport width now, including desktop — the
@@ -3876,7 +3996,19 @@ html {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 137px; /* was 196px (itself 30% less than an earlier 280px) — another 30% off per explicit request. All 5 .nav-blur-layer masks below use percentage-based gradient stops, not fixed px offsets, so they rescale proportionally with this height automatically — no other value needs touching. */
+  /* 200px (2026-09-08) — was 137px (itself 30% off an earlier 196px, which
+     was itself 30% off 280px, both per explicit requests at the time).
+     Brought back up to match .page-top-blur's own height: the same
+     percentage-based gradient/mask math compressed into a shorter box
+     makes the SAME fade happen over fewer physical pixels, reading as a
+     harsher, more sudden cutoff than the top blur's — confirmed by
+     screenshot comparison (top blur fades smoothly into a card image
+     underneath it, bottom blur cut off hard against one). All 8
+     .progressive-blur-layer masks (assets/js/page-top-blur.js) and the
+     ::before gradient above use percentage-based stops, not fixed px
+     offsets, so they rescale proportionally with this height automatically
+     — no other value needs touching. */
+  height: 200px;
   /* Back to -1 (2026-08-09), matching both snapshots. It had been raised to
      9999 while this element was temporarily a sibling of <nav> rather than
      a child: as a direct child of <body>, -1 means "behind the page's root
@@ -3931,50 +4063,113 @@ html {
      load. */
 }
 
-.nav-blur-layer {
+/* Dark-to-transparent cap for the BOTTOM blur — mirrors .page-top-blur's
+   own ::before (main.css, "Dark-to-transparent cap" comment) exactly,
+   just "to top" instead of "to bottom" since this container is bottom-
+   anchored. Added 2026-09-08 (explicit request: nav's bottom blur should
+   have the same strong darkening cap the top blur has, reversed).
+   NOT `position` + `z-index` on the parent .nav-progressive-blur itself —
+   deliberately no z-index here, matching the `isolation: isolate` lesson
+   documented above (a stacking context on this exact container previously
+   trapped the .nav-blur-layer children's backdrop-filter sampling to
+   "nothing," silently killing the blur). This pseudo-element still gets
+   its own stacking context from position:absolute+z-index, which is fine
+   — that lesson was specifically about promoting the PARENT container,
+   not about z-index on the ::before itself; z-index:0 here sits behind
+   the blur layers (they have no z-index of their own, so they paint in
+   DOM order above this) without touching the parent's own compositing. */
+.nav-progressive-blur::before {
+  content: '';
   position: absolute;
   inset: 0;
+  z-index: 0;
+  background: linear-gradient(to top, var(--color-background), transparent);
+  pointer-events: none;
 }
 
-.nav-blur-layer-1 {
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-  mask-image: linear-gradient(to top, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 65%, rgba(0, 0, 0, 0.5) 78%, rgba(0, 0, 0, 0.5) 100%);
-  -webkit-mask-image: linear-gradient(to top, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 65%, rgba(0, 0, 0, 0.5) 78%, rgba(0, 0, 0, 0.5) 100%);
+/* .nav-blur-layer/.nav-blur-layer-1..5 removed 2026-09-08 — the 5
+   hand-tuned layers were replaced with the shared 8-layer generator
+   (assets/js/page-top-blur.js) that also drives .page-top-blur
+   (default.hbs). That script writes position/inset/pointer-events/
+   backdrop-filter/mask-image as inline styles on each generated
+   .progressive-blur-layer div, so no CSS rule is needed for them here —
+   see the script's own doc for the band math. */
+
+/* Site-wide TOP progressive blur — Utsubo-technique, extracted 2026-09-08
+   from their WebGL & Three.js Development Studio page (CSS-only despite
+   the WebGL branding: no canvas/shader/Three.js involved in this specific
+   component). Deliberately NOT the nav's 5-layer curve
+   (.nav-progressive-blur/.nav-blur-layer above) — per explicit request,
+   this matches the reference's own technique exactly: 8 layers, blur
+   radii DOUBLING each step (0.078125px -> 10px), each masked to a 25%-
+   wide band at 12.5%-of-height increments so adjacent bands overlap by
+   half their own width (smooth ramp, no visible seams). Own class names
+   (.page-top-blur/.page-top-blur-layer) so nothing here can collide with
+   or be confused for the nav's own blur — two structurally different
+   components (8 doubling-radius layers vs. 5 curve-fitted ones), not one
+   reused elsewhere. Layers themselves are generated by JS (assets/js/
+   page-top-blur.js) from the radii array, matching the reference's own
+   "recommended reusable implementation" over 8 hand-written inline-style
+   divs — easier to retune the curve or layer count later.
+   height: var(--page-top-blur-height) — 200px/100px at <=768px, the
+   reference's own two sizes, as a custom property so the media query
+   only needs to change the one value. z-index:10000 sits just below
+   nav's 10001 stacking group (main.css, .gh-navigation) — enough to blur
+   whatever scrolls underneath without ever covering the nav pill. */
+.page-top-blur {
+  --page-top-blur-height: 200px;
+  display: block;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--page-top-blur-height);
+  z-index: 10000;
+  pointer-events: none;
+  overflow: hidden;
 }
 
-.nav-blur-layer-2 {
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  mask-image: linear-gradient(to top, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 48%, rgba(0, 0, 0, 0.75) 60%, rgba(0, 0, 0, 0.75) 75%, rgba(0, 0, 0, 0) 88%, rgba(0, 0, 0, 0) 100%);
-  -webkit-mask-image: linear-gradient(to top, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 48%, rgba(0, 0, 0, 0.75) 60%, rgba(0, 0, 0, 0.75) 75%, rgba(0, 0, 0, 0) 88%, rgba(0, 0, 0, 0) 100%);
+/* Dark-to-transparent cap, same shape as the reference's own #111 ::before
+   (a plain two-stop gradient, not a mask-layered blend) — this is the
+   solid "page fades into background" read; the 8 blur layers below only
+   blur what's behind them; without this they'd blur without darkening.
+   var(--color-background), not a hardcoded hex like the reference's own
+   #111 — this theme's real background token so it's correct in both
+   light/dark themes without a separate override block. */
+.page-top-blur::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(to bottom, var(--color-background), transparent);
+  pointer-events: none;
 }
 
-.nav-blur-layer-3 {
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  mask-image: linear-gradient(to top, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 28%, rgba(0, 0, 0, 0.85) 40%, rgba(0, 0, 0, 0.85) 55%, rgba(0, 0, 0, 0) 68%, rgba(0, 0, 0, 0) 100%);
-  -webkit-mask-image: linear-gradient(to top, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 28%, rgba(0, 0, 0, 0.85) 40%, rgba(0, 0, 0, 0.85) 55%, rgba(0, 0, 0, 0) 68%, rgba(0, 0, 0, 0) 100%);
+.page-top-blur-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
 
-.nav-blur-layer-4 {
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  mask-image: linear-gradient(to top, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.9) 15%, rgba(0, 0, 0, 0.9) 30%, rgba(0, 0, 0, 0) 48%, rgba(0, 0, 0, 0) 100%);
-  -webkit-mask-image: linear-gradient(to top, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.9) 15%, rgba(0, 0, 0, 0.9) 30%, rgba(0, 0, 0, 0) 48%, rgba(0, 0, 0, 0) 100%);
-}
-
-.nav-blur-layer-5 {
-  backdrop-filter: blur(36px);
-  -webkit-backdrop-filter: blur(36px);
-  mask-image: linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 1) 12%, rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, 0) 100%);
-  -webkit-mask-image: linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 1) 12%, rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, 0) 100%);
+@media (max-width: 768px) {
+  .page-top-blur {
+    --page-top-blur-height: 100px;
+  }
 }
 
 /* Blur fade layer — tint half of the glass effect. position:fixed (not
    absolute-relative-to-.gh-navigation like before) since it's now anchored
    to the viewport's bottom edge regardless of where the actual nav shell
-   sits (top, on desktop) — see .nav-progressive-blur's comment above. 
+   sits (top, on desktop) — see .nav-progressive-blur's comment above.
+   REVIVED 2026-09-08 (explicit request) — an equivalent reference
+   implementation (Utsubo's top-anchored progressive-blur) pairs its blur
+   layers with a flat dark-to-transparent tint; this is that same idea for
+   OUR architecture (bottom-anchored, --nav-fade-tint token instead of a
+   hardcoded hex, so it stays theme/shift-aware rather than a magic color
+   value). Height matches .nav-progressive-blur's own height (200px as of
+   2026-09-08, bumped from 137px the same day to fix a harsh-vs-smooth
+   fade mismatch against .page-top-blur — see that rule's own comment) —
+   the two are meant to cover the same band. */
 .gh-navigation::before {
   content: '';
   position: fixed;
@@ -3982,11 +4177,11 @@ html {
   left: 0;
   right: 0;
   bottom: 0;
-  height: 196px; 
+  height: 200px;
   background-color: color-mix(in srgb, var(--nav-fade-tint), var(--nav-fade-tint-shift) calc(var(--profile-shift, 0) * 100%));
   backdrop-filter: blur(32px) saturate(160%);
   -webkit-backdrop-filter: blur(32px) saturate(160%);
-  
+
   mask-image: linear-gradient(
     to top,
     rgba(33, 36, 35, 0.9) 0%,
@@ -4008,7 +4203,7 @@ html {
   opacity: var(--nav-gradient-opacity, 0);
 
   transition: opacity 0.3s ease-out;
-}*/
+}
 
 /* was 280px — 30% less per explicit request */
   /* --nav-fade-tint (not --nav-bg): a dark tint over already-dark page
@@ -7461,6 +7656,7 @@ body[data-page-width='full'] .gh-canvas {
   opacity: 0;
   filter: blur(4px);
   padding: 0 var(--content-padding);
+
 }
 
 /* Section-scoped invert (see INVERSION.md) — --profile-shift here reaches
@@ -7924,7 +8120,7 @@ html.invert-timed-active {
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas:
     "header"
-    "side"
+
     "content";
 }
 
@@ -8040,40 +8236,64 @@ html.invert-timed-active {
   max-width: none;
 }
 
-/* POST HEADER TOP — 3-column row (logo / meta / title+excerpt), post.hbs
-   only (page.hbs/page-about.hbs keep their own single-column .post-header
-   shape, untouched). Fixed-width logo + meta columns, title takes the
-   remaining space — matches the reference composition (logo mark, a
-   narrow eyebrow+value meta list, then the large H1 alongside it).
-   Below 1280px (raised from 768px — was the only breakpoint in this file
-   tuned for a small-desktop cutoff rather than phone/tablet; matches
-   .case-study-columns' own 1280px reflow, added for the identical "still
-   cramped at laptop widths" reason), logo + meta STAY side by side
-   (2 columns, auto + 1fr) — matching the desktop pairing — with only the
-   title dropping to its own full-width row below both; title's
-   grid-column:1/-1 is what spans it across whatever column count is
-   active, so this rule doesn't need its own separate override at this
-   breakpoint. */
+/* POST HEADER TOP — 3-column row, post.hbs only (page.hbs/page-about.hbs
+   keep their own single-column .post-header shape, untouched).
+   RESTORED + REORDERED 2026-09-05 (explicit request): was logo / meta /
+   title originally, hidden down to logo / title (2-col) on 2026-09-02,
+   now logo / title / meta — the meta column moved to the END instead of
+   its original middle slot, matching post.hbs's markup order (DOM order
+   drives grid order here; no grid-column overrides reshuffle it).
+   auto 1fr minmax(160px,220px): logo sizes to its own content, title
+   takes all remaining space, meta gets the same fixed track it used
+   before hiding (main.css history) — just last instead of second. */
 .post-header-top {
   display: grid;
-  grid-template-columns: auto minmax(160px, 220px) 1fr;
+  grid-template-columns: auto 1fr minmax(160px, 320px);
   gap: var(--space-xl);
   align-items: start;
+  width: 100%;
 }
 
 @media (max-width: 1280px) {
   .post-header-top {
-    grid-template-columns: auto 1fr;
     gap: var(--space-lg);
+      width: 100%;
   }
+}
 
-  .post-header-title {
-    grid-column: 1 / -1;
+/* Below 768px (same collapse threshold .post-layout itself already uses,
+   ~line 8023) the 3-column grid has nowhere to put the 1fr title track —
+   the fixed minmax(160px,320px) meta/metrics column plus the logo's own
+   width leaves the title at 0px on real phone viewports (confirmed live,
+   390px: title measured 0px wide, H1 unrenderable). Stack to one column,
+   same DOM order (logo, then title, then meta/metrics) top to bottom. */
+@media (max-width: 768px) {
+  .post-header-top {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-lg);
   }
 }
 
 .post-header-logo {
   display: flex;
+  /* column, not row — .post-header-logo-year (post.hbs) sits BELOW the
+     logomark now, not beside it; this element previously only ever held
+     one child (the logomark), so flex-direction was never a meaningful
+     choice before. */
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-xs);
+}
+
+/* Year under the logo — see post.hbs's own comment for the data source
+   (meta.date, parsed down to a bare year) and why it's hidden by default
+   in markup rather than always rendered empty. text-eyebrow-sized rather
+   than a full value style: this is a small label under the mark, not a
+   field with its own eyebrow+value pair the way .post-header-meta's rows
+   were. */
+.post-header-logo-year {
+  font-size: var(--text-size-small);
+  color: var(--color-on-surface-subtle);
 }
 
 /* Desktop (>1280px): single-column stack of eyebrow+value rows in a
@@ -8129,6 +8349,12 @@ html.invert-timed-active {
 .post-title {
   margin-bottom: 0;
   margin-top:0;
+}
+
+/* .post-header-title's flex gap (above) already spaces this from the
+   title — no margin needed here. */
+.post-title-eyebrow {
+  display: block;
 }
 
 .post-excerpt {
@@ -8306,6 +8532,11 @@ html.invert-timed-active {
   transform: scale(0.95);
   filter: none;
     border-radius: var(--radius-lg);
+  /* Same border recipe post-card-grid.css uses for the outlined/filled
+     card-style tiers (border: 1px solid var(--glass-border)) — applied
+     unconditionally here since the hero image isn't part of that
+     body[data-card-style] toggle system. */
+  border: 1px solid var(--glass-border);
 }
 
 /* Post hero respecting page width — constrain header and image to page width.
@@ -9830,15 +10061,19 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
 
 .hero[data-home-hero-width='contained'] .hero-container { max-width: 1440px; }
 .hero[data-home-hero-width='wide'] .hero-container { max-width: 1600px; }
-/* 'full' (the default — package.json) had no absolute pin of its own,
-   unlike its contained/wide siblings above — .hero-container's base rule
-   (this file, ~line 5511) sets width:100%/margin:0 auto with no max-width,
-   so it stretched fully unconstrained. Capped at --max-width (tokens.css),
-   same as every other "full" spot in this file. Only the width — the
-   base rule's own layout (.hero-container/.hero-image-wrapper positioning)
-   is untouched, so 'full' keeps its distinct side-by-side hero layout,
-   unlike contained/wide's absolutely-positioned image treatment above. */
-.hero[data-home-hero-width='full'] .hero-container { max-width: var(--max-width); }
+/* 'full' (the default — package.json) gets NO cap at all — truly
+   edge-to-edge on any monitor, matching how .testimonials-section/
+   .posts-tabs-grid-section (no max-width either) already treat "full"
+   width elsewhere on the page. Explicit `max-width: none` is required
+   here, not just omitting a rule: body[data-page-width='X'] .hero-container
+   above (lines ~9865-9873, unscoped by data-home-hero-width) would
+   otherwise still win by specificity and re-cap this at 1440/1600/1800px
+   depending on the site-wide page_width setting. This selector's higher
+   specificity (.hero[attr] .hero-container vs body[attr] .hero-container)
+   is what overrides it. Was `max-width: var(--max-width)` (~1920px+
+   padding) until 2026-09-05 — visually full-bleed on ordinary monitors
+   but a real ceiling on ultrawide ones. */
+.hero[data-home-hero-width='full'] .hero-container { max-width: none; }
 
 /* When animation is disabled, allow content to scroll over hero image */
 
@@ -9889,7 +10124,8 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
   .hero.no-cover .hero-content {
    /* margin-left: calc(33% + var(--space-xl));
     width: calc(46% - var(--space-2xl));*/
-     width: 26%;
+     width: 38%;
+     padding-bottom: var(--space-xl);
   }
 }
 
@@ -9937,13 +10173,13 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
      scroll-scrub-anim.js initHero() and the nowrap note below) — the
      headline now wraps normally, so overflow is not possible and no
      width-derived cap is needed. */
-  font-size: var(--text-size-h3);
+  font-size: var(--text-size-h2);
   line-height: var(--text-line-height-h2) !important;
   letter-spacing: var(--text-letter-spacing-h1);
   color: var(--color-primary, #4a9e5c);
   margin-top: 0 !important;
   margin: 0 0 0 0 !important;
-  padding: 0 0 16px 0 !important;
+  padding: 0 0 0 0 !important;
   width: auto;
   /* white-space: nowrap removed — the headline no longer splits into
      forced 2-word-per-line spans (see scroll-scrub-anim.js initHero()),
@@ -10115,7 +10351,7 @@ body[data-page-width='full'] .hero[data-home-hero-width='respect_page_width'] .h
      full column; anything that still needs to be narrower sets its own
      max-width rather than relying on the parent to shrink it. */
   align-items: stretch;
-  gap: var(--space-lg);
+  gap: var(--space-md);
   width: 100%;
 }
 
@@ -13524,8 +13760,17 @@ body[data-page-width='wide'] .statement-lab-outer {
   max-width: 1600px;
 }
 
+/* No cap at all — matches .hero-container's own page_width='full' treatment
+   (main.css, .hero[data-home-hero-width='full'] .hero-container, 2026-09-05):
+   truly edge-to-edge, not just capped at 1800px. Explicit `max-width: none`
+   is required, not just omitting a rule, so this instance doesn't fall back
+   to a lower-specificity cap from elsewhere. Kept as its own rule (not
+   deleted) so the contained/wide tiers just above still read as a complete
+   three-way switch. This section mirrors .hero-container's box specifically
+   so its 24% text column lines up with the hero's — leaving this capped
+   while the hero went uncapped would misalign the two under 'full'. */
 body[data-page-width='full'] .statement-lab-outer {
-  max-width: 1800px;
+  max-width: none;
 }
 
 .statement-lab-container {
@@ -13542,8 +13787,9 @@ body[data-page-width='full'] .statement-lab-outer {
    full-width column here already matches. */
 @media (min-width: 1025px) {
   .statement-lab-container {
-    margin-left: calc(33% + var(--space-xl));
-    width: calc(66% - var(--space-2xl));
+    width: 24%;
+   /* margin-left: calc(33% + var(--space-xl));
+    width: calc(66% - var(--space-2xl));*/
   }
 }
 
@@ -13844,7 +14090,16 @@ body[data-page-width='full'] .om-columns {
 }
 
 .om3-subtext {
-  font-size: var(--text-size-h5);
+  /* Was var(--text-size-h5) — the HEADING-axis scale token
+     (--type-scale-heading), not the body-axis one, for what is actually
+     body/description copy. On this site --type-scale-heading resolves to
+     0.5x while --type-scale-body is 1x (real type_size_headings/type_size
+     customizer settings), so this rendered at roughly HALF real body
+     text size (measured live: 11.2px vs ~16-19px) — not a design choice,
+     a wrong-axis token pick. --text-size-body is the two-axis system's
+     own body/UI primitive (see TYPE-SETTINGS-MIGRATION-HANDOFF.md /
+     MEMORY.md's "TWO-AXIS scaled cascade" note). */
+  font-size: var(--text-size-body);
   line-height: 1.5;
   color: var(--color-on-surface-variant);
   margin: 0;

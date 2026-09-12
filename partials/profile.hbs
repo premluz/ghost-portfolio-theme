@@ -10,72 +10,89 @@
 --}}
 
 
-<section class="profile" id="about" data-section-id="profile" data-home-profile-width="{{@custom.home_profile_width}}" "  data-profile-background="{{@custom.home_profile_background}}">
-      <div class="profile-bg">
-    <div class="profile-container"  data-page-content-width="wide">
+<section
+  class="case-study-section"
+  data-gradient-position="outer"
+  data-gradient-wash-bottom="md"
+  data-gradient-wash-top="sm"
+  data-background=""
+  data-gradient-wash=""
 
-      {{!-- LEFT: text content --}}
-      <div class="profile-content">
+>
 
-        {{!-- Top label 
-        <p class="profile-intro" id="profile-intro" data-animate="letter">
-          {{#if @custom.profile_name}}{{@custom.profile_name}}{{else}}I'm Prem{{/if}}
-        </p>--}}
+  <div
+    class="case-study-columns"
+    data-cols="2"
+    data-width="contained"
+    data-col-widths="1/1"
+  >
+    <div class="case-study-item" data-align="top">
 
-        {{!-- Main headline --}}
-        <h2 class="profile-headline serif" id="profile-headline" data-animate="word">
-          {{#if @custom.profile_title}}{{@custom.profile_title}}{{else}}The design role is shifting.{{/if}}
-        </h2>
-        {{!-- Supporting description (each paragraph animates like testimonial cards) --}}
-        <div class="profile-description" id="profile-description">
+           <h2>
+            {{#if @custom.profile_title}}
+              {{@custom.profile_title}}
+            {{else}}
+              The design role is shifting.
+            {{/if}}
+          </h2>
 
-          <p class="profile-paragraph" data-card-reveal="default" style="margin-bottom: 24px;">
-           AI has collapsed the distance between idea and working product.  What's left scarce is judgment. That's the model I work in.
+            <p data-card-reveal="default">
+              AI has collapsed the distance between idea and working product.
+              What's left scarce is judgment. That's the model I work in.
+            </p>
+
+
+
+      </div>
+
+         <div class="case-study-item" data-align="top">
+
+         <div class="field-grid mt-prose-flow-lg" data-cols="1"  data-card="none">
+
+        <div class="field-grid-item">
+          <h3 class="mt-0 mb-0">Partner</h3>
+          <p class="mt-0">
+            With engineers, product and executives, in their language.
+            Influence earned by work.
           </p>
         </div>
 
-
-        {{!-- Six items grid: how I work, in practice — revealed as a single
-              slide-up-staggered group by initProfileItemsReveal()
-              (card-scroll-reveal.js), not per-item data-card-reveal (that
-              drove each item off its OWN individual IntersectionObserver
-              crossing, with data-item-index only ever adding a fixed extra
-              delay after that — not a coordinated stagger from one trigger). --}}
-        <div class="profile-items" id="profile-items">
-          <div class="profile-item">
-            <h3 class="profile-item-header">Partner</h3>
-            <p class="profile-item-description">With engineers, product and executives, in their language. Influence earned by work.</p>
-          </div>
-          <div class="profile-item">
-            <h3 class="profile-item-header">Lead</h3>
-            <p class="profile-item-description">Hands-on at one end; mentoring, vision and design ops at the other.</p>
-          </div>
-          <div class="profile-item">
-            <h3 class="profile-item-header">Build</h3>
-            <p class="profile-item-description">Close to code. Complex products and systems.</p>
-          </div>
-          <div class="profile-item">
-            <h3 class="profile-item-header">Care</h3>
-            <p class="profile-item-description">Judgment, empathy, craft, coherence. That part stays human.</p>
-          </div>
-          <div class="profile-item">
-            <h3 class="profile-item-header">Remove</h3>
-            <p class="profile-item-description">More than I add. Killing bolt-ons and scope creep before they ship.</p>
-          </div>
-          <div class="profile-item">
-            <h3 class="profile-item-header">Deliver</h3>
-            <p class="profile-item-description">Value from day one, across 0→1→growth.</p>
-          </div>
+        <div class="field-grid-item">
+          <h3 class="mt-0 mb-0">Lead</h3>
+          <p>
+            Hands-on at one end; mentoring, vision and design ops at the other.
+          </p>
         </div>
-       
-      </div>{{!-- /.profile-content --}}
 
+        <div class="field-grid-item">
+          <h3 class="mt-0 mb-0">Build</h3>
+          <p>
+            Close to code. Complex products and systems.
+          </p>
+        </div>
 
-    </div>{{!-- /.profile-container --}}
+        <div class="field-grid-item">
+          <h3 class="mt-0 mb-0">Care</h3>
+          <p>
+            Judgment, empathy, craft, coherence. That part stays human.
+          </p>
+        </div>
 
-    </div>{{!-- /.profile-container --}}
+        <div class="field-grid-item">
+          <h3 class="mt-0 mb-0">Remove</h3>
+          <p>
+            More than I add. Killing bolt-ons and scope creep before they ship.
+          </p>
+        </div>
 
-</section>{{!-- /.profile --}}
-<!--</div>-->
+        <div class="field-grid-item">
+          <h3 class="mt-0">Deliver</h3>
+          <p>
+            Value from day one, across 0→1→growth.
+          </p>
+        </div>
+      </div>
 
-{{!-- Animation handled by unified scroll-scrub-anim.js via initProfile() --}}
+    </div>
+  </div>
+</section>

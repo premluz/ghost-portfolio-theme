@@ -1,47 +1,33 @@
 {{!--
-  PRELOADER v2
-  Sequence:
-  1. "prem design" letter-by-letter reveal (left to right)
-  2. Dot falls from top, bounces between words
-  3. Words reverse out (right to left stagger)
-  4. Dot fades out; particle system fades in as globe
-  5. Globe surface ripples (1.2s), then bursts outward (0.5s)
-  6. Preloader fades out, hero entrance triggers
+  PRELOADER v4 — minimal instant-text preloader.
+
+  Sequence (see assets/js/preloader.js):
+  1. This text is visible the instant the DOM parses it — no JS wait, no
+     fade-in delay. #particles-load-scrim (particle-morph.hbs) is already a
+     full-viewport opaque layer covering the page from t=0, so the text sits
+     on that scrim rather than needing its own background here.
+  2. preloader.js sets window.__preloaderRunning = true (so
+     particle-morph.hbs's own scrim auto-fade backs off — see that file's
+     "if (!window.__preloaderRunning)" gate) and soft-fades .preloader-text
+     in.
+  3. After a short hold, preloader.js fades BOTH .preloader-text and the
+     shared #particles-load-scrim out together, then dispatches
+     preloader:done — same contract prior preloader versions used
+     (window.__preloaderSkipped / __preloaderDoneFired / 'preloader:done'),
+     so main.js, page-transition.js, scroll-scrub-anim.js,
+     particle-morph-system.js and particle-animation-loop.js all keep
+     working unchanged.
+
+  Previous version (wordmark letter-reveal / dot-bounce / particle globe
+  burst) was already DEAD CODE — its Preloader class was never invoked;
+  the file's real path (hidePreloader()) hid everything instantly with no
+  visible animation at all. This is the first real preloader visual since
+  that was disabled.
 --}}
-
-<style>
-  .preloader-wordmark {
-    display: flex;
-    align-items: center;
-    font-size: clamp(calc(3rem * var(--type-scale-heading, 1)), calc(15vw * var(--type-scale-heading, 1)), calc(12rem * var(--type-scale-heading, 1)));
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    line-height: 1;
-  }
-
-  .preloader-subtitle {
-    font-size: clamp(calc(0.875rem * var(--type-scale-body, 1)), calc(2vw * var(--type-scale-body, 1)), calc(1.125rem * var(--type-scale-body, 1)));
-    font-weight: 300;
-    line-height: 1.6;
-    letter-spacing: 0;
-    margin-top: 1.5rem;
-    opacity: 0;
-    animation: preloaderSubtitleReveal 0.6s ease-out 2.5s both;
-  }
-
-  @keyframes preloaderSubtitleReveal {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-</style>
 
 <section id="preloader" class="preloader">
   {{!-- Indeterminate — no aria-valuenow on purpose (WAI-ARIA: omit it when
-        the duration isn't known, same reason the visible % text was
-        dropped; see main.css's .preloader-progress-bar comment). ONE
-        streak (.progress-bar-streak) — was a Material Design two-bar
-        chase, reverted 2026-08-06 ("too many firing off": two overlapping
-        bars × two duplicate layers below = 4 visible streaks) — see
+        the duration isn't known). ONE streak (.progress-bar-streak) — see
         main.css's comment on .progress-bar-streak/bar-comet-shoot for the
         current "comet/shooting star" motion design. .progress-bar-streak and
         the .progress-bar-track marker are SHARED with .scroll-progress
@@ -55,11 +41,7 @@
   {{!-- is-loading is hardcoded here, not toggled by JS: unlike
         .scroll-progress (which doubles as the real scroll indicator and so
         must be switched in and out of the loading state), this element
-        exists ONLY during loading — there is no "off" state to return to.
-        It was missing until 2026-08-06, which meant
-        `.progress-bar-track:not(.is-loading) .progress-bar-streak
-        { display: none }` (main.css) hid this bar's streak on every single
-        load; only the page-navigation bar was ever visible. --}}
+        exists ONLY during loading — there is no "off" state to return to. --}}
   <div class="preloader-progress-bar progress-bar-track is-loading" id="preloader-progress-bar" role="progressbar" aria-valuetext="Loading" aria-label="Loading">
     <div class="progress-bar-clip">
       <div class="progress-bar-streak"></div>
@@ -69,9 +51,6 @@
     </div>
   </div>
   <div class="preloader-content">
-    <div class="preloader-wordmark" data-skip-animation="true">
-      <span class="pl-word-prem serif">prems</span><span class="preloader-dot sans">.</span><span class="pl-word-design sans">design</span>
-    </div>
-    <!--<h2 class="preloader-subtitle" id="preloader-subtitle">Product Designer</h2>-->
+    <h4 class="preloader-text" id="preloader-text">Opportunity lives in complexity</h4>
   </div>
 </section>

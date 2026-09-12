@@ -1496,20 +1496,33 @@ body[data-typography-body='medium'] .posts-tab {
    token. Keyword pills included (unlike the mobile block, which predates
    the pill-forced-white rule added for the overlay case): with content
    off the photo, pills need to read against the page background, not stay
-   forced white. */
-:root[data-theme='dark'] .posts-grid[data-posts-layout='cinematic-grid'][data-item-content='outside'] .post-card-title {
+   forced white.
+   :not(.invert-wrapper *) added 2026-09-08 (real bug, not a regression
+   from this comment's own original assumption): these rules key off the
+   SITE'S theme, but a card can also sit inside .invert-wrapper/
+   [data-content-theme], which forces a background independent of the
+   site theme (e.g. the homepage Lab section: always-dark background via
+   data-shift-bg, regardless of light/dark site theme). Confirmed live —
+   toggling the site to light mode forced these dark, page-theme-correct
+   colors onto Lab's cinematic-grid cards even though their background
+   stayed dark, making the text nearly unreadable. Excluding any card
+   inside .invert-wrapper lets --color-on-surface (the token these cards
+   fall back to without this override) resolve correctly instead — that
+   token already accounts for .invert-wrapper's own forced ink via
+   --shift-ink/--ct-ink, which these hardcoded values never could. */
+:root[data-theme='dark'] .posts-grid[data-posts-layout='cinematic-grid'][data-item-content='outside'] .post-card-title:not(.invert-wrapper *) {
   color: #f5f5f5 !important;
 }
 
-:root[data-theme='dark'] .posts-grid[data-posts-layout='cinematic-grid'][data-item-content='outside'] :is(.post-card-category,.post-card-testimonial,.post-card-result,.post-card-endorser,.post-card-keyword) {
+:root[data-theme='dark'] .posts-grid[data-posts-layout='cinematic-grid'][data-item-content='outside'] :is(.post-card-category,.post-card-testimonial,.post-card-result,.post-card-endorser,.post-card-keyword):not(.invert-wrapper *) {
   color: #d0d0d0 !important;
 }
 
-:root[data-theme='light'] .posts-grid[data-posts-layout='cinematic-grid'][data-item-content='outside'] .post-card-title {
+:root[data-theme='light'] .posts-grid[data-posts-layout='cinematic-grid'][data-item-content='outside'] .post-card-title:not(.invert-wrapper *) {
   color: #1a1a1a !important;
 }
 
-:root[data-theme='light'] .posts-grid[data-posts-layout='cinematic-grid'][data-item-content='outside'] :is(.post-card-category,.post-card-testimonial,.post-card-result,.post-card-endorser,.post-card-keyword) {
+:root[data-theme='light'] .posts-grid[data-posts-layout='cinematic-grid'][data-item-content='outside'] :is(.post-card-category,.post-card-testimonial,.post-card-result,.post-card-endorser,.post-card-keyword):not(.invert-wrapper *) {
   color: #4a4a4a !important;
 }
 
@@ -1909,7 +1922,7 @@ body[data-typography-body='medium'] .posts-tab {
 .post-card-title {
   display: block;
   width: 100%;
-  font-size: var(--text-size-h4);
+  font-size: var(--text-size-h3);
   line-height: 1.5 !important; /* was var(--line-spacing-body-normal); token system removed */
   margin: var(--space-xs) 0 var(--space-xs) 0!important;
   padding-top: 0;

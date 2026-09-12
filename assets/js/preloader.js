@@ -1,10 +1,13 @@
 /**
- * PRELOADER v3
+ * PRELOADER v4 — minimal instant-text preloader.
  * Sequence:
- * 1. Track loading of all GLBs + videos → progress bar + % counter
- * 2. "prems • design" wordmark animates during loading
- * 3. Only fly to logo + run particles once 100% loaded
- * 4. Preloader fades out; hero entrance triggers
+ * 1. #preloader-text is visible in the markup instantly (no JS wait).
+ * 2. Soft fade-in (opts into a CSS transition, then triggers it a frame
+ *    later so it actually animates instead of snapping).
+ * 3. Short hold, then text + the shared #particles-load-scrim
+ *    (particle-morph.hbs) fade out together; preloader:done dispatched
+ *    once fully hidden — same contract every prior version used.
+ * See partials/preloader.hbs for the full design note.
  */
 
 (function () {
@@ -77,6 +80,36 @@
     console.log('[preloader] SKIP PATH — arrived via in-site navigation (referrer: ' + document.referrer + '), skipping animation');
     const el = document.getElementById('preloader');
     if (el) el.style.display = 'none';
+    // Reveal #particles-load-scrim HERE too, not just #preloader.
+    //
+    // The scrim is markup rendered by {{#is "index"}} — a TEMPLATE-level
+    // guard evaluated server-side on every request to "/", with no way to
+    // distinguish a fresh landing from a curtain-return (page-transition.js's
+    // runCurtainExit ends in a real `location.href` navigation, same as
+    // typing the URL). So the scrim exists and starts at its base
+    // opacity:1 on this path exactly as much as on a fresh load — but
+    // until this fix, only the FULL-RUN branch below (_finish(), later in
+    // this file) ever revealed it. This skip-path predates the scrim
+    // entirely and never touched it.
+    //
+    // Left alone, the scrim stayed opaque (z-index 999998, above .home/
+    // .hero but still below nav's 10001) until a much slower FALLBACK in
+    // particle-morph.hbs (~line 725, gated on `!window.__preloaderRunning`)
+    // happened to fire once the particle system's own async THREE.js/GLB
+    // boot chain finished — that gate's own comment wrongly assumed it
+    // never runs on pages with #preloader (i.e. the homepage); this
+    // cameFromSameSite branch proves it does, since __preloaderRunning is
+    // never set on this path either. Reported symptom matched exactly:
+    // nav genuinely painting at opacity:1/visible per computed style, but
+    // invisible on screen — confirmed live via screenshot, a fully opaque
+    // frame with nothing on it — until that fallback eventually cleared
+    // the scrim, sometimes noticeably late (post-page boot is slower than
+    // About's), reading as "not visible, then fades in."
+    const scrim = document.getElementById('particles-load-scrim');
+    if (scrim) {
+      scrim.classList.add('is-revealed');
+      scrim.style.opacity = '0';
+    }
     document.documentElement.classList.remove('preloading');
     document.documentElement.classList.add('page-ready');
     window.__preloaderSkipped = true;
@@ -135,362 +168,329 @@
     }
   }, { once: true });
 
-  // ─── Assets to track ─────────────────────────────────────────────────────
-  // GLB_FILES removed 2026-07-25 (mobile / note / diamond / globe / game /
-  // chart / email / camera / sim .glb). It fully fetch()ed ~2.0 MB of models
-  // — mobile.glb alone was 1.47 MB — and HELD THE PRELOADER OPEN until every
-  // one resolved, even though the hero shape ('helix') is generated
-  // procedurally and needs no GLB. These are all morph targets for sections
-  // further down the page, so the preloader was gating first paint on assets
-  // nothing on screen wanted yet. The same set was ALSO preloaded in
-  // default.hbs's <head> (removed there too) — they were being requested
-  // twice per load. Shapes now load on demand at first morph.
-  const VIDEO_FILES = [
-    'IoT.mp4', 'Tracr.mp4'
-  ];
-
-  // ─── Helper: poll for window.particleSystem ───────────────────────────────
-  function getLoopWhenReady(cb, maxWait) {
-    const deadline = Date.now() + (maxWait || 8000);
-    const id = setInterval(() => {
-      const sys = window.particleSystem;
-      if (sys && sys.loop && sys.loop.currentState) {
-        clearInterval(id);
-        cb(sys);
-      } else if (Date.now() > deadline) {
-        clearInterval(id);
-        cb(null);
-      }
-    }, 80);
-  }
+  // ─── Minimal text preloader ─────────────────────────────────────────────
+  // Sequence: text is visible instantly in the markup (no opacity:0 default
+  // — see main.css's comment on .preloader-text), then this adds the
+  // fade-in class + triggers it a frame later so the CSS transition actually
+  // runs instead of snapping. HOLD_MS after that, fade the text and the
+  // shared #particles-load-scrim (particle-morph.hbs) out TOGETHER, then
+  // _hide() the preloader shell and dispatch preloader:done — same as every
+  // prior version, so the 5 files that key off __preloaderSkipped /
+  // __preloaderDoneFired / 'preloader:done' keep working unchanged.
+  // Nominal fade-in length, used only by the failsafe timer below. The
+  // REAL entrance is `preloaderFadeIn 0.4s ease-out` on #preloader
+  // (main.css) — the .pl-text-fade-in transition this used to name never
+  // actually produces a visible fade, since the container animating is
+  // what the viewer sees. Kept at 500 as a deliberately generous margin,
+  // not as a value that must match anything.
+  const FADE_IN_MS    = 500;
+  // FAILSAFE MARGIN ONLY — no longer a deliberate hold. The scrim exit is
+  // triggered by the entrance animation actually completing (see the
+  // constructor's getAnimations check); this extra slack exists purely so
+  // the backup timer can't beat that to the punch on a normal load, and
+  // only takes over if the animation never resolves (reduced-motion
+  // zeroing the duration, backgrounded tab).
+  const HOLD_MS       = 500;
+  // Longer than the 0.4s entrance ON PURPOSE. An exit that matches its
+  // entrance beat-for-beat reads as clipped, because it is competing with
+  // the scrim's own 600ms slide for the viewer's attention rather than
+  // receding behind it; stretching it past both the entrance and the slide
+  // lets the text recede as the scrim carries it away instead of blinking
+  // out mid-movement. Paired with power2.out below (mirroring the
+  // entrance's ease-out), this is the "smoother, longer, matching" exit.
+  const FADE_OUT_MS   = 800;
+  const SCRIM_SLIDE_MS = 600; // MUST match .particles-load-scrim's transition-duration (main.css)
 
   class Preloader {
     constructor() {
       this.preloader   = document.getElementById('preloader');
-      this.wordmark    = document.querySelector('.preloader-wordmark');
+      this.text        = document.getElementById('preloader-text');
       this.progressBar = document.getElementById('preloader-progress-bar');
+      this.scrim       = document.getElementById('particles-load-scrim');
 
-      if (!this.preloader || !this.wordmark) return;
+      if (!this.preloader || !this.text) return;
 
-      this.premWord   = this.wordmark.querySelector('.pl-word-prem');
-      this.designWord = this.wordmark.querySelector('.pl-word-design');
-      this.dot        = this.wordmark.querySelector('.preloader-dot');
-
-      this._loaded = 0;
-      this._total  = VIDEO_FILES.length;
-      this._readyToFinish = false;
-      this._wordmarkDone  = false;
       // Bar becomes visible the instant this constructor runs (CSS handles
-      // the chase from its own 0% keyframe, no JS width to wait on) — this
-      // timestamp anchors the __barMinCycleRelease "at least one full
-      // cycle" gate in _finish() below.
+      // the chase from its own 0% keyframe) — anchors __barMinCycleRelease's
+      // "at least one full cycle" gate in _finish() below.
       this._barStartTime = Date.now();
 
-      const particlesEl = document.getElementById('particles');
-      if (particlesEl) gsap.set(particlesEl, { opacity: 0 });
-
-      console.log('[preloader] Constructor: starting loading + wordmark animation');
-      this._startLoading();
-      this._runWordmarkAnimation();
-    }
-
-    // ── Progress tracking ───────────────────────────────────────────────────
-    // Real asset loading still gates _readyToFinish (below) — we don't start
-    // the reveal before videos are actually ready. The VISIBLE bar is pure
-    // CSS (main.css .preloader-progress-bar — Material Design's own linear
-    // indeterminate two-bar animation, no JS width-driving here);
-    // _animateVisibleProgress()/_setProgress() were removed 2026-08-06 along
-    // with it — see main.css's comment on that rule for why a determinate
-    // readout didn't fit an indeterminate bar.
-    _startLoading() {
-      const onProgress = () => {
-        this._loaded++;
-        if (this._loaded >= this._total) this._onAllLoaded();
-      };
-
-      // Nothing to wait on → complete immediately. Without this, an empty
-      // tracked-asset list means onProgress never fires, _readyToFinish stays
-      // false, and _finish() is never reached — and the 8s safety timer lives
-      // INSIDE _finish(), so nothing recovers it. The overlay itself is
-      // force-hidden site-wide (`#preloader { display:none !important }` in
-      // default.hbs), so this would not visibly block the page; what stalls
-      // is the completion chain _finish() drives — preloader:done /
-      // window.__preloaderDoneFired, which the particle bootstrap and other
-      // listeners wait on. Cheap guard, added when removing GLB_FILES shrank
-      // this list from 11 entries to 2.
-      if (this._total === 0) {
-        this._onAllLoaded();
-        return;
-      }
-
-      // GLB fetch loop removed here — see GLB_FILES comment at top of file.
-
-      VIDEO_FILES.forEach(file => {
-        const v = document.createElement('video');
-        v.preload = 'metadata';
-        v.onloadedmetadata = onProgress;
-        v.onerror = onProgress;
-        v.src = `/content/images/videos/${file}`;
+      // Text is already opacity:1 in its base CSS state (renders instantly,
+      // no JS dependency). Opting it INTO the fade-in transition here, then
+      // flipping .is-visible on the next frame, is what makes it visibly
+      // soft-fade rather than being present from t=0 with no motion at all.
+      this.text.classList.add('pl-text-fade-in');
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          this.text.classList.add('is-visible');
+        });
       });
-    }
 
-    _onAllLoaded() {
-      console.log('[preloader] All assets loaded/failed, _readyToFinish=true, _wordmarkDone=' + this._wordmarkDone);
-      this._readyToFinish = true;
-      if (this._wordmarkDone) this._finish();
-    }
+      // The scrim's exit is triggered by the TEXT'S OWN fade-in finishing —
+      // driven off the real `transitionend`, not a timer that merely hopes
+      // to match .pl-text-fade-in's CSS duration (main.css). Keying off the
+      // actual event means the two stay in sync automatically if that
+      // duration is ever retuned in CSS, instead of silently drifting apart
+      // the way a hardcoded FADE_IN_MS constant would.
+      //
+      // Guarded on propertyName: this element only transitions opacity
+      // today, but a future transition on any other property would
+      // otherwise fire this early.
+      //
+      // The timer below is now a FAILSAFE, not the mechanism — transitionend
+      // legitimately never fires in several cases (a zeroed duration under
+      // prefers-reduced-motion, the element being display:none'd mid-fade,
+      // some backgrounded-tab conditions), and the preloader must never be
+      // able to strand the page behind a scrim that has no other way to
+      // leave. Both paths funnel into the same _finishing-guarded _finish(),
+      // so whichever wins the race, the other is a no-op.
+      // NOTE the target: #preloader's own `preloaderFadeIn` ANIMATION
+      // (main.css ~607, 0.4s ease-out forwards) — NOT the text's
+      // .pl-text-fade-in transition. Traced live: the text's computed
+      // opacity is 1 from first paint and never transitions, because the
+      // CONTAINER is what actually fades (preloaderOp climbing 0 -> 1 while
+      // textOp stayed pinned at 1). The text's own transition only ever
+      // fires on the way OUT, when _finish()'s GSAP tween writes an inline
+      // opacity that finally beats the class rule. So the visible
+      // "Opportunity lives in complexity" fade-in the viewer sees is this
+      // animation, and animationend on it is the correct "the text has
+      // finished appearing" signal.
+      // ALREADY-FINISHED CHECK comes first, and is the common case — not an
+      // edge case. preloaderFadeIn is a CSS animation that starts at first
+      // paint, while this constructor runs on DOMContentLoaded; on a normal
+      // load the 0.4s animation is long over by then (traced: animation
+      // ends 586ms, constructor runs 726ms, with getAnimations() already
+      // reporting playState "finished"). Attaching a listener alone would
+      // therefore wait forever and leave the failsafe timer to do all the
+      // work — exactly the 3.1s desync this replaced. Querying the live
+      // animation state instead of trusting the event to still be coming is
+      // what makes this correct regardless of which side of the race the
+      // constructor lands on.
+      const fadeInAnim = this.preloader.getAnimations
+        ? this.preloader.getAnimations().find(a => a.animationName === 'preloaderFadeIn')
+        : null;
 
-    // ── Wordmark animation — uses same letter-by-letter as headers
-    _runWordmarkAnimation() {
-      console.log('[preloader] Wordmark letter-by-letter animation started');
-
-      // Animate wordmark letters + dot drop together
-      const tl = gsap.timeline();
-
-      // Prem: letters reveal starting at 0.1s using standard letter animation
-      const premWord = this.premWord;
-      if (premWord && typeof animateH1LetterByLetter === 'function') {
-        gsap.set(premWord, { opacity: 1 });
-        animateH1LetterByLetter(premWord, tl, 0.1, null);
+      if (!fadeInAnim || fadeInAnim.playState === 'finished') {
+        // Fade-in already done (or no such animation at all — reduced
+        // motion, unsupported getAnimations): the text has finished
+        // appearing, so the scrim's exit is due now.
+        this._finish();
+      } else {
+        // Still running — wait for it to land. `finished` is a promise on
+        // the Animation object itself, which (unlike an animationend
+        // listener) resolves correctly even if the animation completes
+        // between this check and the next tick.
+        fadeInAnim.finished.then(() => this._finish()).catch(() => {});
       }
 
-      // Design: letters reveal starting at 0.35s (0.1 + ~0.25 prem duration) using standard letter animation
-      const designWord = this.designWord;
-      if (designWord && typeof animateH1LetterByLetter === 'function') {
-        gsap.set(designWord, { opacity: 1 });
-        animateH1LetterByLetter(designWord, tl, 0.35, null);
-      }
-
-      // Dot drops immediately at 0s (parallel with prem letters)
-      const dot = this.dot;
-      if (dot) {
-        tl.fromTo(dot,
-          { opacity: 0, y: -150, scale: 1.4 },
-          { opacity: 1, y: -2, scale: 1, duration: 0.6, ease: 'cubic-bezier(0.55, 0.085, 0.68, 0.53)' },
-          0
-        );
-        // Dot bounces
-        tl.to(dot, { y: -26, duration: 0.3, ease: 'cubic-bezier(0.215, 0.61, 0.355, 1)' }, 0.6);
-        tl.to(dot, { y: -2, duration: 0.3, ease: 'cubic-bezier(0.215, 0.61, 0.355, 1)' });
-        tl.to(dot, { y: -14, duration: 0.25, ease: 'cubic-bezier(0.215, 0.61, 0.355, 1)' });
-        tl.to(dot, { y: -2, duration: 0.2 });
-      }
-
-      // Total animation: ~0.65s (letters + dot complete)
-      setTimeout(() => {
-        console.log('[preloader] Wordmark animation done, _readyToFinish=' + this._readyToFinish);
-        this._wordmarkDone = true;
-        if (this._readyToFinish) this._finish();
-      }, 1350); // 0.8s hold after animation settles
+      // Failsafe in BOTH branches — the promise above can reject (animation
+      // cancelled) or, on a stalled/backgrounded tab, simply never settle,
+      // and the page must never be left behind a scrim with no other way
+      // out. Harmless when the normal path wins: _finish() is guarded by
+      // its own _finishing flag, so whichever fires second is a no-op.
+      this._holdTimer = setTimeout(() => this._finish(), FADE_IN_MS + HOLD_MS);
     }
 
-    // ── Final sequence ──────────────────────────────────────────────────────
-    // 1. Dot has already landed (CSS anim). 1s hold.
-    // 2. Words fade out one by one matching their reveal timing (prems first).
-    // 3. Particles burst into globe — moment burst done: dot out in 0.1s.
-    // 4. Preloader fades, hero entrance.
     _finish() {
       if (this._finishing) return;
       this._finishing = true;
-      console.log('[preloader] _finish() — starting fade-out sequence');
 
-      // Stops the CSS chase and holds a full, bright bar for this handoff
-      // beat (main.css .progress-bar-track.is-complete) — replaces the old
-      // _setProgress(100) width snap, which no longer applies now that the
-      // bar is an indeterminate CSS animation, not JS-driven width. Gated
-      // through __barMinCycleRelease (defined at the top of this file) so
-      // the chase always completes at least one full loop before stopping
-      // — in practice _finish() only ever fires well after that on the
-      // homepage (the wordmark/dot sequence alone takes ~2.75s, longer than
-      // one 1.6s cycle), but the gate is applied uniformly rather than
-      // assumed safe here specifically — same helper page-transition.js
-      // uses for .scroll-progress, where timing is NOT naturally slow.
+      // preloader:done dispatched HERE — at the moment the scrim starts its
+      // slide — not from _hide() 500ms later as before. That gap is what
+      // caused hero content set static by scroll-scrub-anim.js's
+      // isFreshPreloaderRun branch (entranceTl.progress(1), gated on this
+      // exact event) to only become visible ~700ms into the scrim's
+      // slide-away, well AFTER the transform had finished uncovering the
+      // hero — measured: scrim fully off-screen at 6275ms, hero content
+      // still opacity:0 until 6343ms. The scrim was sliding over nothing,
+      // then the hero popped in afterward — the opposite of the intended
+      // "scrim reveals already-visible content" effect.
+      //
+      // Every one of this event's other 3 listeners (main.js's hero-image
+      // wait + entrance chain, particle-animation-loop.js's bloom composer
+      // init, and this file's own nav-reveal listener below) only cares
+      // about "is the hero/particle system ready to be acted on", not
+      // "has the preloader visually finished fading" — firing ~500ms
+      // earlier makes the signal MORE accurate to what it's named, not
+      // less. _hide() still runs on its own timing afterward (shell
+      // display:none, scrim pointer-events) — it just no longer owns the
+      // event dispatch.
+      window.__preloaderDoneFired = true; // sticky flag — see other dispatch points' comment
+      window.dispatchEvent(new CustomEvent('preloader:done'));
+
+      // Stops the CSS chase and holds a full bright bar for this handoff
+      // beat (main.css .progress-bar-track.is-complete), gated through
+      // __barMinCycleRelease so the chase always completes at least one
+      // full loop before stopping — same helper page-transition.js uses
+      // for .scroll-progress during regular navigation.
       if (this.progressBar) {
         window.__barMinCycleRelease(this._barStartTime, () => {
           this.progressBar.classList.add('is-complete');
         });
       }
 
-      const safetyTimer = setTimeout(() => { this._hide(); }, 8000);
+      const safetyTimer = setTimeout(() => { this._hide(); }, 4000);
 
-      const dot        = this.dot;
-      const premWord   = this.premWord;
-      const designWord = this.designWord;
+      // Scrim: SLIDE, not fade. .particles-load-scrim.is-revealed (main.css)
+      // translates it up by its own 150vh height over SCRIM_SLIDE_MS — its
+      // own CSS transition, not GSAP, since the motion is a plain transform
+      // with nothing else to coordinate. Longer than FADE_OUT_MS (500ms) on
+      // purpose: the slide is the visible reveal now, so it gets the
+      // slower, more deliberate duration; text/preloader-shell still fade
+      // on the original faster beat alongside it.
+      //
+      // Opacity is written AFTER the slide finishes, not alongside it —
+      // opacity and transform are independent properties, so setting
+      // opacity:0 immediately made the whole element invisible at once
+      // regardless of the transform, which silently defeated the slide
+      // entirely (confirmed via a frame-by-frame trace: opacity read 0 on
+      // literally every sampled frame, including mid-slide at -925px).
+      // Every other consumer of this element (the fade-in trigger and 6s
+      // failsafe in particle-morph.hbs, __preloaderRunning's gate) only
+      // cares about the terminal "is this scrim gone" value, not when it's
+      // reached, so deferring it to match the real end of the transform is
+      // free — it just has to actually happen after, not before.
+      // The slide itself is GATED ON THE HERO BEING READY — it must never
+      // uncover a page whose content has not been put in place yet.
+      //
+      // This file now loads early in <body> (default.hbs, right after
+      // <main>), well before scroll-scrub-anim.js (~1799, behind three.js
+      // and GSAP). That early boot is what makes the fade-in -> slide
+      // handoff instant, but it also means that at this point the hero has
+      // very likely NOT been made visible yet: scroll-scrub-anim.js sets it
+      // static and then fires 'hero:ready'. Sliding regardless produced
+      // exactly the bug this whole sequence exists to avoid — the scrim
+      // wiping across an empty page, hero popping in ~260ms after the slide
+      // had already finished (traced: slide done 1641ms, hero visible
+      // 1902ms).
+      //
+      // __heroReady is checked first for the same late-subscriber reason
+      // preloader:done needs its own sticky flag: the hero may already be
+      // ready by the time we get here, and CustomEvents do not replay.
+      const startScrimSlide = () => {
+        if (!this.scrim || this._scrimSliding) return;
+        this._scrimSliding = true;
+        this.scrim.classList.add('is-revealed');
+        setTimeout(() => { if (this.scrim) this.scrim.style.opacity = '0'; }, SCRIM_SLIDE_MS);
+      };
 
-      // Freeze dot in landed position so CSS anim doesn't fight GSAP
-      if (dot) { dot.style.animation = 'none'; gsap.set(dot, { y: -2, scale: 1, opacity: 1 }); }
-
-      const tl = gsap.timeline();
-      const subtitle = document.getElementById('preloader-subtitle');
-
-      // MASTER TIMELINE: All preloader sequence timing controlled here.
-      // NOTE: this timeline does NOT actually start at page load — it
-      // starts when _finish() is called, which only happens once
-      // _wordmarkDone AND
-      // _readyToFinish are both true (i.e. after the wordmark hold timer
-      // in _runWordmarkAnimation(), ~2.75s post wordmark-start). By that
-      // point the dot (CSS-driven, settles at 1.2s+0.75s=1.95s) has
-      // *already* finished landing and bouncing ~0.8s earlier. So
-      // BURST_TIME is relative to _finish()'s call time, not page load —
-      // a BURST_TIME matching "200ms after the dot lands" measured from
-      // page load (e.g. 1.715) would actually fire ~3s too late from here,
-      // since the dot landed long before this timeline even started.
-      // BURST_TIME = 0 is correct: the ~0.8s gap between the dot settling
-      // and _finish() running already serves as the "hold before burst".
-      const preloaderTL = gsap.timeline();
-
-      const BURST_TIME = 0;                    // correct as 0 — see note above, do not change to 1.715
-      const BURST_DURATION = 1;              // particle burst 500ms
-      const SETTLE_DURATION = 1.2;             // particle settle 900ms
-      const SETTLE_TIME = BURST_TIME + BURST_DURATION + SETTLE_DURATION;
-      const WORD_FADE_TIME = 0.45;             // words fade duration
-      const HERO_START_TIME = BURST_TIME + WORD_FADE_TIME + 0;  // 500ms after words finish
-
-      preloaderTL.call(() => { this._runParticles(safetyTimer); }, null, BURST_TIME);
-
-      // Words fade out: prems first at 0.1s, design at 0.65s (from CSS), so fade them at those times
-      // Wait for wordmark CSS animation to complete (~2.2s), then hold
-      tl.to({}, { duration: 1.0 }, 2.2);
-
-      // 2) Words & subtitle fade out together (prems first), matching reveal gap
-      tl.to(premWord,   { opacity: 0, duration: 0.45, ease: 'power2.in' }, '>');
-      if (subtitle) {
-        tl.to(subtitle, { opacity: 0, duration: 0.45, ease: 'power2.in' }, '<');
+      if (this.scrim) {
+        if (window.__heroReady) {
+          startScrimSlide();
+        } else {
+          window.addEventListener('hero:ready', startScrimSlide, { once: true });
+          // Failsafe: the hero signal only exists on the fresh-preloader
+          // path in scroll-scrub-anim.js. If that file errors, is absent,
+          // or takes an unexpected branch, the scrim must still leave —
+          // this is a veil, and a veil that can outlive its trigger is
+          // strictly worse than no veil at all (LOADING.md §9).
+          setTimeout(startScrimSlide, 3000);
+        }
       }
-      tl.to(designWord, { opacity: 0, duration: 0.45, ease: 'power2.in' }, '>+0.55');
 
-      // NOTE: preloader:done is now dispatched from _hide() when preloader fully fades out
-      // This ensures hero only starts after entire preloader sequence completes
+      // Fades the CONTAINER only, not the text as well.
+      //
+      // #preloader-text is a child of #preloader, so a tween on each meant
+      // the text's effective opacity was the PRODUCT of the two (0.5 * 0.5
+      // = 0.25 at the midpoint, not 0.5) — it visibly vanished well ahead
+      // of the container it sits on, which is a large part of what read as
+      // an abrupt exit. One tween on the parent fades the whole preloader,
+      // text included, at a single honest rate.
+      //
+      // Easing MIRRORS the fade-in rather than opposing it: the entrance is
+      // `preloaderFadeIn 0.4s ease-out` (main.css), which decelerates into
+      // place; this was `power2.in`, which accelerates away — the two
+      // together gave a soft arrival and a sharp departure. power2.out is
+      // ease-out's GSAP equivalent, so both halves now ease the same way.
+      // RELEASE THE ENTRANCE ANIMATION FIRST — load-bearing, not cleanup.
+      //
+      // .preloader carries `animation: preloaderFadeIn 0.4s ease-out
+      // forwards` (main.css ~607). A finished animation with fill-mode
+      // `forwards` keeps applying its final keyframe (opacity: 1), and in
+      // the CSS cascade that beats an inline style — so every fade-out
+      // written here was silently ignored. Traced directly: GSAP's inline
+      // opacity descended correctly (0.963 -> 0.60 -> ...) while the
+      // COMPUTED opacity stayed pinned at 1 for the whole tween, and the
+      // preloader only disappeared when _hide() applied display:none —
+      // a hard cut, never a fade, no matter what duration or easing was
+      // set here. Clearing `animation` drops that forwards fill and lets
+      // the tween actually take effect.
+      // Opacity is pinned to 1 in the same tick the animation is dropped:
+      // .preloader's own base rule is `opacity: 0` (the pre-animation
+      // state), so removing the forwards fill without this would expose
+      // that 0 for a frame — the preloader blinking out instantly, which
+      // is the very thing being fixed.
+      this.preloader.style.opacity = '1';
+      this.preloader.style.animation = 'none';
+
+      if (typeof gsap !== 'undefined') {
+        gsap.to(this.preloader, {
+          opacity: 0,
+          duration: FADE_OUT_MS / 1000,
+          ease: 'power2.out',
+          onComplete: () => { clearTimeout(safetyTimer); this._hide(); },
+        });
+      } else {
+        this.preloader.style.transition = 'opacity ' + (FADE_OUT_MS / 1000) + 's ease-out';
+        this.preloader.style.opacity = '0';
+        setTimeout(() => { clearTimeout(safetyTimer); this._hide(); }, FADE_OUT_MS);
+      }
     }
 
     _hide() {
       if (this._hidden) return;
       this._hidden = true;
-      console.log('[preloader] _hide() — preloader faded out completely');
       if (this.preloader) {
         this.preloader.style.cssText = 'display:none !important';
       }
-      // Restore particle z-index
-      const demoEl = document.getElementById('particle-morph-demo');
-      if (demoEl) demoEl.style.zIndex = '1';
+      // Scrim belongs to particle-morph.hbs, not this file. pointer-events
+      // is safe to force here immediately (the scrim is already inert,
+      // this just makes it explicit) — opacity is NOT: _hide() fires at
+      // FADE_OUT_MS (500ms), but the slide (_finish(), above) runs for
+      // SCRIM_SLIDE_MS (600ms) and only sets opacity:0 once that completes.
+      // Writing opacity:0 here too, 100ms earlier, would cut the slide
+      // short — the scrim vanishing via opacity before its transform has
+      // finished, instead of the transform being what makes it leave.
+      // _finish()'s own deferred write is the one guarantee here; nothing
+      // else needs to duplicate it.
+      if (this.scrim) {
+        this.scrim.style.pointerEvents = 'none';
+      }
 
-      // Dispatch preloader:done NOW — hero starts after preloader fully fades
-      console.log('[preloader] Preloader sequence complete, dispatching preloader:done');
-      window.__preloaderDoneFired = true; // sticky flag — see other dispatch points' comment
-      window.dispatchEvent(new CustomEvent('preloader:done'));
-    }
-
-    _runParticles(safetyTimer) {
-      console.log('[preloader] _runParticles() called, waiting for window.particleSystem...');
-      const particlesEl = document.getElementById('particles');
-      const demoEl      = document.getElementById('particle-morph-demo');
-      const dot         = this.dot;
-
-      // Raise container so sphere shows through transparent preloader
-      if (demoEl) demoEl.style.zIndex = '999990';
-
-      // Dedicated scrim (particle-morph.hbs) that covers #particles until
-      // the skip-path reveal fades it — full preloader runs never touch
-      // that fade-in trigger (gated on !window.__preloaderRunning), so
-      // without this the scrim would sit at opacity:1 forever once the
-      // preloader itself finishes fading away, permanently hiding the
-      // particles behind a solid-color layer.
-      const loadScrim = document.getElementById('particles-load-scrim');
-
-      getLoopWhenReady((sys) => {
-        if (!sys) {
-          console.warn('[preloader] particleSystem timeout — fallback');
-          if (particlesEl) gsap.to(particlesEl, { opacity: 1, duration: 0.4 });
-          if (loadScrim) gsap.set(loadScrim, { opacity: 0 });
-          if (dot) gsap.to(dot, { opacity: 0, duration: 0.1 });
-          gsap.to(this.preloader, { opacity: 0, duration: 0.5, delay: 0.2 })
-            .then(() => { clearTimeout(safetyTimer); this._hide(); });
-          return;
-        }
-
-        // Burst into dispersed (skip globe forming)
-        // Don't morph to globe — go straight to dispersed
-        sys.morphTo('dispersed', 0);
-        sys.loop._preloaderScale = 0;
-        sys.loop._preloaderIntroActive = true;
-
-        // Particle burst source position: 20px up and 30px left (adjust here)
-        const navH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--nav-height')) || 0;
-        if (particlesEl) gsap.set(particlesEl, { y: navH / 2 - 55, x: -40, opacity: 1 });
-        if (loadScrim) gsap.set(loadScrim, { opacity: 0 });
-
-        const burstMs = 500;
-
-        // Dot fades out fast (0.05s)
-        setTimeout(() => {
-          if (dot) gsap.to(dot, { opacity: 0, duration: 0.05, ease: 'none' });
-        }, Math.max(0, burstMs - 450));
-
-        // Run burst animation into dispersed form (not globe)
-        sys.loop.startPreloaderGlobeIntro({
-          burstMs: burstMs, settleMs: 900, overshoot: 0.5, oscillations: 2
-        }).then(() => {
-          // Burst + settle complete — particles stay in dispersed form here.
-          // (Previously this morphed straight to 'helix', but that's too
-          // early — the dot has just burst into particles, hero isn't
-          // revealed yet. Helix formation is now tied to initHero()'s own
-          // entrance animation in scroll-scrub-anim.js instead, so it forms
-          // alongside the headline/description fading in once hero content
-          // is actually there, not immediately after the burst settles.)
-          if (particlesEl) gsap.to(particlesEl, { y: 0, x: 0, duration: 0.4, ease: 'power2.out' });
-
-          gsap.to(this.preloader, {
-            opacity: 0, duration: 0.5, ease: 'power2.inOut', delay: 0.1,
-            onComplete: () => { clearTimeout(safetyTimer); this._hide(); }
-          });
-        });
-      });
+      // preloader:done is now dispatched from _finish() (above, at the
+      // moment the scrim starts its slide) — NOT here. This function is
+      // purely cleanup (shell display:none, scrim pointer-events) by the
+      // time it runs; every listener has already acted on the event.
     }
   }
 
-  function waitForGsap(cb) {
-    if (typeof gsap !== 'undefined') { cb(); return; }
-    const t = setInterval(() => { if (typeof gsap !== 'undefined') { clearInterval(t); cb(); } }, 50);
-  }
+  function boot() { new Preloader(); }
 
-  function boot() { waitForGsap(() => new Preloader()); }
-
-  // PRELOADER DISABLED — GLBs are only ~20KB, videos load in background
-  // Videos start loading immediately without blocking page reveal
-  // Hide preloader and dispatch preloader:done immediately
-  const hidePreloader = () => {
-    const el = document.getElementById('preloader');
-    if (el) el.style.display = 'none';
-    document.documentElement.classList.remove('preloading');
-    document.documentElement.classList.add('page-ready');
-    // Clear __preloaderRunning: it's set to true unconditionally at the top
-    // of this IIFE on the fresh-landing path, back when that path really did
-    // run the full Preloader. With the preloader disabled, _runParticles()
-    // — the ONLY thing that clears #particles-load-scrim on a full run —
-    // never executes, while the flag staying true also gates OFF the skip
-    // path's own scrim fade in particle-morph.hbs (`if
-    // (!window.__preloaderRunning)`). Net effect on every fresh load /
-    // refresh: the scrim sat at opacity 1 hiding the particles behind a
-    // solid colour until the 6s failsafe in particle-morph.hbs cleared it.
-    // (Same-site nav was unaffected — it takes the skip path, which returns
-    // before the flag is ever set.) Cleared here so the skip-path fade is
-    // the single live clear route for both entries.
-    window.__preloaderRunning = false;
-    window.__preloaderSkipped = true;
-    window.__preloaderDoneFired = true; // sticky flag — see other dispatch points' comment
-    window.dispatchEvent(new CustomEvent('preloader:done'));
-  };
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', hidePreloader);
+  // Boot as soon as BOTH elements this needs actually exist, rather than
+  // waiting for DOMContentLoaded.
+  //
+  // Waiting for DOMContentLoaded used to be mandatory: #particles-load-scrim
+  // was declared in particle-morph.hbs, near the end of <body>, behind ~96
+  // blocking <script> tags (three.js, GSAP, string-tune, all external CDNs).
+  // That pushed the event — and so this constructor — to ~3959ms on a cold
+  // dev-server load, while the preloader's own fade-in had already finished
+  // at 2404ms. The text just sat there for ~1.5s of dead time before the
+  // scrim could even begin to leave.
+  //
+  // The scrim is now the first element in <body> (default.hbs) and
+  // #preloader comes from index.hbs's `{{> preloader}}` at the top of
+  // <main>, so by the time THIS file executes (default.hbs ~1369) both are
+  // already parsed and the whole wait disappears. The readyState fallback
+  // stays for safety: if either element is somehow missing at this point
+  // (markup reordered, partial not included), defer to DOMContentLoaded
+  // rather than construct against nulls — Preloader's own constructor also
+  // bails on a missing #preloader, so a genuinely absent element is still
+  // handled, just later.
+  if (document.getElementById('preloader') && document.getElementById('particles-load-scrim')) {
+    boot();
+  } else if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
   } else {
-    hidePreloader();
+    boot();
   }
-
-  // Uncomment below to re-enable preloader sequence:
-  // if (document.readyState === 'loading') {
-  //   document.addEventListener('DOMContentLoaded', boot);
-  // } else {
-  //   boot();
-  // }
 })();

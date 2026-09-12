@@ -798,17 +798,13 @@
     console.log('[landing-anim/home] isHome:', isHome);
     if (isHome) {
       const hasPreloader = !!document.getElementById('preloader');
-      console.log('[landing-anim/home] hasPreloader:', hasPreloader, '__preloaderSkipped:', window.__preloaderSkipped);
       if (hasPreloader && !window.__preloaderSkipped) {
-        console.log('[landing-anim/home] SKIPPED — full preloader run owns the entrance');
         return;
       }
       const homeEl = document.querySelector('.home');
       if (!homeEl) {
-        console.log('[landing-anim/home] SKIPPED — .home not found');
         return;
       }
-      console.log('[landing-anim/home] RUNNING');
       // Drop the head pre-hide (html.landing-pending, default.hbs) the
       // instant this takes over — same tick as the gsap.set below, so
       // there's never a gap where neither CSS nor GSAP is holding it. Same

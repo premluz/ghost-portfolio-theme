@@ -2,13 +2,22 @@
       main.css's .nav-progressive-blur rules. A single CSS layer can only
       fade a CONSTANT blur radius's opacity (::before/::after in main.css do
       that, for the color tint) — it can't make the blur radius itself
-      increase continuously. These 5 stacked layers fake that: each one
-      blurs a different, increasing amount and is masked to a different
-      band, so painted together they read as one smooth, continuously
-      strengthening blur toward the bar instead of a flat blurred sheet
-      fading in and out. Desktop-inert (display:none until the same
-      max-width:768px breakpoint everything else here is scoped to).
-      aria-hidden + no pointer-events: purely decorative.
+      increase continuously. These layers fake that: each one blurs a
+      different, increasing amount and is masked to a different band, so
+      painted together they read as one smooth, continuously strengthening
+      blur toward the bar instead of a flat blurred sheet fading in and out.
+      Desktop-inert (display:none until the same max-width:768px breakpoint
+      everything else here is scoped to). aria-hidden + no pointer-events:
+      purely decorative.
+
+      8-LAYER UTSUBO TECHNIQUE (2026-09-08) — was 5 hand-tuned layers
+      (.nav-blur-layer-1..5, hardcoded blur radii 2/6/14/24/36px), replaced
+      with the same generator + band math now shared with the site-wide top
+      blur (.page-top-blur, default.hbs; assets/js/page-top-blur.js) for one
+      consistent, verified-smooth curve instead of two independently tuned
+      ones. data-progressive-blur-layers="bottom" picks the mask direction
+      (strongest 10px layer at THIS container's bottom edge, matching the
+      nav's own bottom-anchored orientation) — see that script's own doc.
 
       NESTED INSIDE <nav> again (2026-08-09). It had been moved out to a
       sibling earlier the same day, but only as a consequence of
@@ -24,13 +33,7 @@
       inside <nav>'s own z-index:10001 group it paints behind the pill but
       still above the page, which is what makes the blur work at all. --}}
 <nav class="gh-navigation" data-nav-layout="{{@custom.nav_layout}}" data-nav-hide-mode="stagger">
-  <div class="nav-progressive-blur" aria-hidden="true">
-    <div class="nav-blur-layer nav-blur-layer-1"></div>
-    <div class="nav-blur-layer nav-blur-layer-2"></div>
-    <div class="nav-blur-layer nav-blur-layer-3"></div>
-    <div class="nav-blur-layer nav-blur-layer-4"></div>
-    <div class="nav-blur-layer nav-blur-layer-5"></div>
-  </div>
+  <div class="nav-progressive-blur" aria-hidden="true" data-progressive-blur-layers="bottom"></div>
   <div class="nav-wrapper glass-liquid">
     <!-- Logo -->
     <div class="logoandnavwrapper">
