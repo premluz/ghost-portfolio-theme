@@ -404,7 +404,7 @@ body[data-typography-body='medium'] .posts-tab {
    separates image and content horizontally. */
 .posts-grid[data-posts-layout='grid'] .post-card:nth-of-type(3n+1) .post-card-inner {
   flex-direction: row;
-  gap: 4rem;
+  gap: var(--space-4xl);
   /* Content column bottom-aligned against the (taller) image, not
      stretched to match its height with the text sitting at the top. */
   align-items: flex-end;
@@ -558,7 +558,7 @@ body[data-typography-body='medium'] .posts-tab {
      identical ratio. Matching the gap is what makes the pixel sizes
      match, not the ratio alone. */
   flex-direction: row;
-  gap: 4rem;
+  gap: var(--space-3xl);
 }
 
 .posts-grid[data-posts-layout='list'] .post-card-content {

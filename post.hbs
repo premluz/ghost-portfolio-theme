@@ -49,7 +49,7 @@
     {{!-- Header area. Keeps the .post-header-layout class: still what
           initPostHeaderAnimation() (main.js) animates in as one blurred
           fade-in unit — see that function for the exact selector chain. --}}
-    <div class="post-header-layout" data-post-hero="wide">
+    <div class="post-header-layout" data-post-hero="contained">
       <div class="post-header-top">
         {{!-- Column 1: logo. Plain in-flow occupant now — no more
               position:absolute/GSAP drop-bounce (initLogomarkAnimation()
@@ -483,7 +483,7 @@ data-gradient-resolution-scale="0.35">
             (main.js), not scroll-revealed by the generic
             IntersectionObserver system (card-scroll-reveal.js), which
             can't fire for something already in the initial viewport. --}}
-      <figure class="post-hero-sticky" data-post-hero="wide" data-skip-reveal>
+      <figure class="post-hero-sticky" data-post-hero="contained" data-skip-reveal>
         <img src="{{feature_image}}" alt="{{title}}" loading="eager" fetchpriority="high" decoding="async">
       </figure>
     {{/if}}
@@ -616,7 +616,7 @@ data-gradient-resolution-scale="0.35">
             own narrow/main track (text measure) is unaffected; only
             content that explicitly opts into a wider track (kg-width-wide/
             -full, or this new system) actually reaches further. --}}
-      <div class="gh-canvas" data-page-content-width="wide">
+      <div class="gh-canvas" data-page-content-width="contained">
         <div class="gh-content">
           {{content}}
         </div>

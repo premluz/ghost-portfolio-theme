@@ -336,7 +336,7 @@
   --type-display-size: clamp(calc(2.75rem * var(--type-scale-heading)), calc(8vw * var(--type-scale-heading)), calc(7rem * var(--type-scale-heading)));
   --type-h1-size: clamp(calc(2.5rem * var(--type-scale-heading)), calc(12vw * var(--type-scale-heading)), calc(8rem * var(--type-scale-heading)));
   --type-h2-size: clamp(calc(2rem * var(--type-scale-heading)), calc(9vw * var(--type-scale-heading)), calc(5rem * var(--type-scale-heading)));
-  --type-h3-size: clamp(calc(1.775rem * var(--type-scale-heading)), calc(3.4vw * var(--type-scale-heading)), calc(2.8rem * var(--type-scale-heading)));
+  --type-h3-size: clamp(calc(1.7rem * var(--type-scale-heading)), calc(4.2vw * var(--type-scale-heading)), calc(3.2rem * var(--type-scale-heading)));
   /* h4 wrapped in max(clamp(...), --type-body-size + 2px) (2026-08-25):
      this comment already predicted the exact failure mode below ("under
      body once --type-scale-heading goes compact") but the fix was never
@@ -939,7 +939,7 @@
   :root {
     --type-h1-size: clamp(calc(4.4rem * var(--type-scale-heading)), calc(8vw * var(--type-scale-heading)), calc(4.8rem * var(--type-scale-heading)));
     --type-h2-size: clamp(calc(3.2rem * var(--type-scale-heading)), calc(6.4vw * var(--type-scale-heading)), calc(3.2rem * var(--type-scale-heading)));
-    --type-h3-size: clamp(calc(2.2rem * var(--type-scale-heading)), calc(1.92vw * var(--type-scale-heading)), calc(2.2rem * var(--type-scale-heading)));
+    --type-h3-size: clamp(calc(2.6rem * var(--type-scale-heading)), calc(2.4vw * var(--type-scale-heading)), calc(2.2rem * var(--type-scale-heading)));
     --type-h4-size: max(calc(0.9rem * var(--type-scale-heading)), calc(var(--type-body-size) + 2px));
     --type-h5-size: var(--type-body-size);
     --type-h6-size: clamp(calc(0.92rem * var(--type-scale-heading)), calc(0.92vw * var(--type-scale-heading)), calc(0.92rem * var(--type-scale-heading)));

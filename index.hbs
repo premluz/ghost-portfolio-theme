@@ -24,9 +24,10 @@
 
   {{!-- Hero section — configured via Ghost Admin › Design › Custom Fields --}}
 
+    <div data-page-content-width="wide">
 
 {{> hero }}
-
+</div>
     {{!-- Logos scroll section — infinite scrolling client logos --}}
 
 
@@ -53,13 +54,14 @@
     {{!-- Stats parallax — scrolls in after operating model unpins --}}
 
 
-    <div data-page-content-width="full">
+    <div data-page-content-width="wide">
   
-{{> posts-tabs layoutRhythm="true" itemContent="outside"  filterFeatured="featured:true+tag:hash-work+tag:featured" }}
-</div>
+{{> posts-tabs layoutList="true" itemContent="outside"  filterFeatured="featured:true+tag:hash-work+tag:featured" }}
+ </div>
+
 
 <div class="invert-wrapper invert-wrapper--page invert-wrapper--full"
- data-shift-bg="#120D1C" data-content-theme="dark-ink" data-invert-scrub>
+ data-shift-bg="#120D1C" data-content-theme="dark-ink" data-invert-scrub data-page-content-width="wide">
 
   {{!-- Bespoke to this section only — do NOT reuse .statement-slide/
         -container/-heading (main.css): those are shared by
@@ -81,16 +83,15 @@
       </div>
     </div>
   </section>
-
-  <div id="work-grid-lab">
-  {{> posts-tabs layoutGrid="true" itemContent="outside"  filterFeatured="featured:true+tag:hash-work+tag:experimental" }}
+ 
+  <div id="work-grid-lab" >
+  {{> posts-tabs layoutList="true" itemContent="outside"  filterFeatured="featured:true+tag:hash-work+tag:experimental" }}
   </div>
 </div>
-
-
+  <div data-page-content-width="wide">
 
 {{> testimonials }}
-
+</div>
 
 
 

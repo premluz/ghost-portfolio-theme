@@ -910,7 +910,18 @@ class ScrollScrubAnimationSystem {
       // out quickly while the slide is still carrying it away; scrub
       // makes both bidirectional).
 
-      // Intro line slides down
+      // REORDERED 2026-09-16 (explicit request) — was intro(0) ->
+      // heading(0.05) -> description+avatar+description2(0.1, all tied
+      // together) -> stats(0.15). .hero-intro and the old .hero-description
+      // paragraph are dead/commented-out markup in hero.hbs (querySelector
+      // finds nothing, these blocks are harmless no-ops) — the live stack,
+      // top to bottom in the DOM, is avatar -> hero-description2 ("I'm
+      // Prem...") -> hero-headline (H1). Stagger now matches that visual
+      // order instead of leading with the (currently nonexistent) intro
+      // line and firing the headline before the avatar/name line above it.
+
+      // Intro line slides down (dead markup today — see note above; kept
+      // as a no-op so restoring .hero-intro needs no changes here).
       const intro = hero.querySelector('.hero-intro');
       if (intro) {
         exitTl.fromTo(intro,
@@ -924,80 +935,77 @@ class ScrollScrubAnimationSystem {
         );
       }
 
-      // Headline slides down off screen
-      exitTl.fromTo(heading,
-        { y: 0 },
-        { y: 220, duration: 0.5, ease: 'power2.in', immediateRender: false },
-        0.05
-      ).fromTo(heading,
-        { opacity: 1 },
-        { opacity: 0, duration: 0.3, ease: 'power1.out', immediateRender: false },
-        0.05
-      );
-
-      // Description slides down
-      const description = hero.querySelector('.hero-description');
-      if (description) {
-        exitTl.fromTo(description,
-          { y: 0 },
-          { y: 160, duration: 0.5, ease: 'power2.in', immediateRender: false },
-          0.1
-        ).fromTo(description,
-          { opacity: 1 },
-          { opacity: 0, duration: 0.3, ease: 'power1.out', immediateRender: false },
-          0.1
-        );
-      }
-
-      // Avatar (2026-08-11) — added to the exit stagger to match its
-      // entrance treatment: it shares .hero-description-row with the
-      // description above and fades in alongside it (REVEAL_START + 0.1 in
-      // initHero() above), so it exits at the SAME position/values here too
-      // — one visual unit, not staggered against its own row-mate.
+      // Avatar — first to exit, matching its position at the top of the
+      // live hero stack (hero.hbs's .hero-avatar-row).
       const avatar = hero.querySelector('.hero-avatar');
       if (avatar) {
         exitTl.fromTo(avatar,
           { y: 0 },
           { y: 160, duration: 0.5, ease: 'power2.in', immediateRender: false },
-          0.1
+          0
         ).fromTo(avatar,
           { opacity: 1 },
           { opacity: 0, duration: 0.3, ease: 'power1.out', immediateRender: false },
-          0.1
+          0
         );
       }
 
-      // .hero-description2 — same row as the avatar (hero.hbs), same
-      // entrance offset (REVEAL_START + 0.1 above), so it exits at the SAME
-      // position/values here too — one visual unit with the avatar, not
-      // staggered against it.
+      // .hero-description2 ("I'm Prem / Technically Fluent Product
+      // Designer") — same row as the avatar, one beat behind it.
       const description2 = hero.querySelector('.hero-description2');
       if (description2) {
         exitTl.fromTo(description2,
           { y: 0 },
           { y: 160, duration: 0.5, ease: 'power2.in', immediateRender: false },
-          0.1
+          0.05
         ).fromTo(description2,
           { opacity: 1 },
           { opacity: 0, duration: 0.3, ease: 'power1.out', immediateRender: false },
-          0.1
+          0.05
         );
       }
 
-      // Stats row (2026-08-11) — next step in the stagger after description/
-      // avatar, mirroring its own entrance offset (REVEAL_START + 0.2, one
-      // beat behind description/avatar's + 0.1) — same relative order, same
-      // y/duration/ease as every other row in this sequence.
+      // Headline (H1) — now exits AFTER the avatar/name row above it,
+      // matching DOM/visual order (was first at 0.05, ahead of avatar).
+      exitTl.fromTo(heading,
+        { y: 0 },
+        { y: 220, duration: 0.5, ease: 'power2.in', immediateRender: false },
+        0.1
+      ).fromTo(heading,
+        { opacity: 1 },
+        { opacity: 0, duration: 0.3, ease: 'power1.out', immediateRender: false },
+        0.1
+      );
+
+      // Description slides down (dead markup today — .hero-description's
+      // live <p> is commented out in hero.hbs; kept as a no-op so
+      // restoring it needs no changes here). Last in the stagger, matching
+      // "H1 and description" as the final beat per the reorder request.
+      const description = hero.querySelector('.hero-description');
+      if (description) {
+        exitTl.fromTo(description,
+          { y: 0 },
+          { y: 160, duration: 0.5, ease: 'power2.in', immediateRender: false },
+          0.15
+        ).fromTo(description,
+          { opacity: 1 },
+          { opacity: 0, duration: 0.3, ease: 'power1.out', immediateRender: false },
+          0.15
+        );
+      }
+
+      // Stats row (dead markup today — .hero-stats is commented out in
+      // hero.hbs; kept as a no-op).
       const stats = hero.querySelector('.hero-stats');
       if (stats) {
         exitTl.fromTo(stats,
           { y: 0 },
           { y: 160, duration: 0.5, ease: 'power2.in', immediateRender: false },
-          0.15
+          0.2
         ).fromTo(stats,
           { opacity: 1 },
           { opacity: 0, duration: 0.3, ease: 'power1.out', immediateRender: false },
-          0.15
+          0.2
         );
       }
 
